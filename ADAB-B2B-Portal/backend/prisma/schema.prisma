@@ -1,0 +1,664 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model audit_trail {
+  id         Int       @id @default(autoincrement())
+  user_id    Int?
+  user_role  String?   @db.VarChar(50)
+  action     String?   @db.VarChar(100)
+  endpoint   String?   @db.VarChar(255)
+  ip_address String?   @db.VarChar(50)
+  details    Json?
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model campaign_deliveries {
+  id                     Int                     @id @default(autoincrement())
+  campaign_id            Int?
+  recipient_id           Int?
+  recipient_role         String?                 @db.VarChar(50)
+  status                 String?                 @default("DELIVERED") @db.VarChar(50)
+  delivered_at           DateTime?               @default(now()) @db.Timestamp(6)
+  created_at             DateTime?               @default(now()) @db.Timestamp(6)
+  updated_at             DateTime?               @default(now()) @db.Timestamp(6)
+  shop_id                Int?
+  distributor_id         Int?
+  campaign_notifications campaign_notifications? @relation(fields: [campaign_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model campaign_notifications {
+  id                  Int                   @id @default(autoincrement())
+  title               String?               @db.VarChar(255)
+  message             String?
+  target_role         String?               @db.VarChar(50)
+  created_at          DateTime?             @default(now()) @db.Timestamp(6)
+  read_count          Int?                  @default(0)
+  delivered_count     Int?                  @default(0)
+  failed_count        Int?                  @default(0)
+  target_count        Int?                  @default(0)
+  sent_count          Int?                  @default(0)
+  targeting_type      String?               @db.VarChar(50)
+  target_ids          Json?
+  created_by          Int?
+  status              String?               @default("ACTIVE") @db.VarChar(50)
+  notification_type   String?               @db.VarChar(50)
+  target_audience     String?               @db.VarChar(50)
+  campaign_name       String?               @db.VarChar(255)
+  campaign_deliveries campaign_deliveries[]
+}
+
+model distributor_products {
+  id             Int       @id @default(autoincrement())
+  distributor_id Int?
+  product_name   String?   @db.VarChar(255)
+  sku            String?   @db.VarChar(100)
+  category       String?   @db.VarChar(100)
+  price          Decimal?  @default(0) @db.Decimal(12, 2)
+  stock          Int?      @default(0)
+  status         String?   @default("ACTIVE") @db.VarChar(50)
+  created_at     DateTime? @default(now()) @db.Timestamp(6)
+  updated_at     DateTime? @default(now()) @db.Timestamp(6)
+  product_id     Int?
+  stock_quantity Int?      @default(0)
+  is_published   Boolean?  @default(true)
+
+  @@unique([distributor_id, product_id], map: "unique_distributor_product")
+}
+
+model manage_b2b_purchase_order {
+  id                               Int                                @id @default(autoincrement())
+  order_number                     String?                            @db.VarChar(100)
+  distributor_id                   Int?
+  manufacturer_id                  Int?
+  total_amount                     Decimal?                           @default(0) @db.Decimal(12, 2)
+  status                           String?                            @default("PENDING") @db.VarChar(50)
+  created_at                       DateTime?                          @default(now()) @db.Timestamp(6)
+  deleted_at                       DateTime?                          @db.Timestamp(6)
+  updated_at                       DateTime?                          @default(now()) @db.Timestamp(6)
+  item_count                       Int?                               @default(1)
+  notes                            String?
+  delivery_date                    DateTime?                          @db.Date
+  fk_supplier_detail               Int?
+  fk_shop_detail                   Int?
+  tax                              Decimal?                           @default(0) @db.Decimal(12, 2)
+  grand_total                      Decimal?                           @default(0) @db.Decimal(12, 2)
+  paid_amount                      Decimal?                           @default(0) @db.Decimal(12, 2)
+  due_amount                       Decimal?                           @default(0) @db.Decimal(12, 2)
+  payment_status                   String?                            @default("UNPAID") @db.VarChar(50)
+  po_number                        String?                            @db.VarChar(100)
+  manage_b2b_purchase_order_detail manage_b2b_purchase_order_detail[]
+}
+
+model manage_b2b_purchase_order_detail {
+  id                        Int                        @id @default(autoincrement())
+  fk_purchase_order         Int?
+  product_id                Int?
+  product_name              String?                    @db.VarChar(255)
+  quantity                  Int?
+  price                     Decimal?                   @db.Decimal(12, 2)
+  tax                       Decimal?                   @db.Decimal(12, 2)
+  grand_total               Decimal?                   @db.Decimal(12, 2)
+  created_at                DateTime?                  @default(now()) @db.Timestamp(6)
+  fk_product                Int?
+  unit_price                Decimal?                   @db.Decimal(12, 2)
+  manage_b2b_purchase_order manage_b2b_purchase_order? @relation(fields: [fk_purchase_order], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model manage_b_to_b_cart {
+  id                           Int                           @id @default(autoincrement())
+  distributor_id               Int
+  product_id                   Int?
+  quantity                     Int?                          @default(1)
+  unit_price                   Decimal?                      @default(0) @db.Decimal(12, 2)
+  active                       Boolean?                      @default(true)
+  created_at                   DateTime?                     @default(now()) @db.Timestamp(6)
+  updated_at                   DateTime?                     @default(now()) @db.Timestamp(6)
+  manage_manufacturer_products manage_manufacturer_products? @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model manage_b_to_b_categories {
+  id                          Int                           @id @default(autoincrement())
+  category_name               String                        @db.VarChar(255)
+  description                 String?
+  image_url                   String?
+  active                      Boolean?                      @default(true)
+  created_at                  DateTime?                     @default(now()) @db.Timestamp(6)
+  manufacturer_id             Int?
+  deleted_at                  DateTime?                     @db.Timestamp(6)
+  created_by                  Int?
+  deleted_by                  Int?
+  manage_b_to_b_subcategories manage_b_to_b_subcategories[]
+}
+
+model manage_b_to_b_contact_submissions {
+  id         Int       @id @default(autoincrement())
+  name       String?   @db.VarChar(255)
+  email      String?   @db.VarChar(255)
+  phone      String?   @db.VarChar(20)
+  message    String?
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  user_id    Int?
+  status     String?   @default("pending") @db.VarChar(50)
+}
+
+model manage_b_to_b_credit_notes {
+  id                     Int                     @id @default(autoincrement())
+  credit_note_number     String?                 @unique @db.VarChar(100)
+  invoice_id             Int?
+  manufacturer_id        Int?
+  distributor_id         Int?
+  shop_id                Int?
+  amount                 Decimal?                @default(0) @db.Decimal(12, 2)
+  reason                 String?
+  status                 String?                 @default("approved") @db.VarChar(50)
+  created_at             DateTime?               @default(now()) @db.Timestamp(6)
+  created_by             Int?
+  deleted_at             DateTime?               @db.Timestamp(6)
+  manage_b_to_b_invoices manage_b_to_b_invoices? @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model manage_b_to_b_drivers {
+  id                                Int                                @id @default(autoincrement())
+  owner_id                          Int?
+  logistics_provider_id             Int?
+  driver_name                       String?                            @db.VarChar(255)
+  mobile                            String?                            @db.VarChar(20)
+  license_number                    String?                            @db.VarChar(100)
+  license_expiry_date               DateTime?                          @db.Date
+  aadhaar_number                    String?                            @db.VarChar(100)
+  emergency_contact                 String?                            @db.VarChar(20)
+  is_available                      Boolean?                           @default(true)
+  status                            String?                            @default("active") @db.VarChar(50)
+  created_at                        DateTime?                          @default(now()) @db.Timestamp(6)
+  deleted_at                        DateTime?                          @db.Timestamp(6)
+  manage_b_to_b_logistics_providers manage_b_to_b_logistics_providers? @relation(fields: [logistics_provider_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  manage_b_to_b_vehicle_routes      manage_b_to_b_vehicle_routes[]
+  manage_b_to_b_vehicles            manage_b_to_b_vehicles[]
+}
+
+model manage_b_to_b_invoices {
+  id                                Int                                 @id @default(autoincrement())
+  invoice_number                    String?                             @unique @db.VarChar(100)
+  order_id                          Int?
+  distributor_id                    Int?
+  manufacturer_id                   Int?
+  shop_id                           Int?
+  settlement_id                     Int?
+  total_amount                      Decimal?                            @default(0) @db.Decimal(12, 2)
+  subtotal                          Decimal?                            @default(0) @db.Decimal(12, 2)
+  tax_amount                        Decimal?                            @default(0) @db.Decimal(12, 2)
+  gst_percentage                    Decimal?                            @default(0) @db.Decimal(5, 2)
+  status                            String?                             @default("issued") @db.VarChar(50)
+  due_date                          DateTime?                           @db.Date
+  invoice_pdf_url                   String?
+  items_json                        Json?
+  created_at                        DateTime?                           @default(now()) @db.Timestamp(6)
+  created_by                        Int?
+  modified_at                       DateTime?                           @db.Timestamp(6)
+  deleted_at                        DateTime?                           @db.Timestamp(6)
+  manage_b_to_b_credit_notes        manage_b_to_b_credit_notes[]
+  manage_b_to_b_orders              manage_b_to_b_orders?               @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  manage_b_to_b_payment_allocations manage_b_to_b_payment_allocations[]
+  manage_b_to_b_payments            manage_b_to_b_payments[]
+}
+
+model manage_b_to_b_ledger_entries {
+  id             Int       @id @default(autoincrement())
+  distributor_id Int?
+  shop_id        Int?
+  type           String?   @db.VarChar(50)
+  reference_id   Int?
+  description    String?
+  debit          Decimal?  @default(0) @db.Decimal(12, 2)
+  credit         Decimal?  @default(0) @db.Decimal(12, 2)
+  balance        Decimal?  @default(0) @db.Decimal(12, 2)
+  created_at     DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model manage_b_to_b_logistics_providers {
+  id                     Int                      @id @default(autoincrement())
+  owner_id               Int?
+  provider_name          String?                  @db.VarChar(255)
+  contact_person         String?                  @db.VarChar(255)
+  mobile                 String?                  @db.VarChar(20)
+  email                  String?                  @db.VarChar(255)
+  address                String?
+  gst_number             String?                  @db.VarChar(100)
+  active_status          Boolean?                 @default(true)
+  created_at             DateTime?                @default(now()) @db.Timestamp(6)
+  updated_at             DateTime?                @db.Timestamp(6)
+  deleted_at             DateTime?                @db.Timestamp(6)
+  manage_b_to_b_drivers  manage_b_to_b_drivers[]
+  manage_b_to_b_vehicles manage_b_to_b_vehicles[]
+}
+
+model manage_b_to_b_order_items {
+  id                           Int                           @id @default(autoincrement())
+  order_id                     Int?
+  product_id                   Int?
+  product_name                 String?                       @db.VarChar(255)
+  quantity                     Int
+  unit_price                   Decimal                       @db.Decimal(12, 2)
+  total_price                  Decimal                       @db.Decimal(12, 2)
+  created_at                   DateTime?                     @default(now()) @db.Timestamp(6)
+  manage_b_to_b_orders         manage_b_to_b_orders?         @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  manage_manufacturer_products manage_manufacturer_products? @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model manage_b_to_b_order_status_history {
+  id                   Int                   @id @default(autoincrement())
+  order_id             Int?
+  status               String                @db.VarChar(50)
+  notes                String?
+  updated_by           Int?
+  created_at           DateTime?             @default(now()) @db.Timestamp(6)
+  manage_b_to_b_orders manage_b_to_b_orders? @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model manage_b_to_b_orders {
+  id                                 Int                                  @id @default(autoincrement())
+  order_number                       String                               @unique @db.VarChar(100)
+  distributor_id                     Int
+  manufacturer_id                    Int
+  shop_id                            Int?
+  total_amount                       Decimal?                             @default(0) @db.Decimal(12, 2)
+  tax_amount                         Decimal?                             @default(0) @db.Decimal(12, 2)
+  discount_amount                    Decimal?                             @default(0) @db.Decimal(12, 2)
+  final_amount                       Decimal?                             @default(0) @db.Decimal(12, 2)
+  status                             String?                              @default("PENDING") @db.VarChar(50)
+  payment_status                     String?                              @default("UNPAID") @db.VarChar(50)
+  delivery_mode                      String?                              @default("Standard Ground Shipping") @db.VarChar(50)
+  tracking_number                    String?                              @db.VarChar(100)
+  shipping_address                   String?
+  active                             Boolean?                             @default(true)
+  order_date                         DateTime?                            @default(now()) @db.Timestamp(6)
+  created_by                         Int?
+  created_at                         DateTime?                            @default(now()) @db.Timestamp(6)
+  updated_at                         DateTime?                            @default(now()) @db.Timestamp(6)
+  deleted_at                         DateTime?                            @db.Timestamp(6)
+  delivery_type                      String?                              @db.VarChar(50)
+  delivery_charge                    Decimal?                             @default(0.00) @db.Decimal(10, 2)
+  payment_mode                       String?                              @default("CASH") @db.VarChar(50)
+  manage_b_to_b_invoices             manage_b_to_b_invoices[]
+  manage_b_to_b_order_items          manage_b_to_b_order_items[]
+  manage_b_to_b_order_status_history manage_b_to_b_order_status_history[]
+  manage_b_to_b_vehicle_routes       manage_b_to_b_vehicle_routes[]
+}
+
+model manage_b_to_b_payment_allocations {
+  id                     Int                     @id @default(autoincrement())
+  payment_id             Int?
+  invoice_id             Int?
+  allocated_amount       Decimal?                @default(0) @db.Decimal(12, 2)
+  created_at             DateTime?               @default(now()) @db.Timestamp(6)
+  manage_b_to_b_invoices manage_b_to_b_invoices? @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  manage_b_to_b_payments manage_b_to_b_payments? @relation(fields: [payment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([payment_id, invoice_id])
+}
+
+model manage_b_to_b_payments {
+  id                                Int                                 @id @default(autoincrement())
+  distributor_id                    Int?
+  shop_id                           Int?
+  manufacturer_id                   Int?
+  invoice_id                        Int?
+  amount                            Decimal?                            @default(0) @db.Decimal(12, 2)
+  mode                              String?                             @db.VarChar(50)
+  reference_id                      String?                             @db.VarChar(120)
+  status                            String?                             @default("completed") @db.VarChar(50)
+  created_at                        DateTime?                           @default(now()) @db.Timestamp(6)
+  created_by                        Int?
+  deleted_at                        DateTime?                           @db.Timestamp(6)
+  manage_b_to_b_payment_allocations manage_b_to_b_payment_allocations[]
+  manage_b_to_b_invoices            manage_b_to_b_invoices?             @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model manage_b_to_b_payouts {
+  id                        Int                        @id @default(autoincrement())
+  settlement_id             Int?
+  amount                    Decimal?                   @default(0) @db.Decimal(12, 2)
+  status                    String?                    @default("completed") @db.VarChar(50)
+  transaction_ref           String?                    @db.VarChar(120)
+  failure_reason            String?
+  created_at                DateTime?                  @default(now()) @db.Timestamp(6)
+  created_by                Int?
+  manage_b_to_b_settlements manage_b_to_b_settlements? @relation(fields: [settlement_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model manage_b_to_b_request_access {
+  id                  Int       @id @default(autoincrement())
+  distributor_id      Int?
+  manufacturer_id     Int?
+  name                String?   @db.VarChar(255)
+  email_distributer   String?   @db.VarChar(255)
+  email_manufacturer  String?   @db.VarChar(255)
+  description         String?
+  unique_request_id   String?   @db.VarChar(100)
+  distributer_request Int?      @default(1)
+  manufacture_request Int?      @default(1)
+  request_type        String?   @default("CONNECTION") @db.VarChar(50)
+  status              String?   @default("PENDING") @db.VarChar(50)
+  proposed_price      Decimal?  @db.Decimal(12, 2)
+  counter_price       Decimal?  @db.Decimal(12, 2)
+  notes               String?
+  active              Boolean?  @default(true)
+  created_by          Int?
+  created_at          DateTime? @default(now()) @db.Timestamp(6)
+  updated_at          DateTime? @default(now()) @db.Timestamp(6)
+  deleted_at          DateTime? @db.Timestamp(6)
+  distributor_tier    String?   @default("Bronze") @db.VarChar(50)
+  target_price        Decimal?  @db.Decimal(15, 2)
+  quantity            Int?
+  product_id          Int?
+  product_name        String?   @db.VarChar(255)
+  deadline            DateTime? @db.Timestamp(6)
+}
+
+model manage_b_to_b_settlements {
+  id                    Int                     @id @default(autoincrement())
+  settlement_number     String?                 @unique @db.VarChar(100)
+  manufacturer_id       Int?
+  shop_id               Int?
+  total_invoice_amount  Decimal?                @default(0) @db.Decimal(12, 2)
+  total_collected       Decimal?                @default(0) @db.Decimal(12, 2)
+  commission            Decimal?                @default(0) @db.Decimal(12, 2)
+  pg_charges            Decimal?                @default(0) @db.Decimal(12, 2)
+  returns_amount        Decimal?                @default(0) @db.Decimal(12, 2)
+  tds                   Decimal?                @default(0) @db.Decimal(12, 2)
+  net_payable           Decimal?                @default(0) @db.Decimal(12, 2)
+  status                String?                 @default("pending") @db.VarChar(50)
+  created_at            DateTime?               @default(now()) @db.Timestamp(6)
+  created_by            Int?
+  modified_at           DateTime?               @db.Timestamp(6)
+  modified_by           Int?
+  deleted_at            DateTime?               @db.Timestamp(6)
+  deleted_by            Int?
+  manage_b_to_b_payouts manage_b_to_b_payouts[]
+}
+
+model manage_b_to_b_subcategories {
+  id                       Int                       @id @default(autoincrement())
+  category_id              Int?
+  subcategory_name         String                    @db.VarChar(255)
+  description              String?
+  image_url                String?
+  active                   Boolean?                  @default(true)
+  created_at               DateTime?                 @default(now()) @db.Timestamp(6)
+  deleted_at               DateTime?                 @db.Timestamp(6)
+  created_by               Int?
+  deleted_by               Int?
+  manage_b_to_b_categories manage_b_to_b_categories? @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model manage_b_to_b_support_tickets {
+  id          Int       @id @default(autoincrement())
+  user_id     Int?
+  subject     String?   @db.VarChar(255)
+  status      String?   @default("OPEN") @db.VarChar(50)
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  ticket_id   String?   @db.VarChar(100)
+  issue_type  String?   @db.VarChar(100)
+  description String?
+  attachment  String?
+  updated_at  DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model manage_b_to_b_user_type {
+  id                       Int                        @id @default(autoincrement())
+  typename                 String                     @unique @db.VarChar(100)
+  description              String?
+  active                   Boolean?                   @default(true)
+  created_at               DateTime?                  @default(now()) @db.Timestamp(6)
+  manage_b_to_b_userdetail manage_b_to_b_userdetail[]
+}
+
+model manage_b_to_b_userdetail {
+  id                                                                                           Int                         @id @default(autoincrement())
+  business_type_id                                                                             Int?
+  company_name                                                                                 String?                     @db.VarChar(255)
+  owner_name                                                                                   String?                     @db.VarChar(255)
+  email                                                                                        String?                     @unique @db.VarChar(255)
+  mobile                                                                                       String?                     @db.VarChar(20)
+  password                                                                                     String?                     @db.VarChar(255)
+  gst_number                                                                                   String?                     @db.VarChar(50)
+  pan_number                                                                                   String?                     @db.VarChar(50)
+  kyc_status                                                                                   String?                     @default("PENDING") @db.VarChar(50)
+  address                                                                                      String?
+  city                                                                                         String?                     @db.VarChar(100)
+  state                                                                                        String?                     @db.VarChar(100)
+  country                                                                                      String?                     @default("India") @db.VarChar(100)
+  pincode                                                                                      String?                     @db.VarChar(20)
+  age                                                                                          Int?
+  gender                                                                                       String?                     @db.VarChar(20)
+  personal_contact                                                                             String?                     @db.VarChar(20)
+  personal_email                                                                               String?                     @db.VarChar(255)
+  bank_name                                                                                    String?                     @db.VarChar(255)
+  bank_account_no                                                                              String?                     @db.VarChar(100)
+  ifsc_code                                                                                    String?                     @db.VarChar(50)
+  active                                                                                       Boolean?                    @default(true)
+  created_at                                                                                   DateTime?                   @default(now()) @db.Timestamp(6)
+  updated_at                                                                                   DateTime?                   @default(now()) @db.Timestamp(6)
+  deleted_at                                                                                   DateTime?                   @db.Timestamp(6)
+  refresh_token                                                                                String?                     @db.VarChar(255)
+  international_business                                                                       Boolean?                    @default(false)
+  latitude                                                                                     Decimal?                    @db.Decimal(10, 8)
+  longitude                                                                                    Decimal?                    @db.Decimal(11, 8)
+  fk_state                                                                                     Int?
+  fk_city                                                                                      Int?
+  product_category                                                                             String?                     @db.VarChar(255)
+  company_logo                                                                                 String?                     @db.VarChar(500)
+  serviceable_pincodes                                                                         String[]                    @db.VarChar(10)
+  is_featured                                                                                  Boolean?                    @default(false)
+  campaign_id                                                                                  Int?
+  manage_b_to_b_connections_manage_b_to_b_connections_requester_idTomanage_b_to_b_userdetail   manage_b_to_b_connections[] @relation("manage_b_to_b_connections_requester_idTomanage_b_to_b_userdetail")
+  manage_b_to_b_connections_manage_b_to_b_connections_target_shop_idTomanage_b_to_b_userdetail manage_b_to_b_connections[] @relation("manage_b_to_b_connections_target_shop_idTomanage_b_to_b_userdetail")
+  campaigns                                                                                    campaigns?                  @relation(fields: [campaign_id], references: [id], onUpdate: NoAction, map: "fk_userdetail_campaign")
+  manage_b_to_b_user_type                                                                      manage_b_to_b_user_type?    @relation(fields: [business_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model manage_b_to_b_vehicle_routes {
+  id                     Int                     @id @default(autoincrement())
+  owner_id               Int?
+  vehicle_id             Int?
+  driver_id              Int?
+  order_id               Int?
+  route_name             String?                 @db.VarChar(255)
+  source_location        String?                 @db.VarChar(255)
+  destination_location   String?                 @db.VarChar(255)
+  waypoints              Json?
+  estimated_distance_km  Decimal?                @db.Decimal(8, 2)
+  estimated_time_hours   Decimal?                @db.Decimal(6, 2)
+  status                 String?                 @default("SCHEDULED") @db.VarChar(50)
+  created_at             DateTime?               @default(now()) @db.Timestamp(6)
+  deleted_at             DateTime?               @db.Timestamp(6)
+  manage_b_to_b_drivers  manage_b_to_b_drivers?  @relation(fields: [driver_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  manage_b_to_b_orders   manage_b_to_b_orders?   @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  manage_b_to_b_vehicles manage_b_to_b_vehicles? @relation(fields: [vehicle_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model manage_b_to_b_vehicles {
+  id                                Int                                @id @default(autoincrement())
+  owner_id                          Int?
+  logistics_provider_id             Int?
+  driver_id                         Int?
+  vehicle_number                    String?                            @db.VarChar(100)
+  vehicle_type                      String?                            @db.VarChar(100)
+  capacity                          String?                            @db.VarChar(100)
+  insurance_expiry_date             DateTime?                          @db.Date
+  permit_expiry_date                DateTime?                          @db.Date
+  is_available                      Boolean?                           @default(true)
+  status                            String?                            @default("active") @db.VarChar(50)
+  created_at                        DateTime?                          @default(now()) @db.Timestamp(6)
+  deleted_at                        DateTime?                          @db.Timestamp(6)
+  manage_b_to_b_vehicle_routes      manage_b_to_b_vehicle_routes[]
+  manage_b_to_b_drivers             manage_b_to_b_drivers?             @relation(fields: [driver_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  manage_b_to_b_logistics_providers manage_b_to_b_logistics_providers? @relation(fields: [logistics_provider_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model manage_manufacturer_products {
+  id                        Int                         @id @default(autoincrement())
+  manufacturer_id           Int
+  category_id               Int?
+  subcategory_id            Int?
+  category                  String?                     @db.VarChar(255)
+  sub_category              String?                     @db.VarChar(255)
+  product_name              String                      @db.VarChar(255)
+  sku                       String?                     @db.VarChar(100)
+  description               String?
+  unit                      String?                     @default("pcs") @db.VarChar(50)
+  price                     Decimal?                    @default(0) @db.Decimal(12, 2)
+  mrp                       Decimal?                    @default(0) @db.Decimal(12, 2)
+  moq                       Int?                        @default(1)
+  total_stock               Int?                        @default(0)
+  stock_quantity            Int?                        @default(0)
+  north_hub                 Int?                        @default(0)
+  south_hub                 Int?                        @default(0)
+  central_hub               Int?                        @default(0)
+  image_url                 String?
+  image                     String?
+  product_image             String?
+  status                    String?                     @default("active") @db.VarChar(50)
+  active                    Boolean?                    @default(true)
+  created_by                Int?
+  created_at                DateTime?                   @default(now()) @db.Timestamp(6)
+  updated_at                DateTime?                   @default(now()) @db.Timestamp(6)
+  deleted_at                DateTime?                   @db.Timestamp(6)
+  warehouse_stock           Int?                        @default(0)
+  international_selling     Boolean?                    @default(false)
+  international_price       Decimal?                    @default(0) @db.Decimal(12, 2)
+  gst_rate                  Decimal?                    @default(0) @db.Decimal(5, 2)
+  hsn_code                  String?                     @db.VarChar(100)
+  tier_pricing              Json?
+  export_hs_code            String?                     @db.VarChar(100)
+  deleted_by                Int?
+  manage_b_to_b_cart        manage_b_to_b_cart[]
+  manage_b_to_b_order_items manage_b_to_b_order_items[]
+}
+
+model relationship_credits {
+  id                 Int       @id @default(autoincrement())
+  creditor_id        Int
+  debtor_id          Int
+  debtor_type        String    @db.VarChar(50)
+  credit_limit       Decimal?  @default(0) @db.Decimal(12, 2)
+  credit_days        Int?      @default(30)
+  outstanding_amount Decimal?  @default(0) @db.Decimal(12, 2)
+  created_at         DateTime? @default(now()) @db.Timestamp(6)
+  modified_at        DateTime? @db.Timestamp(6)
+
+  @@unique([creditor_id, debtor_id, debtor_type])
+}
+
+model shopdetail {
+  id            Int       @id @default(autoincrement())
+  shop_name     String?   @db.VarChar(255)
+  email_id      String?   @db.VarChar(255)
+  owner_name    String?   @db.VarChar(255)
+  mobile_number String?   @db.VarChar(20)
+  active        Int?      @default(1)
+  delete_at     DateTime? @db.Timestamp(6)
+  create_at     DateTime? @default(now()) @db.Timestamp(6)
+  is_open       Boolean?  @default(true)
+  is_verify     Boolean?  @default(true)
+  latitude      Decimal?  @db.Decimal(10, 8)
+  longitude     Decimal?  @db.Decimal(11, 8)
+  gst_id        String?   @db.VarChar(50)
+  pan_id        String?   @db.VarChar(50)
+  shop_address  String?
+  gstin_no      String?   @db.VarChar(50)
+  pan_no        String?   @db.VarChar(50)
+  shop_email    String?   @db.VarChar(255)
+  mobile_no     String?   @db.VarChar(20)
+  state_id      Int?
+  city_id       Int?
+  pincode_id    Int?
+  country_id    Int?
+  shop_mobile   String?   @db.VarChar(20)
+  address       String?
+  city          String?   @db.VarChar(100)
+  state         String?   @db.VarChar(100)
+  pincode       String?   @db.VarChar(20)
+  first_name    String?   @db.VarChar(100)
+  last_name     String?   @db.VarChar(100)
+}
+
+model territory_assignments {
+  id              Int       @id @default(autoincrement())
+  manufacturer_id Int?
+  distributor_id  Int?
+  state_id        Int?
+  city_id         Int?
+  pincode         String?   @db.VarChar(20)
+  active          Boolean?  @default(true)
+  created_at      DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model city {
+  id         Int       @id @default(autoincrement())
+  state_id   Int?
+  city_name  String    @db.VarChar(100)
+  active     Boolean?  @default(true)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  state      state?    @relation(fields: [state_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model manage_b_to_b_audit_logs {
+  id         Int       @id @default(autoincrement())
+  user_id    Int?
+  action     String    @db.VarChar(100)
+  details    String?
+  ip_address String?   @db.VarChar(50)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model state {
+  id         Int       @id @default(autoincrement())
+  state_name String    @db.VarChar(100)
+  active     Boolean?  @default(true)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  city       city[]
+}
+
+model campaigns {
+  id                       Int                        @id @default(autoincrement())
+  name                     String                     @db.VarChar(255)
+  start_date               DateTime?                  @db.Timestamp(6)
+  end_date                 DateTime?                  @db.Timestamp(6)
+  is_active                Boolean?                   @default(true)
+  created_at               DateTime?                  @default(now()) @db.Timestamp(6)
+  manage_b_to_b_userdetail manage_b_to_b_userdetail[]
+}
+
+model manage_b_to_b_connections {
+  id                                                                                          Int                      @id @default(autoincrement())
+  requester_id                                                                                Int
+  target_shop_id                                                                              Int
+  status                                                                                      String?                  @default("PENDING") @db.VarChar(50)
+  notes                                                                                       String?
+  created_at                                                                                  DateTime?                @default(now()) @db.Timestamp(6)
+  updated_at                                                                                  DateTime?                @default(now()) @db.Timestamp(6)
+  manage_b_to_b_userdetail_manage_b_to_b_connections_requester_idTomanage_b_to_b_userdetail   manage_b_to_b_userdetail @relation("manage_b_to_b_connections_requester_idTomanage_b_to_b_userdetail", fields: [requester_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  manage_b_to_b_userdetail_manage_b_to_b_connections_target_shop_idTomanage_b_to_b_userdetail manage_b_to_b_userdetail @relation("manage_b_to_b_connections_target_shop_idTomanage_b_to_b_userdetail", fields: [target_shop_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([requester_id, target_shop_id])
+}
+
+model manage_b_to_b_delivery_configs {
+  id                            Int       @id @default(autoincrement())
+  shop_id                       Int
+  mode                          String    @db.VarChar(50)
+  base_charge                   Decimal?  @default(0.00) @db.Decimal(10, 2)
+  per_km_charge                 Decimal?  @default(0.00) @db.Decimal(10, 2)
+  min_free_delivery_order_value Decimal?  @db.Decimal(10, 2)
+  max_delivery_radius_km        Decimal?  @db.Decimal(10, 2)
+  status                        String?   @default("ACTIVE") @db.VarChar(20)
+  created_at                    DateTime? @default(now()) @db.Timestamp(6)
+  updated_at                    DateTime? @default(now()) @db.Timestamp(6)
+}
