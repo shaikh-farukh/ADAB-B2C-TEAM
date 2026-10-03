@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ADAB Admin — Platform Control</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = { theme: { extend: { fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] }, colors: { brand: { green: '#15803D', dark: '#14532D', light: '#DCFCE7', coral: '#F97316' }, admin: { slate: '#0F172A', accent: '#6366F1' } } } } };
+  </script>
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; background: #F1F5F9; margin: 0; color: #1E293B; }
+    .nav-on { background: linear-gradient(135deg, #EEF2FF, #E0E7FF) !important; color: #4338CA !important; font-weight: 700 !important; border: 1px solid #C7D2FE !important; }
+    .card { background: white; border-radius: 16px; border: 1px solid #E2E8F0; box-shadow: 0 1px 3px rgba(15,23,42,.04); }
+    .btn-primary { background: #4338CA; color: white; font-weight: 700; border-radius: 12px; padding: 10px 18px; border: none; cursor: pointer; }
+    .btn-primary:hover { background: #3730A3; }
+    .btn-approve { background: #15803D; color: white; font-weight: 700; border-radius: 10px; padding: 8px 14px; font-size: 13px; border: none; cursor: pointer; }
+    .btn-reject { background: #FEE2E2; color: #B91C1C; font-weight: 700; border-radius: 10px; padding: 8px 14px; font-size: 13px; border: none; cursor: pointer; }
+    .btn-soft { background: #F1F5F9; color: #475569; font-weight: 600; border-radius: 12px; padding: 10px 18px; border: none; cursor: pointer; }
+    .nav-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #94A3B8; padding: 12px 12px 4px; }
+    .sidebar-scroll { max-height: calc(100vh - 88px); overflow-y: auto; }
+    .badge-pending { background: #FEF3C7; color: #B45309; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 999px; }
+    .badge-approved { background: #DCFCE7; color: #15803D; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 999px; }
+    .badge-rejected { background: #FEE2E2; color: #B91C1C; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 999px; }
+    .tab-on { background: #4338CA !important; color: white !important; }
+    .tab-off { background: #F1F5F9 !important; color: #64748B !important; }
+    .fade-in { animation: fade .2s ease; }
+    @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .admin-header { background: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #312E81 100%); }
+    .stat-up { color: #15803D; font-size: 11px; font-weight: 700; }
+    .queue-row { transition: background .15s; }
+    .queue-row:hover { background: #F8FAFC; }
+    .modal-backdrop { background: rgba(15,23,42,.55); }
+    #toast { position: fixed; bottom: 24px; right: 24px; z-index: 60; background: #0F172A; color: #fff; padding: 12px 20px; border-radius: 12px; font-size: 13px; font-weight: 700; box-shadow: 0 8px 32px rgba(0,0,0,.2); }
+    .hide-scroll::-webkit-scrollbar { display: none; }
+    .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+    @media (max-width: 1023px) {
+      .mobile-admin-drawer {
+        position: fixed; top: 0; left: 0; bottom: 0; width: 280px; max-width: 85vw;
+        background: #fff; z-index: 50; box-shadow: 0 20px 25px -5px rgba(0,0,0,.2);
+        transform: translateX(-100%); transition: transform .25s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow-y: auto; padding: 16px;
+      }
+      .mobile-admin-drawer.open { transform: translateX(0); }
+      .mobile-drawer-overlay {
+        position: fixed; inset: 0; background: rgba(15,23,42,0.6); z-index: 49;
+        display: none; opacity: 0; transition: opacity .25s ease;
+      }
+      .mobile-drawer-overlay.open { display: block; opacity: 1; }
+      .mobile-admin-pills { display: flex; overflow-x: auto; gap: 8px; padding-bottom: 4px; }
+      .mobile-admin-pills button { white-space: nowrap; flex-shrink: 0; }
+    }
+  </style>
+</head>
+<body class="text-slate-800 min-h-screen pb-16 lg:pb-0">
+
+<div id="toast" class="hidden"></div>
+<div id="drawerOverlay" class="mobile-drawer-overlay" onclick="toggleAdminNav(false)"></div>
+
+<header class="admin-header text-white sticky top-0 z-40 border-b border-white/10">
+  <div class="max-w-[1440px] mx-auto px-4 py-3 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3 shrink-0">
+      <button onclick="toggleAdminNav(true)" class="lg:hidden w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-white text-lg">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+      <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-500 flex items-center justify-center font-extrabold shadow-lg"><i class="fa-solid fa-shield-halved"></i></div>
+      <div>
+        <div class="font-extrabold leading-tight text-sm sm:text-base">ADAB Admin</div>
+        <div class="text-[11px] text-indigo-200 hidden xs:block">Platform control</div>
+      </div>
+    </div>
+    
+    <div class="flex-1 min-w-[140px] max-w-md mx-1">
+      <div class="relative">
+        <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs sm:text-sm"></i>
+        <input type="search" id="globalSearch" oninput="globalFilter()" placeholder="Search..." class="w-full pl-8 sm:pl-9 pr-3 py-1.5 sm:py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm text-white placeholder:text-indigo-200 outline-none focus:bg-white/15">
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 shrink-0">
+      <a href="unified-one-portal-demo.html" target="_blank" class="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500/20 text-green-100 text-xs font-bold border border-green-400/30"><i class="fa-solid fa-store"></i> Seller</a>
+      <a href="unified-customer-portal-demo.html" target="_blank" class="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/20 text-emerald-100 text-xs font-bold border border-emerald-400/30"><i class="fa-solid fa-mobile-screen"></i> App</a>
+      <button onclick="go('approvals')" class="relative flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-amber-500/30 text-amber-100 text-xs sm:text-sm font-bold border border-amber-400/40">
+        <i class="fa-solid fa-clock"></i> <span class="hidden sm:inline">Pending</span> <span id="hdrPending" class="bg-amber-500 text-white text-[10px] px-1.5 rounded-full">7</span>
+      </button>
+      <div class="flex items-center gap-1.5 pl-1 sm:pl-2 border-l border-white/20">
+        <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-indigo-400 flex items-center justify-center text-xs font-bold">SA</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile quick horizontal category strip -->
+  <div class="lg:hidden px-4 pb-2 pt-1 border-t border-white/10 flex gap-2 overflow-x-auto hide-scroll text-xs">
+    <button onclick="go('home')" class="px-3 py-1 rounded-full bg-white/10 font-bold whitespace-nowrap"><i class="fa-solid fa-gauge-high mr-1"></i> Dashboard</button>
+    <button onclick="go('approvals')" class="px-3 py-1 rounded-full bg-white/10 font-bold whitespace-nowrap"><i class="fa-solid fa-clipboard-check mr-1 text-amber-400"></i> Approvals</button>
+    <button onclick="go('sellers')" class="px-3 py-1 rounded-full bg-white/10 font-bold whitespace-nowrap"><i class="fa-solid fa-store mr-1 text-green-400"></i> Sellers</button>
+    <button onclick="go('customers')" class="px-3 py-1 rounded-full bg-white/10 font-bold whitespace-nowrap"><i class="fa-solid fa-users mr-1 text-blue-400"></i> Customers</button>
+    <button onclick="go('products')" class="px-3 py-1 rounded-full bg-white/10 font-bold whitespace-nowrap"><i class="fa-solid fa-box mr-1 text-violet-400"></i> Products</button>
+    <button onclick="go('orders')" class="px-3 py-1 rounded-full bg-white/10 font-bold whitespace-nowrap"><i class="fa-solid fa-bag-shopping mr-1"></i> Orders</button>
+  </div>
+</header>
+
+<div class="max-w-[1440px] mx-auto px-3 sm:px-4 py-4 sm:py-5 flex flex-col lg:flex-row gap-5">
+  <aside id="adminDrawer" class="mobile-admin-drawer lg:static lg:transform-none lg:w-64 lg:p-0 lg:bg-transparent lg:shadow-none shrink-0">
+    <div class="lg:hidden flex items-center justify-between pb-3 mb-2 border-b border-gray-100">
+      <div class="font-extrabold text-base flex items-center gap-2 text-indigo-900"><i class="fa-solid fa-shield-halved text-indigo-600"></i> ADAB Admin</div>
+      <button onclick="toggleAdminNav(false)" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <nav class="card p-2 text-sm sticky top-20 sidebar-scroll">
+      <div class="nav-label">Overview</div>
+      <button onclick="go('home')" id="nav-home" class="nav-on w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-2.5"><i class="fa-solid fa-gauge-high w-4"></i> Dashboard</button>
+      <button onclick="go('approvals')" id="nav-approvals" class="w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-2.5 text-slate-600 hover:bg-slate-50"><i class="fa-solid fa-clipboard-check w-4 text-amber-600"></i> Approval Queue <span id="navPendingBadge" class="ml-auto badge-pending">7</span></button>
+      <div class="nav-label">Portals</div>
+      <button onclick="go('sellers')" id="nav-sellers" class="w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-2.5 text-slate-600 hover:bg-slate-50"><i class="fa-solid fa-store w-4 text-green-600"></i> Sellers / Shops</button>
+      <button onclick="go('customers')" id="nav-customers" class="w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-2.5 text-slate-600 hover:bg-slate-50"><i class="fa-solid fa-users w-4 text-blue-600"></i> Customers</button>
+      <button onclick="go('products')" id="nav-products" class="w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-2.5 text-slate-600 hover:bg-slate-50"><i class="fa-solid fa-box w-4 text-violet-600"></i> Products Catalog</button>
+      <div class="nav-label">Operations</div>
+      <button onclick="go('orders')" id="nav-orders" class="w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-2.5 text-slate-600 hover:bg-slate-50"><i class="fa-solid fa-bag-shopping w-4"></i> All Orders</button>
+      <button onclick="go('returns')" id="nav-returns" class="w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-2.5 text-slate-600 hover:bg-slate-50"><i class="fa-solid fa-rotate-left w-4"></i> Returns</button>
+      <button onclick="go('offers')" id="nav-offers" class="w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-2.5 text-slate-600 hover:bg-slate-50"><i class="fa-solid fa-tags w-4 text-orange-500"></i> Platform Offers</button>
+      <div class="nav-label">System</div>
+      <button onclick="go('reports')" id="nav-reports" class="w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-2.5 text-slate-600 hover:bg-slate-50"><i class="fa-solid fa-chart-line w-4"></i> Reports</button>
+      <button onclick="go('audit')" id="nav-audit" class="w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-2.5 text-slate-600 hover:bg-slate-50"><i class="fa-solid fa-list-check w-4"></i> Audit Log</button>
+      <button onclick="go('settings')" id="nav-settings" class="w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-2.5 text-slate-600 hover:bg-slate-50"><i class="fa-solid fa-gear w-4"></i> Settings</button>
+    </nav>
+  </aside>
+
+  <main class="flex-1 min-w-0 space-y-5 fade-in" id="mainArea">
+    <section id="sec-home" class="space-y-5">
+      <div class="card p-6 bg-gradient-to-br from-indigo-600 via-indigo-700 to-slate-900 text-white overflow-hidden relative">
+        <div class="relative z-10"><p class="text-indigo-200 text-sm">Platform snapshot</p><h1 class="text-2xl font-extrabold mt-1">Manage Seller & Customer portals</h1><p class="text-indigo-100 text-sm mt-2 max-w-xl">All shop registrations, customer sign-ups, and new products flow here for approval before going live.</p></div>
+      </div>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="card p-4 border-l-4 border-l-amber-400"><div class="text-xs text-gray-500">Pending approvals</div><div class="text-3xl font-extrabold text-amber-600" id="statPending">7</div><button onclick="go('approvals')" class="text-xs text-indigo-600 font-bold mt-2">Review queue →</button></div>
+        <div class="card p-4 border-l-4 border-l-green-500"><div class="text-xs text-gray-500">Active sellers</div><div class="text-3xl font-extrabold text-green-700" id="statSellers">48</div><div class="stat-up">+3 this week</div></div>
+        <div class="card p-4 border-l-4 border-l-blue-500"><div class="text-xs text-gray-500">Customers</div><div class="text-3xl font-extrabold text-blue-700" id="statCustomers">12,840</div><div class="stat-up">+420 today</div></div>
+        <div class="card p-4 border-l-4 border-l-violet-500"><div class="text-xs text-gray-500">Live products</div><div class="text-3xl font-extrabold text-violet-700" id="statProducts">18,420</div></div>
+      </div>
+      <div class="grid lg:grid-cols-2 gap-4">
+        <div class="card p-5"><h2 class="font-extrabold mb-4"><i class="fa-solid fa-clock text-amber-500 mr-2"></i>Needs your action</h2><div id="dashQueue" class="space-y-2 text-sm"></div></div>
+        <div class="card p-5"><h2 class="font-extrabold mb-4">Portal links</h2>
+          <div class="space-y-3">
+            <a href="unified-one-portal-demo.html" target="_blank" class="flex items-center gap-3 p-4 rounded-xl border-2 border-green-200 bg-green-50 hover:border-green-400 transition-colors"><div class="w-12 h-12 rounded-xl bg-green-600 text-white flex items-center justify-center"><i class="fa-solid fa-store"></i></div><div><div class="font-bold">Seller Portal</div><div class="text-xs text-gray-500">Shops manage products, orders, payouts</div></div><i class="fa-solid fa-arrow-up-right-from-square ml-auto text-green-600"></i></a>
+            <a href="unified-customer-portal-demo.html" target="_blank" class="flex items-center gap-3 p-4 rounded-xl border-2 border-emerald-200 bg-emerald-50 hover:border-emerald-400 transition-colors"><div class="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center"><i class="fa-solid fa-mobile-screen"></i></div><div><div class="font-bold">Customer App</div><div class="text-xs text-gray-500">Browse shops, order, track delivery</div></div><i class="fa-solid fa-arrow-up-right-from-square ml-auto text-emerald-600"></i></a>
+          </div>
+        </div>
+      </div>
+      <div class="card p-5"><h2 class="font-extrabold mb-3">Approval flow</h2>
+        <div class="grid sm:grid-cols-3 gap-4 text-sm">
+          <div class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-center"><div class="w-10 h-10 rounded-full bg-amber-500 text-white font-extrabold flex items-center justify-center mx-auto mb-2">1</div><div class="font-bold text-amber-900">Submit</div><p class="text-xs text-gray-600 mt-1">Seller registers or adds product · Customer registers</p></div>
+          <div class="p-4 rounded-xl bg-indigo-50 border border-indigo-200 text-center"><div class="w-10 h-10 rounded-full bg-indigo-500 text-white font-extrabold flex items-center justify-center mx-auto mb-2">2</div><div class="font-bold text-indigo-900">Admin review</div><p class="text-xs text-gray-600 mt-1">Verify GSTIN, FSSAI, photos, pricing</p></div>
+          <div class="p-4 rounded-xl bg-green-50 border border-green-200 text-center"><div class="w-10 h-10 rounded-full bg-green-600 text-white font-extrabold flex items-center justify-center mx-auto mb-2">3</div><div class="font-bold text-green-900">Go live</div><p class="text-xs text-gray-600 mt-1">Visible on Customer app · Seller can sell</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec-approvals" class="hidden space-y-4">
+      <div><h1 class="text-xl font-extrabold">Approval Queue</h1><p class="text-sm text-gray-500">Seller registrations, customer sign-ups, and new products awaiting review</p></div>
+      <div class="flex gap-2 flex-wrap">
+        <button onclick="setApprovalTab('all')" id="apTabAll" class="px-4 py-2 rounded-xl text-sm font-bold tab-on">All (<span id="apCountAll">7</span>)</button>
+        <button onclick="setApprovalTab('seller-reg')" id="apTabSellerReg" class="px-4 py-2 rounded-xl text-sm font-bold tab-off">Seller reg (<span id="apCountSellerReg">2</span>)</button>
+        <button onclick="setApprovalTab('customer-reg')" id="apTabCustomerReg" class="px-4 py-2 rounded-xl text-sm font-bold tab-off">Customer reg (<span id="apCountCustomerReg">2</span>)</button>
+        <button onclick="setApprovalTab('product')" id="apTabProduct" class="px-4 py-2 rounded-xl text-sm font-bold tab-off">Products (<span id="apCountProduct">3</span>)</button>
+      </div>
+      <div class="card overflow-hidden"><div id="approvalList"></div></div>
+    </section>
+
+    <section id="sec-sellers" class="hidden space-y-4">
+      <div class="flex flex-wrap justify-between gap-3"><div><h1 class="text-xl font-extrabold">Sellers & Shops</h1><p class="text-sm text-gray-500">Approved shops on platform · synced with Seller Portal</p></div>
+        <button onclick="go('approvals');setApprovalTab('seller-reg')" class="btn-soft !text-xs">Pending registrations</button></div>
+      <div class="card p-3 flex gap-2 flex-wrap"><input type="search" id="sellerSearch" oninput="renderSellers()" placeholder="Search shop..." class="flex-1 min-w-[140px] px-3 py-2 rounded-xl border text-sm outline-none focus:border-indigo-400"><select id="sellerFilter" onchange="renderSellers()" class="px-3 py-2 rounded-xl border text-sm"><option value="all">All status</option><option value="active">Active</option><option value="pending">Pending</option><option value="suspended">Suspended</option></select></div>
+      <div class="card overflow-x-auto"><table class="w-full text-sm text-left min-w-[700px]"><thead class="bg-slate-50 text-xs text-gray-500"><tr><th class="px-4 py-3">Shop</th><th class="px-4 py-3">Owner</th><th class="px-4 py-3">GSTIN</th><th class="px-4 py-3">Zone</th><th class="px-4 py-3">Products</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">Action</th></tr></thead><tbody id="sellerTable" class="divide-y divide-gray-100"></tbody></table></div>
+    </section>
+
+    <section id="sec-customers" class="hidden space-y-4">
+      <div><h1 class="text-xl font-extrabold">Customers</h1><p class="text-sm text-gray-500">Registered buyers on Customer app</p></div>
+      <div class="card overflow-x-auto"><table class="w-full text-sm text-left min-w-[640px]"><thead class="bg-slate-50 text-xs text-gray-500"><tr><th class="px-4 py-3">Name</th><th class="px-4 py-3">Phone</th><th class="px-4 py-3">City</th><th class="px-4 py-3">Orders</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">Action</th></tr></thead><tbody id="customerTable" class="divide-y divide-gray-100"></tbody></table></div>
+    </section>
+
+    <section id="sec-products" class="hidden space-y-4">
+      <div><h1 class="text-xl font-extrabold">Products Catalog</h1><p class="text-sm text-gray-500">All products · pending items need admin approval before customer visibility</p></div>
+      <div class="flex gap-2 flex-wrap"><button onclick="setProductTab('all')" id="prTabAll" class="px-4 py-2 rounded-xl text-sm font-bold tab-on">All</button><button onclick="setProductTab('live')" id="prTabLive" class="px-4 py-2 rounded-xl text-sm font-bold tab-off">Live</button><button onclick="setProductTab('pending')" id="prTabPending" class="px-4 py-2 rounded-xl text-sm font-bold tab-off">Pending</button><button onclick="setProductTab('rejected')" id="prTabRejected" class="px-4 py-2 rounded-xl text-sm font-bold tab-off">Rejected</button></div>
+      <div class="card overflow-x-auto"><table class="w-full text-sm text-left min-w-[800px]"><thead class="bg-slate-50 text-xs text-gray-500"><tr><th class="px-4 py-3">Product</th><th class="px-4 py-3">Shop</th><th class="px-4 py-3">Price</th><th class="px-4 py-3">Type</th><th class="px-4 py-3">Submitted</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">Action</th></tr></thead><tbody id="productTable" class="divide-y divide-gray-100"></tbody></table></div>
+    </section>
+
+    <section id="sec-orders" class="hidden space-y-4">
+      <div><h1 class="text-xl font-extrabold">All Orders</h1><p class="text-sm text-gray-500">Customer app orders across all shops</p></div>
+      <div class="card overflow-x-auto"><table class="w-full text-sm text-left min-w-[700px]"><thead class="bg-slate-50 text-xs text-gray-500"><tr><th class="px-4 py-3">Order</th><th class="px-4 py-3">Customer</th><th class="px-4 py-3">Shop</th><th class="px-4 py-3">Amount</th><th class="px-4 py-3">Status</th></tr></thead><tbody class="divide-y divide-gray-100"><tr><td class="px-4 py-3 font-bold">#9021</td><td class="px-4 py-3">Pooja Sharma</td><td class="px-4 py-3">Shri Balaji Store</td><td class="px-4 py-3 font-bold">₹840</td><td class="px-4 py-3"><span class="badge-pending">Out for delivery</span></td></tr><tr><td class="px-4 py-3 font-bold">#9018</td><td class="px-4 py-3">Karan Mehta</td><td class="px-4 py-3">Shri Balaji Store</td><td class="px-4 py-3 font-bold">₹899</td><td class="px-4 py-3"><span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold">Packing</span></td></tr><tr><td class="px-4 py-3 font-bold">#9010</td><td class="px-4 py-3">Pooja Sharma</td><td class="px-4 py-3">Vesu Grocery</td><td class="px-4 py-3 font-bold">₹560</td><td class="px-4 py-3"><span class="badge-approved">Delivered</span></td></tr></tbody></table></div>
+    </section>
+
+    <section id="sec-returns" class="hidden space-y-4">
+      <div><h1 class="text-xl font-extrabold">Returns oversight</h1><p class="text-sm text-gray-500">Monitor return disputes between customers and shops</p></div>
+      <div class="card p-4 border-l-4 border-l-amber-400"><div class="flex justify-between flex-wrap gap-2"><div><div class="font-bold">#R-441 · Balaji Silk Kurti</div><div class="text-xs text-gray-500">Pooja Sharma · Shri Balaji Store · Wrong size</div></div><span class="badge-pending">Under review</span></div></div>
+    </section>
+
+    <section id="sec-offers" class="hidden space-y-4">
+      <div><h1 class="text-xl font-extrabold">Platform Offers</h1><p class="text-sm text-gray-500">Global coupons visible on Customer app</p></div>
+      <div class="grid sm:grid-cols-2 gap-4"><div class="card p-5 border-2 border-dashed border-indigo-200"><div class="font-extrabold">ADAB100</div><div class="text-sm text-gray-500">₹100 off first order · Active</div></div><div class="card p-5"><div class="font-extrabold">Free delivery weekend</div><div class="text-sm text-gray-500">Min ₹299 · Active</div></div></div>
+    </section>
+
+    <section id="sec-reports" class="hidden space-y-4">
+      <div><h1 class="text-xl font-extrabold">Reports</h1></div>
+      <div class="grid sm:grid-cols-3 gap-3"><div class="card p-4"><div class="text-xs text-gray-500">GMV (30d)</div><div class="text-2xl font-extrabold">₹42.8L</div></div><div class="card p-4"><div class="text-xs text-gray-500">Approval rate</div><div class="text-2xl font-extrabold text-green-700">94%</div></div><div class="card p-4"><div class="text-xs text-gray-500">Avg review time</div><div class="text-2xl font-extrabold">4.2 hrs</div></div></div>
+    </section>
+
+    <section id="sec-audit" class="hidden space-y-4">
+      <div><h1 class="text-xl font-extrabold">Audit Log</h1></div>
+      <div id="auditLog" class="card p-4 space-y-2 text-sm max-h-[480px] overflow-y-auto"></div>
+    </section>
+
+    <section id="sec-settings" class="hidden space-y-4">
+      <div><h1 class="text-xl font-extrabold">Platform Settings</h1></div>
+      <div class="grid lg:grid-cols-2 gap-4">
+        <div class="card p-5 space-y-3"><h3 class="font-bold">Approval rules</h3><label class="flex items-center gap-2 text-sm"><input type="checkbox" checked> Require admin approval for new seller registration</label><label class="flex items-center gap-2 text-sm"><input type="checkbox" checked> Require admin approval for new products</label><label class="flex items-center gap-2 text-sm"><input type="checkbox" checked> Require admin approval for customer registration</label><label class="flex items-center gap-2 text-sm"><input type="checkbox"> Auto-approve trusted shops (rating &gt; 4.5)</label></div>
+        <div class="card p-5 space-y-3"><h3 class="font-bold">Notifications</h3><label class="flex items-center gap-2 text-sm"><input type="checkbox" checked> Email on new pending approval</label><label class="flex items-center gap-2 text-sm"><input type="checkbox" checked> SMS for seller reg submissions</label></div>
+      </div>
+      <button onclick="toast('Settings saved')" class="btn-primary !text-sm">Save settings</button>
+    </section>
+  </main>
+</div>
+
+<div id="reviewModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
+  <div class="card max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+    <div class="flex justify-between items-start mb-4"><h3 class="font-extrabold text-lg" id="modalTitle">Review</h3><button onclick="closeModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button></div>
+    <div id="modalBody" class="text-sm space-y-3"></div>
+    <div class="flex gap-2 mt-6 flex-wrap" id="modalActions"></div>
+  </div>
+</div>
+
+<script>
+const TYPE_LABELS = { 'seller-reg': 'Seller registration', 'customer-reg': 'Customer registration', product: 'New product' };
+const TYPE_ICONS = { 'seller-reg': 'fa-store text-green-600', 'customer-reg': 'fa-user text-blue-600', product: 'fa-box text-violet-600' };
+
+let approvalTab = 'all';
+let productTab = 'all';
+let auditEntries = [
+  { t: 'Today 10:42', msg: 'System seeded demo approval queue' },
+  { t: 'Today 09:15', msg: 'Shri Balaji Store — 12 products live' }
+];
+
+let sellers = [
+  { id: 's1', shop: 'Shri Balaji Store', owner: 'Rajesh Patel', gstin: '24AABCU9603R1ZM', zone: 'Vesu', products: 48, status: 'active' },
+  { id: 's2', shop: 'Vesu Grocery Hub', owner: 'Meena Shah', gstin: '24AAFCV1234K1Z5', zone: 'Vesu', products: 32, status: 'active' },
+  { id: 's3', shop: 'Dairy Collective', owner: 'Amit Desai', gstin: '24AABCD5678L1X2', zone: 'Adajan', products: 18, status: 'active' },
+  { id: 's4', shop: 'Spice Traders Co.', owner: 'Farhan Khan', gstin: '24AABCS9012M1Y3', zone: 'City Light', products: 24, status: 'active' }
+];
+
+let customers = [
+  { id: 'c1', name: 'Pooja Sharma', phone: '+91 98765 43210', city: 'Surat', orders: 14, status: 'active' },
+  { id: 'c2', name: 'Karan Mehta', phone: '+91 91234 56789', city: 'Surat', orders: 6, status: 'active' },
+  { id: 'c3', name: 'Neha Gupta', phone: '+91 99887 76655', city: 'Surat', orders: 0, status: 'pending' },
+  { id: 'c4', name: 'Rahul Joshi', phone: '+91 90909 80808', city: 'Surat', orders: 0, status: 'pending' }
+];
+
+let products = [
+  { id: 'p1', name: 'Tata Salt 1kg', shop: 'Shri Balaji Store', price: 28, type: 'Grocery', submitted: '28 Sep', status: 'live' },
+  { id: 'p2', name: 'Balaji Silk Kurti', shop: 'Shri Balaji Store', price: 899, type: 'Fashion', submitted: '25 Sep', status: 'live' },
+  { id: 'p3', name: 'Amul Taaza 1L', shop: 'Dairy Collective', price: 56, type: 'Dairy', submitted: '27 Sep', status: 'live' },
+  { id: 'p4', name: 'Organic Turmeric 200g', shop: 'Spice Traders Co.', price: 145, type: 'Spices', submitted: '30 Sep', status: 'pending', approvalId: 'a5' },
+  { id: 'p5', name: 'Handmade Diya Set (12pc)', shop: 'Shri Balaji Store', price: 199, type: 'Festive', submitted: '30 Sep', status: 'pending', approvalId: 'a6' },
+  { id: 'p6', name: 'Premium Basmati 5kg', shop: 'Vesu Grocery Hub', price: 620, type: 'Grocery', submitted: '29 Sep', status: 'pending', approvalId: 'a7' },
+  { id: 'p7', name: 'Rejected Sample Item', shop: 'Test Shop', price: 99, type: 'Other', submitted: '20 Sep', status: 'rejected' }
+];
+
+let approvals = [
+  { id: 'a1', type: 'seller-reg', title: 'Fresh Mart Vesu', subtitle: 'Owner: Vikram Singh · GSTIN 24AABCF3344N1Z8', submitted: '30 Sep, 11:20', meta: { shop: 'Fresh Mart Vesu', owner: 'Vikram Singh', gstin: '24AABCF3344N1Z8', zone: 'Vesu', phone: '+91 98700 11223', fssai: '22724000001234' } },
+  { id: 'a2', type: 'seller-reg', title: 'Adajan Electronics', subtitle: 'Owner: Priya Nair · GSTIN 24AABCE7788P1W9', submitted: '29 Sep, 16:45', meta: { shop: 'Adajan Electronics', owner: 'Priya Nair', gstin: '24AABCE7788P1W9', zone: 'Adajan', phone: '+91 98250 33445' } },
+  { id: 'a3', type: 'customer-reg', title: 'Neha Gupta', subtitle: '+91 99887 76655 · Surat · Referral: ADAB100', submitted: '30 Sep, 09:10', meta: { name: 'Neha Gupta', phone: '+91 99887 76655', city: 'Surat', email: 'neha.g@email.com' } },
+  { id: 'a4', type: 'customer-reg', title: 'Rahul Joshi', subtitle: '+91 90909 80808 · Surat', submitted: '30 Sep, 08:30', meta: { name: 'Rahul Joshi', phone: '+91 90909 80808', city: 'Surat', email: 'rahul.j@email.com' } },
+  { id: 'a5', type: 'product', title: 'Organic Turmeric 200g', subtitle: 'Spice Traders Co. · ₹145 · Spices', submitted: '30 Sep, 10:05', meta: { productId: 'p4', name: 'Organic Turmeric 200g', shop: 'Spice Traders Co.', price: 145, type: 'Spices', desc: 'Stone-ground, FSSAI certified' } },
+  { id: 'a6', type: 'product', title: 'Handmade Diya Set (12pc)', subtitle: 'Shri Balaji Store · ₹199 · Festive', submitted: '30 Sep, 10:18', meta: { productId: 'p5', name: 'Handmade Diya Set (12pc)', shop: 'Shri Balaji Store', price: 199, type: 'Festive', desc: 'Clay diyas, eco-friendly' } },
+  { id: 'a7', type: 'product', title: 'Premium Basmati 5kg', subtitle: 'Vesu Grocery Hub · ₹620 · Grocery', submitted: '29 Sep, 14:22', meta: { productId: 'p6', name: 'Premium Basmati 5kg', shop: 'Vesu Grocery Hub', price: 620, type: 'Grocery', desc: 'Aged basmati, export quality' } }
+];
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  clearTimeout(window._toastT);
+  window._toastT = setTimeout(() => el.classList.add('hidden'), 2800);
+}
+
+function toggleAdminNav(open) {
+  const drawer = document.getElementById('adminDrawer');
+  const overlay = document.getElementById('drawerOverlay');
+  if (!drawer || !overlay) return;
+  if (open) {
+    drawer.classList.add('open');
+    overlay.classList.add('open');
+  } else {
+    drawer.classList.remove('open');
+    overlay.classList.remove('open');
+  }
+}
+
+function go(id) {
+  toggleAdminNav(false);
+  document.querySelectorAll('[id^="sec-"]').forEach(s => s.classList.add('hidden'));
+  const sec = document.getElementById('sec-' + id);
+  if (sec) { sec.classList.remove('hidden'); sec.classList.add('fade-in'); }
+  document.querySelectorAll('[id^="nav-"]').forEach(n => { n.classList.remove('nav-on'); n.classList.add('text-slate-600', 'hover:bg-slate-50'); });
+  const nav = document.getElementById('nav-' + id);
+  if (nav) { nav.classList.add('nav-on'); nav.classList.remove('text-slate-600', 'hover:bg-slate-50'); }
+  if (id === 'sellers') renderSellers();
+  if (id === 'customers') renderCustomers();
+  if (id === 'products') renderProducts();
+  if (id === 'approvals') renderApprovals();
+  if (id === 'audit') renderAudit();
+  if (id === 'home') renderDashboard();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function pendingCount() { return approvals.length; }
+
+function updateBadges() {
+  const n = pendingCount();
+  ['hdrPending', 'navPendingBadge', 'statPending', 'apCountAll'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = n;
+  });
+  document.getElementById('apCountSellerReg').textContent = approvals.filter(a => a.type === 'seller-reg').length;
+  document.getElementById('apCountCustomerReg').textContent = approvals.filter(a => a.type === 'customer-reg').length;
+  document.getElementById('apCountProduct').textContent = approvals.filter(a => a.type === 'product').length;
+}
+
+function addAudit(msg) {
+  const now = new Date();
+  const t = 'Today ' + now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  auditEntries.unshift({ t, msg });
+}
+
+function renderAudit() {
+  document.getElementById('auditLog').innerHTML = auditEntries.map(e =>
+    `<div class="flex gap-3 py-2 border-b border-gray-100 last:border-0"><span class="text-gray-400 shrink-0 w-24">${e.t}</span><span>${e.msg}</span></div>`
+  ).join('');
+}
+
+function renderDashboard() {
+  updateBadges();
+  const q = document.getElementById('dashQueue');
+  if (!approvals.length) {
+    q.innerHTML = '<p class="text-gray-500">No pending items — all caught up!</p>';
+    return;
+  }
+  q.innerHTML = approvals.slice(0, 5).map(a => `
+    <div class="queue-row flex items-center justify-between gap-2 p-3 rounded-xl border border-gray-100 cursor-pointer" onclick="openReview('${a.id}')">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0"><i class="fa-solid ${TYPE_ICONS[a.type].split(' ')[0]} ${TYPE_ICONS[a.type].split(' ').slice(1).join(' ')}"></i></div>
+        <div class="min-w-0"><div class="font-bold truncate">${a.title}</div><div class="text-xs text-gray-500 truncate">${TYPE_LABELS[a.type]} · ${a.submitted}</div></div>
+      </div>
+      <span class="badge-pending shrink-0">Review</span>
+    </div>`).join('');
+}
+
+function setApprovalTab(tab) {
+  approvalTab = tab;
+  ['All', 'SellerReg', 'CustomerReg', 'Product'].forEach(suffix => {
+    const btn = document.getElementById('apTab' + suffix);
+    if (!btn) return;
+    const key = suffix === 'All' ? 'all' : suffix === 'SellerReg' ? 'seller-reg' : suffix === 'CustomerReg' ? 'customer-reg' : 'product';
+    btn.className = 'px-4 py-2 rounded-xl text-sm font-bold ' + (tab === key ? 'tab-on' : 'tab-off');
+  });
+  renderApprovals();
+}
+
+function filteredApprovals() {
+  if (approvalTab === 'all') return approvals;
+  return approvals.filter(a => a.type === approvalTab);
+}
+
+function renderApprovals() {
+  updateBadges();
+  const list = filteredApprovals();
+  const el = document.getElementById('approvalList');
+  if (!list.length) {
+    el.innerHTML = '<div class="p-8 text-center text-gray-500"><i class="fa-solid fa-circle-check text-green-500 text-3xl mb-2"></i><p class="font-bold">Queue empty</p></div>';
+    return;
+  }
+  el.innerHTML = list.map(a => `
+    <div class="queue-row flex flex-wrap items-center justify-between gap-3 p-4 border-b border-gray-100 last:border-0">
+      <div class="flex items-center gap-3 min-w-0 flex-1">
+        <div class="w-11 h-11 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0"><i class="fa-solid ${TYPE_ICONS[a.type].split(' ')[0]} ${TYPE_ICONS[a.type].split(' ').slice(1).join(' ')} text-lg"></i></div>
+        <div class="min-w-0">
+          <div class="font-bold">${a.title}</div>
+          <div class="text-xs text-gray-500">${a.subtitle}</div>
+          <div class="text-[10px] text-gray-400 mt-0.5">${TYPE_LABELS[a.type]} · Submitted ${a.submitted}</div>
+        </div>
+      </div>
+      <div class="flex gap-2 shrink-0">
+        <button onclick="openReview('${a.id}')" class="btn-soft !text-xs !py-2">Details</button>
+        <button onclick="approveItem('${a.id}')" class="btn-approve"><i class="fa-solid fa-check mr-1"></i>Approve</button>
+        <button onclick="rejectItem('${a.id}')" class="btn-reject"><i class="fa-solid fa-xmark mr-1"></i>Reject</button>
+      </div>
+    </div>`).join('');
+}
+
+function openReview(id) {
+  const a = approvals.find(x => x.id === id);
+  if (!a) return;
+  document.getElementById('modalTitle').textContent = TYPE_LABELS[a.type];
+  let body = `<div class="font-bold text-base">${a.title}</div><p class="text-gray-500">${a.subtitle}</p><p class="text-xs text-gray-400">Submitted: ${a.submitted}</p><hr class="border-gray-100">`;
+  if (a.type === 'seller-reg') {
+    body += `<dl class="grid grid-cols-2 gap-2 text-xs"><dt class="text-gray-500">Shop</dt><dd class="font-semibold">${a.meta.shop}</dd><dt class="text-gray-500">Owner</dt><dd>${a.meta.owner}</dd><dt class="text-gray-500">GSTIN</dt><dd>${a.meta.gstin}</dd><dt class="text-gray-500">Zone</dt><dd>${a.meta.zone}</dd><dt class="text-gray-500">Phone</dt><dd>${a.meta.phone}</dd>${a.meta.fssai ? `<dt class="text-gray-500">FSSAI</dt><dd>${a.meta.fssai}</dd>` : ''}</dl>`;
+  } else if (a.type === 'customer-reg') {
+    body += `<dl class="grid grid-cols-2 gap-2 text-xs"><dt class="text-gray-500">Name</dt><dd class="font-semibold">${a.meta.name}</dd><dt class="text-gray-500">Phone</dt><dd>${a.meta.phone}</dd><dt class="text-gray-500">City</dt><dd>${a.meta.city}</dd><dt class="text-gray-500">Email</dt><dd>${a.meta.email}</dd></dl>`;
+  } else {
+    body += `<dl class="grid grid-cols-2 gap-2 text-xs"><dt class="text-gray-500">Product</dt><dd class="font-semibold">${a.meta.name}</dd><dt class="text-gray-500">Shop</dt><dd>${a.meta.shop}</dd><dt class="text-gray-500">Price</dt><dd>₹${a.meta.price}</dd><dt class="text-gray-500">Category</dt><dd>${a.meta.type}</dd></dl><p class="text-xs text-gray-600 mt-2">${a.meta.desc || ''}</p>`;
+  }
+  document.getElementById('modalBody').innerHTML = body;
+  document.getElementById('modalActions').innerHTML = `
+    <button onclick="approveItem('${a.id}');closeModal()" class="btn-approve flex-1 min-w-[120px]"><i class="fa-solid fa-check mr-1"></i>Approve</button>
+    <button onclick="rejectItem('${a.id}');closeModal()" class="btn-reject flex-1 min-w-[120px]"><i class="fa-solid fa-xmark mr-1"></i>Reject</button>
+    <button onclick="closeModal()" class="btn-soft">Cancel</button>`;
+  const modal = document.getElementById('reviewModal');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+}
+
+function closeModal() {
+  const modal = document.getElementById('reviewModal');
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+}
+document.getElementById('reviewModal').addEventListener('click', e => { if (e.target.id === 'reviewModal') closeModal(); });
+
+function approveItem(id) {
+  const idx = approvals.findIndex(a => a.id === id);
+  if (idx === -1) return;
+  const a = approvals[idx];
+  if (a.type === 'seller-reg') {
+    sellers.push({ id: 's' + Date.now(), shop: a.meta.shop, owner: a.meta.owner, gstin: a.meta.gstin, zone: a.meta.zone, products: 0, status: 'active' });
+    const se = document.getElementById('statSellers');
+    se.textContent = (parseInt(se.textContent.replace(/,/g, ''), 10) || 48) + 1;
+    addAudit(`Approved seller: ${a.meta.shop}`);
+    toast(`Seller "${a.meta.shop}" approved — live on Seller Portal`);
+  } else if (a.type === 'customer-reg') {
+    const c = customers.find(x => x.name === a.meta.name);
+    if (c) c.status = 'active'; else customers.push({ id: 'c' + Date.now(), name: a.meta.name, phone: a.meta.phone, city: a.meta.city, orders: 0, status: 'active' });
+    addAudit(`Approved customer: ${a.meta.name}`);
+    toast(`Customer "${a.meta.name}" can now use the app`);
+  } else if (a.type === 'product') {
+    const p = products.find(x => x.id === a.meta.productId || x.name === a.meta.name);
+    if (p) { p.status = 'live'; delete p.approvalId; }
+    document.getElementById('statProducts').textContent = (18420 + products.filter(p => p.status === 'live').length).toLocaleString('en-IN');
+    addAudit(`Approved product: ${a.meta.name} (${a.meta.shop})`);
+    toast(`Product "${a.meta.name}" is now visible to customers`);
+  }
+  approvals.splice(idx, 1);
+  updateBadges();
+  renderApprovals();
+  renderDashboard();
+  if (!document.getElementById('sec-sellers').classList.contains('hidden')) renderSellers();
+  if (!document.getElementById('sec-customers').classList.contains('hidden')) renderCustomers();
+  if (!document.getElementById('sec-products').classList.contains('hidden')) renderProducts();
+}
+
+function rejectItem(id) {
+  const idx = approvals.findIndex(a => a.id === id);
+  if (idx === -1) return;
+  const a = approvals[idx];
+  if (a.type === 'customer-reg') {
+    const c = customers.find(x => x.name === a.meta.name);
+    if (c) c.status = 'rejected';
+  } else if (a.type === 'product') {
+    const p = products.find(x => x.id === a.meta.productId || x.name === a.meta.name);
+    if (p) p.status = 'rejected';
+  }
+  addAudit(`Rejected ${TYPE_LABELS[a.type].toLowerCase()}: ${a.title}`);
+  toast(`Rejected: ${a.title}`);
+  approvals.splice(idx, 1);
+  updateBadges();
+  renderApprovals();
+  renderDashboard();
+  if (!document.getElementById('sec-products').classList.contains('hidden')) renderProducts();
+  if (!document.getElementById('sec-customers').classList.contains('hidden')) renderCustomers();
+}
+
+function statusBadge(s) {
+  const map = { active: 'badge-approved', pending: 'badge-pending', suspended: 'badge-rejected', rejected: 'badge-rejected', live: 'badge-approved' };
+  const labels = { active: 'Active', pending: 'Pending', suspended: 'Suspended', rejected: 'Rejected', live: 'Live' };
+  return `<span class="${map[s] || 'badge-pending'} text-[10px] font-bold px-2 py-0.5 rounded-full">${labels[s] || s}</span>`;
+}
+
+function renderSellers() {
+  const q = (document.getElementById('sellerSearch').value || '').toLowerCase();
+  const f = document.getElementById('sellerFilter').value;
+  const rows = sellers.filter(s => {
+    if (f !== 'all' && s.status !== f) return false;
+    if (q && !s.shop.toLowerCase().includes(q) && !s.owner.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  document.getElementById('sellerTable').innerHTML = rows.map(s => `
+    <tr><td class="px-4 py-3 font-bold">${s.shop}</td><td class="px-4 py-3">${s.owner}</td><td class="px-4 py-3 text-xs font-mono">${s.gstin}</td><td class="px-4 py-3">${s.zone}</td><td class="px-4 py-3">${s.products}</td><td class="px-4 py-3">${statusBadge(s.status)}</td>
+    <td class="px-4 py-3">${s.status === 'active' ? '<button onclick="toast(\'Shop profile opened\')" class="text-indigo-600 font-bold text-xs">View</button>' : '—'}</td></tr>`).join('');
+  const pendingSellers = approvals.filter(a => a.type === 'seller-reg');
+  pendingSellers.forEach(a => {
+    document.getElementById('sellerTable').innerHTML += `
+      <tr class="bg-amber-50/50"><td class="px-4 py-3 font-bold">${a.meta.shop}</td><td class="px-4 py-3">${a.meta.owner}</td><td class="px-4 py-3 text-xs font-mono">${a.meta.gstin}</td><td class="px-4 py-3">${a.meta.zone}</td><td class="px-4 py-3">0</td><td class="px-4 py-3">${statusBadge('pending')}</td>
+      <td class="px-4 py-3"><button onclick="openReview('${a.id}')" class="text-amber-700 font-bold text-xs">Review</button></td></tr>`;
+  });
+}
+
+function renderCustomers() {
+  document.getElementById('customerTable').innerHTML = customers.map(c => `
+    <tr><td class="px-4 py-3 font-bold">${c.name}</td><td class="px-4 py-3">${c.phone}</td><td class="px-4 py-3">${c.city}</td><td class="px-4 py-3">${c.orders}</td><td class="px-4 py-3">${statusBadge(c.status)}</td>
+    <td class="px-4 py-3">${c.status === 'pending' ? `<button onclick="go('approvals');setApprovalTab('customer-reg')" class="text-amber-700 font-bold text-xs">Review</button>` : '<button onclick="toast(\'Customer profile\')" class="text-indigo-600 font-bold text-xs">View</button>'}</td></tr>`).join('');
+}
+
+function setProductTab(tab) {
+  productTab = tab;
+  ['All', 'Live', 'Pending', 'Rejected'].forEach(s => {
+    const btn = document.getElementById('prTab' + s);
+    if (btn) btn.className = 'px-4 py-2 rounded-xl text-sm font-bold ' + (productTab === s.toLowerCase() ? 'tab-on' : 'tab-off');
+  });
+  renderProducts();
+}
+
+function renderProducts() {
+  let rows = products;
+  if (productTab !== 'all') rows = products.filter(p => p.status === productTab);
+  document.getElementById('productTable').innerHTML = rows.map(p => {
+    const ap = p.approvalId ? approvals.find(a => a.id === p.approvalId) : null;
+    return `<tr><td class="px-4 py-3 font-bold">${p.name}</td><td class="px-4 py-3">${p.shop}</td><td class="px-4 py-3">₹${p.price}</td><td class="px-4 py-3">${p.type}</td><td class="px-4 py-3 text-xs text-gray-500">${p.submitted}</td><td class="px-4 py-3">${statusBadge(p.status)}</td>
+    <td class="px-4 py-3">${p.status === 'pending' && ap ? `<button onclick="openReview('${ap.id}')" class="text-amber-700 font-bold text-xs mr-2">Review</button><button onclick="approveItem('${ap.id}')" class="text-green-700 font-bold text-xs">Approve</button>` : '—'}</td></tr>`;
+  }).join('');
+}
+
+function globalFilter() {
+  const q = (document.getElementById('globalSearch').value || '').toLowerCase();
+  if (!q) return;
+  const match = approvals.find(a => a.title.toLowerCase().includes(q) || a.subtitle.toLowerCase().includes(q));
+  if (match) { go('approvals'); setApprovalTab('all'); }
+  else if (sellers.some(s => s.shop.toLowerCase().includes(q))) { go('sellers'); document.getElementById('sellerSearch').value = q; renderSellers(); }
+  else go('home');
+}
+
+renderDashboard();
+renderAudit();
+</script>
+</body>
+</html>
