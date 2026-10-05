@@ -5925,6 +5925,18 @@
     points += earned;
     updatePointsUI();
     const poNum = 'PO-' + (880 + Math.floor(Math.random() * 20));
+    // Live Backend Option 2 Sync
+    if (typeof apiPost === 'function') {
+      apiPost('/buystock/purchase-orders', {
+        poNumber: poNum,
+        items: buyCart,
+        subtotal: subtotal,
+        deliveryFee: delFee,
+        totalAmount: total,
+        paymentMethod: checkoutPayment,
+        deliveryMethod: checkoutDelivery
+      });
+    }
     clearBuyCart();
     toast('Order ' + poNum + ' placed! ' + sellers.size + ' seller(s) · ' + payLabels[checkoutPayment] + ' · ' + delLabels[checkoutDelivery] + ' · +' + earned + ' pts');
     go('buy');
@@ -6253,6 +6265,16 @@
 
   // ADAB Live Backend API Bridge (Option 2 - Mayank Seller Domain)
   const ADAB_API_BASE = 'http://localhost:5003/api/v1/seller';
+  async function apiGet(endpoint) {
+    try {
+      const res = await fetch(`${ADAB_API_BASE}${endpoint}`);
+      return await res.json();
+    } catch (err) {
+      console.warn('Backend fetch notice:', err.message);
+      return null;
+    }
+  }
+
   async function apiPost(endpoint, data) {
     try {
       const res = await fetch(`${ADAB_API_BASE}${endpoint}`, {
