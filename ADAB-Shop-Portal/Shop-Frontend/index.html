@@ -4,9 +4,29 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>shop-frontend</title>
+    <title>ADAB Seller — One Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+            colors: {
+              brand: {
+                green: '#15803D',
+                dark: '#14532D',
+                light: '#DCFCE7',
+                orange: '#F97316'
+              }
+            }
+          }
+        }
+      };
+    </script>
   </head>
-  <body>
+  <body class="bg-gray-50 text-gray-800 min-h-screen">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
