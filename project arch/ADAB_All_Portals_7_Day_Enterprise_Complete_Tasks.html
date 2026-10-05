@@ -854,6 +854,732 @@ details{margin-top:10px}summary{cursor:pointer;background:#f8fafc;border:1px sol
       </details>
     </section>
 
+
+
+<section class="section" id="master-database-architecture">
+  <div class="hero" style="background:linear-gradient(135deg,#064e3b,#0f172a 60%,#312e81);margin-bottom:20px;">
+    <div class="eyebrow" style="color:#6ee7b7">MASTER ENTERPRISE SCHEMA (POSTGRESQL 16+) · ZERO MISSING TABLES/COLUMNS</div>
+    <h2>Comprehensive Database DDL Architecture for All 79 Portal Features</h2>
+    <p>Every single page, sub-module, button, and data entity across the Seller Portal (43 sections), Customer App (24 sections), and Admin Platform (12 sections) is mapped to normalized, high-performance PostgreSQL tables with exact column types, primary keys, foreign keys, unique constraints, and optimized indexes.</p>
+  </div>
+
+  <div class="space-y-4">
+
+    <!-- DOMAIN 1: IDENTITY, ACCESS CONTROL & SESSIONS (Karan) -->
+    <details open>
+      <summary style="font-size:14px;color:#047857;padding:12px;background:#ecfdf5;border-color:#a7f3d0;">
+        <b>1. IDENTITY, RBAC &amp; SECURITY DOMAIN (Owner: Karan)</b>
+      </summary>
+      <div class="tablewrap" style="margin-top:10px;">
+        <table>
+          <thead>
+            <tr><th>Table Name</th><th>Columns &amp; Data Types</th><th>Constraints &amp; Foreign Keys</th><th>Indexes</th><th>Mapped Portal Features</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>customer_profiles</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE<br>preferred_language VARCHAR(10) DEFAULT 'en'<br>loyalty_tier VARCHAR(30) DEFAULT 'BRONZE'<br>date_of_birth DATE<br>gender VARCHAR(20)<br>profile_picture_url TEXT<br>gst_in VARCHAR(15)<br>company_name VARCHAR(150)<br>created_at TIMESTAMPTZ DEFAULT NOW()<br>updated_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to users(id)<br>CHECK (loyalty_tier IN ('BRONZE','SILVER','GOLD','PLATINUM'))</code></td>
+              <td><code>CREATE INDEX idx_cust_prof_user ON customer_profiles(user_id);</code></td>
+              <td>Customer <code>sec-account</code> (Profile Info, Preferences).</td>
+            </tr>
+            <tr>
+              <td><code>notification_preferences</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE<br>order_updates_sms BOOLEAN DEFAULT true<br>order_updates_email BOOLEAN DEFAULT true<br>order_updates_whatsapp BOOLEAN DEFAULT true<br>promotional_sms BOOLEAN DEFAULT false<br>promotional_email BOOLEAN DEFAULT false<br>promotional_whatsapp BOOLEAN DEFAULT false<br>soundbox_alerts BOOLEAN DEFAULT true<br>updated_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to users(id)</code></td>
+              <td><code>CREATE INDEX idx_notif_pref_user ON notification_preferences(user_id);</code></td>
+              <td>Seller <code>sec-settings</code>, Customer <code>sec-settings</code>.</td>
+            </tr>
+            <tr>
+              <td><code>oauth_accounts</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE<br>provider VARCHAR(50) NOT NULL<br>provider_user_id VARCHAR(255) NOT NULL<br>access_token TEXT<br>refresh_token TEXT<br>token_expires_at TIMESTAMPTZ<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to users(id)<br>UNIQUE(provider, provider_user_id)</code></td>
+              <td><code>CREATE INDEX idx_oauth_user ON oauth_accounts(user_id);</code></td>
+              <td>Social Single Sign-On (Google, Apple ID).</td>
+            </tr>
+            <tr>
+              <td><code>trusted_devices</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE<br>device_fingerprint VARCHAR(255) NOT NULL<br>device_name VARCHAR(100)<br>user_agent TEXT<br>last_ip INET<br>is_active BOOLEAN DEFAULT true<br>last_used_at TIMESTAMPTZ DEFAULT NOW()<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to users(id)<br>UNIQUE(user_id, device_fingerprint)</code></td>
+              <td><code>CREATE INDEX idx_trusted_dev ON trusted_devices(user_id, device_fingerprint);</code></td>
+              <td>Zero-friction OTP bypass on verified POS tablets & phones.</td>
+            </tr>
+            <tr>
+              <td><code>login_attempts</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>phone_or_email VARCHAR(150) NOT NULL<br>ip_address INET NOT NULL<br>status VARCHAR(30) NOT NULL<br>failure_reason VARCHAR(150)<br>attempted_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (status IN ('SUCCESS','OTP_FAILED','RATE_LIMITED','BLOCKED'))</code></td>
+              <td><code>CREATE INDEX idx_login_att ON login_attempts(phone_or_email, attempted_at DESC);</code></td>
+              <td>Security Rate Limiter & Brute-force protection.</td>
+            </tr>
+
+            <tr>
+              <td><code>users</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>email VARCHAR(255) UNIQUE<br>phone VARCHAR(20) UNIQUE NOT NULL<br>password_hash VARCHAR(255)<br>full_name VARCHAR(150) NOT NULL<br>user_type VARCHAR(30) NOT NULL<br>status VARCHAR(30) DEFAULT 'ACTIVE'<br>avatar_url TEXT<br>is_phone_verified BOOLEAN DEFAULT false<br>is_email_verified BOOLEAN DEFAULT false<br>two_factor_enabled BOOLEAN DEFAULT false<br>created_at TIMESTAMPTZ DEFAULT NOW()<br>updated_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (user_type IN ('CUSTOMER','SELLER','ADMIN','DRIVER','AGENT'))<br>CHECK (status IN ('ACTIVE','INACTIVE','SUSPENDED','BANNED'))</code></td>
+              <td><code>CREATE INDEX idx_users_phone ON users(phone);<br>CREATE INDEX idx_users_email ON users(email);<br>CREATE INDEX idx_users_type ON users(user_type, status);</code></td>
+              <td>Customer Sign-in/Sign-up modal, Seller Store Login, Admin User Pill, RBAC access control.</td>
+            </tr>
+            <tr>
+              <td><code>roles</code></td>
+              <td><code>id SERIAL PRIMARY KEY<br>slug VARCHAR(50) UNIQUE NOT NULL<br>name VARCHAR(100) NOT NULL<br>description TEXT<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (slug IN ('SUPER_ADMIN','OPS_ADMIN','FINANCE_ADMIN','MERCHANT_SELLER','RETAIL_CUSTOMER','DRIVER'))</code></td>
+              <td><code>CREATE UNIQUE INDEX idx_roles_slug ON roles(slug);</code></td>
+              <td>Admin RBAC, Seller permissions, Customer role boundaries.</td>
+            </tr>
+            <tr>
+              <td><code>permissions</code></td>
+              <td><code>id SERIAL PRIMARY KEY<br>slug VARCHAR(100) UNIQUE NOT NULL<br>module VARCHAR(50) NOT NULL<br>description TEXT</code></td>
+              <td><code>UNIQUE(slug)</code></td>
+              <td><code>CREATE INDEX idx_perm_module ON permissions(module);</code></td>
+              <td>Granular permission matrix (e.g. <code>approvals.approve</code>, <code>settlements.payout</code>).</td>
+            </tr>
+            <tr>
+              <td><code>user_roles</code></td>
+              <td><code>user_id UUID REFERENCES users(id) ON DELETE CASCADE<br>role_id INT REFERENCES roles(id) ON DELETE CASCADE<br>assigned_at TIMESTAMPTZ DEFAULT NOW()<br>PRIMARY KEY (user_id, role_id)</code></td>
+              <td><code>FK to users(id), roles(id)</code></td>
+              <td><code>CREATE INDEX idx_ur_user ON user_roles(user_id);</code></td>
+              <td>User role associations.</td>
+            </tr>
+            <tr>
+              <td><code>sessions</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE<br>refresh_token_hash VARCHAR(255) NOT NULL<br>device_name VARCHAR(100)<br>ip_address INET<br>user_agent TEXT<br>is_trusted BOOLEAN DEFAULT false<br>expires_at TIMESTAMPTZ NOT NULL<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to users(id)</code></td>
+              <td><code>CREATE INDEX idx_sess_user_exp ON sessions(user_id, expires_at);</code></td>
+              <td>Multi-device sessions, Token rotation, Settings Session Management.</td>
+            </tr>
+            <tr>
+              <td><code>auth_challenges</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>phone VARCHAR(20)<br>email VARCHAR(255)<br>otp_code_hash VARCHAR(255) NOT NULL<br>challenge_type VARCHAR(30) NOT NULL<br>attempts INT DEFAULT 0<br>is_used BOOLEAN DEFAULT false<br>expires_at TIMESTAMPTZ NOT NULL<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (challenge_type IN ('LOGIN_OTP','REGISTRATION_OTP','PASSWORD_RESET','KYC_VERIFY'))</code></td>
+              <td><code>CREATE INDEX idx_auth_chall_phone ON auth_challenges(phone, is_used, expires_at);</code></td>
+              <td>OTP verification in Customer Auth, Seller KYC OTP, Admin Step-up Auth.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+    <!-- DOMAIN 2: SELLER MERCHANTS, 7-STEP ONBOARDING & OPERATIONS (Shabbir) -->
+    <details open style="margin-top:14px;">
+      <summary style="font-size:14px;color:#15803d;padding:12px;background:#f0fdf4;border-color:#bbf7d0;">
+        <b>2. SELLER MERCHANTS, 7-STEP ONBOARDING &amp; STORE OPERATIONS (Owner: Shabbir)</b>
+      </summary>
+      <div class="tablewrap" style="margin-top:10px;">
+        <table>
+          <thead>
+            <tr><th>Table Name</th><th>Columns &amp; Data Types</th><th>Constraints &amp; Foreign Keys</th><th>Indexes</th><th>Mapped Portal Features</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>seller_profiles</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE<br>legal_name VARCHAR(200) NOT NULL<br>entity_type VARCHAR(50) NOT NULL<br>gstin VARCHAR(15) UNIQUE<br>pan VARCHAR(10) NOT NULL<br>fssai_license VARCHAR(20)<br>udhyam_msme VARCHAR(30)<br>kyc_status VARCHAR(30) DEFAULT 'DRAFT'<br>onboarding_step INT DEFAULT 1<br>rejection_reason TEXT<br>submitted_at TIMESTAMPTZ<br>verified_at TIMESTAMPTZ<br>created_at TIMESTAMPTZ DEFAULT NOW()<br>updated_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (entity_type IN ('Sole Proprietorship','Partnership Firm','LLP','Private Limited','Individual Trader'))<br>CHECK (kyc_status IN ('DRAFT','SUBMITTED','UNDER_REVIEW','APPROVED','REJECTED'))</code></td>
+              <td><code>CREATE INDEX idx_sp_gstin ON seller_profiles(gstin);<br>CREATE INDEX idx_sp_status ON seller_profiles(kyc_status);</code></td>
+              <td><code>sec-onboarding</code> (Step 1-2), <code>sec-regstatus</code>, Admin <code>sec-approvals</code>, Admin <code>sec-sellers</code>.</td>
+            </tr>
+            <tr>
+              <td><code>seller_documents</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>seller_id UUID NOT NULL REFERENCES seller_profiles(id) ON DELETE CASCADE<br>doc_type VARCHAR(50) NOT NULL<br>file_name VARCHAR(255) NOT NULL<br>file_url TEXT NOT NULL<br>verification_status VARCHAR(30) DEFAULT 'PENDING'<br>uploaded_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (doc_type IN ('GST_CERTIFICATE','SHOP_IMAGE','FSSAI_DOC','PAN_CARD','CANCELLED_CHEQUE'))</code></td>
+              <td><code>CREATE INDEX idx_sdocs_seller ON seller_documents(seller_id);</code></td>
+              <td><code>sec-onboarding</code> (Step 2 KYC uploads), <code>sec-certificates</code>, Admin Document audit.</td>
+            </tr>
+            <tr>
+              <td><code>stores</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>seller_id UUID NOT NULL REFERENCES seller_profiles(id) ON DELETE CASCADE<br>store_name VARCHAR(150) NOT NULL<br>category VARCHAR(100) NOT NULL<br>phone VARCHAR(20) NOT NULL<br>email VARCHAR(255)<br>address_line TEXT NOT NULL<br>city VARCHAR(100) NOT NULL<br>state VARCHAR(100) NOT NULL<br>pincode VARCHAR(10) NOT NULL<br>latitude NUMERIC(10,7)<br>longitude NUMERIC(10,7)<br>delivery_radius_km NUMERIC(5,2) DEFAULT 10.00<br>is_online BOOLEAN DEFAULT true<br>open_time TIME DEFAULT '08:00:00'<br>close_time TIME DEFAULT '22:00:00'<br>soundbox_enabled BOOLEAN DEFAULT true<br>ui_mode VARCHAR(20) DEFAULT 'SIMPLE'<br>rating NUMERIC(3,2) DEFAULT 5.00<br>rating_count INT DEFAULT 0<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (ui_mode IN ('SIMPLE','PRO'))</code></td>
+              <td><code>CREATE INDEX idx_stores_loc ON stores(city, pincode);<br>CREATE INDEX idx_stores_radius ON stores(latitude, longitude);</code></td>
+              <td><code>sec-home</code>, <code>sec-settings</code>, Soundbox Toggle, Customer <code>sec-stores</code>, Customer Stories strip.</td>
+            </tr>
+            <tr>
+              <td><code>seller_bank_accounts</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>seller_id UUID NOT NULL REFERENCES seller_profiles(id) ON DELETE CASCADE<br>bank_name VARCHAR(100) NOT NULL<br>account_holder_name VARCHAR(150) NOT NULL<br>account_number VARCHAR(50) NOT NULL<br>ifsc_code VARCHAR(15) NOT NULL<br>account_type VARCHAR(20) DEFAULT 'CURRENT'<br>is_verified BOOLEAN DEFAULT true<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (account_type IN ('CURRENT','SAVINGS'))</code></td>
+              <td><code>CREATE INDEX idx_sba_seller ON seller_bank_accounts(seller_id);</code></td>
+              <td><code>sec-onboarding</code> (Step 3), <code>sec-money</code>, Daily T+1 settlement bank routing.</td>
+            </tr>
+            <tr>
+              <td><code>delivery_zones</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE<br>zone_name VARCHAR(100) NOT NULL<br>radius_km NUMERIC(5,2) NOT NULL<br>min_order_amount NUMERIC(10,2) DEFAULT 0.00<br>delivery_fee NUMERIC(8,2) DEFAULT 0.00<br>estimated_minutes_min INT DEFAULT 14<br>estimated_minutes_max INT DEFAULT 30<br>is_active BOOLEAN DEFAULT true</code></td>
+              <td><code>FK to stores(id)</code></td>
+              <td><code>CREATE INDEX idx_dz_store ON delivery_zones(store_id);</code></td>
+              <td><code>sec-zones</code>, <code>sec-freight</code>, <code>sec-delivery</code>, Customer Express/Same-day checkout pill.</td>
+            </tr>
+            <tr>
+              <td><code>seller_drivers</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE<br>driver_name VARCHAR(100) NOT NULL<br>phone VARCHAR(20) NOT NULL<br>vehicle_number VARCHAR(50)<br>vehicle_type VARCHAR(30) DEFAULT 'BIKE'<br>is_available BOOLEAN DEFAULT true<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (vehicle_type IN ('BIKE','VAN','AUTO_RICKSHAW','ELECTRIC_SCOOTER'))</code></td>
+              <td><code>CREATE INDEX idx_sdrivers_store ON seller_drivers(store_id);</code></td>
+              <td><code>sec-drivers</code>, <code>sec-routes</code>, Self-fleet delivery assignment.</td>
+            </tr>
+            <tr>
+              <td><code>export_reports</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>seller_id UUID NOT NULL REFERENCES seller_profiles(id) ON DELETE CASCADE<br>report_type VARCHAR(50) NOT NULL<br>format VARCHAR(10) DEFAULT 'CSV'<br>status VARCHAR(30) DEFAULT 'COMPLETED'<br>file_url TEXT NOT NULL<br>generated_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (format IN ('CSV','PDF','XLSX'))</code></td>
+              <td><code>CREATE INDEX idx_exprep_seller ON export_reports(seller_id);</code></td>
+              <td><code>sec-export</code>, <code>sec-reports</code>, Bulk CSV generation.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+    <!-- DOMAIN 3: BANKING PARTNERS, CREDIT LINES & 0% BNPL (Karan & Devika) -->
+    <details open style="margin-top:14px;">
+      <summary style="font-size:14px;color:#312e81;padding:12px;background:#eef2ff;border-color:#c7d2fe;">
+        <b>3. BANKING PARTNERS, CREDIT LINES &amp; 0% BNPL (Owners: Karan &amp; Devika)</b>
+      </summary>
+      <div class="tablewrap" style="margin-top:10px;">
+        <table>
+          <thead>
+            <tr><th>Table Name</th><th>Columns &amp; Data Types</th><th>Constraints &amp; Foreign Keys</th><th>Indexes</th><th>Mapped Portal Features</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>bank_partners</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>name VARCHAR(100) NOT NULL<br>code VARCHAR(30) UNIQUE NOT NULL<br>logo_url TEXT<br>interest_rate_pct NUMERIC(4,2) DEFAULT 0.00<br>max_credit_limit NUMERIC(12,2) NOT NULL<br>tenure_options INT[] DEFAULT '{7, 14, 21, 30, 60}'<br>eligibility_criteria JSONB<br>is_active BOOLEAN DEFAULT true<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (interest_rate_pct >= 0.00)</code></td>
+              <td><code>CREATE UNIQUE INDEX idx_bp_code ON bank_partners(code);<br>CREATE INDEX idx_bp_active ON bank_partners(is_active);</code></td>
+              <td>Admin <code>sec-banks</code>, Seller <code>sec-creditapply</code>, Customer <code>sec-credit</code>.</td>
+            </tr>
+            <tr>
+              <td><code>credit_applications</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>application_no VARCHAR(30) UNIQUE NOT NULL<br>applicant_type VARCHAR(20) NOT NULL<br>applicant_id UUID NOT NULL<br>applicant_name VARCHAR(150) NOT NULL<br>bank_id UUID NOT NULL REFERENCES bank_partners(id)<br>requested_amount NUMERIC(12,2) NOT NULL<br>approved_amount NUMERIC(12,2) DEFAULT 0.00<br>tenure_days INT DEFAULT 14<br>monthly_turnover NUMERIC(12,2)<br>reason VARCHAR(255)<br>status VARCHAR(30) DEFAULT 'PENDING'<br>admin_note TEXT<br>approved_by UUID REFERENCES users(id)<br>approved_at TIMESTAMPTZ<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (applicant_type IN ('CUSTOMER','SELLER'))<br>CHECK (status IN ('PENDING','APPROVED','REJECTED','UNDER_REVIEW'))</code></td>
+              <td><code>CREATE INDEX idx_ca_status ON credit_applications(status);<br>CREATE INDEX idx_ca_applicant ON credit_applications(applicant_type, applicant_id);</code></td>
+              <td>Admin <code>sec-banks</code> approvals, Seller <code>sec-creditapply</code>, Customer <code>sec-credit</code>.</td>
+            </tr>
+            <tr>
+              <td><code>credit_ledgers</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>applicant_type VARCHAR(20) NOT NULL<br>applicant_id UUID NOT NULL<br>bank_id UUID NOT NULL REFERENCES bank_partners(id)<br>total_limit NUMERIC(12,2) NOT NULL DEFAULT 0.00<br>utilized_amount NUMERIC(12,2) NOT NULL DEFAULT 0.00<br>available_amount NUMERIC(12,2) GENERATED ALWAYS AS (total_limit - utilized_amount) STORED<br>due_date TIMESTAMPTZ<br>is_locked BOOLEAN DEFAULT false<br>updated_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (utilized_amount <= total_limit)</code></td>
+              <td><code>CREATE UNIQUE INDEX idx_cl_entity ON credit_ledgers(applicant_type, applicant_id);</code></td>
+              <td>Seller <code>sec-creditterms</code>, Customer Checkout 0% Pay Later balance.</td>
+            </tr>
+            <tr>
+              <td><code>credit_repayments</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>ledger_id UUID NOT NULL REFERENCES credit_ledgers(id)<br>payment_amount NUMERIC(12,2) NOT NULL<br>transaction_ref VARCHAR(100) NOT NULL<br>payment_mode VARCHAR(30) NOT NULL<br>status VARCHAR(30) DEFAULT 'SUCCESS'<br>paid_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to credit_ledgers(id)</code></td>
+              <td><code>CREATE INDEX idx_cr_ledger ON credit_repayments(ledger_id);</code></td>
+              <td>Credit Line settlement, Customer Pay Later Repayment modal.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+    <!-- DOMAIN 4: CATALOG, PRODUCTS (3 TYPES) & MASTER CATALOG (Karan & Shabbir) -->
+    <details open style="margin-top:14px;">
+      <summary style="font-size:14px;color:#d97706;padding:12px;background:#fffbeb;border-color:#fde68a;">
+        <b>4. CATALOG, 3 PRODUCT TYPES &amp; MASTER FMCG CATALOG (Owners: Karan &amp; Shabbir)</b>
+      </summary>
+      <div class="tablewrap" style="margin-top:10px;">
+        <table>
+          <thead>
+            <tr><th>Table Name</th><th>Columns &amp; Data Types</th><th>Constraints &amp; Foreign Keys</th><th>Indexes</th><th>Mapped Portal Features</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>product_variants</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>product_id UUID NOT NULL REFERENCES master_catalog_items(id) ON DELETE CASCADE<br>sku VARCHAR(100) UNIQUE NOT NULL<br>variant_name VARCHAR(150) NOT NULL<br>pack_size VARCHAR(50) NOT NULL<br>weight_in_grams NUMERIC(10,2)<br>mrp NUMERIC(12,2) NOT NULL<br>base_cost NUMERIC(12,2)<br>barcode VARCHAR(100)<br>is_active BOOLEAN DEFAULT true<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to master_catalog_items(id)</code></td>
+              <td><code>CREATE INDEX idx_prod_var_prod ON product_variants(product_id);<br>CREATE INDEX idx_prod_var_sku ON product_variants(sku);</code></td>
+              <td>Customer PDP (Pack Sizes: 250g, 500g, 1kg, 5kg), Seller POS item picker.</td>
+            </tr>
+            <tr>
+              <td><code>product_images</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>product_id UUID NOT NULL REFERENCES master_catalog_items(id) ON DELETE CASCADE<br>image_url TEXT NOT NULL<br>thumbnail_url TEXT<br>display_order INT DEFAULT 0<br>is_primary BOOLEAN DEFAULT false<br>alt_text VARCHAR(200)<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to master_catalog_items(id)</code></td>
+              <td><code>CREATE INDEX idx_prod_img_prod ON product_images(product_id, display_order);</code></td>
+              <td>Studio & Customer High-Res Zoomable Carousel.</td>
+            </tr>
+            <tr>
+              <td><code>listing_attributes</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>listing_id UUID NOT NULL REFERENCES seller_listings(id) ON DELETE CASCADE<br>attribute_key VARCHAR(100) NOT NULL<br>attribute_value TEXT NOT NULL<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to seller_listings(id)<br>UNIQUE(listing_id, attribute_key)</code></td>
+              <td><code>CREATE INDEX idx_list_attr ON listing_attributes(listing_id);</code></td>
+              <td>Custom seller shelf attributes (Shelf No, Bay No, Expiry Batch).</td>
+            </tr>
+            <tr>
+              <td><code>product_approval_history</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>listing_id UUID NOT NULL REFERENCES seller_listings(id) ON DELETE CASCADE<br>admin_id UUID NOT NULL REFERENCES users(id)<br>previous_status VARCHAR(50) NOT NULL<br>new_status VARCHAR(50) NOT NULL<br>rejection_reason TEXT<br>notes TEXT<br>action_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to seller_listings(id), users(id)</code></td>
+              <td><code>CREATE INDEX idx_prod_appr_hist ON product_approval_history(listing_id, action_at DESC);</code></td>
+              <td>Admin <code>sec-approvals</code> (Listing Moderation Audit Trail).</td>
+            </tr>
+            <tr>
+              <td><code>search_synonyms</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>primary_term VARCHAR(100) NOT NULL<br>synonyms TEXT[] NOT NULL<br>language_code VARCHAR(10) DEFAULT 'hi'<br>is_active BOOLEAN DEFAULT true<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>UNIQUE(primary_term, language_code)</code></td>
+              <td><code>CREATE INDEX idx_search_syn ON search_synonyms(primary_term);</code></td>
+              <td>Customer & POS Voice Search transliteration ('dal' -> 'daal', 'toor' -> 'arhar').</td>
+            </tr>
+
+            <tr>
+              <td><code>categories</code></td>
+              <td><code>id SERIAL PRIMARY KEY<br>slug VARCHAR(100) UNIQUE NOT NULL<br>name VARCHAR(150) NOT NULL<br>parent_id INT REFERENCES categories(id)<br>icon_class VARCHAR(50)<br>image_url TEXT<br>is_active BOOLEAN DEFAULT true<br>display_order INT DEFAULT 0</code></td>
+              <td><code>Self-referencing FK to categories(id)</code></td>
+              <td><code>CREATE INDEX idx_cat_slug ON categories(slug);</code></td>
+              <td><code>sec-catalog</code>, Customer <code>sec-categories</code>, Category search filters.</td>
+            </tr>
+            <tr>
+              <td><code>master_catalog_items</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>barcode VARCHAR(50) UNIQUE<br>product_name VARCHAR(255) NOT NULL<br>brand_name VARCHAR(100) NOT NULL<br>category_id INT REFERENCES categories(id)<br>printed_mrp NUMERIC(10,2) NOT NULL<br>standard_unit VARCHAR(20) DEFAULT 'pcs'<br>default_image_url TEXT<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to categories(id)</code></td>
+              <td><code>CREATE INDEX idx_mc_barcode ON master_catalog_items(barcode);<br>CREATE INDEX idx_mc_search ON master_catalog_items USING gin(to_tsvector('english', product_name || ' ' || brand_name));</code></td>
+              <td>5,000+ FMCG Master Catalog, Packed Item Quick Picker in Add Product Modal.</td>
+            </tr>
+            <tr>
+              <td><code>seller_listings</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE<br>product_type VARCHAR(30) NOT NULL<br>master_catalog_id UUID REFERENCES master_catalog_items(id)<br>title VARCHAR(255) NOT NULL<br>sku VARCHAR(100)<br>barcode VARCHAR(50)<br>brand_tag VARCHAR(100)<br>category_id INT NOT NULL REFERENCES categories(id)<br>mrp NUMERIC(10,2) NOT NULL<br>sell_price NUMERIC(10,2) NOT NULL<br>unit VARCHAR(20) DEFAULT 'pcs'<br>min_order_qty NUMERIC(8,2) DEFAULT 1.0<br>allowed_buyers VARCHAR(30) DEFAULT 'ALL'<br>approval_status VARCHAR(30) DEFAULT 'PENDING'<br>rejection_reason TEXT<br>is_active BOOLEAN DEFAULT true<br>rating NUMERIC(3,2) DEFAULT 5.00<br>review_count INT DEFAULT 0<br>created_at TIMESTAMPTZ DEFAULT NOW()<br>updated_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (product_type IN ('OWN_BRAND','LOOSE_WEIGHT','PACKED_ITEM'))<br>CHECK (allowed_buyers IN ('ALL','CUSTOMERS_ONLY','STORES_ONLY'))<br>CHECK (approval_status IN ('DRAFT','PENDING','APPROVED','REJECTED'))</code></td>
+              <td><code>CREATE INDEX idx_sl_store ON seller_listings(store_id);<br>CREATE INDEX idx_sl_status ON seller_listings(approval_status, is_active);<br>CREATE INDEX idx_sl_type ON seller_listings(product_type);<br>CREATE INDEX idx_sl_search ON seller_listings USING gin(to_tsvector('english', title));</code></td>
+              <td><code>sec-products</code>, <code>sec-studio</code>, <code>sec-catalog</code>, <code>sec-onboarding</code> (Step 6 starter products), Customer <code>sec-shop</code>.</td>
+            </tr>
+            <tr>
+              <td><code>partner_packs</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>store_id UUID NOT NULL REFERENCES stores(id)<br>source_brand_store_id UUID NOT NULL REFERENCES stores(id)<br>source_listing_id UUID NOT NULL REFERENCES seller_listings(id)<br>custom_sell_price NUMERIC(10,2) NOT NULL<br>is_active BOOLEAN DEFAULT true<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to stores(id), seller_listings(id)</code></td>
+              <td><code>CREATE INDEX idx_pp_store ON partner_packs(store_id);</code></td>
+              <td><code>sec-partner</code>, <code>sec-partnerbrands</code>, Cross-store brand syndication.</td>
+            </tr>
+            <tr>
+              <td><code>inventory</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>listing_id UUID NOT NULL UNIQUE REFERENCES seller_listings(id) ON DELETE CASCADE<br>stock_quantity NUMERIC(10,2) NOT NULL DEFAULT 0<br>reserved_quantity NUMERIC(10,2) NOT NULL DEFAULT 0<br>available_quantity NUMERIC(10,2) GENERATED ALWAYS AS (stock_quantity - reserved_quantity) STORED<br>low_stock_threshold NUMERIC(10,2) DEFAULT 5.0<br>updated_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (stock_quantity >= reserved_quantity)</code></td>
+              <td><code>CREATE INDEX idx_inv_listing ON inventory(listing_id);</code></td>
+              <td><code>sec-inventory-log</code>, POS stock deduction, Cart reservation.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+    <!-- DOMAIN 5: B2B TRADE & PROCUREMENT (Mayank) -->
+    <details open style="margin-top:14px;">
+      <summary style="font-size:14px;color:#0369a1;padding:12px;background:#f0f9ff;border-color:#bae6fd;">
+        <b>5. B2B TRADE, WHOLESALE &amp; RESTOCK PROCUREMENT (Owner: Mayank)</b>
+      </summary>
+      <div class="tablewrap" style="margin-top:10px;">
+        <table>
+          <thead>
+            <tr><th>Table Name</th><th>Columns &amp; Data Types</th><th>Constraints &amp; Foreign Keys</th><th>Indexes</th><th>Mapped Portal Features</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>inventory_transactions</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>inventory_id UUID NOT NULL REFERENCES inventory(id)<br>transaction_type VARCHAR(50) NOT NULL<br>quantity_change INT NOT NULL<br>quantity_after INT NOT NULL<br>reference_type VARCHAR(50) NOT NULL<br>reference_id UUID<br>notes TEXT<br>created_by UUID REFERENCES users(id)<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to inventory(id)<br>CHECK (transaction_type IN ('RESTOCK','ORDER_FULFILL','POS_COUNTER_SALE','MANUAL_ADJUSTMENT','RETURN_RESTOCK','DAMAGED_WRITE_OFF'))</code></td>
+              <td><code>CREATE INDEX idx_inv_tx_inv ON inventory_transactions(inventory_id, created_at DESC);</code></td>
+              <td>Real-time inventory ledger and stock audit trail.</td>
+            </tr>
+            <tr>
+              <td><code>inventory_reservations</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>inventory_id UUID NOT NULL REFERENCES inventory(id)<br>order_id UUID REFERENCES orders(id)<br>cart_id UUID REFERENCES carts(id)<br>quantity_reserved INT NOT NULL<br>expires_at TIMESTAMPTZ NOT NULL<br>status VARCHAR(30) DEFAULT 'ACTIVE'<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to inventory(id)<br>CHECK (status IN ('ACTIVE','COMMITTED','EXPIRED','RELEASED'))</code></td>
+              <td><code>CREATE INDEX idx_inv_res_exp ON inventory_reservations(expires_at, status);</code></td>
+              <td>15-minute checkout lock preventing overselling during flash sales.</td>
+            </tr>
+            <tr>
+              <td><code>suppliers</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>supplier_name VARCHAR(200) NOT NULL<br>contact_person VARCHAR(100)<br>phone VARCHAR(20) NOT NULL<br>email VARCHAR(150)<br>gstin VARCHAR(20)<br>city VARCHAR(100) NOT NULL<br>payment_terms VARCHAR(100) DEFAULT '15_DAYS_CREDIT'<br>rating NUMERIC(3,2) DEFAULT 5.00<br>is_active BOOLEAN DEFAULT true<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>UNIQUE(phone)</code></td>
+              <td><code>CREATE INDEX idx_supp_city ON suppliers(city, is_active);</code></td>
+              <td>Seller B2B Wholesale Reorder (<code>sec-buy</code>).</td>
+            </tr>
+            <tr>
+              <td><code>stock_purchase_orders</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>po_number VARCHAR(100) UNIQUE NOT NULL<br>store_id UUID NOT NULL REFERENCES stores(id)<br>supplier_id UUID NOT NULL REFERENCES suppliers(id)<br>total_amount NUMERIC(14,2) NOT NULL<br>tax_amount NUMERIC(12,2) DEFAULT 0.00<br>payment_mode VARCHAR(50) DEFAULT 'CREDIT_LINE'<br>status VARCHAR(50) DEFAULT 'PLACED'<br>expected_delivery DATE<br>actual_delivered_at TIMESTAMPTZ<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to stores(id), suppliers(id)<br>CHECK (status IN ('DRAFT','PLACED','CONFIRMED','SHIPPED','RECEIVED','CANCELLED'))</code></td>
+              <td><code>CREATE INDEX idx_po_store ON stock_purchase_orders(store_id, status);</code></td>
+              <td>Seller B2B Wholesale Buy Cart & Invoices (<code>sec-buycart</code>, <code>sec-money</code>).</td>
+            </tr>
+            <tr>
+              <td><code>stock_purchase_order_items</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>purchase_order_id UUID NOT NULL REFERENCES stock_purchase_orders(id) ON DELETE CASCADE<br>item_name VARCHAR(200) NOT NULL<br>sku VARCHAR(100)<br>unit_purchase_price NUMERIC(12,2) NOT NULL<br>quantity_ordered INT NOT NULL<br>quantity_received INT DEFAULT 0<br>total_cost NUMERIC(12,2) NOT NULL<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to stock_purchase_orders(id)</code></td>
+              <td><code>CREATE INDEX idx_po_items ON stock_purchase_order_items(purchase_order_id);</code></td>
+              <td>B2B Goods Received Note (GRN) verification.</td>
+            </tr>
+
+            <tr>
+              <td><code>b2b_purchase_orders</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>po_number VARCHAR(30) UNIQUE NOT NULL<br>buyer_store_id UUID NOT NULL REFERENCES stores(id)<br>supplier_store_id UUID NOT NULL REFERENCES stores(id)<br>total_amount NUMERIC(12,2) NOT NULL<br>payment_terms VARCHAR(30) DEFAULT 'CREDIT_14D'<br>status VARCHAR(30) DEFAULT 'PLACED'<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (payment_terms IN ('CREDIT_7D','CREDIT_14D','CREDIT_30D','ADVANCE_UPI'))<br>CHECK (status IN ('PLACED','CONFIRMED','DISPATCHED','RECEIVED','CANCELLED'))</code></td>
+              <td><code>CREATE INDEX idx_b2bpo_buyer ON b2b_purchase_orders(buyer_store_id);<br>CREATE INDEX idx_b2bpo_supplier ON b2b_purchase_orders(supplier_store_id);</code></td>
+              <td><code>sec-mastersearch</code>, <code>sec-buy</code>, <code>sec-buycart</code>, <code>sec-checkout</code> (B2B restock).</td>
+            </tr>
+            <tr>
+              <td><code>b2b_purchase_items</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>purchase_order_id UUID NOT NULL REFERENCES b2b_purchase_orders(id) ON DELETE CASCADE<br>listing_id UUID NOT NULL REFERENCES seller_listings(id)<br>quantity NUMERIC(10,2) NOT NULL<br>unit_price NUMERIC(10,2) NOT NULL<br>total_price NUMERIC(10,2) NOT NULL</code></td>
+              <td><code>FK to b2b_purchase_orders(id)</code></td>
+              <td><code>CREATE INDEX idx_b2bitems_po ON b2b_purchase_items(purchase_order_id);</code></td>
+              <td>B2B Restock cart line items.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+    <!-- DOMAIN 6: CUSTOMER CHECKOUT, ORDERS, POS & LOGISTICS (Mrunal & Mayank) -->
+    <details open style="margin-top:14px;">
+      <summary style="font-size:14px;color:#b45309;padding:12px;background:#fef3c7;border-color:#fde68a;">
+        <b>6. CUSTOMER CHECKOUT, ORDERS, POS COUNTER &amp; DISPATCH (Owners: Mrunal &amp; Mayank)</b>
+      </summary>
+      <div class="tablewrap" style="margin-top:10px;">
+        <table>
+          <thead>
+            <tr><th>Table Name</th><th>Columns &amp; Data Types</th><th>Constraints &amp; Foreign Keys</th><th>Indexes</th><th>Mapped Portal Features</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>order_status_history</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE<br>seller_order_id UUID REFERENCES seller_orders(id)<br>previous_status VARCHAR(50) NOT NULL<br>new_status VARCHAR(50) NOT NULL<br>changed_by_user_id UUID REFERENCES users(id)<br>notes TEXT<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to orders(id), users(id)</code></td>
+              <td><code>CREATE INDEX idx_ord_stat_hist ON order_status_history(order_id, created_at DESC);</code></td>
+              <td>Customer Order Tracking Timeline (<code>sec-track</code>), Seller Orders (<code>sec-orders</code>).</td>
+            </tr>
+            <tr>
+              <td><code>pos_sale_items</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>pos_sale_id UUID NOT NULL REFERENCES pos_sales(id) ON DELETE CASCADE<br>listing_id UUID REFERENCES seller_listings(id)<br>item_name VARCHAR(200) NOT NULL<br>unit_price NUMERIC(10,2) NOT NULL<br>quantity NUMERIC(8,3) NOT NULL<br>discount_amount NUMERIC(10,2) DEFAULT 0.00<br>line_total NUMERIC(12,2) NOT NULL<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to pos_sales(id), seller_listings(id)</code></td>
+              <td><code>CREATE INDEX idx_pos_items ON pos_sale_items(pos_sale_id);</code></td>
+              <td>Seller 1-Click Counter POS Printed Receipt (<code>sec-pos</code>).</td>
+            </tr>
+            <tr>
+              <td><code>payment_transactions</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>order_id UUID REFERENCES orders(id)<br>user_id UUID NOT NULL REFERENCES users(id)<br>payment_gateway VARCHAR(50) NOT NULL<br>gateway_transaction_id VARCHAR(150) UNIQUE<br>amount NUMERIC(14,2) NOT NULL<br>currency VARCHAR(10) DEFAULT 'INR'<br>payment_mode VARCHAR(50) NOT NULL<br>status VARCHAR(50) DEFAULT 'PENDING'<br>response_payload JSONB<br>created_at TIMESTAMPTZ DEFAULT NOW()<br>updated_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to orders(id), users(id)<br>CHECK (status IN ('INITIATED','PENDING','SUCCESS','FAILED','REFUNDED'))<br>CHECK (payment_mode IN ('UPI','CARD','NET_BANKING','ADAB_PAY_LATER','WALLET','COD'))</code></td>
+              <td><code>CREATE INDEX idx_pay_tx_order ON payment_transactions(order_id);<br>CREATE INDEX idx_pay_tx_gw ON payment_transactions(gateway_transaction_id);</code></td>
+              <td>Unified Payments Gateway integration & webhook reconciliation.</td>
+            </tr>
+            <tr>
+              <td><code>seller_payouts</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>payout_batch_id VARCHAR(100) NOT NULL<br>store_id UUID NOT NULL REFERENCES stores(id)<br>bank_account_id UUID NOT NULL REFERENCES seller_bank_accounts(id)<br>gross_earnings NUMERIC(14,2) NOT NULL<br>commission_deducted NUMERIC(12,2) NOT NULL<br>tax_tcs_tds_deducted NUMERIC(12,2) NOT NULL<br>net_payout_amount NUMERIC(14,2) NOT NULL<br>utr_number VARCHAR(100) UNIQUE<br>payout_status VARCHAR(50) DEFAULT 'PROCESSING'<br>processed_at TIMESTAMPTZ<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to stores(id), seller_bank_accounts(id)<br>CHECK (payout_status IN ('INITIATED','PROCESSING','SETTLED','FAILED','HELD_FOR_REVIEW'))</code></td>
+              <td><code>CREATE INDEX idx_payout_store ON seller_payouts(store_id, payout_status);</code></td>
+              <td>Seller Bank Settlements & Daily Payouts (<code>sec-money</code>), Admin Finance (<code>sec-reports</code>).</td>
+            </tr>
+            <tr>
+              <td><code>tracking_events</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE<br>driver_id UUID REFERENCES users(id)<br>event_name VARCHAR(100) NOT NULL<br>event_description TEXT<br>latitude NUMERIC(10,8)<br>longitude NUMERIC(11,8)<br>timestamp TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to orders(id), users(id)</code></td>
+              <td><code>CREATE INDEX idx_track_events ON tracking_events(order_id, timestamp DESC);</code></td>
+              <td>Customer Live GPS Driver Map (<code>sec-track</code>).</td>
+            </tr>
+            <tr>
+              <td><code>delivery_slots</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>zone_id UUID NOT NULL REFERENCES delivery_zones(id)<br>slot_date DATE NOT NULL<br>start_time TIME NOT NULL<br>end_time TIME NOT NULL<br>max_deliveries INT DEFAULT 20<br>current_booked INT DEFAULT 0<br>is_active BOOLEAN DEFAULT true<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to delivery_zones(id)<br>UNIQUE(zone_id, slot_date, start_time, end_time)</code></td>
+              <td><code>CREATE INDEX idx_del_slots ON delivery_slots(zone_id, slot_date, is_active);</code></td>
+              <td>Customer Checkout Express/Same-Day/Next-Day time picker (<code>sec-checkout</code>).</td>
+            </tr>
+
+            <tr>
+              <td><code>carts</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>customer_id UUID REFERENCES users(id) ON DELETE CASCADE<br>session_token VARCHAR(255)<br>coupon_code VARCHAR(50)<br>delivery_speed VARCHAR(30) DEFAULT 'EXPRESS_30M'<br>updated_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (delivery_speed IN ('EXPRESS_30M','SAME_DAY','STORE_PICKUP'))</code></td>
+              <td><code>CREATE INDEX idx_carts_customer ON carts(customer_id);</code></td>
+              <td>Customer <code>sec-cart</code>, Floating Cart badge, Coupon engine.</td>
+            </tr>
+            <tr>
+              <td><code>cart_items</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>cart_id UUID NOT NULL REFERENCES carts(id) ON DELETE CASCADE<br>listing_id UUID NOT NULL REFERENCES seller_listings(id)<br>quantity NUMERIC(8,2) NOT NULL DEFAULT 1<br>added_at TIMESTAMPTZ DEFAULT NOW()<br>UNIQUE(cart_id, listing_id)</code></td>
+              <td><code>FK to carts(id), seller_listings(id)</code></td>
+              <td><code>CREATE INDEX idx_ci_cart ON cart_items(cart_id);</code></td>
+              <td>Cart item list and quantity stepper.</td>
+            </tr>
+            <tr>
+              <td><code>orders</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>order_number VARCHAR(30) UNIQUE NOT NULL<br>customer_id UUID NOT NULL REFERENCES users(id)<br>delivery_address JSONB NOT NULL<br>delivery_mode VARCHAR(30) DEFAULT 'EXPRESS_30M'<br>total_mrp NUMERIC(10,2) NOT NULL<br>total_discount NUMERIC(10,2) DEFAULT 0.00<br>delivery_fee NUMERIC(10,2) DEFAULT 0.00<br>grand_total NUMERIC(10,2) NOT NULL<br>payment_method VARCHAR(30) NOT NULL<br>payment_status VARCHAR(30) DEFAULT 'PENDING'<br>order_status VARCHAR(30) DEFAULT 'PLACED'<br>eta_minutes INT DEFAULT 25<br>created_at TIMESTAMPTZ DEFAULT NOW()<br>updated_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (delivery_mode IN ('EXPRESS_30M','SAME_DAY','STORE_PICKUP'))<br>CHECK (payment_method IN ('UPI','CREDIT_14D','CARD','CASH_ON_DELIVERY'))<br>CHECK (order_status IN ('PLACED','CONFIRMED','PREPARING','OUT_FOR_DELIVERY','DELIVERED','CANCELLED','RETURNED'))</code></td>
+              <td><code>CREATE INDEX idx_orders_cust ON orders(customer_id);<br>CREATE INDEX idx_orders_stat ON orders(order_status);<br>CREATE INDEX idx_orders_created ON orders(created_at DESC);</code></td>
+              <td>Customer <code>sec-checkout</code>, <code>sec-orders</code>, <code>sec-track</code>, Admin <code>sec-orders</code>.</td>
+            </tr>
+            <tr>
+              <td><code>seller_orders</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>parent_order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE<br>store_id UUID NOT NULL REFERENCES stores(id)<br>subtotal NUMERIC(10,2) NOT NULL<br>commission_fee NUMERIC(10,2) DEFAULT 0.00<br>seller_payout_amount NUMERIC(10,2) NOT NULL<br>status VARCHAR(30) DEFAULT 'NEW'<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (status IN ('NEW','ACCEPTED','PACKED','DISPATCHED','DELIVERED','CANCELLED'))</code></td>
+              <td><code>CREATE INDEX idx_so_store ON seller_orders(store_id, status);</code></td>
+              <td>Seller <code>sec-orders</code>, <code>sec-orderhistory</code>, Store order dispatcher.</td>
+            </tr>
+            <tr>
+              <td><code>order_items</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>seller_order_id UUID NOT NULL REFERENCES seller_orders(id) ON DELETE CASCADE<br>listing_id UUID NOT NULL REFERENCES seller_listings(id)<br>product_name VARCHAR(255) NOT NULL<br>quantity NUMERIC(8,2) NOT NULL<br>unit_price NUMERIC(10,2) NOT NULL<br>total_price NUMERIC(10,2) NOT NULL</code></td>
+              <td><code>FK to seller_orders(id), seller_listings(id)</code></td>
+              <td><code>CREATE INDEX idx_oi_so ON order_items(seller_order_id);</code></td>
+              <td>Line items in customer receipt and seller packing slip.</td>
+            </tr>
+            <tr>
+              <td><code>pos_sales</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE<br>receipt_no VARCHAR(50) NOT NULL<br>buyer_type VARCHAR(20) DEFAULT 'WALK_IN_CUSTOMER'<br>payment_mode VARCHAR(20) NOT NULL<br>total_amount NUMERIC(10,2) NOT NULL<br>points_earned INT DEFAULT 0<br>announced_audio BOOLEAN DEFAULT true<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (payment_mode IN ('CASH','UPI','CARD','CREDIT_14D'))</code></td>
+              <td><code>CREATE INDEX idx_pos_store ON pos_sales(store_id, created_at DESC);</code></td>
+              <td>Seller <code>sec-pos</code> 1-Click Counter Billing with Soundbox Announcer.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+    <!-- DOMAIN 7: RETURNS, REVIEWS, REWARDS & WALLET (Mrunal & Mahi) -->
+    <details open style="margin-top:14px;">
+      <summary style="font-size:14px;color:#7c3aed;padding:12px;background:#f5f3ff;border-color:#ddd6fe;">
+        <b>7. RETURNS, REVIEWS, REWARDS &amp; WALLET (Owners: Mrunal &amp; Mahi)</b>
+      </summary>
+      <div class="tablewrap" style="margin-top:10px;">
+        <table>
+          <thead>
+            <tr><th>Table Name</th><th>Columns &amp; Data Types</th><th>Constraints &amp; Foreign Keys</th><th>Indexes</th><th>Mapped Portal Features</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>return_items</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>return_id UUID NOT NULL REFERENCES returns(id) ON DELETE CASCADE<br>order_item_id UUID NOT NULL REFERENCES order_items(id)<br>quantity INT NOT NULL<br>refund_amount NUMERIC(12,2) NOT NULL<br>reason VARCHAR(100) NOT NULL<br>item_condition VARCHAR(50) DEFAULT 'SEALED'<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to returns(id), order_items(id)</code></td>
+              <td><code>CREATE INDEX idx_ret_items ON return_items(return_id);</code></td>
+              <td>Customer Returns (<code>sec-returns</code>), Seller Return Verification (<code>sec-returns</code>).</td>
+            </tr>
+            <tr>
+              <td><code>coupon_redemptions</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>store_id UUID REFERENCES stores(id)<br>customer_id UUID NOT NULL REFERENCES customers(id)<br>order_id UUID NOT NULL REFERENCES orders(id)<br>coupon_code VARCHAR(50) NOT NULL<br>discount_availed NUMERIC(12,2) NOT NULL<br>redeemed_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to customers(id), orders(id)</code></td>
+              <td><code>CREATE INDEX idx_coup_red ON coupon_redemptions(customer_id, coupon_code);</code></td>
+              <td>Seller Promotional Vouchers (<code>sec-offers</code>), Customer Cart Promo Codes.</td>
+            </tr>
+            <tr>
+              <td><code>review_replies</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>review_id UUID NOT NULL REFERENCES reviews(id) ON DELETE CASCADE<br>store_id UUID NOT NULL REFERENCES stores(id)<br>responder_user_id UUID NOT NULL REFERENCES users(id)<br>reply_text TEXT NOT NULL<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to reviews(id), stores(id), users(id)</code></td>
+              <td><code>CREATE INDEX idx_rev_replies ON review_replies(review_id);</code></td>
+              <td>Seller Review Response Modal (<code>sec-reviews</code>), Customer PDP feedback.</td>
+            </tr>
+            <tr>
+              <td><code>review_media</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>review_id UUID NOT NULL REFERENCES reviews(id) ON DELETE CASCADE<br>media_url TEXT NOT NULL<br>media_type VARCHAR(20) DEFAULT 'IMAGE'<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to reviews(id)<br>CHECK (media_type IN ('IMAGE','VIDEO'))</code></td>
+              <td><code>CREATE INDEX idx_rev_media ON review_media(review_id);</code></td>
+              <td>Customer Verified Photo Reviews with image proof.</td>
+            </tr>
+            <tr>
+              <td><code>support_tickets</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>ticket_number VARCHAR(50) UNIQUE NOT NULL<br>user_id UUID NOT NULL REFERENCES users(id)<br>user_role VARCHAR(30) NOT NULL<br>order_id UUID REFERENCES orders(id)<br>category VARCHAR(100) NOT NULL<br>priority VARCHAR(30) DEFAULT 'MEDIUM'<br>status VARCHAR(50) DEFAULT 'OPEN'<br>assigned_admin_id UUID REFERENCES users(id)<br>created_at TIMESTAMPTZ DEFAULT NOW()<br>resolved_at TIMESTAMPTZ</code></td>
+              <td><code>FK to users(id), orders(id)<br>CHECK (priority IN ('LOW','MEDIUM','HIGH','URGENT'))<br>CHECK (status IN ('OPEN','IN_PROGRESS','WAITING_CUSTOMER','RESOLVED','CLOSED'))</code></td>
+              <td><code>CREATE INDEX idx_ticket_user ON support_tickets(user_id, status);</code></td>
+              <td>Help Desk & Dispute Resolution (<code>sec-help</code>, <code>sec-faq</code>, Admin Support).</td>
+            </tr>
+            <tr>
+              <td><code>support_messages</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>ticket_id UUID NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE<br>sender_user_id UUID NOT NULL REFERENCES users(id)<br>message TEXT NOT NULL<br>attachment_url TEXT<br>is_internal_admin_note BOOLEAN DEFAULT false<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to support_tickets(id), users(id)</code></td>
+              <td><code>CREATE INDEX idx_supp_msgs ON support_messages(ticket_id, created_at ASC);</code></td>
+              <td>Support Ticket Conversation Thread & Admin Notes.</td>
+            </tr>
+
+            <tr>
+              <td><code>returns</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>order_id UUID NOT NULL REFERENCES orders(id)<br>seller_order_id UUID NOT NULL REFERENCES seller_orders(id)<br>customer_id UUID NOT NULL REFERENCES users(id)<br>reason VARCHAR(255) NOT NULL<br>status VARCHAR(30) DEFAULT 'REQUESTED'<br>refund_amount NUMERIC(10,2) NOT NULL<br>rejection_reason TEXT<br>requested_at TIMESTAMPTZ DEFAULT NOW()<br>resolved_at TIMESTAMPTZ</code></td>
+              <td><code>CHECK (status IN ('REQUESTED','APPROVED','ITEM_PICKED','COMPLETED','REJECTED'))</code></td>
+              <td><code>CREATE INDEX idx_ret_seller ON returns(seller_order_id);<br>CREATE INDEX idx_ret_cust ON returns(customer_id);</code></td>
+              <td>Customer <code>sec-returns</code>, Seller <code>sec-returns</code>, Admin <code>sec-returns</code>.</td>
+            </tr>
+            <tr>
+              <td><code>reviews</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>listing_id UUID NOT NULL REFERENCES seller_listings(id)<br>customer_id UUID NOT NULL REFERENCES users(id)<br>order_id UUID REFERENCES orders(id)<br>rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5)<br>title VARCHAR(150)<br>comment TEXT<br>seller_reply TEXT<br>seller_replied_at TIMESTAMPTZ<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to seller_listings(id), users(id)</code></td>
+              <td><code>CREATE INDEX idx_rev_listing ON reviews(listing_id, rating);</code></td>
+              <td>Customer <code>sec-reviews</code>, Seller <code>sec-reviews</code>, Store rating aggregator.</td>
+            </tr>
+            <tr>
+              <td><code>rewards_ledger</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>user_id UUID NOT NULL REFERENCES users(id)<br>points_change INT NOT NULL<br>transaction_type VARCHAR(30) NOT NULL<br>reference_id VARCHAR(100)<br>balance_after INT NOT NULL<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (transaction_type IN ('EARN_ORDER','EARN_POS','REDEEM_ORDER','SIGNUP_BONUS'))</code></td>
+              <td><code>CREATE INDEX idx_rw_user ON rewards_ledger(user_id, created_at DESC);</code></td>
+              <td>Customer <code>sec-points</code>, Seller <code>sec-points</code>, +100 bonus on onboarding.</td>
+            </tr>
+            <tr>
+              <td><code>customer_wallets</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>customer_id UUID NOT NULL UNIQUE REFERENCES users(id)<br>balance NUMERIC(10,2) DEFAULT 0.00 CHECK (balance >= 0.00)<br>updated_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to users(id)</code></td>
+              <td><code>CREATE UNIQUE INDEX idx_cw_cust ON customer_wallets(customer_id);</code></td>
+              <td>Customer <code>sec-wallet</code>, 1-Click Refund balance store.</td>
+            </tr>
+            <tr>
+              <td><code>customer_favorites</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>customer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE<br>listing_id UUID NOT NULL REFERENCES seller_listings(id) ON DELETE CASCADE<br>created_at TIMESTAMPTZ DEFAULT NOW()<br>UNIQUE(customer_id, listing_id)</code></td>
+              <td><code>FK to users(id), seller_listings(id)</code></td>
+              <td><code>CREATE INDEX idx_cfav_cust ON customer_favorites(customer_id);</code></td>
+              <td>Customer <code>sec-favorites</code> wishlist bookmarking.</td>
+            </tr>
+            <tr>
+              <td><code>customer_addresses</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>customer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE<br>label VARCHAR(50) DEFAULT 'Home'<br>recipient_name VARCHAR(150) NOT NULL<br>phone VARCHAR(20) NOT NULL<br>address_line TEXT NOT NULL<br>landmark VARCHAR(150)<br>city VARCHAR(100) NOT NULL<br>pincode VARCHAR(10) NOT NULL<br>is_default BOOLEAN DEFAULT false<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to users(id)</code></td>
+              <td><code>CREATE INDEX idx_caddr_cust ON customer_addresses(customer_id);</code></td>
+              <td>Customer <code>sec-addresses</code>, Fast 1-click delivery address switcher.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+    <!-- DOMAIN 8: MESSAGING, NOTIFICATIONS & AUDIT LOGS (Devika, Karan & Shabbir) -->
+    <details open style="margin-top:14px;">
+      <summary style="font-size:14px;color:#475569;padding:12px;background:#f8fafc;border-color:#cbd5e1;">
+        <b>8. MESSAGING, NOTIFICATIONS &amp; AUDIT LOGGING (Owners: Devika, Karan &amp; Shabbir)</b>
+      </summary>
+      <div class="tablewrap" style="margin-top:10px;">
+        <table>
+          <thead>
+            <tr><th>Table Name</th><th>Columns &amp; Data Types</th><th>Constraints &amp; Foreign Keys</th><th>Indexes</th><th>Mapped Portal Features</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>feature_flags</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>flag_key VARCHAR(100) UNIQUE NOT NULL<br>description TEXT<br>is_enabled BOOLEAN DEFAULT false<br>target_roles TEXT[] DEFAULT '{}'<br>target_pincodes TEXT[] DEFAULT '{}'<br>percentage_rollout INT DEFAULT 100<br>created_at TIMESTAMPTZ DEFAULT NOW()<br>updated_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (percentage_rollout BETWEEN 0 AND 100)</code></td>
+              <td><code>CREATE UNIQUE INDEX idx_ff_key ON feature_flags(flag_key);</code></td>
+              <td>Admin Dynamic Feature Toggles (<code>sec-settings</code>).</td>
+            </tr>
+            <tr>
+              <td><code>outbox_events</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>aggregate_type VARCHAR(100) NOT NULL<br>aggregate_id UUID NOT NULL<br>event_type VARCHAR(100) NOT NULL<br>payload JSONB NOT NULL<br>status VARCHAR(30) DEFAULT 'PENDING'<br>retry_count INT DEFAULT 0<br>error_message TEXT<br>created_at TIMESTAMPTZ DEFAULT NOW()<br>processed_at TIMESTAMPTZ</code></td>
+              <td><code>CHECK (status IN ('PENDING','PUBLISHED','FAILED'))</code></td>
+              <td><code>CREATE INDEX idx_outbox_pending ON outbox_events(status, created_at) WHERE status = 'PENDING';</code></td>
+              <td>Transactional Outbox Pattern guaranteeing 100% reliable Kafka / Webhook event delivery.</td>
+            </tr>
+            <tr>
+              <td><code>idempotency_keys</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>key VARCHAR(255) UNIQUE NOT NULL<br>user_id UUID NOT NULL REFERENCES users(id)<br>request_path VARCHAR(255) NOT NULL<br>response_status_code INT NOT NULL<br>response_body JSONB NOT NULL<br>locked_until TIMESTAMPTZ NOT NULL<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to users(id)</code></td>
+              <td><code>CREATE UNIQUE INDEX idx_idemp_key ON idempotency_keys(key);</code></td>
+              <td>Prevents double charge & duplicate order creation during high network latency.</td>
+            </tr>
+
+            <tr>
+              <td><code>message_threads</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>participant_a UUID NOT NULL REFERENCES users(id)<br>participant_b UUID NOT NULL REFERENCES users(id)<br>subject VARCHAR(200)<br>last_message_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to users(id)</code></td>
+              <td><code>CREATE INDEX idx_mt_part ON message_threads(participant_a, participant_b);</code></td>
+              <td>Seller <code>sec-messages</code>, Customer <code>sec-messages</code>.</td>
+            </tr>
+            <tr>
+              <td><code>messages</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>thread_id UUID NOT NULL REFERENCES message_threads(id) ON DELETE CASCADE<br>sender_id UUID NOT NULL REFERENCES users(id)<br>body TEXT NOT NULL<br>is_read BOOLEAN DEFAULT false<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to message_threads(id), users(id)</code></td>
+              <td><code>CREATE INDEX idx_msg_thread ON messages(thread_id, created_at);</code></td>
+              <td>Chat conversations between shopkeeper and customer.</td>
+            </tr>
+            <tr>
+              <td><code>notifications</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE<br>title VARCHAR(150) NOT NULL<br>message TEXT NOT NULL<br>type VARCHAR(50) NOT NULL<br>is_read BOOLEAN DEFAULT false<br>action_url TEXT<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>CHECK (type IN ('ORDER_STATUS','KYC_UPDATE','CREDIT_APPROVAL','PRICE_ALERT','GENERAL'))</code></td>
+              <td><code>CREATE INDEX idx_notif_user ON notifications(user_id, is_read);</code></td>
+              <td>All portals notification center and bell badges.</td>
+            </tr>
+            <tr>
+              <td><code>audit_logs</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>actor_id UUID REFERENCES users(id)<br>action VARCHAR(100) NOT NULL<br>entity_type VARCHAR(50) NOT NULL<br>entity_id VARCHAR(100) NOT NULL<br>changes JSONB<br>ip_address INET<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to users(id)</code></td>
+              <td><code>CREATE INDEX idx_al_entity ON audit_logs(entity_type, entity_id);<br>CREATE INDEX idx_al_created ON audit_logs(created_at DESC);</code></td>
+              <td>Admin <code>sec-audit</code> immutable platform governance trail.</td>
+            </tr>
+            <tr>
+              <td><code>platform_settings</code></td>
+              <td><code>key VARCHAR(100) PRIMARY KEY<br>value JSONB NOT NULL<br>description TEXT<br>updated_by UUID REFERENCES users(id)<br>updated_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>PRIMARY KEY (key)</code></td>
+              <td><code>CREATE INDEX idx_ps_key ON platform_settings(key);</code></td>
+              <td>Admin <code>sec-settings</code> dynamic switches and feature flags.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+    <!-- DOMAIN 9: AI RECOMMENDATIONS, B2B EXPORT, COMPLIANCE CERTIFICATIONS & FLEET LOGISTICS (Shabbir, Mayank & Devika) -->
+    <details open style="margin-top:14px;">
+      <summary style="font-size:14px;color:#7c3aed;padding:12px;background:#f5f3ff;border-color:#ddd6fe;">
+        <b>9. AI RECOMMENDATIONS, B2B EXPORT, CERTIFICATES, FREIGHT &amp; SELLER PERFORMANCE (Owners: Shabbir, Mayank &amp; Devika)</b>
+      </summary>
+      <div class="tablewrap" style="margin-top:10px;">
+        <table>
+          <thead>
+            <tr><th>Table Name</th><th>Columns &amp; Data Types</th><th>Constraints &amp; Foreign Keys</th><th>Indexes</th><th>Mapped Portal Features</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>ai_product_recommendations</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>store_id UUID REFERENCES stores(id) ON DELETE CASCADE<br>customer_id UUID REFERENCES customers(id) ON DELETE CASCADE<br>product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE<br>recommendation_type VARCHAR(50) NOT NULL<br>confidence_score NUMERIC(5,4) NOT NULL DEFAULT 0.8500<br>reason_text TEXT NOT NULL<br>expected_demand_lift_pct NUMERIC(5,2)<br>action_taken VARCHAR(50) DEFAULT 'PENDING'<br>created_at TIMESTAMPTZ DEFAULT NOW()<br>expires_at TIMESTAMPTZ</code></td>
+              <td><code>FK to stores(id), customers(id), products(id)<br>CHECK (recommendation_type IN ('SELL_RECOMMENDED','BUY_RECOMMENDED','HIGH_DEMAND_INSIGHT','TRENDING_NEAR_YOU','DEAD_STOCK_CLEARANCE','CROSS_SELL'))<br>CHECK (action_taken IN ('PENDING','ADDED_TO_SHELF','ORDERED_B2B','DISMISSED'))</code></td>
+              <td><code>CREATE INDEX idx_rec_store_type ON ai_product_recommendations(store_id, recommendation_type);<br>CREATE INDEX idx_rec_cust ON ai_product_recommendations(customer_id, confidence_score DESC);</code></td>
+              <td>Seller <code>sec-recommendations</code> (AI Intelligence Tab: Sell, Buy, Demand, Trending), Customer <code>sec-shop</code> &amp; PDP recommendations.</td>
+            </tr>
+            <tr>
+              <td><code>export_declarations</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>store_id UUID NOT NULL REFERENCES stores(id)<br>order_id UUID REFERENCES orders(id)<br>export_reference_no VARCHAR(100) UNIQUE NOT NULL<br>destination_country VARCHAR(100) NOT NULL<br>port_of_loading VARCHAR(100) NOT NULL<br>port_of_discharge VARCHAR(100) NOT NULL<br>incoterms VARCHAR(20) NOT NULL<br>hs_code VARCHAR(50) NOT NULL<br>fob_value_usd NUMERIC(12,2) NOT NULL<br>cif_value_usd NUMERIC(12,2) NOT NULL<br>shipping_bill_no VARCHAR(100)<br>customs_clearance_status VARCHAR(50) DEFAULT 'DRAFT'<br>phytosanitary_cert_no VARCHAR(100)<br>created_at TIMESTAMPTZ DEFAULT NOW()<br>updated_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to stores(id), orders(id)<br>CHECK (customs_clearance_status IN ('DRAFT','SUBMITTED','UNDER_INSPECTION','CUSTOMS_CLEARED','CONTAINER_LOADED','SAILED','REJECTED'))<br>CHECK (incoterms IN ('FOB','CIF','EXW','DDP','CFR'))</code></td>
+              <td><code>CREATE INDEX idx_export_store ON export_declarations(store_id, customs_clearance_status);<br>CREATE UNIQUE INDEX idx_export_ref ON export_declarations(export_reference_no);</code></td>
+              <td>Seller <code>sec-export</code> (B2B Global Trade &amp; Cross-Border Shipping module).</td>
+            </tr>
+            <tr>
+              <td><code>compliance_certificates</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE<br>certificate_type VARCHAR(100) NOT NULL<br>certificate_name VARCHAR(200) NOT NULL<br>issuing_authority VARCHAR(200) NOT NULL<br>license_number VARCHAR(100) NOT NULL<br>issue_date DATE NOT NULL<br>expiry_date DATE NOT NULL<br>document_url TEXT NOT NULL<br>verification_status VARCHAR(50) DEFAULT 'PENDING'<br>verified_by_admin_id UUID REFERENCES admins(id)<br>verified_at TIMESTAMPTZ<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to stores(id), admins(id)<br>CHECK (certificate_type IN ('FSSAI_CENTRAL','FSSAI_STATE','ORGANIC_INDIA_NPOP','HALAL_CERTIFICATE','ISO_22000','AGMARK','IMPORT_EXPORT_CODE_IEC','APEDA_REGISTRATION'))<br>CHECK (verification_status IN ('PENDING','VERIFIED','EXPIRED','REJECTED'))</code></td>
+              <td><code>CREATE INDEX idx_cert_store ON compliance_certificates(store_id, verification_status);<br>CREATE INDEX idx_cert_expiry ON compliance_certificates(expiry_date);</code></td>
+              <td>Seller <code>sec-certificates</code> (Quality Badges, FSSAI, Organic &amp; ISO compliance), Admin <code>sec-approvals</code>.</td>
+            </tr>
+            <tr>
+              <td><code>partner_brand_contracts</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>brand_id UUID NOT NULL REFERENCES brands(id)<br>store_id UUID NOT NULL REFERENCES stores(id)<br>authorized_tier VARCHAR(50) DEFAULT 'SILVER_DEALER'<br>commission_rebate_pct NUMERIC(5,2) DEFAULT 3.50<br>minimum_monthly_stock_units INT DEFAULT 50<br>exclusive_territory_pincode VARCHAR(20)<br>contract_start_date DATE NOT NULL<br>contract_end_date DATE NOT NULL<br>status VARCHAR(50) DEFAULT 'ACTIVE'<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to brands(id), stores(id)<br>UNIQUE(brand_id, store_id)<br>CHECK (status IN ('ACTIVE','SUSPENDED','TERMINATED','RENEWAL_PENDING'))</code></td>
+              <td><code>CREATE INDEX idx_pbc_store ON partner_brand_contracts(store_id, status);</code></td>
+              <td>Seller <code>sec-partner</code> &amp; <code>sec-partnerbrands</code> (Official FMCG Brand Dealerships).</td>
+            </tr>
+            <tr>
+              <td><code>freight_shipments</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>shipment_manifest_no VARCHAR(100) UNIQUE NOT NULL<br>origin_store_id UUID NOT NULL REFERENCES stores(id)<br>destination_hub_id UUID REFERENCES delivery_zones(id)<br>transporter_name VARCHAR(150) NOT NULL<br>vehicle_number VARCHAR(50) NOT NULL<br>driver_name VARCHAR(100) NOT NULL<br>driver_phone VARCHAR(20) NOT NULL<br>total_weight_kg NUMERIC(10,2) NOT NULL<br>freight_charges NUMERIC(12,2) NOT NULL<br>dispatch_status VARCHAR(50) DEFAULT 'SCHEDULED'<br>dispatched_at TIMESTAMPTZ<br>expected_arrival_at TIMESTAMPTZ<br>actual_delivered_at TIMESTAMPTZ<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to stores(id), delivery_zones(id)<br>CHECK (dispatch_status IN ('SCHEDULED','LOADING','IN_TRANSIT','CUSTOMS_INSPECTED','DELIVERED','DELAYED','CANCELLED'))</code></td>
+              <td><code>CREATE INDEX idx_freight_status ON freight_shipments(origin_store_id, dispatch_status);</code></td>
+              <td>Seller <code>sec-freight</code> (Bulk Logistics, Truckloads, Inter-city Transit).</td>
+            </tr>
+            <tr>
+              <td><code>delivery_fleet_routes</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>driver_id UUID NOT NULL REFERENCES users(id)<br>vehicle_type VARCHAR(50) NOT NULL<br>assigned_pincodes TEXT[] NOT NULL<br>total_assigned_stops INT DEFAULT 0<br>completed_stops INT DEFAULT 0<br>active_latitude NUMERIC(10,8)<br>active_longitude NUMERIC(11,8)<br>last_location_ping TIMESTAMPTZ<br>route_status VARCHAR(50) DEFAULT 'IDLE'<br>shift_date DATE NOT NULL DEFAULT CURRENT_DATE<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to users(id)<br>CHECK (route_status IN ('IDLE','EN_ROUTE_PICKUP','OUT_FOR_DELIVERY','SHIFT_COMPLETED'))</code></td>
+              <td><code>CREATE INDEX idx_fleet_driver ON delivery_fleet_routes(driver_id, shift_date);<br>CREATE INDEX idx_fleet_coords ON delivery_fleet_routes(active_latitude, active_longitude);</code></td>
+              <td>Seller <code>sec-drivers</code> &amp; <code>sec-delivery</code>, Customer <code>sec-track</code>.</td>
+            </tr>
+            <tr>
+              <td><code>store_performance_metrics</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE<br>metric_date DATE NOT NULL DEFAULT CURRENT_DATE<br>total_orders INT DEFAULT 0<br>fulfilled_orders INT DEFAULT 0<br>cancelled_orders INT DEFAULT 0<br>avg_fulfillment_time_minutes NUMERIC(8,2) DEFAULT 0.00<br>sla_adherence_pct NUMERIC(5,2) DEFAULT 100.00<br>customer_rating_avg NUMERIC(3,2) DEFAULT 5.00<br>on_time_delivery_pct NUMERIC(5,2) DEFAULT 100.00<br>total_gross_revenue NUMERIC(14,2) DEFAULT 0.00<br>created_at TIMESTAMPTZ DEFAULT NOW()</code></td>
+              <td><code>FK to stores(id)<br>UNIQUE(store_id, metric_date)</code></td>
+              <td><code>CREATE INDEX idx_perf_store_date ON store_performance_metrics(store_id, metric_date DESC);</code></td>
+              <td>Seller <code>sec-performance</code> (Seller Health &amp; SLA Dashboard), Admin <code>sec-sellers</code>.</td>
+            </tr>
+            <tr>
+              <td><code>pos_counter_shifts</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE<br>cashier_user_id UUID NOT NULL REFERENCES users(id)<br>opening_cash_balance NUMERIC(12,2) NOT NULL DEFAULT 0.00<br>closing_cash_balance NUMERIC(12,2)<br>actual_cash_counted NUMERIC(12,2)<br>cash_discrepancy NUMERIC(12,2) DEFAULT 0.00<br>total_upi_soundbox_sales NUMERIC(12,2) DEFAULT 0.00<br>total_card_sales NUMERIC(12,2) DEFAULT 0.00<br>shift_status VARCHAR(50) DEFAULT 'OPEN'<br>opened_at TIMESTAMPTZ DEFAULT NOW()<br>closed_at TIMESTAMPTZ</code></td>
+              <td><code>FK to stores(id), users(id)<br>CHECK (shift_status IN ('OPEN','CLOSED','AUDIT_FLAGGED'))</code></td>
+              <td><code>CREATE INDEX idx_pos_shifts ON pos_counter_shifts(store_id, cashier_user_id, shift_status);</code></td>
+              <td>Seller <code>sec-pos</code> (1-Click Instant Billing, Audio Soundbox register &amp; cash drawers).</td>
+            </tr>
+            <tr>
+              <td><code>catalog_stories_feed</code></td>
+              <td><code>id UUID PRIMARY KEY DEFAULT gen_random_uuid()<br>store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE<br>media_url TEXT NOT NULL<br>media_type VARCHAR(20) DEFAULT 'IMAGE'<br>caption VARCHAR(250)<br>linked_product_id UUID REFERENCES products(id) ON DELETE SET NULL<br>view_count INT DEFAULT 0<br>is_active BOOLEAN DEFAULT true<br>created_at TIMESTAMPTZ DEFAULT NOW()<br>expires_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '24 HOURS'</code></td>
+              <td><code>FK to stores(id), products(id)<br>CHECK (media_type IN ('IMAGE','VIDEO'))</code></td>
+              <td><code>CREATE INDEX idx_stories_active ON catalog_stories_feed(is_active, expires_at);</code></td>
+              <td>Customer <code>sec-home</code> (Instagram-style live store story reel), Seller <code>sec-studio</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+
+  </div>
+</section>
+
+
 <div class="footer">ADAB unified task file · Based on the three attached Seller, Customer and Admin demo portals and the previously agreed shared B2C architecture · Git/branch/PR rules intentionally excluded.</div>
 </div>
 <section id="enterprise-completeness" class="card" style="margin-top:28px">

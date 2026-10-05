@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>ADAB Shop — Your Local Stores, One App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="adab-sync-hub.js"></script>
+  <script>
+    tailwind.config = { theme: { extend: { fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] }, colors: { brand: { green: '#15803D', dark: '#14532D', light: '#DCFCE7', coral: '#F97316', cream: '#FFFBEB' } } } } };
+  </script>
+  <style>
+    * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+    body { font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; background: #F6F9F6; color: #0F172A; margin: 0; padding-bottom: 140px; }
+    .hide-scroll::-webkit-scrollbar { display: none; }
+    .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+    .app-header { background: linear-gradient(135deg, #064E3B 0%, #047857 45%, #059669 100%); box-shadow: 0 10px 30px -10px rgba(5,150,105,0.4); }
+    .glass { background: rgba(255,255,255,.18); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,.28); color: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.06); }
+    .search-pill { box-shadow: 0 10px 35px -5px rgba(5,150,105,.2), 0 2px 8px rgba(0,0,0,.04); border: 1.5px solid rgba(255,255,255,0.8); transition: transform .2s, box-shadow .2s; }
+    .search-pill:hover { transform: translateY(-1px); box-shadow: 0 14px 40px -5px rgba(5,150,105,.28); }
+    .shop-hero { background: linear-gradient(135deg, var(--shop-c1,#047857), var(--shop-c2,#10B981)); position: relative; overflow: hidden; }
+    .shop-hero::after { content:''; position: absolute; top:-50%; right:-20%; width: 220px; height: 220px; background: radial-gradient(circle, rgba(255,255,255,0.25) 0%, transparent 70%); border-radius: 50%; pointer-events: none; }
+    .shop-card { border-radius: 24px; overflow: hidden; box-shadow: 0 10px 30px -8px rgba(15,23,42,.08), 0 2px 8px rgba(0,0,0,.02); transition: all .25s cubic-bezier(0.16, 1, 0.3, 1); background: #fff; border: 1px solid rgba(226,232,240,0.8); }
+    .shop-card:hover { transform: translateY(-3px); box-shadow: 0 20px 35px -10px rgba(5,150,105,.2); border-color: #A7F3D0; }
+    .shop-card:active { transform: scale(.98); }
+    .cat-pill { min-width: 82px; padding: 14px 10px; border-radius: 20px; background: #fff; border: 1px solid #E2E8F0; box-shadow: 0 4px 12px rgba(0,0,0,.03); transition: all .2s cubic-bezier(0.16, 1, 0.3, 1); }
+    .cat-pill:hover { transform: translateY(-2px); border-color: #10B981; box-shadow: 0 8px 20px -4px rgba(16,185,129,.2); }
+    .prod-card { background: #fff; border-radius: 20px; border: 1px solid #E2E8F0; overflow: hidden; transition: all .25s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: 0 4px 14px rgba(0,0,0,.03); }
+    .prod-card:hover { transform: translateY(-3px); box-shadow: 0 16px 32px -8px rgba(5,150,105,.18); border-color: #A7F3D0; }
+    .store-chip { font-size: 9px; font-weight: 800; background: #ECFDF5; color: #047857; padding: 3px 8px; border-radius: 6px; display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid #A7F3D0; }
+    .add-btn { border: 2px solid #059669; color: #059669; font-weight: 800; font-size: 12px; padding: 7px 0; width: 76px; border-radius: 12px; background: #fff; cursor: pointer; transition: all .15s; }
+    .add-btn:hover { background: #059669; color: #fff; box-shadow: 0 4px 12px rgba(5,150,105,.3); }
+    .qty-ctrl { display: flex; align-items: center; justify-content: space-between; width: 76px; background: linear-gradient(135deg,#059669,#10B981); color: #fff; border-radius: 12px; padding: 7px 9px; font-weight: 800; font-size: 13px; box-shadow: 0 4px 14px rgba(5,150,105,.35); }
+    .qty-ctrl button { width: 22px; background: transparent; border: none; color: #fff; font-weight: bold; cursor: pointer; }
+    .banner-slide { min-width: 86%; scroll-snap-align: start; border-radius: 24px; position: relative; overflow: hidden; box-shadow: 0 12px 28px -6px rgba(0,0,0,.15); transition: transform .2s; }
+    .banner-slide:hover { transform: scale(1.01); }
+    .section-title { font-size: 20px; font-weight: 800; letter-spacing: -.03em; color: #0F172A; }
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,.94); backdrop-filter: blur(16px); border-top: 1px solid rgba(226,232,240,.8); z-index: 50; padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -8px 30px rgba(0,0,0,.06); }
+    .nav-tab-on { color: #059669 !important; font-weight: 800; }
+    .nav-tab-on .nav-dot { background: #059669 !important; width: 18px; border-radius: 999px; }
+    .nav-tab-off { color: #64748B !important; }
+    .nav-dot { width: 4px; height: 3px; border-radius: 50%; margin-top: 3px; background: transparent; transition: all .2s; }
+    .float-cart { position: fixed; bottom: 68px; left: 16px; right: 16px; z-index: 49; background: linear-gradient(135deg, #064E3B, #059669); color: #fff; border-radius: 20px; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; font-weight: 800; box-shadow: 0 14px 35px -5px rgba(5,150,105,.45); transition: transform .3s cubic-bezier(.16,1,.3,1), opacity .25s; border: 1px solid rgba(255,255,255,.2); }
+    .float-cart.hidden-bar { transform: translateY(150%); opacity: 0; pointer-events: none; }
+    .page { max-width: 540px; margin: 0 auto; width: 100%; }
+    @media (min-width:768px) { .page { max-width: 780px; } }
+    @media (min-width:1024px) { .page { max-width: 1020px; } .bottom-nav,.float-cart { max-width: 540px; left: 50%; transform: translateX(-50%); } .float-cart.hidden-bar { transform: translate(-50%,150%); } }
+    .chip { padding: 9px 18px; border-radius: 999px; font-size: 13px; font-weight: 700; border: 1.5px solid #E2E8F0; background: #fff; white-space: nowrap; cursor: pointer; transition: all .2s; }
+    .chip:hover { border-color: #CBD5E1; }
+    .chip-on { background: linear-gradient(135deg, #047857, #059669) !important; color: #fff !important; border-color: transparent !important; box-shadow: 0 4px 14px rgba(5,150,105,.28); }
+    .menu-row { display: flex; align-items: center; gap: 14px; padding: 15px 18px; margin-bottom: 9px; background: #fff; border-radius: 18px; border: 1px solid #E2E8F0; box-shadow: 0 2px 6px rgba(0,0,0,.02); transition: all .15s; }
+    .menu-row:hover { border-color: #A7F3D0; transform: translateX(2px); }
+    .menu-icon { width: 46px; height: 46px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .bill-row { display: flex; justify-content: space-between; padding: 9px 0; font-size: 14px; color: #64748B; }
+    .green-btn { background: linear-gradient(135deg,#047857,#059669); color: #fff; font-weight: 800; border-radius: 16px; padding: 16px; width: 100%; text-align: center; box-shadow: 0 8px 24px -4px rgba(5,150,105,.4); border: none; cursor: pointer; transition: all .2s; }
+    .green-btn:hover { box-shadow: 0 12px 28px -4px rgba(5,150,105,.55); transform: translateY(-1px); }
+    .green-btn:disabled { background: #CBD5E1; box-shadow: none; transform: none; }
+    .coral-btn { background: linear-gradient(135deg,#EA580C,#F97316); color: #fff; font-weight: 800; border-radius: 16px; padding: 13px 22px; border: none; cursor: pointer; box-shadow: 0 8px 20px -4px rgba(234,88,12,.35); transition: all .2s; }
+    .coral-btn:hover { box-shadow: 0 12px 25px -4px rgba(234,88,12,.5); transform: translateY(-1px); }
+    .subpage-header { position: sticky; top: 0; z-index: 40; background: rgba(255,255,255,.94); backdrop-filter: blur(14px); border-bottom: 1px solid #E2E8F0; padding: 14px 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.02); }
+    #trackMap { height: 250px; border-radius: 20px; z-index: 1; border: 1px solid #E2E8F0; box-shadow: inset 0 2px 8px rgba(0,0,0,.05); }
+    .order-track-bar { height: 8px; background: #E2E8F0; border-radius: 999px; overflow: hidden; }
+    .order-track-fill { height: 100%; background: linear-gradient(90deg,#047857,#10B981); border-radius: 999px; }
+    .toast { position: fixed; bottom: 150px; left: 50%; transform: translateX(-50%); background: #064E3B; color: #fff; padding: 14px 24px; border-radius: 16px; font-size: 13px; font-weight: 700; z-index: 60; max-width: 90vw; text-align: center; box-shadow: 0 14px 40px rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,0.15); }
+    .stat-card { background: #fff; border-radius: 18px; padding: 16px; border: 1px solid #E2E8F0; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,.02); }
+    .open-badge { background: #10B981; color: #fff; font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 999px; letter-spacing: .02em; }
+    .delivery-pill { background: #FEF3C7; color: #92400E; font-size: 11px; font-weight: 800; padding: 4px 11px; border-radius: 999px; border: 1px solid #FDE68A; }
+    .story-ring { padding: 2.5px; border-radius: 999px; background: linear-gradient(135deg, #10B981, #F59E0B, #EF4444); display: inline-flex; }
+    .tag-live { background: linear-gradient(135deg, #EF4444, #F43F5E); color: white; font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 6px; animation: pulse 2s infinite; }
+    @media (max-width: 640px) {
+      .app-header .page { padding-left: 14px; padding-right: 14px; }
+      main.page { padding-left: 14px; padding-right: 14px; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="toast" class="toast hidden"></div>
+
+<!-- App header -->
+<div id="appHeader" class="app-header sticky top-0 z-40 text-white">
+  <div class="page px-4 pt-4 pb-5">
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-2">
+        <div class="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center font-extrabold text-lg">A</div>
+        <div><div class="font-extrabold text-sm tracking-tight">ADAB Shop</div><div class="text-[10px] text-green-100 font-semibold">48 local stores · Surat</div></div>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="openCustomerAuth()" id="custAuthBtn" class="glass px-2.5 h-9 rounded-full flex items-center gap-1.5 text-xs font-bold"><i class="fa-solid fa-user"></i><span id="custAuthLabel">Sign In</span></button>
+        <button onclick="go('notifications')" class="glass w-9 h-9 rounded-full flex items-center justify-center relative"><i class="fa-solid fa-bell text-sm"></i><span class="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-brand-coral rounded-full text-[8px] font-bold flex items-center justify-center">4</span></button>
+        <button onclick="go('points')" class="glass px-2.5 h-9 rounded-full flex items-center gap-1 text-xs font-bold"><i class="fa-solid fa-star text-amber-300"></i><span id="hdrPoints">2,840</span></button>
+      </div>
+    </div>
+    <button onclick="go('addresses')" class="flex items-center gap-2 mb-3 text-left w-full">
+      <i class="fa-solid fa-location-dot text-brand-coral"></i>
+      <div class="flex-1 min-w-0"><div class="text-[10px] font-bold text-green-100 uppercase tracking-wider">Deliver to</div><div class="font-extrabold text-sm truncate">Home · Ring Road, Surat <i class="fa-solid fa-chevron-down text-[9px] ml-1 opacity-70"></i></div></div>
+      <span class="delivery-pill shrink-0"><i class="fa-solid fa-bolt mr-1"></i>14–45 min</span>
+    </button>
+    <button onclick="go('search')" class="search-pill w-full flex items-center gap-3 bg-white rounded-2xl px-4 py-3.5 text-left text-gray-800">
+      <i class="fa-solid fa-magnifying-glass text-brand-green text-lg"></i>
+      <span class="text-gray-400 text-sm font-medium">Search shops, products, brands...</span>
+    </button>
+  </div>
+</div>
+
+<!-- Subpage header (hidden on home) -->
+<div id="subHeader" class="subpage-header hidden">
+  <button onclick="goBack()" class="w-8 h-8 flex items-center justify-center -ml-1"><i class="fa-solid fa-arrow-left text-lg"></i></button>
+  <h1 id="subHeaderTitle" class="font-extrabold text-base flex-1">Page</h1>
+  <button onclick="go('cart')" class="relative w-9 h-9 flex items-center justify-center rounded-full bg-brand-light text-brand-green"><i class="fa-solid fa-cart-shopping"></i><span id="subCartBadge" class="absolute -top-1 -right-1 w-4 h-4 bg-brand-coral text-white text-[9px] font-bold rounded-full hidden items-center justify-center">0</span></button>
+</div>
+
+<main class="page px-4" id="mainArea">
+
+  <!-- HOME / EXPLORE -->
+  <section id="sec-home" class="pt-4 pb-4 space-y-6">
+    <!-- Live Neighborhood Stories / Quick Shop Avatars -->
+    <div>
+      <div class="flex items-center justify-between mb-2.5">
+        <span class="text-xs font-extrabold uppercase tracking-wider text-gray-500">Live in your zone</span>
+        <span class="tag-live"><i class="fa-solid fa-circle mr-1 text-[7px]"></i> OPEN NOW</span>
+      </div>
+      <div class="flex gap-3 overflow-x-auto hide-scroll pb-1">
+        <button onclick="openShop('balaji')" class="flex flex-col items-center gap-1.5 shrink-0 group">
+          <div class="story-ring"><div class="w-14 h-14 rounded-full bg-emerald-600 text-white font-extrabold flex items-center justify-center text-sm shadow-md group-hover:scale-105 transition-transform">SB</div></div>
+          <span class="text-[11px] font-bold text-gray-800 truncate max-w-[64px]">Balaji</span>
+        </button>
+        <button onclick="openShop('vesu-groc')" class="flex flex-col items-center gap-1.5 shrink-0 group">
+          <div class="story-ring"><div class="w-14 h-14 rounded-full bg-blue-600 text-white font-extrabold flex items-center justify-center text-sm shadow-md group-hover:scale-105 transition-transform">VG</div></div>
+          <span class="text-[11px] font-bold text-gray-800 truncate max-w-[64px]">Vesu Groc</span>
+        </button>
+        <button onclick="openShop('surat-supermart')" class="flex flex-col items-center gap-1.5 shrink-0 group">
+          <div class="story-ring"><div class="w-14 h-14 rounded-full bg-orange-500 text-white font-extrabold flex items-center justify-center text-sm shadow-md group-hover:scale-105 transition-transform">SS</div></div>
+          <span class="text-[11px] font-bold text-gray-800 truncate max-w-[64px]">Supermart</span>
+        </button>
+        <button onclick="openShop('city-dairy')" class="flex flex-col items-center gap-1.5 shrink-0 group">
+          <div class="story-ring"><div class="w-14 h-14 rounded-full bg-cyan-600 text-white font-extrabold flex items-center justify-center text-sm shadow-md group-hover:scale-105 transition-transform">CD</div></div>
+          <span class="text-[11px] font-bold text-gray-800 truncate max-w-[64px]">City Dairy</span>
+        </button>
+        <button onclick="openShop('krishna-fashion')" class="flex flex-col items-center gap-1.5 shrink-0 group">
+          <div class="story-ring"><div class="w-14 h-14 rounded-full bg-purple-600 text-white font-extrabold flex items-center justify-center text-sm shadow-md group-hover:scale-105 transition-transform">KF</div></div>
+          <span class="text-[11px] font-bold text-gray-800 truncate max-w-[64px]">Krishna</span>
+        </button>
+        <button onclick="go('stores')" class="flex flex-col items-center gap-1.5 shrink-0">
+          <div class="w-14 h-14 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 text-gray-500 font-bold flex items-center justify-center text-xs"><i class="fa-solid fa-plus text-base"></i></div>
+          <span class="text-[11px] font-bold text-gray-600">48+ More</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Active Live Order Strip -->
+    <div id="activeOrderStrip" onclick="go('track')" class="cursor-pointer bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-4 flex items-center gap-3.5 shadow-lg shadow-emerald-700/20 hover:scale-[1.01] transition-all">
+      <div class="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-xl shrink-0"><i class="fa-solid fa-motorcycle animate-bounce"></i></div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2">
+          <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white/25">ON THE WAY</span>
+          <span class="text-xs text-emerald-100">Order #9021</span>
+        </div>
+        <div class="font-extrabold text-sm mt-0.5 truncate">Arriving in ~18 min · Shri Balaji Store</div>
+      </div>
+      <span class="px-3 py-1.5 rounded-xl bg-white text-emerald-800 font-extrabold text-xs shrink-0 shadow-sm">Track <i class="fa-solid fa-arrow-right ml-1 text-[10px]"></i></span>
+    </div>
+
+    <!-- Hero Deal Banners -->
+    <div class="flex gap-3 overflow-x-auto hide-scroll snap-x pb-1">
+      <button onclick="go('offers')" class="banner-slide shrink-0 bg-gradient-to-br from-amber-500 via-orange-500 to-rose-600 p-5 text-white text-left min-h-[125px] flex flex-col justify-between">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-extrabold bg-black/20 px-2.5 py-0.5 rounded-full">FLASH DEAL</span>
+          <span class="text-xs font-bold text-amber-100">Ends in 2 hrs</span>
+        </div>
+        <div>
+          <span class="font-extrabold text-xl leading-tight block">15% OFF at Balaji Store</span>
+          <span class="text-xs text-orange-100 mt-0.5 block">Use code <code class="bg-white/25 px-1.5 py-0.5 rounded font-bold text-white">BALAJI15</code> on daily essentials</span>
+        </div>
+      </button>
+
+      <button onclick="go('offers')" class="banner-slide shrink-0 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 p-5 text-white text-left min-h-[125px] flex flex-col justify-between">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-extrabold bg-white/20 px-2.5 py-0.5 rounded-full">NEW CUSTOMER</span>
+          <span class="text-xs font-bold text-indigo-200">Zero Delivery Fee</span>
+        </div>
+        <div>
+          <span class="font-extrabold text-xl leading-tight block">Flat ₹100 Off First Order</span>
+          <span class="text-xs text-indigo-100 mt-0.5 block">Across any neighborhood shop with <code class="bg-white/25 px-1.5 py-0.5 rounded font-bold text-white">ADAB100</code></span>
+        </div>
+      </button>
+
+      <button onclick="go('points')" class="banner-slide shrink-0 bg-gradient-to-br from-emerald-600 to-teal-800 p-5 text-white text-left min-h-[125px] flex flex-col justify-between">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-extrabold bg-white/20 px-2.5 py-0.5 rounded-full">ADAB REWARDS</span>
+          <i class="fa-solid fa-star text-amber-300"></i>
+        </div>
+        <div>
+          <span class="font-extrabold text-xl leading-tight block">2,840 Points Available</span>
+          <span class="text-xs text-emerald-100 mt-0.5 block">Save ₹284 instantly on your next checkout</span>
+        </div>
+      </button>
+    </div>
+
+    <!-- Category Pills -->
+    <div>
+      <div class="flex justify-between items-end mb-3">
+        <div>
+          <h2 class="section-title">What are you looking for?</h2>
+          <p class="text-xs text-gray-500 mt-0.5">Explore 10+ categories across local stores</p>
+        </div>
+        <button onclick="go('categories')" class="text-brand-green text-xs font-extrabold hover:underline">View All →</button>
+      </div>
+      <div class="grid grid-cols-4 sm:grid-cols-6 gap-2.5">
+        <button onclick="quickSearch('vegetables')" class="cat-pill flex flex-col items-center gap-1 text-center">
+          <span class="text-2xl transform hover:scale-110 transition-transform">🥬</span>
+          <span class="text-[11px] font-extrabold text-gray-800">Fresh Veg</span>
+        </button>
+        <button onclick="quickSearch('milk')" class="cat-pill flex flex-col items-center gap-1 text-center">
+          <span class="text-2xl transform hover:scale-110 transition-transform">🥛</span>
+          <span class="text-[11px] font-extrabold text-gray-800">Dairy & Milk</span>
+        </button>
+        <button onclick="quickSearch('rice')" class="cat-pill flex flex-col items-center gap-1 text-center">
+          <span class="text-2xl transform hover:scale-110 transition-transform">🌾</span>
+          <span class="text-[11px] font-extrabold text-gray-800">Atta & Rice</span>
+        </button>
+        <button onclick="quickSearch('oil')" class="cat-pill flex flex-col items-center gap-1 text-center">
+          <span class="text-2xl transform hover:scale-110 transition-transform">🫒</span>
+          <span class="text-[11px] font-extrabold text-gray-800">Oil & Ghee</span>
+        </button>
+        <button onclick="quickSearch('kurti')" class="cat-pill flex flex-col items-center gap-1 text-center">
+          <span class="text-2xl transform hover:scale-110 transition-transform">👗</span>
+          <span class="text-[11px] font-extrabold text-gray-800">Fashion</span>
+        </button>
+        <button onclick="quickSearch('snacks')" class="cat-pill flex flex-col items-center gap-1 text-center">
+          <span class="text-2xl transform hover:scale-110 transition-transform">🍿</span>
+          <span class="text-[11px] font-extrabold text-gray-800">Snacks</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Featured Nearby Stores -->
+    <div>
+      <div class="flex justify-between items-end mb-3">
+        <div>
+          <h2 class="section-title">Top Verified Stores</h2>
+          <p class="text-xs text-gray-500 mt-0.5">Direct from your trusted local merchants</p>
+        </div>
+        <button onclick="go('stores')" class="text-brand-green text-xs font-extrabold hover:underline">All 48 shops →</button>
+      </div>
+      <div class="space-y-3.5" id="homeShopCards"></div>
+    </div>
+
+    <!-- Popular Picks Grid -->
+    <div>
+      <div class="flex justify-between items-center mb-3">
+        <div>
+          <h2 class="section-title">Trending in Your Area</h2>
+          <p class="text-xs text-gray-500 mt-0.5">Top-selling products delivered in minutes</p>
+        </div>
+        <button onclick="go('search')" class="text-brand-green text-xs font-extrabold hover:underline">Search all →</button>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3.5" id="homeProducts"></div>
+    </div>
+
+    <!-- Fresh Arrivals -->
+    <div>
+      <div class="flex justify-between items-center mb-3">
+        <div>
+          <h2 class="section-title">More From Local Kiranas</h2>
+          <p class="text-xs text-gray-500 mt-0.5">Authentic regional staples and fresh batches</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3.5" id="trendingProducts"></div>
+    </div>
+  </section>
+
+  <!-- SHOP DETAIL -->
+  <section id="sec-shop" class="hidden pb-4">
+    <div id="shopBanner" class="shop-hero -mx-4 px-4 pt-6 pb-8 text-white" style="--shop-c1:#15803D;--shop-c2:#22C55E">
+      <div class="flex items-start justify-between mb-4">
+        <div class="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-2xl font-extrabold" id="shopAvatar">SB</div>
+        <div class="flex gap-2">
+          <button onclick="toggleFavShop()" class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center"><i class="fa-solid fa-heart" id="shopFavIcon"></i></button>
+          <button onclick="go('messages')" class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center"><i class="fa-solid fa-comment"></i></button>
+        </div>
+      </div>
+      <h1 class="text-2xl font-extrabold" id="shopName">Shri Balaji Store</h1>
+      <p class="text-green-100 text-sm mt-1" id="shopMeta">Grocery & Fashion · Ring Road · ⭐ 4.6</p>
+      <div class="flex flex-wrap gap-2 mt-3" id="shopTags"></div>
+    </div>
+    <div class="bg-white rounded-t-3xl -mt-4 relative px-1 pt-5 pb-4">
+      <div class="grid grid-cols-3 gap-2 mb-4 px-3">
+        <div class="stat-card"><div class="text-lg font-extrabold text-brand-green" id="shopEta">14m</div><div class="text-[10px] text-gray-500 font-bold">Delivery</div></div>
+        <div class="stat-card"><div class="text-lg font-extrabold" id="shopDist">1.2 km</div><div class="text-[10px] text-gray-500 font-bold">Distance</div></div>
+        <div class="stat-card"><div class="text-lg font-extrabold" id="shopItems">120+</div><div class="text-[10px] text-gray-500 font-bold">Products</div></div>
+      </div>
+      <div class="flex gap-2 overflow-x-auto hide-scroll px-3 mb-4" id="shopCatChips"></div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 px-3" id="shopProducts"></div>
+    </div>
+  </section>
+
+  <!-- SEARCH (MASTER SEARCH) -->
+  <section id="sec-search" class="hidden pt-2 pb-6 space-y-4">
+    <div class="bg-gradient-to-r from-emerald-800 to-teal-900 rounded-3xl p-5 text-white shadow-lg space-y-3">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-extrabold tracking-tight">Master Search</h2>
+          <p class="text-xs text-emerald-200">Instant lookup across 48 local shops & verified catalog</p>
+        </div>
+        <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/30 border border-emerald-400/40 text-emerald-100 flex items-center gap-1">
+          <i class="fa-solid fa-bolt text-amber-300"></i> LIVE SYNC
+        </span>
+      </div>
+      <div class="relative">
+        <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-emerald-700 text-lg"></i>
+        <input type="search" id="searchInput" oninput="filterSearch()" placeholder="Search products, brands, kiranas, apparel..." class="w-full pl-12 pr-10 py-3.5 rounded-2xl border-none bg-white text-gray-900 placeholder-gray-400 outline-none text-sm font-semibold shadow-inner">
+        <button onclick="document.getElementById('searchInput').value='';filterSearch();" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><i class="fa-solid fa-circle-xmark"></i></button>
+      </div>
+      <div class="flex items-center gap-2 text-xs overflow-x-auto hide-scroll pt-1">
+        <span class="text-[11px] text-emerald-200 font-bold shrink-0">Popular:</span>
+        <button onclick="quickSearch('salt')" class="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-white font-medium shrink-0">Tata Salt</button>
+        <button onclick="quickSearch('kurti')" class="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-white font-medium shrink-0">Silk Kurti</button>
+        <button onclick="quickSearch('amul')" class="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-white font-medium shrink-0">Amul Butter</button>
+        <button onclick="quickSearch('rice')" class="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-white font-medium shrink-0">Basmati Rice</button>
+        <button onclick="quickSearch('balaji')" class="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-white font-medium shrink-0">Balaji Store</button>
+      </div>
+    </div>
+
+    <!-- Category Filter Chips -->
+    <div class="flex gap-2 overflow-x-auto hide-scroll py-1" id="searchChips">
+      <button onclick="setSearchChip('all')" class="chip chip-on" data-chip="all"><i class="fa-solid fa-grid-2 mr-1"></i> All Items</button>
+      <button onclick="setSearchChip('shop')" class="chip" data-chip="shop"><i class="fa-solid fa-store mr-1"></i> Stores Only</button>
+      <button onclick="setSearchChip('grocery')" class="chip" data-chip="grocery"><i class="fa-solid fa-basket-shopping mr-1"></i> Grocery & FMCG</button>
+      <button onclick="setSearchChip('fashion')" class="chip" data-chip="fashion"><i class="fa-solid fa-shirt mr-1"></i> Fashion & Apparel</button>
+      <button onclick="setSearchChip('dairy')" class="chip" data-chip="dairy"><i class="fa-solid fa-cow mr-1"></i> Dairy & Fresh</button>
+    </div>
+
+    <!-- Matched Shops Banner -->
+    <div id="searchShopsBlock" class="hidden space-y-2">
+      <div class="flex items-center justify-between">
+        <h3 class="font-extrabold text-xs text-gray-500 uppercase tracking-wider"><i class="fa-solid fa-shop mr-1"></i> Matching Shops</h3>
+        <span class="text-xs text-emerald-700 font-bold" id="searchShopsCount"></span>
+      </div>
+      <div id="searchShops" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5"></div>
+    </div>
+
+    <!-- Matched Products Header -->
+    <div class="flex items-center justify-between pt-1">
+      <h3 class="font-extrabold text-xs text-gray-500 uppercase tracking-wider"><i class="fa-solid fa-boxes-stacked mr-1"></i> Products & Stock</h3>
+      <span class="text-xs text-gray-500 font-bold" id="searchProdCount">Showing results</span>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3.5" id="searchGrid"></div>
+  </section>
+
+  <!-- CATEGORIES -->
+  <section id="sec-categories" class="hidden pt-4 pb-4">
+    <p class="text-sm text-gray-500 mb-4">Shop categories across all local stores in your zone</p>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <button onclick="quickSearch('vegetables')" class="bg-white rounded-2xl p-5 border border-gray-100 text-left shadow-sm hover:border-green-200 transition-colors"><span class="text-3xl">🥬</span><div class="font-extrabold mt-2">Fresh Veg & Fruit</div><div class="text-xs text-gray-500 mt-1">12 shops</div></button>
+      <button onclick="quickSearch('milk')" class="bg-white rounded-2xl p-5 border border-gray-100 text-left shadow-sm"><span class="text-3xl">🥛</span><div class="font-extrabold mt-2">Dairy & Eggs</div><div class="text-xs text-gray-500 mt-1">8 shops</div></button>
+      <button onclick="quickSearch('rice')" class="bg-white rounded-2xl p-5 border border-gray-100 text-left shadow-sm"><span class="text-3xl">🌾</span><div class="font-extrabold mt-2">Atta, Rice & Dal</div><div class="text-xs text-gray-500 mt-1">15 shops</div></button>
+      <button onclick="quickSearch('oil')" class="bg-white rounded-2xl p-5 border border-gray-100 text-left shadow-sm"><span class="text-3xl">🫒</span><div class="font-extrabold mt-2">Oil & Ghee</div><div class="text-xs text-gray-500 mt-1">10 shops</div></button>
+      <button onclick="quickSearch('kurti')" class="bg-white rounded-2xl p-5 border border-gray-100 text-left shadow-sm"><span class="text-3xl">👗</span><div class="font-extrabold mt-2">Fashion & Kurtis</div><div class="text-xs text-gray-500 mt-1">6 shops</div></button>
+      <button onclick="quickSearch('masala')" class="bg-white rounded-2xl p-5 border border-gray-100 text-left shadow-sm"><span class="text-3xl">🌶️</span><div class="font-extrabold mt-2">Masala & Spices</div><div class="text-xs text-gray-500 mt-1">9 shops</div></button>
+      <button onclick="quickSearch('snacks')" class="bg-white rounded-2xl p-5 border border-gray-100 text-left shadow-sm"><span class="text-3xl">🍿</span><div class="font-extrabold mt-2">Snacks & Beverages</div><div class="text-xs text-gray-500 mt-1">14 shops</div></button>
+      <button onclick="quickSearch('bread')" class="bg-white rounded-2xl p-5 border border-gray-100 text-left shadow-sm"><span class="text-3xl">🍞</span><div class="font-extrabold mt-2">Bakery</div><div class="text-xs text-gray-500 mt-1">5 shops</div></button>
+    </div>
+  </section>
+
+  <!-- STORES -->
+  <section id="sec-stores" class="hidden pt-4 pb-4 space-y-4">
+    <div class="bg-brand-light rounded-2xl p-4 border border-green-200"><div class="font-extrabold text-brand-dark"><i class="fa-solid fa-map-location-dot mr-1"></i> 48 shops in your 10 km zone</div><div class="text-xs text-gray-600 mt-1">Each shop sets own delivery time · Fast, same-day & pickup available</div></div>
+    <input type="search" id="storeSearch" oninput="filterStores()" placeholder="Search shop name or type..." class="w-full px-4 py-3.5 rounded-2xl border-2 border-green-100 bg-white outline-none focus:border-brand-green text-sm">
+    <div class="flex gap-2 overflow-x-auto hide-scroll">
+      <button onclick="filterStoreCat('all')" class="chip chip-on store-cat-chip" data-scat="all">All</button>
+      <button onclick="filterStoreCat('grocery')" class="chip store-cat-chip" data-scat="grocery">Grocery</button>
+      <button onclick="filterStoreCat('fashion')" class="chip store-cat-chip" data-scat="fashion">Fashion</button>
+      <button onclick="filterStoreCat('dairy')" class="chip store-cat-chip" data-scat="dairy">Dairy</button>
+    </div>
+    <div id="storeList" class="space-y-3"></div>
+  </section>
+
+  <!-- OFFERS -->
+  <section id="sec-offers" class="hidden pt-4 pb-4 space-y-3">
+    <div class="rounded-xl overflow-hidden bg-gradient-to-r from-green-600 to-emerald-500 p-5 text-white"><div class="text-xs font-bold opacity-80">STORE OFFER</div><div class="text-2xl font-extrabold mt-1">15% OFF</div><div class="text-sm opacity-90">Shri Balaji · Min ₹199</div><div class="mt-3 flex justify-between items-center"><code class="bg-white/20 px-3 py-1 rounded font-bold">BALAJI15</code><button onclick="applyCoupon('BALAJI15')" class="bg-white text-green-700 font-bold px-4 py-2 rounded-lg text-sm">Apply</button></div></div>
+    <div class="rounded-xl overflow-hidden bg-gradient-to-r from-orange-500 to-red-500 p-5 text-white"><div class="text-xs font-bold opacity-80">FIRST ORDER</div><div class="text-2xl font-extrabold mt-1">₹100 OFF</div><div class="text-sm opacity-90">Min ₹399 · Any store</div><div class="mt-3 flex justify-between items-center"><code class="bg-white/20 px-3 py-1 rounded font-bold">ADAB100</code><button onclick="applyCoupon('ADAB100')" class="bg-white text-orange-600 font-bold px-4 py-2 rounded-lg text-sm">Apply</button></div></div>
+    <div class="border border-dashed border-gray-300 rounded-xl p-4 text-center"><div class="font-bold">Free delivery weekend</div><div class="text-sm text-gray-500 mt-1">No delivery fee on orders above ₹299</div></div>
+  </section>
+
+  <!-- CART -->
+  <section id="sec-cart" class="hidden pt-2 pb-6">
+    <div id="cartEmpty" class="text-center py-16 bg-white rounded-3xl border border-gray-100 p-6 shadow-sm">
+      <div class="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-4"><i class="fa-solid fa-basket-shopping"></i></div>
+      <div class="font-extrabold text-xl text-gray-900">Your basket is empty</div>
+      <p class="text-xs text-gray-500 mt-1.5 max-w-xs mx-auto">Explore local shops in your area and add fresh groceries, dairy, or fashion items.</p>
+      <button onclick="go('home')" class="green-btn mt-6 max-w-xs mx-auto text-sm py-3.5"><i class="fa-solid fa-compass mr-1"></i> Start Shopping</button>
+    </div>
+    
+    <div id="cartFull" class="hidden space-y-4">
+      <!-- Top banner -->
+      <div class="flex items-center gap-3 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-3.5 border border-emerald-200/70 text-xs">
+        <div class="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black shrink-0"><i class="fa-solid fa-shield-halved"></i></div>
+        <div class="flex-1 min-w-0">
+          <div class="font-bold text-emerald-950">Neighborhood Shop Direct</div>
+          <div class="text-emerald-800 text-[11px] mt-0.5">Orders are packed fresh and dispatched straight from local stores.</div>
+        </div>
+      </div>
+
+      <!-- Cart Items Grouped by Store -->
+      <div id="cartItems" class="space-y-3.5"></div>
+
+      <!-- Bill Breakdown Card -->
+      <div class="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-3">
+        <div class="flex justify-between items-center pb-2 border-b border-gray-100">
+          <span class="font-extrabold text-sm text-gray-900">Order Summary</span>
+          <span class="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full" id="cartSavingsBadge">Savings applied</span>
+        </div>
+        <div class="bill-row"><span>Items Subtotal</span><span id="cartSubtotal" class="font-bold text-gray-900">₹0</span></div>
+        <div class="bill-row"><span>Estimated Delivery Fee</span><span id="cartDelivery" class="font-bold text-gray-900">₹29</span></div>
+        <div class="bill-row hidden" id="cartDiscountRow"><span>Coupon Savings</span><span id="cartDiscount" class="font-bold text-emerald-700">-₹0</span></div>
+        <div class="bill-row border-t border-dashed border-gray-200 pt-3 mt-1">
+          <span class="font-black text-gray-900 text-base">To Pay</span>
+          <span id="cartTotal" class="font-black text-emerald-800 text-xl">₹0</span>
+        </div>
+      </div>
+
+      <!-- Coupon Apply Box -->
+      <div class="flex gap-2">
+        <div class="relative flex-1">
+          <i class="fa-solid fa-ticket absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+          <input type="text" id="couponInput" placeholder="Enter coupon (e.g. BALAJI15, ADAB100)" class="w-full pl-10 pr-3 py-3 rounded-2xl border border-gray-200 text-xs font-bold uppercase tracking-wider outline-none focus:border-emerald-600 bg-white">
+        </div>
+        <button onclick="applyCouponFromInput()" class="coral-btn !py-3 !px-5 !text-xs shrink-0">Apply</button>
+      </div>
+
+      <!-- Delivery Address Banner -->
+      <div class="bg-white rounded-2xl p-4 border border-gray-100 flex gap-3 items-center shadow-sm">
+        <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0 text-lg"><i class="fa-solid fa-location-dot"></i></div>
+        <div class="flex-1 min-w-0">
+          <div class="font-extrabold text-xs text-gray-900">Delivering to Home</div>
+          <div class="text-[11px] text-gray-500 truncate">Flat 402, Green Valley Apt, Ring Road, Surat</div>
+        </div>
+        <button onclick="go('addresses')" class="text-emerald-700 text-xs font-bold hover:underline shrink-0">Change</button>
+      </div>
+
+      <button onclick="go('checkout')" id="cartCheckoutBtn" class="green-btn text-sm font-extrabold py-4 shadow-lg flex items-center justify-center gap-2">
+        Proceed to Checkout <i class="fa-solid fa-arrow-right"></i>
+      </button>
+    </div>
+  </section>
+
+  <!-- CHECKOUT -->
+  <section id="sec-checkout" class="hidden pt-2 pb-6 space-y-4">
+    <!-- Step 1: Delivery Method -->
+    <div class="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-3">
+      <div class="font-extrabold text-sm text-gray-900 flex items-center gap-2">
+        <span class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 text-xs flex items-center justify-center font-bold">1</span>
+        Choose Delivery Speed
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <button onclick="selectDelivery('fast')" id="del-fast" class="checkout-del p-3.5 rounded-2xl border-2 border-brand-green bg-green-50 text-left flex justify-between items-center transition">
+          <div>
+            <div class="font-extrabold text-xs text-gray-900"><i class="fa-solid fa-bolt text-amber-500 mr-1"></i> Express (14–30 min)</div>
+            <div class="text-[11px] text-gray-500 mt-0.5">Dispatched instantly by store rider</div>
+          </div>
+          <span class="font-extrabold text-xs text-emerald-800">₹29</span>
+        </button>
+        <button onclick="selectDelivery('same')" id="del-same" class="checkout-del p-3.5 rounded-2xl border border-gray-200 text-left flex justify-between items-center transition">
+          <div>
+            <div class="font-extrabold text-xs text-gray-900"><i class="fa-solid fa-clock text-blue-500 mr-1"></i> Same Day (by 8 PM)</div>
+            <div class="text-[11px] text-gray-500 mt-0.5">Flexible batch slot</div>
+          </div>
+          <span class="font-extrabold text-xs text-gray-700">₹19</span>
+        </button>
+        <button onclick="selectDelivery('pickup')" id="del-pickup" class="checkout-del p-3.5 rounded-2xl border border-gray-200 text-left flex justify-between items-center transition sm:col-span-2">
+          <div>
+            <div class="font-extrabold text-xs text-gray-900"><i class="fa-solid fa-store text-emerald-600 mr-1"></i> Self Pickup from Shop</div>
+            <div class="text-[11px] text-gray-500 mt-0.5">Ready in 10 mins · Zero queue at counter</div>
+          </div>
+          <span class="font-extrabold text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">FREE</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 2: Payment Options (Including Pay Later & Bank Lines) -->
+    <div class="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-3">
+      <div class="font-extrabold text-sm text-gray-900 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 text-xs flex items-center justify-center font-bold">2</span>
+          Payment Method
+        </div>
+        <button onclick="go('credit')" class="text-xs text-purple-700 font-bold hover:underline"><i class="fa-solid fa-building-columns mr-1"></i> Bank Credit Lines →</button>
+      </div>
+      <div class="grid grid-cols-2 gap-2.5">
+        <button onclick="selectPayment('upi')" id="pay-upi" class="checkout-pay p-3.5 rounded-2xl border-2 border-brand-green bg-green-50 font-bold text-xs text-left transition flex items-center gap-2">
+          <i class="fa-solid fa-mobile-screen text-emerald-700 text-base"></i>
+          <div><div class="text-gray-900">UPI Instant</div><div class="text-[10px] text-gray-500 font-normal">GPay / PhonePe / Paytm</div></div>
+        </button>
+        <button onclick="selectPayment('bnpl')" id="pay-bnpl" class="checkout-pay p-3.5 rounded-2xl border border-gray-200 font-bold text-xs text-left transition flex items-center gap-2">
+          <i class="fa-solid fa-calendar-check text-purple-600 text-base"></i>
+          <div><div class="text-gray-900">ADAB Pay Later</div><div class="text-[10px] text-purple-700 font-normal">0% Int · 14 Days</div></div>
+        </button>
+        <button onclick="selectPayment('wallet')" id="pay-wallet" class="checkout-pay p-3.5 rounded-2xl border border-gray-200 font-bold text-xs text-left transition flex items-center gap-2">
+          <i class="fa-solid fa-wallet text-teal-600 text-base"></i>
+          <div><div class="text-gray-900">Wallet Balance</div><div class="text-[10px] text-gray-500 font-normal">Available: ₹450</div></div>
+        </button>
+        <button onclick="selectPayment('cod')" id="pay-cod" class="checkout-pay p-3.5 rounded-2xl border border-gray-200 font-bold text-xs text-left transition flex items-center gap-2">
+          <i class="fa-solid fa-money-bill-wave text-amber-600 text-base"></i>
+          <div><div class="text-gray-900">Cash on Delivery</div><div class="text-[10px] text-gray-500 font-normal">Pay rider at door</div></div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 3: Order Review & Final Bill -->
+    <div class="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-3">
+      <div class="font-extrabold text-sm text-gray-900 flex items-center gap-2 pb-2 border-b border-gray-100">
+        <span class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 text-xs flex items-center justify-center font-bold">3</span>
+        Review Items & Total
+      </div>
+      <div id="checkoutItems" class="space-y-2 text-xs divide-y divide-gray-50 max-h-48 overflow-y-auto"></div>
+      
+      <div class="pt-2 space-y-1.5 text-xs text-gray-600 border-t border-gray-100">
+        <div class="bill-row"><span>Items Subtotal</span><span id="checkoutSub" class="font-bold text-gray-900">₹0</span></div>
+        <div class="bill-row"><span>Delivery Fee</span><span id="checkoutDelFee" class="font-bold text-gray-900">₹29</span></div>
+        <div class="bill-row border-t border-dashed pt-2.5">
+          <span class="font-black text-gray-900 text-sm">Total Payable</span>
+          <span id="checkoutTotal" class="font-black text-emerald-800 text-lg">₹0</span>
+        </div>
+      </div>
+      <div class="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 flex items-center gap-2">
+        <i class="fa-solid fa-star text-amber-500"></i>
+        <span>You will earn <strong id="checkoutPts" class="font-bold">0</strong> ADAB reward points on this order!</span>
+      </div>
+    </div>
+
+    <button onclick="placeOrder()" class="green-btn text-base font-extrabold py-4 shadow-xl flex items-center justify-center gap-2">
+      <i class="fa-solid fa-lock"></i> Place Order · Pay <span id="checkoutPayAmt">₹0</span>
+    </button>
+  </section>
+
+  <!-- ORDERS -->
+  <section id="sec-orders" class="hidden pt-2 pb-4 space-y-3">
+    <div class="border border-green-200 bg-green-50 rounded-xl p-4" onclick="go('track')">
+      <div class="flex justify-between items-start mb-2"><div><div class="font-extrabold">#9021</div><div class="text-xs text-gray-600">Shri Balaji Store · ₹840</div></div><span class="text-[10px] font-bold bg-orange-500 text-white px-2 py-1 rounded">ON THE WAY</span></div>
+      <div class="order-track-bar mb-2"><div class="order-track-fill" style="width:72%"></div></div>
+      <div class="text-xs text-brand-green font-bold">Arriving in 18 min · Ramesh</div>
+    </div>
+    <div class="border border-gray-100 rounded-xl p-4">
+      <div class="flex justify-between items-start"><div><div class="font-extrabold">#9018</div><div class="text-xs text-gray-600">Kurti · ₹899 · Shri Balaji</div></div><span class="text-[10px] font-bold bg-blue-100 text-blue-800 px-2 py-1 rounded">PACKING</span></div>
+    </div>
+    <button onclick="go('orderhistory')" class="w-full text-center text-brand-green font-bold text-sm py-2">View past orders →</button>
+  </section>
+
+  <!-- TRACK -->
+  <section id="sec-track" class="hidden pt-2 pb-4 space-y-4">
+    <div class="bg-green-50 rounded-xl p-4 text-center"><div class="text-3xl font-extrabold text-brand-green">18 min</div><div class="text-sm text-gray-600 mt-1">Ramesh is on the way with your order</div></div>
+    <div id="trackMap" class="border border-gray-100"></div>
+    <div class="grid grid-cols-3 gap-2 text-center text-sm">
+      <div class="border rounded-lg p-3"><div class="text-xs text-gray-500">Rider</div><div class="font-bold">Ramesh</div></div>
+      <div class="border rounded-lg p-3"><div class="text-xs text-gray-500">Store</div><div class="font-bold text-xs">Balaji Store</div></div>
+      <div class="border rounded-lg p-3"><div class="text-xs text-gray-500">Items</div><div class="font-bold">4 items</div></div>
+    </div>
+    <button onclick="toast('Calling rider...')" class="green-btn">Call rider</button>
+  </section>
+
+  <!-- ORDER HISTORY -->
+  <section id="sec-orderhistory" class="hidden pt-2 pb-4 space-y-3">
+    <input type="search" id="ohSearch" oninput="filterOH()" placeholder="Search orders..." class="w-full px-4 py-3 rounded-lg border text-sm mb-2">
+    <div class="oh-row border border-gray-100 rounded-xl p-4 flex justify-between items-center" data-status="delivered"><div><div class="font-bold">#9010</div><div class="text-xs text-gray-500">Yesterday · ₹560 · Delivered</div></div><button onclick="reorder()" class="text-brand-green font-bold text-sm border border-brand-green px-3 py-1.5 rounded-lg">Reorder</button></div>
+    <div class="oh-row border border-gray-100 rounded-xl p-4 flex justify-between items-center" data-status="delivered"><div><div class="font-bold">#9005</div><div class="text-xs text-gray-500">3 days ago · ₹420 · Delivered</div></div><button onclick="reorder()" class="text-brand-green font-bold text-sm border border-brand-green px-3 py-1.5 rounded-lg">Reorder</button></div>
+    <div class="oh-row border border-gray-100 rounded-xl p-4" data-status="cancelled"><div class="font-bold">#8998</div><div class="text-xs text-gray-500">Returned · ₹1,240</div></div>
+  </section>
+
+  <!-- RETURNS -->
+  <section id="sec-returns" class="hidden pt-2 pb-4 space-y-3">
+    <button onclick="toast('Return request started')" class="green-btn !py-3 !text-sm">+ New return request</button>
+    <div class="border border-amber-200 bg-amber-50 rounded-xl p-4"><div class="flex justify-between"><div class="font-bold">#R-441 · Kurti</div><span class="text-[10px] font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded">Review</span></div><div class="text-xs text-gray-600 mt-2">Wrong size · Pickup in 48 hrs</div></div>
+    <div class="border border-gray-100 rounded-xl p-4"><div class="flex justify-between"><div class="font-bold">#R-430 · Oil</div><span class="text-[10px] font-bold bg-green-100 text-green-800 px-2 py-0.5 rounded">Refunded ₹142</span></div></div>
+  </section>
+
+  <!-- ACCOUNT HUB -->
+  <section id="sec-account" class="hidden pt-2 pb-4">
+    <div class="bg-gradient-to-br from-brand-dark to-brand-green rounded-2xl p-5 text-white mb-5">
+      <div class="flex items-center gap-4">
+        <div class="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center text-2xl font-extrabold">P</div>
+        <div><div class="font-extrabold text-xl">Pooja Sharma</div><div class="text-green-100 text-sm">+91 98765 12340</div></div>
+      </div>
+      <div class="grid grid-cols-3 gap-2 mt-4">
+        <div class="glass rounded-xl p-3 text-center"><div class="font-extrabold" id="acctPoints">2,840</div><div class="text-[10px] text-green-100">Points</div></div>
+        <div class="glass rounded-xl p-3 text-center"><div class="font-extrabold">₹450</div><div class="text-[10px] text-green-100">Wallet</div></div>
+        <div class="glass rounded-xl p-3 text-center"><div class="font-extrabold">12</div><div class="text-[10px] text-green-100">Orders</div></div>
+      </div>
+    </div>
+    <div class="space-y-1">
+    <div class="menu-row cursor-pointer" onclick="go('search')"><div class="menu-icon bg-blue-100 text-blue-600"><i class="fa-solid fa-magnifying-glass"></i></div><div class="flex-1"><div class="font-bold">Search products & shops</div></div><i class="fa-solid fa-chevron-right text-gray-300"></i></div>
+    <div class="menu-row cursor-pointer" onclick="go('stores')"><div class="menu-icon bg-green-100 text-brand-green"><i class="fa-solid fa-store"></i></div><div class="flex-1"><div class="font-bold">Browse local shops</div><div class="text-xs text-gray-500">48 stores near you</div></div><i class="fa-solid fa-chevron-right text-gray-300"></i></div>
+    <div class="menu-row cursor-pointer" onclick="go('categories')"><div class="menu-icon bg-violet-100 text-violet-600"><i class="fa-solid fa-grid-2"></i></div><div class="flex-1 font-semibold">Categories</div><i class="fa-solid fa-chevron-right text-gray-300"></i></div>
+    <div class="menu-row cursor-pointer" onclick="go('orders')"><div class="menu-icon bg-orange-100 text-orange-600"><i class="fa-solid fa-bag-shopping"></i></div><div class="flex-1"><div class="font-bold">Your orders</div><div class="text-xs text-gray-500">2 active · track live</div></div><i class="fa-solid fa-chevron-right text-gray-300"></i></div>
+    <div class="menu-row cursor-pointer" onclick="go('track')"><div class="menu-icon bg-cyan-100 text-cyan-600"><i class="fa-solid fa-location-crosshairs"></i></div><div class="flex-1 font-semibold">Track delivery</div><i class="fa-solid fa-chevron-right text-gray-300"></i></div>
+    <div class="menu-row cursor-pointer" onclick="go('orderhistory')"><div class="menu-icon bg-gray-100 text-gray-600"><i class="fa-solid fa-clock-rotate-left"></i></div><div class="flex-1 font-semibold">Order history</div><i class="fa-solid fa-chevron-right text-gray-300"></i></div>
+    <div class="menu-row cursor-pointer" onclick="go('addresses')"><div class="menu-icon bg-red-100 text-red-500"><i class="fa-solid fa-location-dot"></i></div><div class="flex-1 font-semibold">Address book</div><i class="fa-solid fa-chevron-right text-gray-300"></i></div>
+    <div class="menu-row cursor-pointer" onclick="go('credit')"><div class="menu-icon bg-emerald-100 text-emerald-700"><i class="fa-solid fa-credit-card"></i></div><div class="flex-1"><div class="font-bold flex items-center gap-1.5"><span>Pay Later &amp; Credit Line</span><span class="text-[9px] font-extrabold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full border border-emerald-300">0% Interest</span></div><div class="text-xs text-gray-500">Apply via HDFC, ICICI, SBI Mudra</div></div><i class="fa-solid fa-chevron-right text-gray-300"></i></div>
+    <div class="menu-row cursor-pointer" onclick="go('wallet')"><div class="menu-icon bg-purple-100 text-purple-600"><i class="fa-solid fa-wallet"></i></div><div class="flex-1 font-semibold">ADAB Wallet · ₹450</div><i class="fa-solid fa-chevron-right text-gray-300"></i></div>
+    <div class="menu-row cursor-pointer" onclick="go('points')"><div class="menu-icon bg-amber-100 text-amber-600"><i class="fa-solid fa-star"></i></div><div class="flex-1 font-semibold">Reward points</div><i class="fa-solid fa-chevron-right text-gray-300"></i></div>
+    <div class="menu-row cursor-pointer" onclick="go('favorites')"><div class="menu-icon bg-pink-100 text-pink-500"><i class="fa-solid fa-heart"></i></div><div class="flex-1 font-semibold">Favourites</div><i class="fa-solid fa-chevron-right text-gray-300"></i></div>
+    <div class="menu-row cursor-pointer" onclick="go('offers')"><div class="menu-icon bg-green-100 text-green-600"><i class="fa-solid fa-tags"></i></div><div class="flex-1 font-semibold">Offers & coupons</div><i class="fa-solid fa-chevron-right text-gray-300"></i></div>
+    <div class="menu-row cursor-pointer" onclick="go('messages')"><div class="menu-icon bg-blue-100 text-blue-600"><i class="fa-solid fa-comment"></i></div><div class="flex-1 font-semibold">Chat with store</div><i class="fa-solid fa-chevron-right text-gray-300"></i></div>
+    <div class="menu-row cursor-pointer" onclick="go('returns')"><div class="menu-icon bg-gray-100 text-gray-600"><i class="fa-solid fa-rotate-left"></i></div><div class="flex-1 font-semibold">Returns & refunds</div><i class="fa-solid fa-chevron-right text-gray-300"></i></div>
+    <div class="menu-row cursor-pointer" onclick="go('reviews')"><div class="menu-icon bg-yellow-100 text-yellow-700"><i class="fa-solid fa-star-half-stroke"></i></div><div class="flex-1 font-semibold">Your ratings</div><i class="fa-solid fa-chevron-right text-gray-300"></i></div>
+    <div class="menu-row cursor-pointer" onclick="go('notifications')"><div class="menu-icon bg-indigo-100 text-indigo-600"><i class="fa-solid fa-bell"></i></div><div class="flex-1 font-semibold">Notifications</div><i class="fa-solid fa-chevron-right text-gray-300"></i></div>
+    <div class="menu-row cursor-pointer" onclick="go('help')"><div class="menu-icon bg-teal-100 text-teal-600"><i class="fa-solid fa-headset"></i></div><div class="flex-1 font-semibold">Help & support</div><i class="fa-solid fa-chevron-right text-gray-300"></i></div>
+    <div class="menu-row cursor-pointer" onclick="go('faq')"><div class="menu-icon bg-gray-100 text-gray-600"><i class="fa-solid fa-circle-question"></i></div><div class="flex-1 font-semibold">FAQ</div><i class="fa-solid fa-chevron-right text-gray-300"></i></div>
+    <div class="menu-row cursor-pointer" onclick="go('settings')"><div class="menu-icon bg-gray-100 text-gray-600"><i class="fa-solid fa-gear"></i></div><div class="flex-1 font-semibold">Settings</div><i class="fa-solid fa-chevron-right text-gray-300"></i></div>
+    <div class="mt-5 p-4 bg-brand-light rounded-2xl text-center text-sm border border-green-200"><i class="fa-solid fa-store text-brand-green mr-1"></i> Run a shop? Manage orders & products in the <a href="unified-one-portal-demo.html" class="text-brand-green font-extrabold underline">Seller Portal</a></div>
+    </div>
+  </section>
+
+  <!-- PAY LATER & BANK CREDIT LINE (CUSTOMER BNPL) -->
+  <section id="sec-credit" class="hidden pt-2 pb-4 space-y-4">
+    <div class="bg-gradient-to-br from-emerald-700 via-teal-800 to-slate-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-[10px] font-extrabold bg-white/20 px-2.5 py-0.5 rounded-full uppercase tracking-wider">ADAB Pay Later</span>
+        <span class="text-xs font-bold text-emerald-200">0% Interest 30-Day Window</span>
+      </div>
+      <div class="text-xs text-emerald-100 font-medium">Pre-Approved Credit Limit</div>
+      <div class="text-3xl font-extrabold mt-0.5 font-mono">₹50,000</div>
+      <p class="text-xs text-emerald-100/80 mt-2">Order from any local kirana or boutique now and pay next month via auto-debit or UPI.</p>
+    </div>
+
+    <!-- Apply / Upgrade Credit from Partner Banks -->
+    <div class="bg-white rounded-2xl p-5 border border-gray-200 space-y-3.5 shadow-sm">
+      <div class="flex items-center gap-2">
+        <i class="fa-solid fa-building-columns text-emerald-600 text-lg"></i>
+        <h3 class="font-extrabold text-base text-gray-900">Apply for Higher Credit Limit</h3>
+      </div>
+      <p class="text-xs text-gray-500">Powered by official lending partners onboarded by ADAB platform.</p>
+
+      <div>
+        <label class="text-xs font-bold text-gray-700 block mb-1">Choose Lending Partner *</label>
+        <select id="custCreditBankSelect" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold bg-white outline-none focus:border-emerald-600">
+          <!-- Populated from AdabSync banks -->
+        </select>
+      </div>
+
+      <div>
+        <label class="text-xs font-bold text-gray-700 block mb-1">Requested Credit Amount (₹)</label>
+        <input type="number" id="custCreditAmt" value="50000" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-emerald-800 outline-none focus:border-emerald-600">
+      </div>
+
+      <div>
+        <label class="text-xs font-bold text-gray-700 block mb-1">Preferred Repayment Term</label>
+        <select id="custCreditTenor" class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs bg-white">
+          <option value="3 mos">3 Months (Zero processing fee)</option>
+          <option value="6 mos">6 Months EMI</option>
+          <option value="12 mos">12 Months Flexible EMI</option>
+        </select>
+      </div>
+
+      <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex items-start gap-2">
+        <i class="fa-solid fa-shield-halved text-emerald-600 mt-0.5"></i>
+        <span>Instant paperless approval via PAN &amp; Aadhaar OTP. Direct credit line activation within minutes.</span>
+      </div>
+
+      <button onclick="submitCustomerCreditApp()" class="green-btn !py-3.5 !text-sm font-bold">
+        <i class="fa-solid fa-paper-plane mr-1"></i> Submit Credit Application
+      </button>
+    </div>
+
+    <!-- Active Credit Applications List -->
+    <div class="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm space-y-3">
+      <h3 class="font-extrabold text-sm text-gray-900">Your Credit History &amp; Applications</h3>
+      <div id="custCreditAppsList" class="space-y-2 text-xs">
+        <div class="flex items-center justify-between p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+          <div>
+            <div class="font-bold text-emerald-900 text-sm">₹50,000 · ICICI SmartBusiness</div>
+            <div class="text-[11px] text-gray-500">6 Months · Approved on 29 Sep 2026</div>
+          </div>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-200 text-emerald-900">ACTIVE</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- POINTS -->
+  <section id="sec-points" class="hidden pt-2 pb-4 space-y-4">
+    <div class="bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl p-6 text-white text-center"><div class="text-sm opacity-90">Available points</div><div class="text-4xl font-extrabold mt-1" id="pointsBig">2,840</div><div class="text-sm opacity-90 mt-1">1 point = ₹1 off · Max 50% per order</div></div>
+    <div class="space-y-2 text-sm"><div class="flex justify-between p-3 bg-gray-50 rounded-lg"><span>+ Order #9010</span><span class="font-bold text-green-700">+56</span></div><div class="flex justify-between p-3 bg-gray-50 rounded-lg"><span>- Checkout discount</span><span class="font-bold text-orange-600">-180</span></div></div>
+  </section>
+
+  <!-- WALLET -->
+  <section id="sec-wallet" class="hidden pt-2 pb-4 space-y-4">
+    <div class="bg-brand-green rounded-xl p-6 text-white"><div class="text-sm opacity-90">ADAB Wallet balance</div><div class="text-3xl font-extrabold mt-1">₹450</div><button onclick="toast('Add money')" class="mt-4 bg-white text-brand-green font-bold px-4 py-2 rounded-lg text-sm">+ Add money</button></div>
+    <div class="font-extrabold">Payment history</div>
+    <div class="space-y-2 text-sm"><div class="flex justify-between py-2 border-b"><span>#9010 · UPI</span><span class="font-bold">₹560</span></div><div class="flex justify-between py-2"><span>Top-up</span><span class="font-bold text-green-700">+₹500</span></div></div>
+  </section>
+
+  <!-- FAVORITES -->
+  <section id="sec-favorites" class="hidden pt-2 pb-4"><div class="text-sm text-gray-500 mb-3">Saved stores & products</div><div class="border border-gray-100 rounded-xl p-4 flex gap-3 mb-3"><div class="w-12 h-12 rounded-lg bg-green-600 text-white font-bold flex items-center justify-center">SB</div><div><div class="font-bold">Shri Balaji Store</div><div class="text-xs text-gray-500">1.2 km · ⭐ 4.6</div></div></div><div id="favProducts" class="grid grid-cols-2 gap-3"></div></section>
+
+  <!-- REVIEWS -->
+  <section id="sec-reviews" class="hidden pt-2 pb-4 space-y-3">
+    <div class="border border-dashed border-brand-green rounded-xl p-4 bg-green-50"><div class="font-bold">Rate order #9010</div><button onclick="toast('Review submitted! +20 pts')" class="text-brand-green font-bold text-sm mt-2">Write review →</button></div>
+    <div class="border border-gray-100 rounded-xl p-4"><div class="font-bold">Balaji Silk Kurti</div><div class="text-amber-500 text-sm mt-1">★★★★★</div><p class="text-sm text-gray-600 mt-2">Beautiful fabric, on-time delivery!</p></div>
+  </section>
+
+  <!-- MESSAGES -->
+  <section id="sec-messages" class="hidden pt-2 pb-4">
+    <div class="border border-gray-100 rounded-xl overflow-hidden">
+      <div class="p-3 bg-gray-50 border-b font-bold text-sm">Shri Balaji Store · #9021</div>
+      <div class="p-4 space-y-3 text-sm min-h-[200px]"><div class="bg-gray-100 rounded-2xl rounded-bl-none p-3 max-w-[80%]">Blue kurti M added to your order ✓</div><div class="bg-green-100 rounded-2xl rounded-br-none p-3 max-w-[80%] ml-auto">Thank you!</div></div>
+      <div class="p-3 border-t flex gap-2"><input placeholder="Message..." class="flex-1 px-3 py-2 rounded-lg border text-sm"><button onclick="toast('Sent!')" class="bg-brand-green text-white px-4 py-2 rounded-lg font-bold text-sm">Send</button></div>
+    </div>
+  </section>
+
+  <!-- NOTIFICATIONS -->
+  <section id="sec-notifications" class="hidden pt-2 pb-4 space-y-2">
+    <div class="border-l-4 border-l-orange-500 bg-orange-50 rounded-r-xl p-4"><div class="font-bold text-sm">Rider nearby!</div><div class="text-xs text-gray-600 mt-1">Order #9021 · 1.2 km away</div></div>
+    <div class="border-l-4 border-l-green-500 bg-green-50 rounded-r-xl p-4"><div class="font-bold text-sm">Order packed</div><div class="text-xs text-gray-600 mt-1">#9018 ready for dispatch</div></div>
+    <div class="border border-gray-100 rounded-xl p-4"><div class="font-bold text-sm">+56 reward points</div><div class="text-xs text-gray-500 mt-1">From order #9010</div></div>
+  </section>
+
+  <!-- ADDRESSES -->
+  <section id="sec-addresses" class="hidden pt-2 pb-4 space-y-3">
+    <div class="border-2 border-brand-green bg-green-50 rounded-xl p-4"><div class="flex justify-between"><span class="font-extrabold">Home</span><span class="text-[10px] font-bold bg-brand-green text-white px-2 py-0.5 rounded">DEFAULT</span></div><p class="text-sm text-gray-600 mt-2">Flat 402, Green Valley Apt, Ring Road, Surat 395002</p></div>
+    <div class="border border-gray-100 rounded-xl p-4"><div class="font-extrabold">Office</div><p class="text-sm text-gray-600 mt-2">Tech Park, Vesu, Surat</p></div>
+    <button onclick="toast('Add address')" class="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl font-bold text-gray-600">+ Add new address</button>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="sec-settings" class="hidden pt-2 pb-4 space-y-4">
+    <div><label class="text-xs font-bold text-gray-500">Name</label><input value="Pooja Sharma" class="w-full mt-1 px-3 py-2.5 rounded-lg border"></div>
+    <div><label class="text-xs font-bold text-gray-500">Phone</label><input value="+91 98765 12340" class="w-full mt-1 px-3 py-2.5 rounded-lg border"></div>
+    <div><label class="text-xs font-bold text-gray-500">Language</label><select id="settingsLang" onchange="setLanguage(this.value)" class="w-full mt-1 px-3 py-2.5 rounded-lg border"><option value="en">English</option><option value="hi">हिंदी</option><option value="gu">ગુજરાતી</option></select></div>
+    <label class="flex items-center gap-2 text-sm"><input type="checkbox" checked> Order SMS alerts</label>
+    <button onclick="toast('Saved!')" class="green-btn">Save changes</button>
+  </section>
+
+  <!-- HELP -->
+  <section id="sec-help" class="hidden pt-2 pb-4 space-y-2">
+    <button onclick="go('track')" class="w-full text-left border border-gray-100 rounded-xl p-4 font-semibold"><i class="fa-solid fa-location-crosshairs text-blue-600 mr-2"></i>Where is my order?</button>
+    <button onclick="go('returns')" class="w-full text-left border border-gray-100 rounded-xl p-4 font-semibold"><i class="fa-solid fa-rotate-left text-orange-600 mr-2"></i>Return an item</button>
+    <button onclick="toast('Support chat opened')" class="w-full text-left border border-gray-100 rounded-xl p-4 font-semibold"><i class="fa-solid fa-headset text-green-600 mr-2"></i>Chat with support</button>
+  </section>
+
+  <!-- FAQ -->
+  <section id="sec-faq" class="hidden pt-2 pb-4 space-y-2">
+    <input type="search" id="faqSearch" oninput="filterFaq()" placeholder="Search FAQ..." class="w-full px-4 py-3 rounded-lg border text-sm mb-3">
+    <details class="faq-item border border-gray-100 rounded-xl p-4" open><summary class="font-bold cursor-pointer">How is ADAB different from other apps?</summary><p class="text-sm text-gray-600 mt-2">You order from real local shops — kirana, fashion stores, dairy — not a central warehouse. Each shop sets delivery time, offers, and products.</p></details>
+    <details class="faq-item border border-gray-100 rounded-xl p-4"><summary class="font-bold cursor-pointer">How fast is delivery?</summary><p class="text-sm text-gray-600 mt-2">Express 14–45 mins, same-day by evening, scheduled slots, or free pickup from the shop. Options depend on each store.</p></details>
+    <details class="faq-item border border-gray-100 rounded-xl p-4"><summary class="font-bold cursor-pointer">Can I order from multiple shops?</summary><p class="text-sm text-gray-600 mt-2">Yes. Cart groups items by shop. Each shop prepares and delivers separately when needed.</p></details>
+    <details class="faq-item border border-gray-100 rounded-xl p-4"><summary class="font-bold cursor-pointer">How do reward points work?</summary><p class="text-sm text-gray-600 mt-2">Earn ~1 pt per ₹100 spent. Redeem up to 50% at checkout. 1 pt = ₹1 off.</p></details>
+    <details class="faq-item border border-gray-100 rounded-xl p-4"><summary class="font-bold cursor-pointer">Can I chat with a shop?</summary><p class="text-sm text-gray-600 mt-2">Yes — message the store about products, order changes, or delivery from the shop page or Messages in your profile.</p></details>
+    <details class="faq-item border border-gray-100 rounded-xl p-4"><summary class="font-bold cursor-pointer">Returns & refunds?</summary><p class="text-sm text-gray-600 mt-2">Request within 7 days. Shop picks up item; refund to UPI or wallet once approved.</p></details>
+  </section>
+
+</main>
+
+<!-- Floating cart -->
+<button id="floatCart" onclick="go('cart')" class="float-cart hidden-bar">
+  <div class="flex items-center gap-3 min-w-0">
+    <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0"><i class="fa-solid fa-cart-shopping"></i></div>
+    <div class="text-left min-w-0"><div id="floatCartCount" class="font-extrabold text-sm">0 items</div><div id="floatCartStore" class="text-xs opacity-80 truncate">View cart</div></div>
+  </div>
+  <div class="flex items-center gap-2 shrink-0 font-extrabold">₹<span id="floatCartTotal">0</span> <i class="fa-solid fa-arrow-right"></i></div>
+</button>
+
+<!-- Customer Auth Modal (Sign In & Sign Up) -->
+<div id="customerAuthModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-green-100 animate-in fade-in zoom-in duration-200">
+    <div class="flex items-center justify-between pb-2 border-b">
+      <div class="flex items-center gap-2">
+        <div class="w-10 h-10 rounded-2xl bg-brand-green text-white flex items-center justify-center font-extrabold text-lg">A</div>
+        <div>
+          <h3 class="font-extrabold text-lg text-gray-900" id="custAuthTitle">Customer Sign In</h3>
+          <p class="text-xs text-gray-500">Order from real neighbourhood shops</p>
+        </div>
+      </div>
+      <button onclick="closeCustomerAuth()" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <!-- Auth Tabs -->
+    <div class="flex bg-gray-100 p-1 rounded-xl">
+      <button onclick="setCustAuthTab('login')" id="custTabLogin" class="flex-1 py-2 text-xs font-bold rounded-lg bg-white shadow text-brand-green">Sign In</button>
+      <button onclick="setCustAuthTab('signup')" id="custTabSignup" class="flex-1 py-2 text-xs font-bold rounded-lg text-gray-500">Create Account</button>
+    </div>
+
+    <!-- Sign In Panel -->
+    <div id="custPanelLogin" class="space-y-3">
+      <div>
+        <label class="text-xs font-bold text-gray-600 block mb-1">Mobile Number</label>
+        <div class="relative">
+          <span class="absolute left-3 top-3 text-xs font-bold text-gray-400">+91</span>
+          <input type="tel" id="custAuthPhone" value="9876512340" placeholder="98765 12340" class="w-full pl-12 pr-3 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold outline-none focus:border-green-600">
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-bold text-gray-600 block mb-1">One-Time Password (OTP)</label>
+        <input type="password" value="1234" placeholder="Enter 4-digit OTP (Demo: 1234)" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600">
+      </div>
+      <button onclick="handleCustomerLogin()" class="green-btn !py-3 !text-sm">Sign In to ADAB</button>
+    </div>
+
+    <!-- Sign Up Panel -->
+    <div id="custPanelSignup" class="space-y-3 hidden">
+      <div>
+        <label class="text-xs font-bold text-gray-600 block mb-1">Full Name</label>
+        <input type="text" id="custRegName" placeholder="e.g. Rahul Mehta" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600">
+      </div>
+      <div>
+        <label class="text-xs font-bold text-gray-600 block mb-1">Mobile Number</label>
+        <div class="relative">
+          <span class="absolute left-3 top-3 text-xs font-bold text-gray-400">+91</span>
+          <input type="tel" id="custRegPhone" placeholder="10-digit number" class="w-full pl-12 pr-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600">
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-bold text-gray-600 block mb-1">Delivery Address & Area</label>
+        <input type="text" id="custRegAddress" placeholder="e.g. Flat 302, Green Avenue, Surat" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600">
+      </div>
+      <button onclick="handleCustomerRegister()" class="green-btn !py-3 !text-sm">Create Account & Get 100 Pts</button>
+    </div>
+
+    <div class="p-3 bg-green-50 rounded-xl border border-green-100 text-center text-xs text-green-800">
+      <i class="fa-solid fa-shield-check text-green-600 mr-1"></i> Live synced with ADAB Admin & Local Sellers Hub
+    </div>
+  </div>
+</div>
+
+<!-- Bottom navigation -->
+<nav class="bottom-nav">
+  <div class="page flex justify-around py-1.5">
+    <button onclick="go('home')" id="btab-home" class="nav-tab flex flex-col items-center gap-0.5 nav-tab-on py-1.5 px-3"><i class="fa-solid fa-compass text-[22px]"></i><span class="text-[10px] font-bold">Explore</span><span class="nav-dot"></span></button>
+    <button onclick="go('stores')" id="btab-stores" class="nav-tab flex flex-col items-center gap-0.5 nav-tab-off py-1.5 px-3"><i class="fa-solid fa-store text-[22px]"></i><span class="text-[10px] font-bold">Shops</span><span class="nav-dot"></span></button>
+    <button onclick="go('orders')" id="btab-orders" class="nav-tab flex flex-col items-center gap-0.5 nav-tab-off py-1.5 px-3 relative"><i class="fa-solid fa-bag-shopping text-[22px]"></i><span class="text-[10px] font-bold">Orders</span><span class="nav-dot"></span><span class="absolute top-1 right-1 w-2 h-2 bg-brand-coral rounded-full"></span></button>
+    <button onclick="go('account')" id="btab-account" class="nav-tab flex flex-col items-center gap-0.5 nav-tab-off py-1.5 px-3"><i class="fa-solid fa-circle-user text-[22px]"></i><span class="text-[10px] font-bold">You</span><span class="nav-dot"></span></button>
+  </div>
+</nav>
+
+<script>
+let STORES = [
+  { id:'balaji', name:'Shri Balaji Store', abbr:'SB', cat:'grocery', cats:['Grocery','Fashion'], rating:4.6, dist:'1.2 km', eta:'14 min', items:120, open:true, c1:'#15803D', c2:'#22C55E', tags:['⚡ Fast','Same-day','Pickup'], offer:'15% OFF', q:'balaji grocery kurti' },
+  { id:'vesu', name:'Vesu Grocery Mart', abbr:'VG', cat:'grocery', cats:['Grocery'], rating:4.5, dist:'2.4 km', eta:'18 min', items:200, open:true, c1:'#1D4ED8', c2:'#3B82F6', tags:['Same-day'], offer:null, q:'vesu grocery' },
+  { id:'dairy', name:'Dairy Collective', abbr:'DC', cat:'dairy', cats:['Dairy'], rating:4.8, dist:'4 km', eta:'22 min', items:45, open:true, c1:'#5B21B6', c2:'#8B5CF6', tags:['Fresh daily'], offer:null, q:'dairy milk' },
+  { id:'spice', name:'Spice Traders', abbr:'ST', cat:'grocery', cats:['Spices'], rating:4.5, dist:'6 km', eta:'30 min', items:80, open:true, c1:'#C2410C', c2:'#F97316', tags:['Bulk orders'], offer:null, q:'spice masala' },
+];
+
+let PRODUCTS = [
+  { id:'salt', name:'Tata Salt 1kg', unit:'1 kg', price:28, storeId:'balaji', cat:'grocery', q:'salt tata', emoji:'🧂', disc:10 },
+  { id:'kurti', name:'Balaji Silk Kurti M', unit:'1 pc', price:899, storeId:'balaji', cat:'fashion', q:'kurti silk fashion', emoji:'👗' },
+  { id:'oil', name:'Fortune Oil 1L', unit:'1 L', price:142, storeId:'vesu', cat:'grocery', q:'oil fortune', emoji:'🫒' },
+  { id:'butter', name:'Amul Butter 500g', unit:'500 g', price:285, storeId:'dairy', cat:'dairy', q:'butter amul dairy', emoji:'🧈' },
+  { id:'rice', name:'Basmati Rice 5kg', unit:'5 kg', price:620, storeId:'balaji', cat:'grocery', q:'rice basmati', emoji:'🍚' },
+  { id:'milk', name:'Amul Taaza 1L', unit:'1 L', price:56, storeId:'dairy', cat:'dairy', q:'milk amul dairy', emoji:'🥛' },
+  { id:'ghee', name:'Amul Ghee 1L', unit:'1 L', price:580, storeId:'balaji', cat:'grocery', q:'ghee amul', emoji:'🫕' },
+  { id:'maggi', name:'Maggi Noodles', unit:'70 g', price:14, storeId:'balaji', cat:'grocery', q:'maggi noodles snacks', emoji:'🍜' },
+  { id:'bread', name:'Britannia Bread', unit:'400 g', price:45, storeId:'vesu', cat:'grocery', q:'bread bakery', emoji:'🍞' },
+  { id:'turmeric', name:'Turmeric Powder 500g', unit:'500 g', price:210, storeId:'spice', cat:'grocery', q:'masala turmeric spice', emoji:'🌶️' },
+];
+
+function syncFromHub() {
+  if (!window.AdabSync) return;
+  const liveProds = AdabSync.getProducts().filter(p => p.status === 'live');
+  const liveSellers = AdabSync.getSellers().filter(s => s.status === 'active');
+  
+  if (liveSellers.length) {
+    STORES = liveSellers.map(s => ({
+      id: s.id,
+      name: s.name,
+      abbr: s.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(),
+      cat: s.category.toLowerCase().includes('fmcg') || s.category.toLowerCase().includes('groc') ? 'grocery' : 'fashion',
+      cats: [s.category],
+      rating: s.rating || 4.7,
+      dist: s.zone || '1.5 km',
+      eta: '15-30 min',
+      items: 80,
+      open: true,
+      c1: '#15803D',
+      c2: '#22C55E',
+      tags: ['⚡ Fast', 'Verified', 'Local'],
+      offer: '10% OFF',
+      q: (s.name + ' ' + s.category).toLowerCase()
+    }));
+  }
+  
+  if (liveProds.length) {
+    PRODUCTS = liveProds.map(p => {
+      const matchStore = STORES.find(s => s.name === p.store || s.id === p.storeId);
+      const storeId = matchStore ? matchStore.id : 'balaji';
+      const emojis = { 'Groceries & Essentials': '🧂', 'Dairy & Fresh': '🥛', 'Apparel & Fashion': '👗', 'Food & Gourmet': '🍲' };
+      return {
+        id: p.id,
+        name: p.name,
+        unit: p.unit || '1 pc',
+        price: p.price,
+        storeId: storeId,
+        cat: p.category.toLowerCase().includes('apparel') || p.category.toLowerCase().includes('fashion') ? 'fashion' : 'grocery',
+        q: (p.name + ' ' + p.category + ' ' + (p.store || '')).toLowerCase(),
+        emoji: emojis[p.category] || '📦',
+        disc: p.mrp ? Math.round(((p.mrp - p.price) / p.mrp) * 100) : 0
+      };
+    });
+  }
+}
+const sectionIds = ['home','shop','search','categories','stores','offers','cart','checkout','orders','track','orderhistory','returns','account','points','wallet','credit','favorites','reviews','messages','notifications','addresses','settings','help','faq'];
+const pageTitles = { shop:'Shop', search:'Search', categories:'Categories', stores:'Local shops', offers:'Offers & coupons', cart:'Your cart', checkout:'Checkout', orders:'Your orders', track:'Track order', orderhistory:'Order history', returns:'Returns', account:'Your profile', points:'Reward points', wallet:'Wallet', credit:'Pay Later & Bank Credit', favorites:'Favourites', reviews:'Ratings', messages:'Chat with shop', notifications:'Notifications', addresses:'Addresses', settings:'Settings', help:'Help', faq:'FAQ' };
+const bottomTabs = { home:'home', stores:'stores', orders:'orders', account:'account' };
+let cart = [], points = 2840, couponDiscount = 0, checkoutDelivery = 'fast', checkoutPayment = 'upi', deliveryFee = 29;
+let trackMapInstance = null, navHistory = ['home'], searchChip = 'all', storeCatFilter = 'all';
+let currentShopId = 'balaji', favShops = ['balaji'], shopCatFilter = 'all';
+
+function populateCustomerBankOptions() {
+  const sel = document.getElementById('custCreditBankSelect');
+  if (!sel || !window.AdabSync) return;
+  const banks = AdabSync.getBanks ? AdabSync.getBanks() : [];
+  sel.innerHTML = banks.filter(b => b.active).map(b => `
+    <option value="${b.id}" data-name="${b.name}">
+      ${b.name} (Max ${b.maxCustLimit} · ${b.interestRate} · ${b.partnerTag})
+    </option>
+  `).join('');
+}
+
+function submitCustomerCreditApp() {
+  const amt = parseInt(document.getElementById('custCreditAmt').value || '50000', 10);
+  const tenor = document.getElementById('custCreditTenor') ? document.getElementById('custCreditTenor').value : '6 mos';
+  const sel = document.getElementById('custCreditBankSelect');
+  const opt = sel ? sel.options[sel.selectedIndex] : null;
+  const bankName = opt ? opt.dataset.name || opt.text.split('(')[0].trim() : 'HDFC Bank';
+  const bankId = sel ? sel.value : 'b1';
+
+  if (window.AdabSync && AdabSync.submitCreditApplication) {
+    AdabSync.submitCreditApplication({
+      applicantType: 'customer',
+      applicantName: 'Pooja Sharma',
+      applicantPhone: '+91 98765 12340',
+      bankId: bankId,
+      bankName: bankName,
+      amount: amt,
+      tenor: tenor,
+      purpose: 'Home Essentials & Store BNPL'
+    });
+
+    const list = document.getElementById('custCreditAppsList');
+    if (list) {
+      const card = document.createElement('div');
+      card.className = 'flex items-center justify-between p-3 rounded-xl bg-amber-50 border border-amber-200';
+      card.innerHTML = `
+        <div>
+          <div class="font-bold text-gray-900 text-sm">₹${amt.toLocaleString('en-IN')} · ${bankName}</div>
+          <div class="text-[11px] text-gray-500">${tenor} · Submitted just now</div>
+        </div>
+        <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-200 text-amber-900">PENDING</span>
+      `;
+      list.prepend(card);
+    }
+
+    toast('🎉 Application for ₹' + amt.toLocaleString('en-IN') + ' sent to ' + bankName + ' & Admin!');
+  } else {
+    toast('Credit application submitted!');
+  }
+}
+
+function storeName(id) { const s = STORES.find(x => x.id === id); return s ? s.name : 'Shop'; }
+
+function productCard(p) {
+  const s = STORES.find(x => x.id === p.storeId);
+  const inCart = cart.find(c => c.id === p.id);
+  const qty = inCart ? inCart.qty : 0;
+  const btn = qty > 0
+    ? '<div class="qty-ctrl"><button onclick="event.stopPropagation();changeQtyId(\'' + p.id + '\',-1)">−</button><span>' + qty + '</span><button onclick="event.stopPropagation();changeQtyId(\'' + p.id + '\',1)">+</button></div>'
+    : '<button class="add-btn" onclick="event.stopPropagation();addProduct(\'' + p.id + '\')">ADD</button>';
+  const disc = p.disc ? '<span class="absolute top-2 left-2 bg-brand-coral text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full">' + p.disc + '% OFF</span>' : '';
+  return '<div class="prod-card search-item product-item" data-cat="' + p.cat + '" data-q="' + p.q + '" data-store="' + p.storeId + '"><div class="relative aspect-square bg-gradient-to-br from-gray-50 to-green-50/50 flex items-center justify-center text-4xl">' + disc + p.emoji + '</div><div class="p-3"><span class="store-chip">' + (s ? s.abbr : '') + ' · ' + storeName(p.storeId).split(' ')[0] + '</span><div class="font-bold text-[13px] leading-snug mt-1.5 line-clamp-2 min-h-[2.4rem]">' + p.name + '</div><div class="text-[11px] text-gray-400 mt-0.5">' + p.unit + '</div><div class="flex items-center justify-between mt-2.5"><span class="font-extrabold text-base text-brand-dark">₹' + p.price + '</span>' + btn + '</div></div></div>';
+}
+
+function shopCard(s, compact) {
+  const fav = favShops.includes(s.id);
+  if (compact) {
+    return '<button onclick="openShop(\'' + s.id + '\')" class="shop-card w-full text-left bg-white"><div class="h-24 shop-hero flex items-end p-4 text-white" style="--shop-c1:' + s.c1 + ';--shop-c2:' + s.c2 + '"><span class="open-badge">' + (s.open ? 'OPEN' : 'CLOSED') + '</span></div><div class="p-4 flex gap-3"><div class="w-12 h-12 -mt-8 rounded-xl border-4 border-white shadow-md flex items-center justify-center font-extrabold text-white shrink-0" style="background:' + s.c1 + '">' + s.abbr + '</div><div class="flex-1 min-w-0 pt-1"><div class="font-extrabold truncate">' + s.name + '</div><div class="text-xs text-gray-500 mt-0.5">' + s.cats.join(' · ') + ' · ⭐ ' + s.rating + '</div><div class="flex gap-2 mt-2 flex-wrap"><span class="delivery-pill">' + s.eta + '</span>' + (s.offer ? '<span class="text-[10px] font-bold text-brand-coral">' + s.offer + '</span>' : '') + '</div></div><i class="fa-solid fa-chevron-right text-gray-300 self-center"></i></div></button>';
+  }
+  return '<button onclick="openShop(\'' + s.id + '\')" class="store-item shop-card w-full text-left bg-white" data-cat="' + s.cat + '" data-q="' + s.q + '"><div class="flex gap-4 p-4"><div class="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-extrabold text-xl shrink-0 shadow-lg" style="background:linear-gradient(135deg,' + s.c1 + ',' + s.c2 + ')">' + s.abbr + '</div><div class="flex-1 min-w-0"><div class="flex items-center gap-2 flex-wrap"><span class="font-extrabold">' + s.name + '</span><span class="open-badge">' + (s.open ? 'OPEN' : 'CLOSED') + '</span></div><div class="text-xs text-gray-500 mt-1">' + s.cats.join(' & ') + ' · ' + s.dist + ' · ⭐ ' + s.rating + '</div><div class="flex gap-1.5 mt-2 flex-wrap">' + s.tags.map(t => '<span class="text-[9px] font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">' + t + '</span>').join('') + '</div></div></div><div class="px-4 pb-4 flex justify-between items-center border-t border-gray-50 pt-3"><span class="text-xs font-bold text-brand-green"><i class="fa-solid fa-motorcycle mr-1"></i>' + s.eta + ' delivery</span><span class="text-xs font-bold text-brand-green">Visit shop →</span></div></button>';
+}
+
+function renderShops() {
+  const home = document.getElementById('homeShopCards');
+  const list = document.getElementById('storeList');
+  if (home) home.innerHTML = STORES.slice(0, 3).map(s => shopCard(s, true)).join('');
+  if (list) list.innerHTML = STORES.map(s => shopCard(s, false)).join('');
+  filterStores();
+}
+
+function openShop(id) {
+  currentShopId = id;
+  const s = STORES.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('shopBanner').style.setProperty('--shop-c1', s.c1);
+  document.getElementById('shopBanner').style.setProperty('--shop-c2', s.c2);
+  document.getElementById('shopAvatar').textContent = s.abbr;
+  document.getElementById('shopName').textContent = s.name;
+  document.getElementById('shopMeta').textContent = s.cats.join(' & ') + ' · ' + s.dist + ' · ⭐ ' + s.rating + ' · ' + s.items + '+ items';
+  document.getElementById('shopEta').textContent = s.eta;
+  document.getElementById('shopDist').textContent = s.dist;
+  document.getElementById('shopItems').textContent = s.items + '+';
+  document.getElementById('shopTags').innerHTML = s.tags.map(t => '<span class="glass text-xs font-bold px-2.5 py-1 rounded-full">' + t + '</span>').join('') + (s.offer ? '<span class="bg-brand-coral text-xs font-bold px-2.5 py-1 rounded-full">' + s.offer + '</span>' : '');
+  shopCatFilter = 'all';
+  renderShopProducts();
+  go('shop');
+}
+
+function renderShopProducts() {
+  const prods = PRODUCTS.filter(p => p.storeId === currentShopId);
+  const cats = ['all', ...new Set(prods.map(p => p.cat))];
+  document.getElementById('shopCatChips').innerHTML = cats.map(c => '<button onclick="setShopCat(\'' + c + '\')" class="chip' + (shopCatFilter === c ? ' chip-on' : '') + '">' + (c === 'all' ? 'All' : c.charAt(0).toUpperCase() + c.slice(1)) + '</button>').join('');
+  document.getElementById('shopProducts').innerHTML = prods.filter(p => shopCatFilter === 'all' || p.cat === shopCatFilter).map(p => productCard(p)).join('');
+}
+
+function setShopCat(c) { shopCatFilter = c; renderShopProducts(); }
+function toggleFavShop() { if (favShops.includes(currentShopId)) favShops = favShops.filter(x => x !== currentShopId); else favShops.push(currentShopId); toast(favShops.includes(currentShopId) ? 'Shop saved!' : 'Removed from favourites'); }
+
+function renderProductGrids() {
+  [['homeProducts', PRODUCTS.slice(0, 6)], ['trendingProducts', PRODUCTS.slice(2, 8)], ['searchGrid', PRODUCTS], ['favProducts', PRODUCTS.filter(p => favShops.includes(p.storeId)).slice(0, 4)]].forEach(([id, list]) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = list.map(p => productCard(p)).join('');
+  });
+  renderShops();
+}
+
+function getProduct(id) { return PRODUCTS.find(p => p.id === id); }
+
+function addProduct(id) {
+  const p = getProduct(id);
+  if (!p) return;
+  const ex = cart.find(c => c.id === id);
+  if (ex) ex.qty++; else cart.push({ id, name: p.name, price: p.price, store: storeName(p.storeId), storeId: p.storeId, qty: 1 });
+  refreshUI();
+  toast('Added from ' + storeName(p.storeId).split(' ')[0]);
+}
+
+function changeQtyId(id, d) {
+  const i = cart.findIndex(c => c.id === id);
+  if (i < 0) return;
+  cart[i].qty += d;
+  if (cart[i].qty <= 0) cart.splice(i, 1);
+  refreshUI();
+}
+
+function go(id) {
+  if (id !== navHistory[navHistory.length - 1]) navHistory.push(id);
+  sectionIds.forEach(s => { const el = document.getElementById('sec-' + s); if (el) el.classList.add('hidden'); });
+  const target = document.getElementById('sec-' + id);
+  if (target) target.classList.remove('hidden');
+  const isHome = id === 'home';
+  document.getElementById('appHeader').classList.toggle('hidden', !isHome);
+  document.getElementById('subHeader').classList.toggle('hidden', isHome);
+  if (!isHome) document.getElementById('subHeaderTitle').textContent = pageTitles[id] || id;
+  document.querySelectorAll('.nav-tab').forEach(t => { t.classList.remove('nav-tab-on'); t.classList.add('nav-tab-off'); });
+  const btab = bottomTabs[id];
+  if (btab) { const b = document.getElementById('btab-' + btab); if (b) { b.classList.add('nav-tab-on'); b.classList.remove('nav-tab-off'); } }
+  window.scrollTo(0, 0);
+  if (id === 'track') setTimeout(initTrackMap, 200);
+  if (id === 'checkout') renderCheckout();
+  if (id === 'cart') renderCart();
+  if (id === 'search') filterSearch();
+  if (id === 'credit') populateCustomerBankOptions();
+  renderProductGrids();
+}
+
+function goBack() {
+  if (navHistory.length > 1) { navHistory.pop(); go(navHistory[navHistory.length - 1] || 'home'); }
+  else go('home');
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.remove('hidden');
+  setTimeout(() => t.classList.add('hidden'), 2500);
+}
+
+function refreshUI() {
+  renderProductGrids();
+  renderCart();
+  updateFloatCart();
+  document.getElementById('hdrPoints').textContent = points.toLocaleString('en-IN');
+  const pb = document.getElementById('pointsBig');
+  if (pb) pb.textContent = points.toLocaleString('en-IN');
+}
+
+function renderCart() {
+  const empty = document.getElementById('cartEmpty');
+  const full = document.getElementById('cartFull');
+  const btn = document.getElementById('cartCheckoutBtn');
+  if (!cart.length) { empty.classList.remove('hidden'); full.classList.add('hidden'); if (btn) btn.disabled = true; return; }
+  empty.classList.add('hidden'); full.classList.remove('hidden');
+  let sub = 0;
+  const byStore = {};
+  cart.forEach(c => { if (!byStore[c.storeId]) byStore[c.storeId] = []; byStore[c.storeId].push(c); });
+  document.getElementById('cartItems').innerHTML = Object.keys(byStore).map(sid => {
+    const s = STORES.find(x => x.id === sid);
+    const items = byStore[sid];
+    const storeSub = items.reduce((a, c) => a + c.price * c.qty, 0);
+    sub += storeSub;
+    return '<div class="bg-white rounded-2xl border border-gray-100 overflow-hidden"><div class="px-4 py-3 bg-gray-50 flex items-center gap-2 border-b"><div class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-extrabold" style="background:' + (s ? s.c1 : '#15803D') + '">' + (s ? s.abbr : '?') + '</div><div class="font-extrabold text-sm">' + storeName(sid) + '</div><span class="ml-auto text-xs text-gray-500">' + (s ? s.eta : '—') + '</span></div><div class="p-3 space-y-3">' + items.map((c, i) => {
+      const gi = cart.indexOf(c);
+      const p = getProduct(c.id);
+      return '<div class="flex gap-3 items-center"><div class="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center text-xl">' + (p ? p.emoji : '📦') + '</div><div class="flex-1 min-w-0"><div class="font-bold text-sm truncate">' + c.name + '</div><div class="font-extrabold text-brand-dark mt-0.5">₹' + (c.price * c.qty) + '</div></div><div class="qty-ctrl"><button onclick="changeQty(' + gi + ',-1)">−</button><span>' + c.qty + '</span><button onclick="changeQty(' + gi + ',1)">+</button></div></div>';
+    }).join('') + '</div></div>';
+  }).join('');
+  const total = Math.max(0, sub + deliveryFee - couponDiscount);
+  document.getElementById('cartSubtotal').textContent = '₹' + sub;
+  document.getElementById('cartDelivery').textContent = deliveryFee ? '₹' + deliveryFee : 'FREE';
+  document.getElementById('cartTotal').textContent = '₹' + total;
+  document.getElementById('cartDiscountRow').classList.toggle('hidden', !couponDiscount);
+  if (couponDiscount) document.getElementById('cartDiscount').textContent = '-₹' + couponDiscount;
+  if (btn) btn.disabled = false;
+}
+
+function changeQty(i, d) { cart[i].qty += d; if (cart[i].qty <= 0) cart.splice(i, 1); refreshUI(); }
+
+function updateFloatCart() {
+  const n = cart.reduce((s, c) => s + c.qty, 0);
+  const sub = cart.reduce((s, c) => s + c.price * c.qty, 0);
+  const total = Math.max(0, sub + (n ? deliveryFee : 0) - couponDiscount);
+  document.getElementById('floatCart').classList.toggle('hidden-bar', n === 0);
+  document.getElementById('floatCartCount').textContent = n + ' item' + (n > 1 ? 's' : '');
+  document.getElementById('floatCartTotal').textContent = total;
+  const stores = [...new Set(cart.map(c => c.store))];
+  document.getElementById('floatCartStore').textContent = stores.length > 1 ? stores.length + ' shops' : (stores[0] || 'View cart');
+  const badge = document.getElementById('subCartBadge');
+  if (badge) { badge.textContent = n; badge.classList.toggle('hidden', n === 0); badge.classList.toggle('flex', n > 0); }
+  const ap = document.getElementById('acctPoints');
+  if (ap) ap.textContent = points.toLocaleString('en-IN');
+}
+
+function applyCoupon(code) {
+  const sub = cart.reduce((s, c) => s + c.price * c.qty, 0);
+  if (code === 'BALAJI15') couponDiscount = Math.round(sub * 0.15);
+  else if (code === 'ADAB100') couponDiscount = sub >= 399 ? 100 : 0;
+  else couponDiscount = 0;
+  refreshUI();
+  toast(couponDiscount ? 'Saved ₹' + couponDiscount + '!' : 'Coupon not valid for this cart');
+  go('cart');
+}
+
+function applyCouponFromInput() { applyCoupon((document.getElementById('couponInput').value || '').trim().toUpperCase()); }
+
+function selectDelivery(type) {
+  checkoutDelivery = type;
+  deliveryFee = type === 'fast' ? 29 : type === 'same' ? 19 : type === 'normal' ? 15 : 0;
+  document.querySelectorAll('.checkout-del').forEach(el => { el.classList.remove('border-brand-green', 'bg-green-50', 'border-2'); el.classList.add('border', 'border-gray-200'); });
+  const el = document.getElementById('del-' + type);
+  if (el) { el.classList.add('border-2', 'border-brand-green', 'bg-green-50'); el.classList.remove('border-gray-200'); }
+  renderCheckout(); refreshUI();
+}
+
+function selectPayment(type) {
+  checkoutPayment = type;
+  document.querySelectorAll('.checkout-pay').forEach(el => { el.classList.remove('border-2', 'border-brand-green', 'bg-green-50'); el.classList.add('border', 'border-gray-200'); });
+  const el = document.getElementById('pay-' + type);
+  if (el) { el.classList.add('border-2', 'border-brand-green', 'bg-green-50'); }
+  if (type === 'bnpl') {
+    toast('💳 Selected ADAB 0% Pay Later (14-day cycle linked with Bank partners)');
+  }
+}
+
+function renderCheckout() {
+  const sub = cart.reduce((s, c) => s + c.price * c.qty, 0);
+  const total = Math.max(0, sub + deliveryFee - couponDiscount);
+  document.getElementById('checkoutItems').innerHTML = cart.map(c => `
+    <div class="flex justify-between items-center py-2 text-xs">
+      <div class="min-w-0 pr-2">
+        <div class="font-extrabold text-gray-900 truncate">${c.name}</div>
+        <div class="text-[10px] text-gray-500">${c.store} · Qty: ${c.qty} × ₹${c.price}</div>
+      </div>
+      <span class="font-extrabold text-gray-900 shrink-0">₹${c.price * c.qty}</span>
+    </div>
+  `).join('');
+  document.getElementById('checkoutSub').textContent = '₹' + sub;
+  document.getElementById('checkoutDelFee').textContent = deliveryFee ? '₹' + deliveryFee : 'FREE';
+  document.getElementById('checkoutTotal').textContent = '₹' + total;
+  document.getElementById('checkoutPayAmt').textContent = '₹' + total;
+  document.getElementById('checkoutPts').textContent = Math.floor(total / 100);
+}
+
+function placeOrder() {
+  if (!cart.length) { toast('Add items first'); go('home'); return; }
+  const total = Math.max(0, cart.reduce((s, c) => s + c.price * c.qty, 0) + deliveryFee - couponDiscount);
+  points += Math.floor(total / 100);
+  
+  if (window.AdabSync && AdabSync.addCustomerOrder) {
+    AdabSync.addCustomerOrder({
+      customer: 'Pooja Sharma',
+      phone: '+91 98765 12340',
+      items: cart.map(c => ({ name: c.name, qty: c.qty, price: c.price, store: c.store })),
+      total: total,
+      paymentMethod: checkoutPayment.toUpperCase(),
+      deliveryType: checkoutDelivery,
+      address: 'Flat 402, Green Valley Apt, Ring Road, Surat'
+    });
+  }
+
+  cart = []; couponDiscount = 0;
+  refreshUI();
+  toast('🎉 Order placed successfully! Tracking live dispatch...');
+  navHistory = ['home', 'orders'];
+  go('orders');
+}
+
+function quickSearch(term) { 
+  go('search'); 
+  const inp = document.getElementById('searchInput');
+  if (inp) inp.value = term; 
+  filterSearch(); 
+}
+
+function setSearchChip(cat) {
+  searchChip = cat;
+  document.querySelectorAll('#searchChips .chip').forEach(c => c.classList.toggle('chip-on', c.dataset.chip === cat));
+  filterSearch();
+}
+
+function filterSearch() {
+  const q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  const shopMatches = STORES.filter(s => !q || s.q.includes(q) || s.name.toLowerCase().includes(q));
+  const shopBlock = document.getElementById('searchShopsBlock');
+  const shopEl = document.getElementById('searchShops');
+  const shopsCount = document.getElementById('searchShopsCount');
+  
+  if (searchChip === 'all' || searchChip === 'shop') {
+    const showShops = shopMatches.length > 0 && (searchChip === 'shop' || q.length > 0);
+    if (shopBlock) shopBlock.classList.toggle('hidden', !showShops);
+    if (shopsCount) shopsCount.textContent = shopMatches.length + ' found';
+    if (shopEl) {
+      shopEl.innerHTML = shopMatches.map(s => `
+        <button onclick="openShop('${s.id}')" class="flex items-center gap-3 p-3 bg-white rounded-2xl border border-gray-100 shadow-sm hover:border-emerald-300 transition text-left">
+          <div class="w-12 h-12 rounded-xl text-white font-black flex items-center justify-center text-sm shadow" style="background:${s.c1}">${s.abbr}</div>
+          <div class="flex-1 min-w-0">
+            <div class="font-extrabold text-xs text-gray-900 truncate">${s.name}</div>
+            <div class="text-[11px] text-gray-500 mt-0.5">${s.cats.join(' & ')} · ${s.dist} · ⭐ ${s.rating}</div>
+            <div class="text-[10px] font-bold text-emerald-700 mt-0.5"><i class="fa-solid fa-motorcycle mr-1"></i>${s.eta}</div>
+          </div>
+          <i class="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+        </button>
+      `).join('');
+    }
+  } else if (shopBlock) {
+    shopBlock.classList.add('hidden');
+  }
+
+  let matchCount = 0;
+  document.querySelectorAll('#searchGrid .search-item').forEach(el => {
+    const ok = (!q || el.dataset.q.includes(q) || el.textContent.toLowerCase().includes(q)) && (searchChip === 'all' || searchChip === 'shop' || el.dataset.cat === searchChip);
+    const visible = (searchChip !== 'shop') && ok;
+    el.style.display = visible ? '' : 'none';
+    if (visible) matchCount++;
+  });
+
+  const countBadge = document.getElementById('searchProdCount');
+  if (countBadge) {
+    countBadge.textContent = matchCount + ' item' + (matchCount === 1 ? '' : 's') + ' available';
+  }
+}
+
+function filterStoreCat(cat) {
+  storeCatFilter = cat;
+  document.querySelectorAll('.store-cat-chip').forEach(c => c.classList.toggle('chip-on', c.dataset.scat === cat));
+  filterStores();
+}
+
+function filterStores() {
+  const q = (document.getElementById('storeSearch').value || '').toLowerCase();
+  document.querySelectorAll('#storeList .store-item').forEach(el => {
+    const okQ = !q || el.textContent.toLowerCase().includes(q);
+    const okC = storeCatFilter === 'all' || el.dataset.cat === storeCatFilter;
+    el.style.display = (okQ && okC) ? '' : 'none';
+  });
+}
+
+function filterOH() {
+  const q = (document.getElementById('ohSearch').value || '').toLowerCase();
+  document.querySelectorAll('.oh-row').forEach(el => el.style.display = !q || el.textContent.toLowerCase().includes(q) ? '' : 'none');
+}
+
+function filterFaq() {
+  const q = (document.getElementById('faqSearch').value || '').toLowerCase();
+  document.querySelectorAll('.faq-item').forEach(el => el.style.display = !q || el.textContent.toLowerCase().includes(q) ? '' : 'none');
+}
+
+function openCustomerAuth() {
+  document.getElementById('customerAuthModal').classList.remove('hidden');
+}
+function closeCustomerAuth() {
+  document.getElementById('customerAuthModal').classList.add('hidden');
+}
+function setCustAuthTab(tab) {
+  document.getElementById('custPanelLogin').classList.toggle('hidden', tab !== 'login');
+  document.getElementById('custPanelSignup').classList.toggle('hidden', tab !== 'signup');
+  document.getElementById('custTabLogin').className = 'flex-1 py-2 text-xs font-bold rounded-lg ' + (tab === 'login' ? 'bg-white shadow text-brand-green' : 'text-gray-500');
+  document.getElementById('custTabSignup').className = 'flex-1 py-2 text-xs font-bold rounded-lg ' + (tab === 'signup' ? 'bg-white shadow text-brand-green' : 'text-gray-500');
+  document.getElementById('custAuthTitle').textContent = tab === 'login' ? 'Customer Sign In' : 'Create Customer Account';
+}
+function handleCustomerLogin() {
+  const phone = (document.getElementById('custAuthPhone').value || '').trim();
+  if (!phone) { toast('Please enter mobile number'); return; }
+  const customers = window.AdabSync ? AdabSync.getCustomers() : [];
+  const found = customers.find(c => c.phone === phone || c.name.toLowerCase().includes(phone.toLowerCase()));
+  if (found) {
+    document.getElementById('custAuthLabel').textContent = found.name.split(' ')[0];
+    toast('Welcome back, ' + found.name + '!');
+  } else {
+    document.getElementById('custAuthLabel').textContent = 'Pooja';
+    toast('Signed in as Pooja Sharma');
+  }
+  closeCustomerAuth();
+}
+function handleCustomerRegister() {
+  const name = (document.getElementById('custRegName').value || '').trim();
+  const phone = (document.getElementById('custRegPhone').value || '').trim();
+  const address = (document.getElementById('custRegAddress').value || '').trim();
+  if (!name || !phone) { toast('Please enter your Name and Mobile number'); return; }
+  
+  if (window.AdabSync) {
+    AdabSync.addCustomerRegistration({ name, phone, address: address || 'Ring Road, Surat' });
+  }
+  points += 100;
+  refreshUI();
+  document.getElementById('custAuthLabel').textContent = name.split(' ')[0];
+  closeCustomerAuth();
+  toast('Welcome to ADAB Shop, ' + name + '! +100 bonus points added.');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  syncFromHub();
+  renderProductGrids();
+  updateFloatCart();
+  if (window.AdabSync) {
+    AdabSync.subscribe((type, data) => {
+      syncFromHub();
+      renderProductGrids();
+      renderCart();
+      updateFloatCart();
+    });
+  }
+  go('home');
+});
+</script>
+<!-- ADAB Customer — local shop marketplace · pairs with unified-one-portal-demo.html -->
+</body>
+</html>
