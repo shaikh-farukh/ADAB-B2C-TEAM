@@ -4958,6 +4958,18 @@
     } else {
       toast('✅ "' + name + '" added!');
     }
+    // Backend API Sync
+    if (typeof apiPost === 'function') {
+      apiPost('/inventory', {
+        name: name,
+        price: price,
+        mrp: Math.round(price * 1.2),
+        category: prodType === 'brand' ? 'Fashion' : 'Grocery',
+        stock: 50,
+        unit: prodType === 'loose' ? 'kg' : 'pcs',
+        store: store
+      });
+    }
     go('products');
   }
 
@@ -4983,6 +4995,18 @@
         reviews: 0
       }, store);
       toast('⏳ "' + name + '" submitted to Admin for approval!');
+    }
+    // Backend API Sync
+    if (typeof apiPost === 'function') {
+      apiPost('/inventory', {
+        name: name,
+        price: price,
+        mrp: Math.round(price * 1.2),
+        category: prodType === 'brand' ? 'Fashion' : 'Grocery',
+        stock: stock,
+        unit: prodType === 'loose' ? 'kg' : 'pcs',
+        store: store
+      });
     }
     go('products');
   }
@@ -6214,6 +6238,22 @@
     }
   }
 
+  // ADAB Live Backend API Bridge (Option 2 - Mayank Seller Domain)
+  const ADAB_API_BASE = 'http://localhost:5003/api/v1/seller';
+  async function apiPost(endpoint, data) {
+    try {
+      const res = await fetch(`${ADAB_API_BASE}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      return await res.json();
+    } catch (err) {
+      console.warn('Backend sync notice:', err.message);
+      return null;
+    }
+  }
+
   function checkoutPOS() {
     const total = cart.reduce((s, c) => s + c.price * c.qty, 0);
     if (!total) { toast('Cart is empty!'); return; }
@@ -6224,6 +6264,16 @@
     const buyer = currentPosSellTo === 'store' ? 'Store B2B' : 'Customer';
     const payLabel = { cash: 'Cash', upi: 'UPI', card: 'Card', credit: 'Credit 14d' }[pay] || pay;
     const msg = 'Rupees ' + total + ' received successfully by ' + payLabel + '.';
+    
+    // Live Backend Option 2 Sync
+    apiPost('/pos/sales', {
+      items: cart,
+      totalAmount: total,
+      paymentMethod: pay,
+      buyerType: buyer,
+      pointsEarned: earned
+    });
+
     toast('Bill printed! ' + buyer + ' · ₹' + total + ' · ' + payLabel + ' · +' + earned + ' pts');
     speakMessage(msg);
     clearCart();
