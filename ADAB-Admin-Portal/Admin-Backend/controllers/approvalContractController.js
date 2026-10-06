@@ -7,53 +7,63 @@ const {
   formatApprovalCountsDTO
 } = require('../contracts/approvalContract');
 const { transition, APPROVAL_STATES, ApprovalStateMachineError } = require('../services/approvalStateMachine');
+const {
+  getApprovalQueue: fetchApprovalQueue,
+  getApprovalItemById: fetchApprovalItemById,
+  updateApprovalItemState,
+  updateUserStatus: changeUserStatus
+} = require('../services/approvalQueueService');
 
 /**
- * Approval API Contract Controller
- * Exposes contract handlers for Day-2 approval endpoints.
+ * Approval API & User Status Controller
+ * Handlers for Approval Queue, State Machine Transitions, and Seller/Customer Status Updates.
  */
 
-// 1. Approval List / Read
-async function getApprovalList(req, res) {
-  const statusFilter = req.query.status || 'PENDING';
-  const page = parseInt(req.query.page, 10) || 1;
-  const limit = parseInt(req.query.limit, 10) || 20;
-
-  const mockItems = [
-    {
-      id: 'list-101',
-      listing_id: 'list-101',
-      title: 'Organic Whole Milk 1L',
-      seller_id: 'seller-55',
-      current_status: statusFilter.toUpperCase(),
-      created_at: new Date().toISOString()
-    }
-  ];
+// 1. Approval Queue Listing
+async function getApprovalQueue(req, res) {
+  const result = await fetchApprovalQueue({
+    status: req.query.status || 'PENDING',
+    seller_id: req.query.seller_id,
+    category_id: req.query.category_id,
+    sort: req.query.sort || 'DESC',
+    page: req.query.page || 1,
+    limit: req.query.limit || 20
+  });
 
   return res.status(200).json({
     success: true,
     contractVersion: '1.0',
-    pagination: { page, limit, total: mockItems.length },
-    data: mockItems.map(formatApprovalItemDTO)
+    pagination: result.pagination,
+    data: result.data.map(formatApprovalItemDTO)
   });
 }
 
-// 2. Read Single Approval Item
+// 2. Read Single Approval Item with History
 async function getApprovalById(req, res) {
   const { id } = req.params;
+  const result = await fetchApprovalItemById(id);
+
+  if (!result.success) {
+    return res.status(404).json({
+      success: false,
+      error: result.error || 'NOT_FOUND',
+      message: result.message
+    });
+  }
+
+  const formattedData = formatApprovalItemDTO(result.data);
+  if (Array.isArray(result.data.history)) {
+    formattedData.history = result.data.history.map(formatApprovalHistoryDTO);
+  }
+
   return res.status(200).json({
     success: true,
     contractVersion: '1.0',
-    data: formatApprovalItemDTO({
-      id,
-      listing_id: id,
-      title: 'Sample Moderation Item',
-      current_status: APPROVAL_STATES.PENDING
-    })
+    data: formattedData
   });
 }
 
-// 3. Approve Action
+// 3. Approve Item Action
 async function approveItem(req, res) {
   const { id } = req.params;
   const validation = validateApproveDTO(req.body);
@@ -61,7 +71,10 @@ async function approveItem(req, res) {
     return res.status(400).json({ success: false, error: 'INVALID_CONTRACT', errors: validation.errors });
   }
 
-  const currentStatus = req.body.current_status || APPROVAL_STATES.PENDING;
+  const currentItemRes = await fetchApprovalItemById(id);
+  const currentStatus = (currentItemRes.success && currentItemRes.data)
+    ? currentItemRes.data.current_status || currentItemRes.data.status || APPROVAL_STATES.PENDING
+    : req.body.current_status || APPROVAL_STATES.PENDING;
 
   try {
     const transitionResult = transition(currentStatus, APPROVAL_STATES.APPROVED, {
@@ -72,6 +85,12 @@ async function approveItem(req, res) {
 
     req.auditPreviousState = transitionResult.previous_status;
     req.auditNewState = transitionResult.new_status;
+
+    await updateApprovalItemState({
+      id,
+      admin_id: req.user ? req.user.id : null,
+      transitionResult
+    });
 
     return res.status(200).json({
       success: true,
@@ -91,7 +110,7 @@ async function approveItem(req, res) {
   }
 }
 
-// 4. Reject Action
+// 4. Reject Item Action
 async function rejectItem(req, res) {
   const { id } = req.params;
   const validation = validateRejectDTO(req.body);
@@ -99,7 +118,10 @@ async function rejectItem(req, res) {
     return res.status(400).json({ success: false, error: 'INVALID_CONTRACT', errors: validation.errors });
   }
 
-  const currentStatus = req.body.current_status || APPROVAL_STATES.PENDING;
+  const currentItemRes = await fetchApprovalItemById(id);
+  const currentStatus = (currentItemRes.success && currentItemRes.data)
+    ? currentItemRes.data.current_status || currentItemRes.data.status || APPROVAL_STATES.PENDING
+    : req.body.current_status || APPROVAL_STATES.PENDING;
 
   try {
     const transitionResult = transition(currentStatus, APPROVAL_STATES.REJECTED, {
@@ -111,6 +133,12 @@ async function rejectItem(req, res) {
 
     req.auditPreviousState = transitionResult.previous_status;
     req.auditNewState = transitionResult.new_status;
+
+    await updateApprovalItemState({
+      id,
+      admin_id: req.user ? req.user.id : null,
+      transitionResult
+    });
 
     return res.status(200).json({
       success: true,
@@ -138,7 +166,10 @@ async function requestChangesItem(req, res) {
     return res.status(400).json({ success: false, error: 'INVALID_CONTRACT', errors: validation.errors });
   }
 
-  const currentStatus = req.body.current_status || APPROVAL_STATES.PENDING;
+  const currentItemRes = await fetchApprovalItemById(id);
+  const currentStatus = (currentItemRes.success && currentItemRes.data)
+    ? currentItemRes.data.current_status || currentItemRes.data.status || APPROVAL_STATES.PENDING
+    : req.body.current_status || APPROVAL_STATES.PENDING;
 
   try {
     const transitionResult = transition(currentStatus, APPROVAL_STATES.CHANGES_REQUESTED, {
@@ -149,6 +180,12 @@ async function requestChangesItem(req, res) {
 
     req.auditPreviousState = transitionResult.previous_status;
     req.auditNewState = transitionResult.new_status;
+
+    await updateApprovalItemState({
+      id,
+      admin_id: req.user ? req.user.id : null,
+      transitionResult
+    });
 
     return res.status(200).json({
       success: true,
@@ -168,28 +205,27 @@ async function requestChangesItem(req, res) {
   }
 }
 
-// 6. Approval History
+// 6. Approval History Endpoint
 async function getApprovalHistory(req, res) {
   const { id } = req.params;
-  const historyRecords = [
-    {
-      id: 'hist-1',
-      listing_id: id,
-      admin_id: req.user ? req.user.id : 'admin-001',
-      previous_status: APPROVAL_STATES.PENDING,
-      new_status: APPROVAL_STATES.CHANGES_REQUESTED,
-      notes: 'Clarify barcode and ingredients',
-      action_at: new Date(Date.now() - 86400000).toISOString()
-    }
-  ];
+  const result = await fetchApprovalItemById(id);
 
+  if (!result.success) {
+    return res.status(404).json({
+      success: false,
+      error: result.error || 'NOT_FOUND',
+      message: result.message
+    });
+  }
+
+  const history = Array.isArray(result.data.history) ? result.data.history : [];
   return res.status(200).json({
     success: true,
-    data: historyRecords.map(formatApprovalHistoryDTO)
+    data: history.map(formatApprovalHistoryDTO)
   });
 }
 
-// 7. Approval Counts
+// 7. Approval Counts Endpoint
 async function getApprovalCounts(req, res) {
   return res.status(200).json({
     success: true,
@@ -203,12 +239,44 @@ async function getApprovalCounts(req, res) {
   });
 }
 
+// 8. Seller / Customer User Status Authorization Endpoint
+async function handleUserStatusUpdate(req, res) {
+  const { id } = req.params;
+  const { status, reason } = req.body;
+
+  if (!status) {
+    return res.status(400).json({
+      success: false,
+      error: 'INVALID_CONTRACT',
+      message: "Field 'status' is required"
+    });
+  }
+
+  const result = await changeUserStatus({
+    user_id: id,
+    new_status: status,
+    admin_id: req.user ? req.user.id : null,
+    reason
+  });
+
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+
+  req.auditPreviousState = 'UNKNOWN';
+  req.auditNewState = status.toUpperCase();
+
+  return res.status(200).json(result);
+}
+
 module.exports = {
-  getApprovalList,
+  getApprovalList: getApprovalQueue,
+  getApprovalQueue,
   getApprovalById,
   approveItem,
   rejectItem,
   requestChangesItem,
   getApprovalHistory,
-  getApprovalCounts
+  getApprovalCounts,
+  handleUserStatusUpdate
 };

@@ -22,13 +22,14 @@ router.get('/brands/:id', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }
 router.get('/products-master', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), productCtrl.getProductsMaster);
 router.get('/products-master/:id', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), productCtrl.getProductMasterById);
 
-// ─── Approval API Contracts ───
+// ─── Approval Queue & Approval APIs ───
+router.get('/approvals/queue', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), approvalCtrl.getApprovalQueue);
 router.get('/approvals', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), approvalCtrl.getApprovalList);
 router.get('/approvals/counts', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), approvalCtrl.getApprovalCounts);
 router.get('/approvals/:id', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), approvalCtrl.getApprovalById);
 router.get('/approvals/:id/history', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), approvalCtrl.getApprovalHistory);
 
-// Sensitive Admin Approval Mutations (Audited)
+// Sensitive Admin Approval Mutations (Audited & Outbox Emitted)
 router.post(
   '/approvals/:id/approve',
   adminGuard({ permissions: [PERMISSIONS.CATALOG_APPROVE] }),
@@ -48,6 +49,14 @@ router.post(
   adminGuard({ permissions: [PERMISSIONS.CATALOG_APPROVE] }),
   auditMiddleware({ action: 'ADMIN_REQUEST_CHANGES', entityType: 'PRODUCT_LISTING' }),
   approvalCtrl.requestChangesItem
+);
+
+// ─── Seller / Customer User Status Authorization ───
+router.post(
+  '/users/:id/status',
+  adminGuard({ permissions: [PERMISSIONS.USERS_MANAGE] }),
+  auditMiddleware({ action: 'ADMIN_UPDATE_USER_STATUS', entityType: 'USER' }),
+  approvalCtrl.handleUserStatusUpdate
 );
 
 module.exports = router;
