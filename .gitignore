@@ -11,6 +11,10 @@ Tasks/
 scratch/
 .agents/
 brain/
+TASKS.md
+tasks.md
+**/TASKS.md
+**/tasks.md
 
 # Core Node.js & Dependencies
 node_modules/
