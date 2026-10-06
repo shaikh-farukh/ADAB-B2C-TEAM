@@ -12,6 +12,10 @@ scratch/
 .agents/
 brain/
 shabbir_planning/
+TASKS.md
+tasks.md
+**/TASKS.md
+**/tasks.md
 
 # Core Node.js & Dependencies
 node_modules/

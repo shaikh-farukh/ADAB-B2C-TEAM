@@ -34,6 +34,37 @@ app.get('/api/data', (req, res) => {
   res.json({ message: "Hello from Customer Portal backend server!" });
 });
 
+// Routes
+const cartRoutes = require('./routes/cartRoutes');
+const checkoutRoutes = require('./routes/checkoutRoutes');
+const orderRoutes = require('./routes/orderRoutes');
+
+app.use('/api/v1/cart', cartRoutes);
+app.use('/api/cart', cartRoutes);
+
+app.use('/api/v1/checkout', checkoutRoutes);
+app.use('/api/checkout', checkoutRoutes);
+
+app.use('/api/v1/orders', orderRoutes);
+app.use('/api/orders', orderRoutes);
+
+// 404 Handler for unknown routes
+app.use((req, res) => {
+  res.status(404).json({
+    status: 'error',
+    message: `Endpoint ${req.method} ${req.originalUrl} not found`
+  });
+});
+
+// Centralized Error Handling Middleware
+app.use((err, req, res, next) => {
+  console.error('Unhandled server error:', err);
+  res.status(err.status || 500).json({
+    status: 'error',
+    message: err.message || 'An unexpected internal server error occurred'
+  });
+});
+
 // Start Server
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
