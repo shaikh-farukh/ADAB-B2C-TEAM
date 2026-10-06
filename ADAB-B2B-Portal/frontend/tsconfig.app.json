@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": "."
+  },
+  "include": [
+    "app",
+    "components",
+    "context",
+    "data",
+    "pages",
+    "services",
+    "store",
+    "theme",
+    "utils",
+    "App.tsx",
+    "index.tsx"
+  ]
+}

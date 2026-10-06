@@ -1,0 +1,44 @@
+{
+  "name": "b2b-dashboard-portal",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.app.json && vite build",
+    "preview": "vite preview",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.9.1",
+    "@react-oauth/google": "^0.12.2",
+    "@tanstack/react-query": "^5.103.1",
+    "@tanstack/react-table": "^8.21.3",
+    "axios": "^1.16.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.475.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.88.0",
+    "react-hot-toast": "^2.6.1",
+    "react-router-dom": "^6.27.0",
+    "recharts": "^2.12.7",
+    "socket.io-client": "^4.8.3",
+    "tailwind-merge": "^2.5.4",
+    "zod": "^3.25.76",
+    "zustand": "^5.0.13"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^25.0.3",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.0"
+   
+  }
+}

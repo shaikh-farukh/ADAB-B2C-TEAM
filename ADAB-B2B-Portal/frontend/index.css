@@ -1,0 +1,106 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --adab-green: #6BCF2D;
+    --adab-orange: #F7931E;
+    --adab-dark: #1F2937;
+  }
+
+  html {
+    @apply h-full scroll-smooth;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply h-full bg-adab-bg dark:bg-dark-app-primary text-adab-text dark:text-dark-text-primary antialiased font-sans transition-colors duration-200;
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* Bulletproof Global Form & Modal Overrides for Dark Mode */
+  html.dark input,
+  html.dark select,
+  html.dark textarea {
+    background-color: theme('colors.dark-surface-elevated') !important;
+    border-color: theme('colors.dark-border-primary') !important;
+    color: theme('colors.dark-text-primary') !important;
+  }
+
+  html.dark input:focus,
+  html.dark select:focus,
+  html.dark textarea:focus {
+    border-color: theme('colors.adab.green') !important;
+    outline: none !important;
+    box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.2) !important;
+  }
+
+  /* Global fix for glaring white "Cancel" or Secondary buttons in modals */
+  html.dark button.bg-gray-100,
+  html.dark button.bg-gray-50 {
+    background-color: theme('colors.dark-surface-card') !important;
+    color: theme('colors.dark-text-primary') !important;
+    border: 1px solid theme('colors.dark-border-primary') !important;
+  }
+  
+  html.dark button.bg-gray-100:hover,
+  html.dark button.bg-gray-50:hover {
+    background-color: theme('colors.dark-surface-hover') !important;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight text-gray-900 dark:text-gray-200;
+  }
+
+  /* Enterprise focus states */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-adab-green ring-offset-2;
+  }
+
+  /* Global Table Dark Mode Overrides for 20+ pages */
+  table thead tr {
+    @apply dark:bg-dark-surface-elevated dark:border-dark-border-primary !important;
+  }
+  table tbody tr {
+    @apply dark:border-dark-border-secondary !important;
+  }
+  table tbody tr:hover {
+    @apply dark:bg-dark-surface-hover !important;
+  }
+  table th {
+    @apply dark:text-dark-text-secondary dark:border-dark-border-primary !important;
+  }
+  table td {
+    @apply dark:text-dark-text-primary !important;
+  }
+  table tbody {
+    @apply dark:divide-dark-border-secondary !important;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-semibold rounded-xl shadow-sm text-white bg-adab-green hover:bg-opacity-90 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-adab-green active:scale-[0.98];
+  }
+  
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-semibold rounded-xl text-white bg-adab-orange hover:bg-opacity-90 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-adab-orange active:scale-[0.98];
+  }
+
+  .card-glass {
+    @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-sm rounded-2xl;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; }
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+}

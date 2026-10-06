@@ -1,0 +1,32 @@
+node_modules
+
+# Environment variables — NEVER commit secrets
+.env
+.env.local
+.env.production
+.env.staging
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Editor files
+.vscode/
+.idea/
+/generated/prisma
+# User Uploaded Data
+uploads/
+test_*.js
+test_*.cjs
+scratch_test.js
+fix_*.js
+*.csv
+
+# NEVER ignore migrations (overrides fix_*.js)
+!migrations/
+!migrations/*
