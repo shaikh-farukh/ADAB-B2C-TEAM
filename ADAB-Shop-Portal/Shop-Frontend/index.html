@@ -6291,12 +6291,74 @@
 
   function handleOrderAction(orderId, actionType, msg) {
     toast(msg);
-    apiPost('/orders/' + encodeURIComponent(orderId) + '/' + actionType, { status: actionType });
+    apiPost('/orders/' + encodeURIComponent(orderId) + '/' + actionType, { status: actionType }).then(() => {
+      hydrateOrdersFromBackend();
+    });
   }
 
   function handleReturnAction(returnId, actionType, msg) {
     toast(msg);
     apiPost('/returns/' + encodeURIComponent(returnId) + '/' + actionType, { status: actionType });
+  }
+
+  async function hydrateOrdersFromBackend() {
+    const res = await apiGet('/orders');
+    if (!res || !res.success || !Array.isArray(res.data) || !res.data.length) return;
+    const tbody = document.getElementById('ordersTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = res.data.map(o => {
+      const isFast = (o.status === 'new' || o.status === 'processing');
+      const delBadge = isFast ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800';
+      const delText = isFast ? 'Fast 45m' : 'Same-day';
+      const actionBtn = o.status === 'new' 
+        ? `<button onclick="handleOrderAction('${o.id}', 'accept', 'Accepted!')" class="btn-primary !text-xs !py-1 !px-2">Accept</button>`
+        : o.status === 'processing'
+        ? `<button onclick="handleOrderAction('${o.id}', 'pack', 'Packed!')" class="btn-primary !text-xs !py-1 !px-2">Send</button>`
+        : `<button onclick="handleOrderAction('${o.id}', 'dispatch', 'Dispatched!')" class="btn-primary !text-xs !py-1 !px-2">Send</button>`;
+      return `
+        <tr class="filter-row order-row" data-status="${o.status}" data-delivery="fast">
+          <td class="px-3 py-3 font-bold">${o.id}</td>
+          <td class="px-3 py-3">${o.customer || 'Customer'}</td>
+          <td class="px-3 py-3"><span class="text-[10px] font-bold bg-green-100 text-green-800 px-2 py-0.5 rounded">1.2 km</span></td>
+          <td class="px-3 py-3 text-gray-600 text-xs">${o.items || 'Items'}</td>
+          <td class="px-3 py-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${delBadge}">${delText}</span></td>
+          <td class="px-3 py-3 font-bold">₹${Number(o.amount || 0).toLocaleString('en-IN')}</td>
+          <td class="px-3 py-3">
+            <button onclick="showOnMap('19.0760,72.8777','${o.customer || 'Customer'}')" class="text-blue-600 text-xs font-bold mr-1"><i class="fa-solid fa-location-dot"></i></button>
+            ${actionBtn}
+          </td>
+        </tr>
+      `;
+    }).join('');
+    filterOrders();
+  }
+
+  async function hydrateInventoryFromBackend() {
+    const res = await apiGet('/inventory');
+    if (!res || !res.success || !Array.isArray(res.data) || !res.data.length) return;
+    const tbody = document.getElementById('productTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = res.data.map(p => {
+      const typeBadge = p.category === 'Fashion' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800';
+      const stockBadge = (p.stock <= 10) ? 'bg-red-100 text-red-800' : (p.stock <= 25) ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800';
+      return `
+        <tr class="prod-row hover:bg-gray-50/80 transition" data-type="all">
+          <td class="px-3 py-2.5 text-center"><input type="checkbox" class="prod-check rounded border-gray-300" onchange="updateBatchBar()"></td>
+          <td class="px-3 py-2.5"><div class="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center font-bold text-gray-500 text-xs">📦</div></td>
+          <td class="px-3 py-2.5 font-bold text-gray-900">${p.name}</td>
+          <td class="px-3 py-2.5"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${typeBadge}">${p.category || 'Grocery'}</span></td>
+          <td class="px-3 py-2.5 font-bold text-gray-800">₹${p.price}</td>
+          <td class="px-3 py-2.5"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${stockBadge}">${p.stock} in stock</span></td>
+          <td class="px-3 py-2.5 text-xs text-gray-600">Customers + Stores</td>
+          <td class="px-3 py-2.5"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800">Live</span></td>
+          <td class="px-3 py-2.5">
+            <button onclick="toast('Edit ${p.name}')" class="text-gray-500 hover:text-green-700 p-1 mr-1"><i class="fa-solid fa-pen-to-square"></i></button>
+            <button onclick="toast('QR code for ${p.name}')" class="text-gray-500 hover:text-blue-700 p-1"><i class="fa-solid fa-qrcode"></i></button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+    applyProductFilters();
   }
 
   function checkoutPOS() {
@@ -6358,6 +6420,8 @@
     }
     populateSellerSelect();
     applyProductFilters();
+    hydrateOrdersFromBackend();
+    hydrateInventoryFromBackend();
     if (window.AdabSync) {
       AdabSync.subscribe((type, data) => {
         if (type === 'product_approved') {
