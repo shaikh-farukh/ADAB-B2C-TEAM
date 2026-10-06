@@ -1,0 +1,10 @@
+{
+  "success": true,
+  "data": {
+    "id": "seller-uuid-1234",
+    "full_name": "Shabbir Garbadawala",
+    "email": "shabbir@example.com",
+    "phone": "+91 9876543210",
+    "status": "ACTIVE"
+  }
+}

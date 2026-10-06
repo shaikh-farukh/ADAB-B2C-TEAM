@@ -12,6 +12,9 @@ const PORT = process.env.PORT || 5003;
 app.use(cors()); 
 app.use(express.json()); 
 
+const sellerRoutes = require('./src/routes/seller');
+const listingRoutes = require('./src/routes/listing');
+
 // Health / Sample API Route with DB check
 app.get('/api/health', async (req, res) => {
   try {
@@ -30,9 +33,9 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-app.get('/api/data', (req, res) => {
-  res.json({ message: "Hello from Shop Portal backend server!" });
-});
+// Domain Routes
+app.use('/api/v1/seller', sellerRoutes);
+app.use('/api/v1/seller/listings', listingRoutes);
 
 // Start Server
 app.listen(PORT, () => {

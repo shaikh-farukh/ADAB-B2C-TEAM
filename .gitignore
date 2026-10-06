@@ -11,6 +11,7 @@ Tasks/
 scratch/
 .agents/
 brain/
+shabbir_planning/
 
 # Core Node.js & Dependencies
 node_modules/
