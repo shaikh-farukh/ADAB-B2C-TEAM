@@ -1,0 +1,10 @@
+{
+  "success": true,
+  "data": {
+    "id": "store-uuid-101",
+    "owner_id": "seller-uuid-1234",
+    "store_name": "Shri Balaji Store",
+    "zone": "Vesu, Surat",
+    "is_online": true
+  }
+}
