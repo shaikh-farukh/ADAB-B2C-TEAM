@@ -3,6 +3,7 @@ const router = express.Router();
 const sellerController = require('../controllers/sellerController');
 
 router.get('/', sellerController.getInventory);
+router.post('/', sellerController.addProduct);
 router.get('/low-stock', sellerController.getLowStock);
 router.get('/history', sellerController.getInventoryHistory);
 router.get('/warehouses', sellerController.getWarehouses);

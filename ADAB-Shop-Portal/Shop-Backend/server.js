@@ -69,7 +69,11 @@ app.get('/api/data', (req, res) => {
   res.json({ message: "Hello from Shop Portal backend server!" });
 });
 
-// Start Server
-app.listen(PORT, () => {
-  console.log(`🚀 ADAB Shop Portal (Seller Domain) running on http://localhost:${PORT}`);
-});
+// Start Server if run directly
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 ADAB Shop Portal (Seller Domain) running on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;

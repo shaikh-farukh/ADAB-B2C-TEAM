@@ -106,6 +106,18 @@ module.exports = {
   // INVENTORY
   getInventory: async () => memoryInventory,
   getInventoryBySku: async (sku) => memoryInventory.find(i => i.sku === sku),
+  addProduct: async (prod) => {
+    const item = {
+      id: memoryInventory.length + 1,
+      sku: prod.sku || 'SKU-' + Date.now(),
+      status: 'pending',
+      reserved: 0,
+      warehouseId: 'wh-1',
+      ...prod
+    };
+    memoryInventory.unshift(item);
+    return item;
+  },
   adjustInventory: async (sku, adjustment, reason) => {
     const item = memoryInventory.find(i => i.sku === sku);
     if (!item) return null;
@@ -181,6 +193,15 @@ module.exports = {
     bankAccount: 'HDFC Bank ****4521'
   }),
   getSettlements: async () => memorySettlements,
+  submitCreditApplication: async (appData) => {
+    const app = {
+      id: 'CR-' + Date.now(),
+      status: 'pending',
+      date: 'Today',
+      ...appData
+    };
+    return app;
+  },
 
   // ANALYTICS
   getAnalytics: async () => ({

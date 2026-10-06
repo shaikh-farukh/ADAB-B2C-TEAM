@@ -5,8 +5,17 @@ const { OrderStatus, ReturnStatus } = require('../enums/statusEnums');
 exports.getInventory = async (req, res) => {
   try {
     const dbRows = await sellerStore.safeQuery('SELECT * FROM inventory ORDER BY updated_at DESC LIMIT 100');
-    const data = dbRows || (await sellerStore.getInventory());
+    const data = (dbRows && dbRows.length > 0) ? dbRows : (await sellerStore.getInventory());
     res.json({ success: true, count: data.length, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.addProduct = async (req, res) => {
+  try {
+    const product = await sellerStore.addProduct(req.body);
+    res.status(201).json({ success: true, message: 'Product created', data: product });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -97,7 +106,7 @@ exports.createTransfer = async (req, res) => {
 exports.getOrders = async (req, res) => {
   try {
     const dbRows = await sellerStore.safeQuery('SELECT * FROM seller_orders ORDER BY created_at DESC LIMIT 100');
-    const data = dbRows || (await sellerStore.getOrders());
+    const data = (dbRows && dbRows.length > 0) ? dbRows : (await sellerStore.getOrders());
     res.json({ success: true, count: data.length, data });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -265,6 +274,15 @@ exports.getSettlements = async (req, res) => {
   try {
     const data = await sellerStore.getSettlements();
     res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.submitCreditApply = async (req, res) => {
+  try {
+    const data = await sellerStore.submitCreditApplication(req.body);
+    res.status(201).json({ success: true, message: 'Credit application submitted', data });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
