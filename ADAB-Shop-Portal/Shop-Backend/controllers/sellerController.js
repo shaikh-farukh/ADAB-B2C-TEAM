@@ -105,7 +105,21 @@ exports.createTransfer = async (req, res) => {
 // === ORDERS CONTROLLERS ===
 exports.getOrders = async (req, res) => {
   try {
-    const dbRows = await sellerStore.safeQuery('SELECT * FROM seller_orders ORDER BY created_at DESC LIMIT 100');
+    const dbRows = await sellerStore.safeQuery(`
+      SELECT 
+        order_number as id,
+        COALESCE(delivery_address->>'full_name', 'Customer') as customer,
+        COALESCE(delivery_address->>'phone', '+91 98765 00000') as phone,
+        delivery_mode,
+        grand_total as amount,
+        payment_method as payment,
+        LOWER(order_status) as status,
+        TO_CHAR(created_at, 'DD Mon HH24:MI') as date,
+        COALESCE(delivery_address->>'address_line', 'Surat') as address
+      FROM orders 
+      ORDER BY created_at DESC 
+      LIMIT 100
+    `);
     const data = (dbRows && dbRows.length > 0) ? dbRows : (await sellerStore.getOrders());
     res.json({ success: true, count: data.length, data });
   } catch (err) {
