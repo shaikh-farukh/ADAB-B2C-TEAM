@@ -16,17 +16,26 @@ const pool = new Pool({
   connectionTimeoutMillis: 10000
 });
 
-pool.connect((err, client, release) => {
-  if (err) {
-    console.error('❌ Error connecting to Admin Portal database:', err.message);
-  } else {
-    console.log('✅ Admin Portal database connected successfully');
-    release();
-  }
-});
+if (process.env.NODE_ENV !== 'test') {
+  pool.connect((err, client, release) => {
+    if (err) {
+      console.error('❌ Error connecting to Admin Portal database:', err.message);
+    } else {
+      console.log('✅ Admin Portal database connected successfully');
+      release();
+    }
+  });
+}
 
 pool.on('error', (err) => {
   console.error('❌ Unexpected database error on Admin Portal client:', err);
 });
 
+async function closePool() {
+  try {
+    await pool.end();
+  } catch (_) {}
+}
+
 module.exports = pool;
+module.exports.closePool = closePool;
