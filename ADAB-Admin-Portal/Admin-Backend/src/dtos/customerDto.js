@@ -1,7 +1,9 @@
 exports.mapToCustomerDto = (row) => ({
   id: row.id,
-  name: row.name,
-  email: row.email,
-  status: row.status || 'active',
+  name: row.full_name || '',
+  email: row.email || '',
+  phone: row.phone || '',
+  status: row.status || 'ACTIVE',
+  userType: row.user_type,
   createdAt: row.created_at
 });

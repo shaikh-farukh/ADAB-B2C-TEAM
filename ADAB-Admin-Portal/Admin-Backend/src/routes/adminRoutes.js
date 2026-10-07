@@ -6,6 +6,7 @@ const dashboardController = require('../controllers/adminDashboardController');
 const notificationController = require('../controllers/adminNotificationController');
 const sellerController = require('../controllers/adminSellerController');
 const customerController = require('../controllers/adminCustomerController');
+const approvalController = require('../controllers/adminApprovalController');
 
 // Dev login to get a token easily
 router.post('/dev-login', (req, res) => {
@@ -29,9 +30,15 @@ router.post('/notifications/:id/read', notificationController.markAsRead);
 // Sellers (Day-1 Skeletons)
 router.get('/sellers', sellerController.getSellers);
 router.get('/sellers/:id', sellerController.getSellerDetails);
+router.patch('/sellers/:id/status', sellerController.updateSellerStatus);
 
 // Customers (Day-1 Skeletons)
 router.get('/customers', customerController.getCustomers);
 router.get('/customers/:id', customerController.getCustomerDetails);
+router.patch('/customers/:id/status', customerController.updateCustomerStatus);
+
+// Approvals (Day-2)
+router.get('/approvals', approvalController.getApprovals);
+router.patch('/approvals/:id', approvalController.updateApproval);
 
 module.exports = router;

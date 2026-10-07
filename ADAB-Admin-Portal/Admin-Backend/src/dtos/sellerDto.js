@@ -1,8 +1,9 @@
 exports.mapToSellerDto = (row) => ({
   id: row.id,
-  name: row.company_name || row.name,
-  email: row.email,
-  status: row.status || 'active',
-  role: row.role,
+  name: row.full_name || '',
+  email: row.email || '',
+  phone: row.phone || '',
+  status: row.status || 'PENDING',
+  userType: row.user_type,
   createdAt: row.created_at
 });

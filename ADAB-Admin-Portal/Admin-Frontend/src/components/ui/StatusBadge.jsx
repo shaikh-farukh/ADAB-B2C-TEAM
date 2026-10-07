@@ -11,6 +11,8 @@ export default function StatusBadge({ status }) {
       break;
     case 'inactive':
     case 'rejected':
+    case 'suspended':
+    case 'locked':
       badgeClass += "bg-red-100 text-red-800";
       break;
     default:

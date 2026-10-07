@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import apiClient from './api/apiClient';
 import AdminLayout from './components/layout/AdminLayout';
 import Dashboard from './pages/Dashboard';
+import ApprovalQueue from './pages/ApprovalQueue';
 import Sellers from './pages/Sellers';
 import Customers from './pages/Customers';
 import Reports from './pages/Reports';
@@ -26,6 +27,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<AdminLayout />}>
           <Route index element={<Dashboard />} />
+          <Route path="approvals" element={<ApprovalQueue />} />
           <Route path="sellers" element={<Sellers />} />
           <Route path="customers" element={<Customers />} />
           <Route path="reports" element={<Reports />} />
