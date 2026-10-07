@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --brand-green: #22C55E;
+  --brand-dark: #15803D;
+  --brand-light: #DCFCE7;
+  --brand-orange: #F97316;
+}
+
 @layer base {
   * {
     box-sizing: border-box;
@@ -17,22 +24,124 @@
 
 @layer components {
   .nav-on {
-    @apply bg-brand-light text-brand-dark font-bold !important;
+    background-color: #DCFCE7 !important;
+    color: #15803D !important;
+    font-weight: 700 !important;
   }
   .card {
-    @apply bg-white rounded-2xl border border-gray-200 shadow-sm;
+    background: white;
+    border-radius: 16px;
+    border: 1px solid #E5E7EB;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
   }
   .btn-primary {
-    @apply bg-brand-dark text-white font-bold rounded-xl px-4 py-2.5 border-none cursor-pointer hover:bg-[#166534] transition-colors;
+    background: #15803D;
+    color: white;
+    font-weight: 700;
+    border-radius: 12px;
+    padding: 10px 18px;
+    border: none;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .btn-primary:hover {
+    background: #166534;
   }
   .btn-soft {
-    @apply bg-gray-100 text-gray-700 font-semibold rounded-xl px-4 py-2.5 border-none cursor-pointer hover:bg-gray-200 transition-colors;
+    background: #F3F4F6;
+    color: #374151;
+    font-weight: 600;
+    border-radius: 12px;
+    padding: 10px 18px;
+    border: none;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .btn-soft:hover {
+    background: #E5E7EB;
+  }
+  .btn-danger {
+    background: #FEE2E2;
+    color: #B91C1C;
+    font-weight: 700;
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 13px;
+    border: none;
+    cursor: pointer;
   }
   .fade-in {
-    animation: fade .2s ease;
+    animation: fade .25s ease;
   }
   .nav-label {
-    @apply text-[10px] font-extrabold uppercase tracking-widest text-gray-400 px-3 pb-1 pt-3;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: #9CA3AF;
+    padding: 16px 12px 4px;
+  }
+  .nav-btn {
+    width: 100%;
+    text-align: left;
+    padding: 8px 12px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #4B5563;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    transition: all .12s;
+    font-family: inherit;
+  }
+  .nav-btn:hover {
+    background: #F3F4F6;
+  }
+  .nav-btn.nav-on {
+    background: #DCFCE7;
+    color: #15803D;
+    font-weight: 700;
+  }
+  .sidebar-scroll {
+    max-height: calc(100vh - 72px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  .sidebar-scroll::-webkit-scrollbar {
+    width: 4px;
+  }
+  .sidebar-scroll::-webkit-scrollbar-thumb {
+    background: #D1D5DB;
+    border-radius: 4px;
+  }
+  .tab-on {
+    background: #15803D !important;
+    color: white !important;
+  }
+  .tab-off {
+    background: #F3F4F6 !important;
+    color: #6B7280 !important;
+  }
+  .tab-btn {
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    transition: all .12s;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .status-badge {
+    font-size: 10px;
+    font-weight: 800;
+    padding: 3px 10px;
+    border-radius: 999px;
+    display: inline-block;
   }
   .hide-scroll::-webkit-scrollbar {
     display: none;
