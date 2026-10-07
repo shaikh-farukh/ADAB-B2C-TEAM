@@ -86,18 +86,25 @@ let memoryNotifications = [
 let memoryPosSessions = [];
 let memoryPosSales = [];
 
-// Helper to attempt DB query safely with timeout
 async function safeQuery(sql, params = []) {
+  if (!process.env.DB_HOST && !process.env.DATABASE_URL) {
+    return null;
+  }
+
+  // Create a timeout promise to guarantee fallback within 3.5 seconds
+  const timeoutPromise = new Promise((_, reject) => 
+    setTimeout(() => reject(new Error('Query timeout')), 3500)
+  );
+
   try {
-    const client = await pool.connect();
-    try {
-      const res = await client.query(sql, params);
-      return res.rows;
-    } finally {
-      client.release();
-    }
+    const res = await Promise.race([
+      pool.query(sql, params),
+      timeoutPromise
+    ]);
+    return res.rows;
   } catch (err) {
-    return null; // Signals fallback to memory store
+    // Graceful fallback to memory store if Render cloud DB has high latency or is idle
+    return null;
   }
 }
 

@@ -3,11 +3,13 @@ const dns = require('dns');
 const dotenv = require('dotenv');
 dotenv.config();
 
-const connectionString = process.env.DATABASE_URL || 
-  `postgresql://${process.env.DB_USER || 'adab_b2c_team_user'}:${process.env.DB_PASSWORD || 'XBl5rzgqY22fI75kE1zjHUNdMhrzLyen'}@${process.env.DB_HOST || 'dpg-davljkid0e5s738fkddg-a.oregon-postgres.render.com'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'adab_b2c_team'}`;
-
 const pool = new Pool({
-  connectionString,
+  connectionString: process.env.DATABASE_URL || undefined,
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  port: Number(process.env.DB_PORT) || 5432,
   ssl: process.env.DB_SSL_MODE === 'disable' ? false : {
     rejectUnauthorized: false
   },
