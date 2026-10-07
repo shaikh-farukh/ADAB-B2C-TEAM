@@ -134,6 +134,7 @@ export default function App() {
     ? `${storeNames.length} shops`
     : (storeNames[0] || 'View cart');
 
+function Layout({ children }) {
   return (
     <div className="min-h-screen bg-[#F6F9F6] text-[#0F172A] flex flex-col font-sans">
       {/* Toast Notification */}

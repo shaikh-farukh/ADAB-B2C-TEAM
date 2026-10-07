@@ -12,6 +12,14 @@ const PORT = process.env.PORT || 5002;
 app.use(cors()); 
 app.use(express.json()); 
 
+// Route imports
+const catalogRoutes = require('./routes/catalog');
+const customerRoutes = require('./routes/customer');
+
+// API V1 Mounting
+app.use('/api/v1/catalog', catalogRoutes);
+app.use('/api/v1/customers', customerRoutes);
+
 // Health / Sample API Route with DB check
 app.get('/api/health', async (req, res) => {
   try {
