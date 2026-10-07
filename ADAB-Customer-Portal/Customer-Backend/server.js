@@ -46,3 +46,12 @@ app.get('/api/data', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('Shutting down server...');
+  const pool = require('./db');
+  await pool.end();
+  console.log('Database pool closed.');
+  process.exit(0);
+});

@@ -1,8 +1,8 @@
-import React from 'react';
+import { Link } from 'react-router-dom';
 
 export default function ProductCard({ product }) {
   return (
-    <div className="prod-card group">
+    <Link to={`/product/${product.id}`} className="prod-card group block">
       <div className="relative aspect-square bg-gradient-to-br from-gray-50 to-green-50/50 flex items-center justify-center overflow-hidden p-4">
         <img 
           src={product.image || 'https://via.placeholder.com/300'} 
@@ -25,9 +25,9 @@ export default function ProductCard({ product }) {
         </div>
         <div className="flex items-center justify-between mt-2.5">
           <span className="font-extrabold text-base text-brand-dark">₹{product.price}</span>
-          <button className="add-btn hover:bg-brand-green hover:text-white transition-colors">ADD</button>
+          <button onClick={(e) => e.preventDefault()} className="add-btn hover:bg-brand-green hover:text-white transition-colors">ADD</button>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
