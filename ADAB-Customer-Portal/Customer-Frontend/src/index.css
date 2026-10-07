@@ -3,6 +3,7 @@
    ============================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
 
 :root {
   --brand-green: #15803D;
@@ -12,8 +13,7 @@
   --brand-cream: #FFFBEB;
   --surface-bg: #F6F9F6;
   --text-main: #0F172A;
-@import "tailwindcss";
-
+}
 
 @theme {
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
@@ -490,7 +490,6 @@ body {
   border-radius: 999px;
   background: linear-gradient(135deg, #10B981, #F59E0B, #EF4444);
   display: inline-flex;
-}
 }
 
 body {
