@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useSeller } from '../../context/SellerContext';
 
 export default function Header() {
   const navigate = useNavigate();
+  const { profile, store } = useSeller();
   const [searchTerm, setSearchTerm] = useState('');
   const [soundboxOn, setSoundboxOn] = useState(true);
+
+  const storeName = store?.store_name || 'My Store';
+  const initial = (storeName || 'S').charAt(0).toUpperCase();
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -28,15 +33,15 @@ export default function Header() {
           >
             <i className="fa-solid fa-bars"></i>
           </button>
-          <Link to="/" className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-brand-dark text-white flex items-center justify-center font-extrabold text-base sm:text-lg hover:opacity-90">
-            A
+          <Link to="/" className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-brand-dark text-white flex items-center justify-center font-extrabold text-base sm:text-lg hover:opacity-90 shadow-sm">
+            {initial}
           </Link>
           <div>
             <Link to="/" className="font-extrabold text-gray-900 leading-tight text-sm sm:text-base hover:text-green-800">
               ADAB Seller
             </Link>
-            <div className="text-xs text-gray-400 hidden xs:block truncate max-w-[120px] sm:max-w-none" id="hdrStoreName">
-              Shri Balaji Store
+            <div className="text-xs text-gray-500 font-medium hidden xs:block truncate max-w-[140px] sm:max-w-none" id="hdrStoreName">
+              {storeName}
             </div>
           </div>
         </div>
@@ -73,7 +78,7 @@ export default function Header() {
           </Link>
           <div className="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-full bg-green-50 text-green-800 text-xs sm:text-sm font-bold border border-green-200">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> 
-            <span>Open</span>
+            <span>{store?.is_online !== false ? 'Open' : 'Closed'}</span>
           </div>
           <Link to="/onboarding" className="btn-primary text-xs !py-1.5 !px-2.5 hidden xl:flex items-center gap-1">
             <i className="fa-solid fa-list-check"></i> Setup

@@ -9,15 +9,16 @@ export function useB2B() {
   const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
-      // Optional: Add getPurchaseOrders to sellerApi if not there yet
-      // const response = await sellerApi.getPurchaseOrders();
-      // setOrders(response.data.data);
-      setOrders([
-        { id: 'B2B-1001', store: 'Surat Traders', amount: 45000, status: 'Pending' },
-        { id: 'B2B-1002', store: 'Gujarat Wholesale', amount: 12000, status: 'Shipped' }
-      ]);
+      setError(null);
+      const response = await sellerApi.getB2BOrders();
+      if (response.data && response.data.success) {
+        setOrders(response.data.data || []);
+      } else {
+        setOrders([]);
+      }
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Failed to fetch B2B orders');
+      setOrders([]);
     } finally {
       setLoading(false);
     }

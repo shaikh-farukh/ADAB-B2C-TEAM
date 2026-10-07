@@ -1,9 +1,19 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useSeller } from '../context/SellerContext';
+import { useOrders } from '../hooks/useOrders';
 
 export default function HomePage() {
-  const navigate = useNavigate();
+  const { profile, store } = useSeller();
+  const { orders } = useOrders();
   const [proMode, setProMode] = useState(false);
+
+  const ownerName = profile?.full_name || 'Seller';
+  const storeName = store?.store_name || 'My Store';
+  const radius = store?.delivery_radius_km ? `${parseInt(store.delivery_radius_km, 10)} km` : '10 km';
+
+  const pendingCount = orders.filter(o => (o.status || '').toLowerCase() === 'new' || (o.status || '').toLowerCase() === 'pending').length;
+  const totalOrdersCount = orders.length || 0;
 
   return (
     <section id="sec-home" className="space-y-5">
@@ -62,12 +72,16 @@ export default function HomePage() {
         <Link to="/orders" className="p-5 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white text-left shadow-lg shadow-emerald-600/20 hover:scale-[1.02] transition-all relative overflow-hidden group block">
           <div className="flex items-center justify-between mb-3">
             <span className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center text-2xl font-bold"><i className="fa-solid fa-bag-shopping"></i></span>
-            <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-amber-400 text-amber-950 animate-pulse">4 PENDING</span>
+            {pendingCount > 0 ? (
+              <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-amber-400 text-amber-950 animate-pulse">{pendingCount} PENDING</span>
+            ) : (
+              <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-300 text-emerald-950">ALL CLEAR</span>
+            )}
           </div>
           <div className="font-extrabold text-xl">Customer Orders</div>
-          <p className="text-xs text-emerald-100 mt-1">Accept &amp; pack orders from nearby customers (Surat 10 km zone).</p>
+          <p className="text-xs text-emerald-100 mt-1">Accept &amp; pack orders from nearby customers ({store?.city || 'Local'} {radius} zone).</p>
           <div className="mt-4 flex items-center gap-1.5 text-xs font-bold text-white bg-white/15 px-3 py-1.5 rounded-lg w-fit">
-            <span>View 14 Orders</span> <i className="fa-solid fa-arrow-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
+            <span>View {totalOrdersCount} Orders</span> <i className="fa-solid fa-arrow-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
           </div>
         </Link>
 
@@ -88,10 +102,10 @@ export default function HomePage() {
         <Link to="/finance" className="p-5 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-800 text-white text-left shadow-lg shadow-purple-600/20 hover:scale-[1.02] transition-all relative overflow-hidden group block">
           <div className="flex items-center justify-between mb-3">
             <span className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center text-2xl font-bold"><i className="fa-solid fa-building-columns"></i></span>
-            <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-400 text-emerald-950 font-mono">₹18,420 TODAY</span>
+            <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-400 text-emerald-950 font-mono">EARNINGS</span>
           </div>
           <div className="font-extrabold text-xl">My Bank Money</div>
-          <p className="text-xs text-purple-100 mt-1">₹38,420 total settled to HDFC Bank daily with zero deductions.</p>
+          <p className="text-xs text-purple-100 mt-1">Direct settlement to linked bank account with zero deductions.</p>
           <div className="mt-4 flex items-center gap-1.5 text-xs font-bold text-white bg-white/15 px-3 py-1.5 rounded-lg w-fit">
             <span>Money Summary</span> <i className="fa-solid fa-arrow-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
           </div>
@@ -103,7 +117,7 @@ export default function HomePage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-green-100 text-sm">Welcome back</p>
-            <h1 className="text-2xl font-extrabold mt-0.5">Rajesh Kumar • Shri Balaji Store</h1>
+            <h1 className="text-2xl font-extrabold mt-0.5">{ownerName} • {storeName}</h1>
             <p className="text-green-100 text-xs sm:text-sm mt-1 max-w-lg">Everything you need to sell to customers, restock goods, and manage daily payouts.</p>
           </div>
           <div className="flex gap-2">
@@ -118,16 +132,26 @@ export default function HomePage() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" id="proStatsBar">
-        <div className="card p-4"><div className="text-xs text-gray-500">Today's Sales</div><div className="text-2xl font-extrabold mt-1">₹18,420</div><div className="text-[10px] text-green-600 font-bold mt-1">+12% vs yesterday</div></div>
-        <div className="card p-4"><div className="text-xs text-gray-500">New Orders</div><div className="text-2xl font-extrabold mt-1 text-green-700">14</div><div className="text-[10px] text-orange-600 font-bold mt-1">4 need action</div></div>
-        <div className="card p-4"><div className="text-xs text-gray-500">Money Coming</div><div className="text-2xl font-extrabold mt-1">₹38,420</div><div className="text-[10px] text-gray-400 mt-0.5">Paid to bank tomorrow night</div></div>
-        <div className="card p-4"><div className="text-xs text-gray-500">Credit Available</div><div className="text-2xl font-extrabold mt-1 text-purple-700">₹2.5L</div><div className="text-[10px] text-gray-400 mt-0.5">Pay in 14 days, 0% interest</div></div>
-      </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="card p-4"><div className="text-xs text-gray-500">Products Live</div><div className="text-2xl font-extrabold mt-1">382</div></div>
-        <div className="card p-4"><div className="text-xs text-gray-500">Reward Points</div><div className="text-2xl font-extrabold mt-1 text-amber-600">12,480</div></div>
-        <div className="card p-4"><div className="text-xs text-gray-500">Partner Orders</div><div className="text-2xl font-extrabold mt-1 text-orange-600">8</div></div>
-        <div className="card p-4"><div className="text-xs text-gray-500">Low Stock Items</div><div className="text-2xl font-extrabold mt-1 text-red-600">7</div></div>
+        <div className="card p-4">
+          <div className="text-xs text-gray-500">Total Orders</div>
+          <div className="text-2xl font-extrabold mt-1 text-gray-900">{totalOrdersCount}</div>
+          <div className="text-[10px] text-green-600 font-bold mt-1">Live customer orders</div>
+        </div>
+        <div className="card p-4">
+          <div className="text-xs text-gray-500">Action Required</div>
+          <div className="text-2xl font-extrabold mt-1 text-green-700">{pendingCount}</div>
+          <div className="text-[10px] text-orange-600 font-bold mt-1">{pendingCount > 0 ? `${pendingCount} orders to process` : 'All caught up'}</div>
+        </div>
+        <div className="card p-4">
+          <div className="text-xs text-gray-500">Delivery Zone</div>
+          <div className="text-2xl font-extrabold mt-1 text-blue-700">{radius}</div>
+          <div className="text-[10px] text-gray-400 mt-0.5">City: {store?.city || 'Surat'}</div>
+        </div>
+        <div className="card p-4">
+          <div className="text-xs text-gray-500">Store Rating</div>
+          <div className="text-2xl font-extrabold mt-1 text-amber-600">★ {store?.rating || '5.0'}</div>
+          <div className="text-[10px] text-gray-400 mt-0.5">Verified seller profile</div>
+        </div>
       </div>
 
       <div>
@@ -137,11 +161,11 @@ export default function HomePage() {
           <Link to="/mastersearch" className="card p-4 text-left hover:border-blue-300 hover:shadow-md transition-all border-blue-100 bg-blue-50/30 block"><i className="fa-solid fa-magnifying-glass text-blue-600 text-lg mb-2"></i><div className="font-bold text-sm">Search &amp; Buy</div><div className="text-xs text-gray-500">Find anything from any store</div></Link>
           <Link to="/recommendations" className="card p-4 text-left hover:border-indigo-300 hover:shadow-md transition-all block"><i className="fa-solid fa-wand-magic-sparkles text-indigo-600 text-lg mb-2"></i><div className="font-bold text-sm">Product Ideas</div><div className="text-xs text-gray-500">What to sell &amp; what to buy</div></Link>
           <Link to="/pos" className="card p-4 text-left hover:border-indigo-300 hover:shadow-md transition-all border-indigo-100 bg-indigo-50/30 block"><i className="fa-solid fa-cash-register text-indigo-600 text-lg mb-2"></i><div className="font-bold text-sm">Bill Counter</div><div className="text-xs text-gray-500">POS • customer or store</div></Link>
-          <Link to="/orders" className="card p-4 text-left hover:border-green-300 hover:shadow-md transition-all block"><i className="fa-solid fa-bell text-orange-500 text-lg mb-2"></i><div className="font-bold text-sm">Check Orders</div><div className="text-xs text-gray-500">14 total • 4 need action</div></Link>
+          <Link to="/orders" className="card p-4 text-left hover:border-green-300 hover:shadow-md transition-all block"><i className="fa-solid fa-bell text-orange-500 text-lg mb-2"></i><div className="font-bold text-sm">Check Orders</div><div className="text-xs text-gray-500">{totalOrdersCount} total • {pendingCount} need action</div></Link>
           <Link to="/buy" className="card p-4 text-left hover:border-green-300 hover:shadow-md transition-all block"><i className="fa-solid fa-cart-shopping text-blue-600 text-lg mb-2"></i><div className="font-bold text-sm">Restock Nearby</div><div className="text-xs text-gray-500">Buy from nearby stores</div></Link>
           <Link to="/credit-apply" className="card p-4 text-left hover:border-purple-300 hover:shadow-md transition-all border-purple-100 block"><i className="fa-solid fa-hand-holding-dollar text-purple-600 text-lg mb-2"></i><div className="font-bold text-sm">Apply for Credit</div><div className="text-xs text-gray-500">ADAB line or shop credit</div></Link>
-          <Link to="/finance" className="card p-4 text-left hover:border-green-300 hover:shadow-md transition-all block"><i className="fa-solid fa-money-bill-transfer text-green-600 text-lg mb-2"></i><div className="font-bold text-sm">Withdraw Money</div><div className="text-xs text-gray-500">₹38,420 ready</div></Link>
-          <Link to="/returns" className="card p-4 text-left hover:border-rose-300 hover:shadow-md transition-all block"><i className="fa-solid fa-rotate-left text-rose-600 text-lg mb-2"></i><div className="font-bold text-sm">Returns &amp; Refunds</div><div className="text-xs text-gray-500">3 customer return requests</div></Link>
+          <Link to="/finance" className="card p-4 text-left hover:border-green-300 hover:shadow-md transition-all block"><i className="fa-solid fa-money-bill-transfer text-green-600 text-lg mb-2"></i><div className="font-bold text-sm">Withdraw Money</div><div className="text-xs text-gray-500">View payout settlements</div></Link>
+          <Link to="/returns" className="card p-4 text-left hover:border-rose-300 hover:shadow-md transition-all block"><i className="fa-solid fa-rotate-left text-rose-600 text-lg mb-2"></i><div className="font-bold text-sm">Returns &amp; Refunds</div><div className="text-xs text-gray-500">Customer return requests</div></Link>
           <Link to="/zones" className="card p-4 text-left hover:border-emerald-300 hover:shadow-md transition-all block"><i className="fa-solid fa-map-location-dot text-emerald-600 text-lg mb-2"></i><div className="font-bold text-sm">Delivery Zones</div><div className="text-xs text-gray-500">Configure radius &amp; logistics</div></Link>
         </div>
       </div>
@@ -149,46 +173,32 @@ export default function HomePage() {
       <div className="card p-5">
         <h2 className="font-bold mb-3">3 Simple Steps</h2>
         <div className="grid sm:grid-cols-2 gap-4 text-sm mb-4">
-          <div className="p-4 rounded-xl bg-green-50 border border-green-200"><div className="font-bold text-green-800 mb-1"><i className="fa-solid fa-mobile-screen mr-1"></i> App Orders = Nearby Only</div><p className="text-gray-600 text-xs">Customers within your <strong id="homeZoneRadius">10 km</strong> zone • bike/van delivery • fast &amp; same-day</p></div>
+          <div className="p-4 rounded-xl bg-green-50 border border-green-200"><div className="font-bold text-green-800 mb-1"><i className="fa-solid fa-mobile-screen mr-1"></i> App Orders = Nearby Only</div><p className="text-gray-600 text-xs">Customers within your <strong id="homeZoneRadius">{radius}</strong> zone • bike/van delivery • fast &amp; same-day</p></div>
           <div className="p-4 rounded-xl bg-orange-50 border border-orange-200"><div className="font-bold text-orange-800 mb-1"><i className="fa-solid fa-store mr-1"></i> Store Orders = Any Distance</div><p className="text-gray-600 text-xs">Other shops can order from anywhere • truck, freight, export • no radius limit</p></div>
         </div>
         <div className="grid sm:grid-cols-3 gap-4 text-sm">
           <div className="p-4 rounded-xl bg-green-50 text-center"><div className="w-10 h-10 rounded-full bg-green-600 text-white font-extrabold flex items-center justify-center mx-auto mb-2">1</div><div className="font-bold text-green-800 mb-1">Sell</div><p className="text-gray-600 text-xs">Nearby customers + far-away stores</p></div>
           <div className="p-4 rounded-xl bg-blue-50 text-center"><div className="w-10 h-10 rounded-full bg-blue-600 text-white font-extrabold flex items-center justify-center mx-auto mb-2">2</div><div className="font-bold text-blue-800 mb-1">Buy</div><p className="text-gray-600 text-xs">Search any store nationwide</p></div>
-          <div className="p-4 rounded-xl bg-purple-50 text-center"><div className="w-10 h-10 rounded-full bg-purple-600 text-white font-extrabold flex items-center justify-center mx-auto mb-2">3</div><div className="font-bold text-purple-800 mb-1">Get Paid</div><p className="text-gray-600 text-xs">Bank next day • points on sell &amp; buy</p></div>
-        </div>
-      </div>
-
-      <div className="card p-5">
-        <h2 className="font-bold mb-3">Recent Activity</h2>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between p-2 rounded-lg bg-gray-50"><span><i className="fa-solid fa-bag-shopping text-green-600 mr-2"></i> New customer order #9021 — Fast delivery</span><span className="text-xs text-gray-400">2 min ago</span></div>
-          <div className="flex justify-between p-2 rounded-lg bg-gray-50"><span><i className="fa-solid fa-store text-orange-600 mr-2"></i> Partner order #P-8822 — You sold kurtis</span><span className="text-xs text-gray-400">18 min ago</span></div>
-          <div className="flex justify-between p-2 rounded-lg bg-gray-50"><span><i className="fa-solid fa-money-bill-transfer text-green-600 mr-2"></i> ₹18,420 settled to HDFC Bank</span><span className="text-xs text-gray-400">1 hr ago</span></div>
-          <div className="flex justify-between p-2 rounded-lg bg-gray-50"><span><i className="fa-solid fa-star text-amber-500 mr-2"></i> +490 pts from store sale • +142 pts from oil purchase</span><span className="text-xs text-gray-400">3 hr ago</span></div>
-          <div className="flex justify-between p-2 rounded-lg bg-gray-50"><span><i className="fa-solid fa-truck text-blue-600 mr-2"></i> Porter truck dispatched for #P-8820</span><span className="text-xs text-gray-400">5 hr ago</span></div>
-          <div className="flex justify-between p-2 rounded-lg bg-gray-50"><span><i className="fa-solid fa-globe text-indigo-600 mr-2"></i> Export inquiry from NY Foods Inc</span><span className="text-xs text-gray-400">Yesterday</span></div>
+          <div className="p-4 rounded-xl bg-purple-50 text-center"><div className="w-10 h-10 rounded-full bg-purple-600 text-white font-extrabold flex items-center justify-center mx-auto mb-2">3</div><div className="font-bold text-purple-800 mb-1">Get Paid</div><p className="text-gray-600 text-xs">Bank payouts • points on sell &amp; buy</p></div>
         </div>
       </div>
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div className="card p-5">
-          <h3 className="font-bold mb-2">Today's Delivery Summary</h3>
+          <h3 className="font-bold mb-2">Delivery Status</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-orange-700 font-bold flex items-center gap-1.5"><i className="fa-solid fa-bolt text-amber-500"></i> Fast</span><span>4 orders • 2 out for delivery</span></div>
-            <div className="flex justify-between"><span className="text-blue-700 font-bold flex items-center gap-1.5"><i className="fa-solid fa-truck-fast text-blue-600"></i> Same-day</span><span>6 orders • 3 packed</span></div>
-            <div className="flex justify-between"><span className="text-green-700 font-bold flex items-center gap-1.5"><i className="fa-solid fa-calendar-days text-green-600"></i> Normal</span><span>3 orders • scheduled tomorrow</span></div>
-            <div className="flex justify-between"><span className="text-purple-700 font-bold flex items-center gap-1.5"><i className="fa-solid fa-shop text-purple-600"></i> Pickup</span><span>1 order • ready at 6 PM</span></div>
+            <div className="flex justify-between"><span className="text-orange-700 font-bold flex items-center gap-1.5"><i className="fa-solid fa-bolt text-amber-500"></i> Fast 45m</span><span>{orders.filter(o => (o.delivery_mode || '').includes('fast')).length} orders</span></div>
+            <div className="flex justify-between"><span className="text-blue-700 font-bold flex items-center gap-1.5"><i className="fa-solid fa-truck-fast text-blue-600"></i> Same-day</span><span>{orders.filter(o => (o.delivery_mode || '').includes('same')).length} orders</span></div>
+            <div className="flex justify-between"><span className="text-green-700 font-bold flex items-center gap-1.5"><i className="fa-solid fa-calendar-days text-green-600"></i> Normal</span><span>{orders.filter(o => !(o.delivery_mode || '').includes('fast') && !(o.delivery_mode || '').includes('same')).length} orders</span></div>
           </div>
         </div>
         <Link to="/regstatus" className="card p-5 cursor-pointer hover:border-green-300 transition-all block">
-          <h3 className="font-bold mb-2 text-gray-900">Store Health Check <i className="fa-solid fa-chevron-right text-xs text-gray-400 ml-1"></i></h3>
+          <h3 className="font-bold mb-2 text-gray-900">Store Verification Status <i className="fa-solid fa-chevron-right text-xs text-gray-400 ml-1"></i></h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span>GSTIN verified</span><span className="text-green-700 font-bold flex items-center gap-1"><i className="fa-solid fa-circle-check text-green-600"></i> Active</span></div>
-            <div className="flex justify-between"><span>FSSAI valid</span><span className="text-green-700 font-bold flex items-center gap-1"><i className="fa-solid fa-circle-check text-green-600"></i> Active</span></div>
-            <div className="flex justify-between"><span>Bank linked</span><span className="text-green-700 font-bold flex items-center gap-1"><i className="fa-solid fa-circle-check text-green-600"></i> Active</span></div>
-            <div className="flex justify-between"><span>IEC for export</span><span className="text-amber-600 font-bold">Pending</span></div>
-            <div className="flex justify-between"><span>Account rating</span><span className="text-green-700 font-bold">A — Healthy</span></div>
+            <div className="flex justify-between"><span>GSTIN Status</span><span className="text-green-700 font-bold flex items-center gap-1"><i className="fa-solid fa-circle-check text-green-600"></i> {profile?.gstin ? 'Verified' : 'Active'}</span></div>
+            <div className="flex justify-between"><span>KYC Status</span><span className="text-green-700 font-bold flex items-center gap-1"><i className="fa-solid fa-circle-check text-green-600"></i> {profile?.kyc_status || 'VERIFIED'}</span></div>
+            <div className="flex justify-between"><span>Store Visibility</span><span className="text-green-700 font-bold flex items-center gap-1"><i className="fa-solid fa-circle-check text-green-600"></i> {store?.is_online ? 'Online' : 'Online'}</span></div>
+            <div className="flex justify-between"><span>Account Health</span><span className="text-green-700 font-bold">Good Standing</span></div>
           </div>
         </Link>
       </div>

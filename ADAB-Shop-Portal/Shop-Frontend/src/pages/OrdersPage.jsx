@@ -95,6 +95,14 @@ export default function OrdersPage() {
     return matchesStatus && matchesDelivery && matchesSearch;
   });
 
+  const fastCount = orders.filter(o => (o.delivery_mode || o.delivery_type || '').toLowerCase().includes('fast')).length;
+  const sameCount = orders.filter(o => (o.delivery_mode || o.delivery_type || '').toLowerCase().includes('same')).length;
+  const normalCount = orders.filter(o => {
+    const d = (o.delivery_mode || o.delivery_type || '').toLowerCase();
+    return !d.includes('fast') && !d.includes('same') && !d.includes('pickup');
+  }).length;
+  const pickupCount = orders.filter(o => (o.delivery_mode || o.delivery_type || '').toLowerCase().includes('pickup')).length;
+
   return (
     <section id="sec-orders" className="space-y-4">
       {/* Exact Prototype Header Section */}
@@ -113,13 +121,13 @@ export default function OrdersPage() {
 
       {/* Delivery Mode Pills */}
       <div className="flex gap-1.5 text-xs font-bold flex-wrap">
-        <span className="px-2 py-1 rounded-lg bg-orange-100 text-orange-800">4 Fast</span>
-        <span className="px-2 py-1 rounded-lg bg-blue-100 text-blue-800">6 Same-day</span>
-        <span className="px-2 py-1 rounded-lg bg-green-100 text-green-800">3 Normal</span>
-        <span className="px-2 py-1 rounded-lg bg-purple-100 text-purple-800">1 Pickup</span>
+        <span className="px-2 py-1 rounded-lg bg-orange-100 text-orange-800">{fastCount} Fast</span>
+        <span className="px-2 py-1 rounded-lg bg-blue-100 text-blue-800">{sameCount} Same-day</span>
+        <span className="px-2 py-1 rounded-lg bg-green-100 text-green-800">{normalCount} Normal</span>
+        <span className="px-2 py-1 rounded-lg bg-purple-100 text-purple-800">{pickupCount} Pickup</span>
       </div>
 
-      {/* Filter Bar matching prototype */}
+      {/* Filter Bar */}
       <div className="card p-3 flex flex-col sm:flex-row gap-2 flex-wrap">
         <input 
           type="search" 

@@ -9,4 +9,19 @@ const sellerController = require('../controllers/seller');
 router.get('/profile', sellerController.getProfile);
 router.get('/store', sellerController.getStore);
 
+// Dynamic Operations: Orders, Returns, B2B, Coupons, Points, Analytics, Catalog, Recommendations, Messages
+router.get('/orders', sellerController.getOrders);
+router.patch('/orders/:id/status', sellerController.updateOrderStatus);
+router.get('/returns', sellerController.getReturns);
+router.get('/b2b-orders', sellerController.getB2BOrders);
+router.get('/coupons', sellerController.getCoupons);
+router.get('/points', sellerController.getPoints);
+router.get('/analytics', sellerController.getAnalytics);
+router.get('/nearby-catalog', sellerController.getNearbyCatalog);
+router.get('/recommendations', sellerController.getRecommendations);
+router.get('/messages', sellerController.getMessages);
+
 module.exports = router;
+
+
+

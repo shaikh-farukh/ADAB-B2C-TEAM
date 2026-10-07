@@ -1,7 +1,12 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { useSeller } from '../../context/SellerContext';
 
 export default function Sidebar() {
+  const { store } = useSeller();
+  const storeName = store?.store_name || 'My Store';
+  const initial = (storeName || 'S').substring(0, 2).toUpperCase();
+
   const navClass = ({ isActive }) =>
     `${isActive ? 'nav-on ' : 'text-gray-700 hover:bg-gray-100 '}w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition`;
 
@@ -15,7 +20,13 @@ export default function Sidebar() {
           <div className="w-7 h-7 rounded-lg bg-green-700 text-white flex items-center justify-center text-sm">A</div> 
           ADAB Seller
         </div>
-        <button className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
+        <button 
+          onClick={() => {
+            const drawer = document.getElementById('sellerDrawer');
+            if (drawer) drawer.classList.remove('open');
+          }}
+          className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500"
+        >
           <i className="fa-solid fa-xmark"></i>
         </button>
       </div>
@@ -23,9 +34,13 @@ export default function Sidebar() {
       <nav className="card p-2.5 text-sm sticky top-20 sidebar-scroll shadow-sm border border-gray-200/80 space-y-1">
         {/* Store Quick Profile Badge in Sidebar */}
         <div className="p-2.5 mb-2 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white font-extrabold flex items-center justify-center text-xs shrink-0 shadow-sm">SB</div>
+          <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white font-extrabold flex items-center justify-center text-xs shrink-0 shadow-sm">
+            {initial}
+          </div>
           <div className="min-w-0 flex-1">
-            <div className="font-extrabold text-xs text-emerald-950 truncate" id="sidebarStoreName">Shri Balaji Store</div>
+            <div className="font-extrabold text-xs text-emerald-950 truncate" id="sidebarStoreName">
+              {storeName}
+            </div>
             <div className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Verified Merchant
             </div>
@@ -133,24 +148,6 @@ export default function Sidebar() {
         <NavLink to="/settings" className={navClass}>
           <i className="fa-solid fa-gear w-4 text-gray-500"></i> <span data-i18n="navSettings">Store Settings</span>
         </NavLink>
-
-        {/* 6. EXPANDABLE MORE UTILITIES */}
-        <details className="mt-2 px-1 border-t border-gray-100 pt-1.5">
-          <summary className="text-xs font-extrabold text-gray-400 hover:text-gray-700 cursor-pointer py-1 flex items-center justify-between" data-i18n="navShowMore">
-            <span>More Utilities</span> <i className="fa-solid fa-chevron-down text-[10px]"></i>
-          </summary>
-          <div className="space-y-0.5 mt-1">
-            <NavLink to="/orderhistory" className={({ isActive }) => `${isActive ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Order History Archive</NavLink>
-            <NavLink to="/reviews" className={({ isActive }) => `${isActive ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Customer Ratings &amp; Reviews</NavLink>
-            <NavLink to="/help" className={({ isActive }) => `${isActive ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Help &amp; Support</NavLink>
-            <NavLink to="/faq" className={({ isActive }) => `${isActive ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Merchant FAQ</NavLink>
-            <NavLink to="/drivers" className={({ isActive }) => `${isActive ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Driver Management</NavLink>
-            <NavLink to="/export" className={({ isActive }) => `${isActive ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Export &amp; IEC Trade</NavLink>
-            <NavLink to="/certificates" className={({ isActive }) => `${isActive ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Certificates &amp; FSSAI</NavLink>
-            <NavLink to="/performance" className={({ isActive }) => `${isActive ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Store Health &amp; Audits</NavLink>
-            <NavLink to="/notifications" className={({ isActive }) => `${isActive ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Notifications Log</NavLink>
-          </div>
-        </details>
       </nav>
     </aside>
   );
