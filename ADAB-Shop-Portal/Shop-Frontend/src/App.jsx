@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import React, { useState, useEffect } from 'react';
 import Products from './pages/Products';
+import Marketing from './pages/Marketing';
+import Pricing from './pages/Pricing';
 import sellerService from './services/sellerService';
 
 // --- COMPONENTS ---
@@ -19,7 +21,9 @@ const Dashboard = ({ store }) => (
     </div>
   </div>
 );
-const Pricing = () => <div className="fade-in"><h1 className="text-2xl font-extrabold">Pricing & Offers</h1></div>;
+
+const OrdersPage = () => <div className="fade-in p-6"><h1 className="text-2xl font-extrabold text-gray-900 mb-6">App Orders</h1></div>;
+const POSPage = () => <div className="fade-in p-6"><h1 className="text-2xl font-extrabold text-gray-900 mb-6">Bill Counter</h1></div>;
 
 // --- LAYOUT COMPONENTS ---
 const SidebarItem = ({ to, icon, label }) => {
@@ -96,7 +100,7 @@ const MainLayout = ({ children, store, profile }) => {
         
         {/* Sidebar */}
         <aside className="hidden lg:block lg:w-60 lg:p-0 shrink-0">
-          <nav className="card p-2.5 text-sm sticky top-20 shadow-sm border border-gray-200/80 space-y-1 bg-white rounded-xl">
+          <nav className="card p-2.5 text-sm sticky top-20 shadow-sm border border-gray-200/80 space-y-1 bg-white rounded-xl max-h-[calc(100vh-100px)] overflow-y-auto">
             {/* Store Quick Profile Badge */}
             <div className="p-2.5 mb-2 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white font-extrabold flex items-center justify-center text-xs shrink-0 shadow-sm">
@@ -123,6 +127,10 @@ const MainLayout = ({ children, store, profile }) => {
             <SidebarItem to="/products" icon="fa-boxes-stacked" label={<span className="text-gray-700 font-bold">My Products</span>} />
             <SidebarItem to="/add-product" icon="fa-circle-plus" label="Add New Product" />
             <SidebarItem to="/returns" icon="fa-rotate-left" label={<span className="flex items-center justify-between w-full">Returns <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">3</span></span>} />
+
+            <div className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider px-3 pb-1 pt-4">Offers & Pricing</div>
+            <SidebarItem to="/marketing" icon="fa-ticket" label="Coupons & Promos" />
+            <SidebarItem to="/pricing" icon="fa-tags" label="Pricing Schedules" />
 
             <div className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider px-3 pb-1 pt-4">Buy Stock</div>
             <SidebarItem to="/search" icon="fa-magnifying-glass" label="Search & Buy" />
@@ -173,6 +181,9 @@ function App() {
           <Route path="/" element={<Dashboard store={store} />} />
           <Route path="/products" element={<Products />} />
           <Route path="/pricing" element={<Pricing />} />
+          <Route path="/marketing" element={<Marketing />} />
+          <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/pos" element={<POSPage />} />
         </Routes>
       </MainLayout>
     </BrowserRouter>

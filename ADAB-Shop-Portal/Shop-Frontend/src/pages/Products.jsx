@@ -1,9 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import listingService from '../services/listingService';
+import React, { useState } from 'react';
+import { useListings } from '../hooks/useListings';
 
 const Products = () => {
-  const [listings, setListings] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { 
+    listings, 
+    loading, 
+    filters: { searchQuery, setSearchQuery, stockFilter, setStockFilter, typeFilter, setTypeFilter, buyerFilter, setBuyerFilter },
+    pagination: { currentPage, setCurrentPage, itemsPerPage, setItemsPerPage, totalItems },
+    createListing,
+    updateListing,
+    deleteListing,
+    submitListing,
+    refresh
+  } = useListings();
+
   const [showModal, setShowModal] = useState(false);
   const [editingListing, setEditingListing] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -11,43 +21,6 @@ const Products = () => {
   const [formData, setFormData] = useState({
     title: '', sku: '', mrp: '', sell_price: '', product_type: 'OWN_BRAND', allowed_buyers: 'ALL', image_url: '', approval_status: 'DRAFT', is_active: true
   });
-
-  const [searchQuery, setSearchQuery] = useState('');
-  const [stockFilter, setStockFilter] = useState('All stock');
-  const [typeFilter, setTypeFilter] = useState('ALL');
-  const [buyerFilter, setBuyerFilter] = useState('ALL');
-  
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-
-  const [totalItems, setTotalItems] = useState(0);
-
-  useEffect(() => {
-    fetchListings();
-  }, [currentPage, itemsPerPage, searchQuery, stockFilter, typeFilter, buyerFilter]);
-
-  const fetchListings = async () => {
-    try {
-      setLoading(true);
-      const stock = stockFilter === 'In stock' ? 'in_stock' : stockFilter === 'Out of stock' ? 'out_of_stock' : 'all';
-      const filters = {
-        search: searchQuery,
-        stock: stock,
-        type: typeFilter,
-        buyer: buyerFilter,
-        limit: itemsPerPage,
-        offset: (currentPage - 1) * itemsPerPage
-      };
-      const res = await listingService.getListings(filters);
-      // The API returns { data, total }
-      setListings(res.data || []);
-      setTotalItems(res.total || 0);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleFormChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -88,17 +61,17 @@ const Products = () => {
       
       let savedListing;
       if (editingListing) {
-        savedListing = await listingService.updateListing(editingListing.id, dataToSave);
+        savedListing = await updateListing(editingListing.id, dataToSave);
       } else {
-        savedListing = await listingService.createListing(dataToSave);
+        savedListing = await createListing(dataToSave);
       }
       
       if (submitForReview) {
-        await listingService.submitListing(savedListing.id);
+        await submitListing(savedListing.id);
       }
       
       setShowModal(false);
-      fetchListings();
+      refresh();
     } catch (err) {
       console.error('Failed to save listing', err);
       alert('Failed to save: ' + (err.response?.data?.error || err.message));
@@ -108,9 +81,9 @@ const Products = () => {
   const handleDeleteListing = async () => {
     if (deleteConfirm) {
       try {
-        await listingService.deleteListing(deleteConfirm);
+        await deleteListing(deleteConfirm);
         setDeleteConfirm(null);
-        fetchListings();
+        refresh();
       } catch (err) {
         console.error('Failed to delete listing', err);
         alert('Failed to delete: ' + (err.response?.data?.error || err.message));

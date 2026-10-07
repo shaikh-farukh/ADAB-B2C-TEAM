@@ -14,6 +14,8 @@ app.use(express.json());
 
 const sellerRoutes = require('./src/routes/seller');
 const listingRoutes = require('./src/routes/listing');
+const marketingRoutes = require('./src/routes/marketing');
+const pricingRoutes = require('./src/routes/pricing');
 
 // Health / Sample API Route with DB check
 app.get('/api/health', async (req, res) => {
@@ -36,6 +38,8 @@ app.get('/api/health', async (req, res) => {
 // Domain Routes
 app.use('/api/v1/seller', sellerRoutes);
 app.use('/api/v1/seller/listings', listingRoutes);
+app.use('/api/v1/seller', marketingRoutes);
+app.use('/api/v1/seller/pricing', pricingRoutes);
 
 // Start Server
 app.listen(PORT, () => {
