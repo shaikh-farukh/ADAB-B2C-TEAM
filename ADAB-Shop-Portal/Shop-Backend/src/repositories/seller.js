@@ -210,8 +210,49 @@ class SellerRepository {
       return [];
     }
   }
+
+  async getFinanceSummary() {
+    const query = `
+      SELECT 
+        COALESCE(SUM(grand_total), 0) as balance,
+        COUNT(id) as total_orders
+      FROM orders
+    `;
+    try {
+      const res = await pool.query(query);
+      const row = res.rows[0] || { balance: 0 };
+      return {
+        balance: Number(row.balance) || 0,
+        available_credit: 250000,
+        sanctioned_limit: 250000,
+        utilized_credit: 0,
+        receivables: 0,
+        payables: 0
+      };
+    } catch (e) {
+      return { balance: 0, available_credit: 250000, sanctioned_limit: 250000, utilized_credit: 0, receivables: 0, payables: 0 };
+    }
+  }
+
+  async getKhataLedger() {
+    const query = `
+      SELECT bpo.id, s.name as store, bpo.total_amount as you_owe, 0 as they_owe,
+             '7 Days' as due_date, bpo.status
+      FROM b2b_purchase_orders bpo
+      LEFT JOIN suppliers s ON bpo.supplier_id = s.id
+      ORDER BY bpo.created_at DESC
+      LIMIT 10
+    `;
+    try {
+      const res = await pool.query(query);
+      return res.rows;
+    } catch (e) {
+      return [];
+    }
+  }
 }
 
 module.exports = new SellerRepository();
+
 
 

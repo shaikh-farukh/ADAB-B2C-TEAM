@@ -57,8 +57,17 @@ class SellerService {
   async getMessages() {
     return await sellerRepository.getMessages();
   }
+
+  async getFinanceSummary() {
+    return await sellerRepository.getFinanceSummary();
+  }
+
+  async getKhataLedger() {
+    return await sellerRepository.getKhataLedger();
+  }
 }
 
 module.exports = new SellerService();
+
 
 

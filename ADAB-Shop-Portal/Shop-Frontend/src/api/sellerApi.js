@@ -37,10 +37,12 @@ export const sellerApi = {
   getRecommendations: () => apiClient.get('/v1/seller/recommendations'),
   getMessages: () => apiClient.get('/v1/seller/messages'),
 
-  // Finance (Credit Apply)
+  // Finance (Credit Apply & Khata)
   getFinanceSummary: () => apiClient.get('/v1/seller/finance/summary'),
+  getKhata: () => apiClient.get('/v1/seller/finance/khata'),
   submitCreditApply: (businessDetails) => apiClient.post('/v1/seller/finance/credit-apply', businessDetails)
 };
+
 
 
 

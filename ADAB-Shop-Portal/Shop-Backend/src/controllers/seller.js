@@ -118,8 +118,27 @@ class SellerController {
       res.status(400).json({ success: false, error: error.message });
     }
   }
+
+  async getFinanceSummary(req, res) {
+    try {
+      const finance = await sellerService.getFinanceSummary();
+      res.json({ success: true, data: finance });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async getKhataLedger(req, res) {
+    try {
+      const khata = await sellerService.getKhataLedger();
+      res.json({ success: true, data: khata });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
 }
 
 module.exports = new SellerController();
+
 
 

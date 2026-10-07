@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useFinance } from '../hooks/useFinance';
+import { useSeller } from '../context/SellerContext';
 
 export default function CreditApplyPage() {
   const { submitCreditApplication, isProcessing } = useFinance();
+  const { profile } = useSeller();
   
   const [formData, setFormData] = useState({
     bank: 'HDFC Bank (SME Loans)',
@@ -32,7 +34,6 @@ export default function CreditApplyPage() {
     try {
       await submitCreditApplication(formData);
       setMessage({ type: 'success', text: 'Credit application submitted successfully!' });
-      // Reset after success
       setTimeout(() => setMessage(null), 5000);
     } catch (err) {
       setMessage({ type: 'error', text: 'Failed to submit application. Please try again.' });
@@ -65,7 +66,7 @@ export default function CreditApplyPage() {
               </div>
               <div className="p-3 rounded-xl bg-green-50">
                 <div className="text-xs text-gray-500">Available</div>
-                <div className="text-xl font-extrabold text-green-800">₹2,31,800</div>
+                <div className="text-xl font-extrabold text-green-800">₹2,50,000</div>
               </div>
               <div className="p-3 rounded-xl bg-gray-50">
                 <div className="text-xs text-gray-500">Repay in</div>
@@ -108,7 +109,7 @@ export default function CreditApplyPage() {
               </div>
               <div>
                 <label className="font-bold block mb-1">GSTIN</label>
-                <input type="text" value="24AAAAA0000A1Z5" className="w-full px-3 py-2.5 rounded-xl border border-gray-200 font-mono text-green-800 bg-green-50" readOnly />
+                <input type="text" value={profile?.gstin || '24AAAAA0000A1Z5'} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 font-mono text-green-800 bg-green-50" readOnly />
               </div>
               <label className="flex items-start gap-2 text-xs text-gray-600">
                 <input type="checkbox" name="agree" checked={formData.agree} onChange={handleChange} className="mt-0.5" /> 

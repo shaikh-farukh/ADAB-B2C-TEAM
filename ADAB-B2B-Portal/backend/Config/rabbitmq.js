@@ -4,7 +4,7 @@ import logger from '../utils/logger.js';
 let connection = null;
 let channel = null;
 
-const connectRabbitMQ = async (retries = 5) => {
+const connectRabbitMQ = async (retries = 1) => {
   while (retries > 0) {
     try {
       const rabbitMqUrl = process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672';
@@ -17,10 +17,10 @@ const connectRabbitMQ = async (retries = 5) => {
       await channel.assertQueue('ORDER_CREATED_QUEUE', { durable: true });
       return true;
     } catch (error) {
-      logger.error(`RabbitMQ connection error (retries left: ${retries - 1}):`, error.message);
+      logger.warn(`RabbitMQ unavailable (${error.message}) — skipping message queue workers.`);
       retries -= 1;
-      if (retries === 0) throw error;
-      await new Promise(res => setTimeout(res, 5000));
+      if (retries === 0) return false;
+      await new Promise(res => setTimeout(res, 1000));
     }
   }
 };
