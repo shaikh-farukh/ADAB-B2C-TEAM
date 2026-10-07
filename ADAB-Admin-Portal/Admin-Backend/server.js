@@ -8,7 +8,7 @@ const pool = require('./db');
 const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
-const PORT = process.env.PORT || 5001; 
+const PORT = process.env.PORT || 5005; 
 
 // Middleware
 app.use(cors()); 
@@ -35,11 +35,16 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// Admin Routes
+const adminRoutes = require('./src/routes/adminRoutes');
+app.use('/api/v1/admin', adminRoutes);
+
 app.get('/api/data', (req, res) => {
   res.json({ message: "Hello from Admin Portal backend server!" });
 });
 
 // Start Server if launched directly
+// Start Server
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
