@@ -5,12 +5,17 @@ dotenv.config();
 
 const pool = require('./db');
 
+const adminRoutes = require('./routes/adminRoutes');
+
 const app = express();
 const PORT = process.env.PORT || 5001; 
 
 // Middleware
 app.use(cors()); 
 app.use(express.json()); 
+
+// Routes
+app.use('/api/admin', adminRoutes);
 
 // Health / Sample API Route with DB check
 app.get('/api/health', async (req, res) => {
@@ -34,7 +39,11 @@ app.get('/api/data', (req, res) => {
   res.json({ message: "Hello from Admin Portal backend server!" });
 });
 
-// Start Server
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
+// Start Server if launched directly
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
