@@ -3,7 +3,7 @@ import { api } from '../api/api';
 import ProductCard from '../components/ProductCard';
 import { Link, useNavigate } from 'react-router-dom';
 
-export default function HomePage() {
+export default function HomePage({ onAddToCart, onNavigate }) {
   const [recommended, setRecommended] = useState([]);
   const [categories, setCategories] = useState([]);
   const [stores, setStores] = useState([]);
@@ -17,15 +17,21 @@ export default function HomePage() {
       api.get('/catalog/stores')
     ])
       .then(([recRes, catRes, storeRes]) => {
-        setRecommended(recRes.data.data);
-        setCategories(catRes.data.data);
-        setStores(storeRes.data.data);
+        setRecommended(recRes.data?.data || recRes.data || []);
+        setCategories(catRes.data?.data || catRes.data || []);
+        setStores(storeRes.data?.data || storeRes.data || []);
       })
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
   }, []);
 
-  const go = (path) => navigate('/' + path);
+  const go = (path) => {
+    if (onNavigate) {
+      onNavigate(path);
+    } else {
+      navigate('/' + path);
+    }
+  };
 
   return (
     <div className="pt-4 pb-4 space-y-6">
@@ -165,7 +171,7 @@ export default function HomePage() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
             {recommended.slice(0, 6).map(product => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard key={product.id} product={product} onAddToCart={onAddToCart} />
             ))}
           </div>
         )}
@@ -182,7 +188,7 @@ export default function HomePage() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
             {recommended.slice(6, 12).map(product => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard key={product.id} product={product} onAddToCart={onAddToCart} />
             ))}
           </div>
         </div>

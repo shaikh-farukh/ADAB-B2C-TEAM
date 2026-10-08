@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function ProductCard({ product }) {
+export default function ProductCard({ product, onAddToCart }) {
   return (
     <div className="prod-card group">
       <div className="relative aspect-square bg-gradient-to-br from-gray-50 to-green-50/50 flex items-center justify-center overflow-hidden p-4">
@@ -25,9 +25,16 @@ export default function ProductCard({ product }) {
         </div>
         <div className="flex items-center justify-between mt-2.5">
           <span className="font-extrabold text-base text-brand-dark">₹{product.price}</span>
-          <button className="add-btn hover:bg-brand-green hover:text-white transition-colors">ADD</button>
+          <button 
+            type="button"
+            onClick={() => onAddToCart && onAddToCart(product.id, product.name)}
+            className="add-btn hover:bg-brand-green hover:text-white transition-colors cursor-pointer"
+          >
+            ADD
+          </button>
         </div>
       </div>
     </div>
   );
 }
+

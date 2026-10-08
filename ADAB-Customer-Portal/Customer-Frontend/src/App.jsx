@@ -3,6 +3,8 @@ import './App.css';
 import FloatingCartBar from './components/FloatingCartBar';
 import CartView from './components/CartView';
 import CheckoutView from './components/CheckoutView';
+import HomePage from './pages/HomePage';
+import BrowsePage from './pages/BrowsePage';
 import { CartAPI, CheckoutAPI } from './services/api';
 
 export default function App() {
@@ -261,87 +263,25 @@ export default function App() {
 
       {/* Main Dynamic Content Area */}
       <main className="page px-4 pt-4 pb-28 flex-1">
+        {/* Home Screen (Catalog, Deals, Stores, Trending by Mahi) */}
         {activeTab === 'home' && (
-          <section className="space-y-6">
-            {/* Hero Banner */}
-            <div className="bg-gradient-to-r from-emerald-800 to-green-600 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
-              <div className="relative z-10">
-                <span className="text-[10px] font-black uppercase tracking-widest bg-white/20 px-2.5 py-1 rounded-full">
-                  100% Asset-Light Local Commerce
-                </span>
-                <h1 className="text-2xl font-extrabold mt-2 tracking-tight">ADAB Instant Kirana</h1>
-                <p className="text-xs text-green-100 mt-1 max-w-md">
-                  Order authentic groceries and essentials from verified neighbourhood stores in Surat.
-                </p>
-              </div>
-            </div>
+          <HomePage
+            onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
+            onNavigate={(tab) => {
+              if (tab === 'track') setActiveTab('track');
+              else if (tab === 'stores' || tab.startsWith('search')) setActiveTab('stores');
+              else if (tab === 'cart') setActiveTab('cart');
+              else if (tab === 'orders') setActiveTab('orders');
+              else setActiveTab(tab);
+            }}
+          />
+        )}
 
-            {/* Quick Demo Products to test Cart */}
-            <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm space-y-3">
-              <div className="flex justify-between items-center">
-                <h2 className="section-title text-base sm:text-lg">Trending in Surat (Database Items)</h2>
-                <span className="text-xs font-bold text-brand-green bg-green-50 px-2.5 py-1 rounded-full border border-green-200">
-                  {totalItemCount} in basket
-                </span>
-              </div>
-              <p className="text-xs text-gray-500">
-                Add real products from the database. Click the floating green bar below or the Cart tab to see the full Cart screen.
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => handleAddSampleItem('c0cae12d-82cb-4e14-82e0-aedd859a0179', 'Moong Dal 1kg')}
-                  className="green-btn !py-3 !text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <i className="fa-solid fa-plus"></i> Add Moong Dal (₹10)
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleAddSampleItem('99720bbb-43cd-44cb-a830-ed419ab02844', 'Balaji Chips')}
-                  className="coral-btn !py-3 !text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <i className="fa-solid fa-plus"></i> Add Balaji Chips (₹5)
-                </button>
-              </div>
-
-              {totalItemCount > 0 && (
-                <div className="pt-2 text-center">
-                  <button
-                    type="button"
-                    onClick={handleClearCart}
-                    className="text-xs font-bold text-red-600 hover:underline cursor-pointer"
-                  >
-                    <i className="fa-solid fa-trash-can mr-1"></i> Empty Cart
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Visual Tokens & Category Pills */}
-            <div className="space-y-3">
-              <h2 className="section-title">Popular Categories</h2>
-              <div className="flex gap-2 overflow-x-auto hide-scroll pb-1">
-                <span className="cat-pill flex flex-col items-center justify-center gap-1 cursor-pointer">
-                  <i className="fa-solid fa-basket-shopping text-brand-green text-lg"></i>
-                  <span className="text-[11px] font-bold">Groceries</span>
-                </span>
-                <span className="cat-pill flex flex-col items-center justify-center gap-1 cursor-pointer">
-                  <i className="fa-solid fa-shirt text-purple-600 text-lg"></i>
-                  <span className="text-[11px] font-bold">Fashion</span>
-                </span>
-                <span className="cat-pill flex flex-col items-center justify-center gap-1 cursor-pointer">
-                  <i className="fa-solid fa-bottle-droplet text-blue-600 text-lg"></i>
-                  <span className="text-[11px] font-bold">Dairy</span>
-                </span>
-                <span className="cat-pill flex flex-col items-center justify-center gap-1 cursor-pointer">
-                  <i className="fa-solid fa-pepper-hot text-amber-600 text-lg"></i>
-                  <span className="text-[11px] font-bold">Spices</span>
-                </span>
-              </div>
-            </div>
-          </section>
+        {/* Stores / Browse Products Screen (Mahi's BrowsePage) */}
+        {activeTab === 'stores' && (
+          <BrowsePage
+            onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
+          />
         )}
 
         {/* Shopping Cart Screen (Task 3: sec-cart) */}

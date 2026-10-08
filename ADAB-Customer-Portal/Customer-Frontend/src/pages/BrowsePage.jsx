@@ -3,7 +3,7 @@ import { api } from '../api/api';
 import ProductCard from '../components/ProductCard';
 import { Filter } from 'lucide-react';
 
-export default function BrowsePage() {
+export default function BrowsePage({ onAddToCart }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -75,7 +75,7 @@ export default function BrowsePage() {
         ) : (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {products.map(product => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard key={product.id} product={product} onAddToCart={onAddToCart} />
             ))}
           </div>
         )}
