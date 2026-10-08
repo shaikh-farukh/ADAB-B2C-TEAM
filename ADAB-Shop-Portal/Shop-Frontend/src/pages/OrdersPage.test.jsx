@@ -140,4 +140,44 @@ describe('OrdersPage Component', () => {
       expect(screen.getByText(/Within Zone \(10 km\)/i)).toBeDefined();
     });
   });
+
+  it('accepts order from within the map modal and updates status', async () => {
+    sellerApi.getOrders.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'ORD-6840',
+          customer: 'Pooja Sharma',
+          distance: '4.8',
+          delivery_address: { address_line: 'Ring Road', city: 'Surat' },
+          items: [],
+          amount: 1015,
+          status: 'new'
+        }
+      ]
+    });
+    sellerApi.updateOrderStatus.mockResolvedValue({ success: true });
+
+    render(
+      <BrowserRouter>
+        <OrdersPage />
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTitle('View on Map')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByTitle('View on Map'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Accept Order')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('Accept Order'));
+
+    await waitFor(() => {
+      expect(sellerApi.updateOrderStatus).toHaveBeenCalledWith('ORD-6840', 'packing');
+    });
+  });
 });

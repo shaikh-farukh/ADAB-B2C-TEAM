@@ -91,7 +91,7 @@ function OrderItemsModal({ order, onClose }) {
   );
 }
 
-function OrderMapModal({ order, onClose }) {
+function OrderMapModal({ order, onClose, onUpdateStatus }) {
   if (!order) return null;
   const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '#9000';
   const displayCustomer = order.customer || order.customer_name || 'Customer';
@@ -168,11 +168,37 @@ function OrderMapModal({ order, onClose }) {
             <button 
               type="button"
               onClick={() => alert(`Starting navigation to ${addrText}`)}
-              className="btn-primary !py-1.5 !px-3 !text-xs font-bold flex items-center gap-1.5"
+              className="btn-soft !py-1.5 !px-3 !text-xs font-bold flex items-center gap-1.5 cursor-pointer"
             >
-              <i className="fa-solid fa-diamond-turn-right text-xs"></i>
+              <i className="fa-solid fa-diamond-turn-right text-xs text-blue-600"></i>
               Directions
             </button>
+            {order.status === 'new' && (
+              <button 
+                type="button"
+                onClick={async () => {
+                  await onUpdateStatus(order.id, 'packing');
+                  onClose();
+                }}
+                className="btn-primary !py-1.5 !px-3 !text-xs font-bold flex items-center gap-1.5 cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+              >
+                <i className="fa-solid fa-check text-xs"></i>
+                Accept Order
+              </button>
+            )}
+            {(order.status === 'packing' || order.status === 'processing') && (
+              <button 
+                type="button"
+                onClick={async () => {
+                  await onUpdateStatus(order.id, 'dispatched');
+                  onClose();
+                }}
+                className="btn-primary !py-1.5 !px-3 !text-xs font-bold flex items-center gap-1.5 cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+              >
+                <i className="fa-solid fa-paper-plane text-xs"></i>
+                Send
+              </button>
+            )}
             <button 
               type="button"
               onClick={onClose}
@@ -452,6 +478,7 @@ export default function OrdersPage() {
         <OrderMapModal 
           order={mapOrder} 
           onClose={() => setMapOrder(null)} 
+          onUpdateStatus={updateStatus}
         />
       )}
     </section>
