@@ -212,7 +212,7 @@ export default function App() {
       <header className="site-nav" id="siteNav">
         <div className="site-nav-inner">
           <button type="button" className="site-logo" onClick={() => setActiveTab('home')}>
-            <i>A</i>ADAB Shop
+            <i>A</i>ADAB
           </button>
           <nav className="site-links">
             <button
@@ -322,7 +322,7 @@ export default function App() {
                   A
                 </div>
                 <div>
-                  <div className="font-extrabold text-sm tracking-tight">ADAB Shop</div>
+                  <div className="font-extrabold text-sm tracking-tight">ADAB</div>
                   <div className="text-[10px] text-green-100 font-semibold">48 local stores · Surat</div>
                 </div>
               </div>
@@ -706,7 +706,7 @@ export default function App() {
       <footer className="site-footer">
         <div className="site-footer-inner">
           <div>
-            <h4 style={{ fontSize: '18px' }}>ADAB Shop</h4>
+            <h4 style={{ fontSize: '18px' }}>ADAB</h4>
             <p style={{ fontSize: '13px', lineHeight: '1.7', maxWidth: '320px' }}>
               Your local stores, one place. Supporting neighbourhood businesses across Surat with fast, reliable delivery.
             </p>
@@ -733,7 +733,7 @@ export default function App() {
             <a onClick={() => showToast('Returns & refund policy')}>Returns</a>
           </div>
           <div className="copy">
-            © 2026 ADAB Shop · Surat, Gujarat · Made for local businesses
+            © 2026 ADAB · Surat, Gujarat · Made for local businesses
           </div>
         </div>
       </footer>

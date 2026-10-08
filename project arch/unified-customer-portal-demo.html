@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>ADAB Shop — Your Local Stores, Delivered</title>
+  <title>ADAB — Your Local Stores, Delivered</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -152,7 +152,7 @@
 <!-- Website top navigation (shown on tablets/desktops) -->
 <header class="site-nav" id="siteNav">
   <div class="site-nav-inner">
-    <button class="site-logo" onclick="go('home')"><i>A</i>ADAB Shop</button>
+    <button class="site-logo" onclick="go('home')"><i>A</i>ADAB</button>
     <nav class="site-links">
       <button class="site-link" data-go="home" onclick="go('home')">Explore</button>
       <button class="site-link" data-go="stores" onclick="go('stores')">Shops</button>
@@ -177,7 +177,7 @@
     <div class="flex items-center justify-between mb-3">
       <div class="flex items-center gap-2">
         <div class="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center font-extrabold text-lg">A</div>
-        <div><div class="font-extrabold text-sm tracking-tight">ADAB Shop</div><div class="text-[10px] text-green-100 font-semibold">48 local stores · Surat</div></div>
+        <div><div class="font-extrabold text-sm tracking-tight">ADAB</div><div class="text-[10px] text-green-100 font-semibold">48 local stores · Surat</div></div>
       </div>
       <div class="flex gap-2">
         <button onclick="openCustomerAuth()" id="custAuthBtn" class="glass px-2.5 h-9 rounded-full flex items-center gap-1.5 text-xs font-bold"><i class="fa-solid fa-user"></i><span id="custAuthLabel">Sign In</span></button>
@@ -853,11 +853,11 @@
 
 <footer class="site-footer">
   <div class="site-footer-inner">
-    <div><h4 style="font-size:18px">ADAB Shop</h4><p style="font-size:13px;line-height:1.7;max-width:320px">Your local stores, one place. Supporting neighbourhood businesses across Surat with fast, reliable delivery.</p></div>
+    <div><h4 style="font-size:18px">ADAB</h4><p style="font-size:13px;line-height:1.7;max-width:320px">Your local stores, one place. Supporting neighbourhood businesses across Surat with fast, reliable delivery.</p></div>
     <div><h4>Shop</h4><a onclick="go('stores')">All shops</a><a onclick="go('categories')">Categories</a><a onclick="go('offers')">Offers</a></div>
     <div><h4>Account</h4><a onclick="go('orders')">My orders</a><a onclick="go('wallet')">Wallet</a><a onclick="go('points')">Rewards</a></div>
     <div><h4>Support</h4><a onclick="go('help')">Help centre</a><a onclick="go('faq')">FAQs</a><a onclick="go('returns')">Returns</a></div>
-    <div class="copy">© 2026 ADAB Shop · Surat, Gujarat · Made for local businesses</div>
+    <div class="copy">© 2026 ADAB · Surat, Gujarat · Made for local businesses</div>
   </div>
 </footer>
 
@@ -1430,7 +1430,7 @@ function handleCustomerRegister() {
   refreshUI();
   document.getElementById('custAuthLabel').textContent = name.split(' ')[0];
   closeCustomerAuth();
-  toast('Welcome to ADAB Shop, ' + name + '! +100 bonus points added.');
+  toast('Welcome to ADAB, ' + name + '! +100 bonus points added.');
 }
 
 document.addEventListener('DOMContentLoaded', () => {

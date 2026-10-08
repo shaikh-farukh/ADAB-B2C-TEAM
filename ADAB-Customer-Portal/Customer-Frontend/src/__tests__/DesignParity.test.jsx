@@ -45,7 +45,7 @@ describe('Day 2 Frontend Task 4: UI Design Parity with unified-customer-portal-d
     expect(html).toContain('class="site-nav"');
     expect(html).toContain('site-nav-inner');
     expect(html).toContain('site-logo');
-    expect(html).toContain('ADAB Shop');
+    expect(html).toContain('<i>A</i>ADAB');
 
     // Navigation Links
     expect(html).toContain('Explore');
@@ -93,7 +93,7 @@ describe('Day 2 Frontend Task 4: UI Design Parity with unified-customer-portal-d
     expect(html).toContain('class="site-footer"');
     expect(html).toContain('site-footer-inner');
     expect(html).toContain('Supporting neighbourhood businesses across Surat');
-    expect(html).toContain('© 2026 ADAB Shop · Surat, Gujarat · Made for local businesses');
+    expect(html).toContain('© 2026 ADAB · Surat, Gujarat · Made for local businesses');
   });
 
   it('4. FloatingCartBar adheres 100% to demo classes, typography, and structure', () => {
