@@ -1,8 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const ListingController = require('../controllers/listing');
+const { requireSellerAuth } = require('../middlewares/auth');
 
 // Base route: /api/v1/listings
+router.use(requireSellerAuth);
 
 router.post('/', ListingController.createListing);
 router.get('/', ListingController.getListings);
@@ -22,5 +24,8 @@ router.post('/:id/publish', ListingController.publishListing);
 router.get('/:id/approval-history', ListingController.getApprovalHistory);
 router.post('/:id/documents', ListingController.addDocument);
 router.delete('/:id/images/:imageId', ListingController.deleteImage);
+
+// Day 4 Specific: Products Issues
+router.get('/:id/issues', ListingController.getListingIssues);
 
 module.exports = router;

@@ -68,9 +68,10 @@ class ListingRepository {
     const whereClause = conditions.join(' AND ');
 
     let query = `
-      SELECT sl.*, pi.image_url 
+      SELECT sl.*, pi.image_url, COALESCE(i.available_quantity::integer, sl.stock_qty) as stock_qty
       FROM seller_listings sl
       LEFT JOIN product_images pi ON sl.id = pi.product_id AND pi.is_primary = true
+      LEFT JOIN inventory i ON sl.id = i.listing_id
       WHERE ${whereClause}
       ORDER BY sl.created_at DESC
     `;
@@ -181,6 +182,62 @@ class ListingRepository {
     const query = `DELETE FROM product_images WHERE id = $1 RETURNING *;`;
     const result = await pool.query(query, [imageId]);
     return result.rows[0];
+  }
+
+  async getListingIssues(storeId, id) {
+    // Read seller_listings and inventory
+    const query = `
+      SELECT sl.approval_status, sl.rejection_reason, sl.mrp, sl.sell_price, sl.stock_qty,
+             i.available_quantity, i.low_stock_threshold
+      FROM seller_listings sl
+      LEFT JOIN inventory i ON sl.id = i.listing_id
+      WHERE sl.id = $1 AND sl.store_id = $2
+    `;
+    const result = await pool.query(query, [id, storeId]);
+    if (!result.rows[0]) return null;
+    
+    const row = result.rows[0];
+    const issues = [];
+
+    // Inventory Issues (Cross-domain read-only from Mayank's table, fallback to sl.stock_qty)
+    const effectiveStock = row.available_quantity !== null ? Number(row.available_quantity) : Number(row.stock_qty);
+    if (effectiveStock <= 0) {
+      issues.push({
+        issue_type: 'INVENTORY',
+        severity: 'high',
+        message: 'Product is out of stock',
+        details: { stock: effectiveStock }
+      });
+    } else if (row.low_stock_threshold !== null && effectiveStock <= Number(row.low_stock_threshold)) {
+      issues.push({
+        issue_type: 'INVENTORY',
+        severity: 'medium',
+        message: 'Product is running low on stock',
+        details: { stock: effectiveStock, low_stock_threshold: Number(row.low_stock_threshold) }
+      });
+    }
+
+    // Price Issues
+    if (row.mrp !== null && row.sell_price !== null && Number(row.sell_price) > Number(row.mrp)) {
+      issues.push({
+        issue_type: 'PRICE',
+        severity: 'high',
+        message: 'Selling price cannot be greater than MRP',
+        details: { mrp: Number(row.mrp), sell_price: Number(row.sell_price) }
+      });
+    }
+
+    // Listing / Approval Issues
+    if (['REJECTED', 'CHANGES_REQUIRED'].includes(row.approval_status)) {
+      issues.push({
+        issue_type: 'LISTING',
+        severity: 'high',
+        message: `Product is ${row.approval_status.toLowerCase()}`,
+        details: { approval_status: row.approval_status, rejection_reason: row.rejection_reason }
+      });
+    }
+
+    return issues;
   }
 }
 

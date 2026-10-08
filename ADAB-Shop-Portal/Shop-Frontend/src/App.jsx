@@ -4,23 +4,53 @@ import Products from './pages/Products';
 import Marketing from './pages/Marketing';
 import Pricing from './pages/Pricing';
 import sellerService from './services/sellerService';
+import Settings from './pages/Settings';
+import NotificationBell from './components/NotificationBell';
 
 // --- COMPONENTS ---
-const Dashboard = ({ store }) => (
-  <div className="fade-in">
-    <h1 className="text-2xl font-extrabold text-gray-900 mb-6">Store Dashboard</h1>
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      <div className="card p-5 border-l-4 border-l-brand-green">
-        <p className="text-xs font-bold text-gray-500 uppercase">Today's Sales</p>
-        <p className="text-2xl font-extrabold text-gray-900 mt-1">₹ 14,500</p>
-      </div>
-      <div className="card p-5">
-        <p className="text-xs font-bold text-gray-500 uppercase">Pending Orders</p>
-        <p className="text-2xl font-extrabold text-gray-900 mt-1">12</p>
+const Dashboard = ({ store }) => {
+  const [metrics, setMetrics] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    sellerService.getDashboardMetrics()
+      .then(res => {
+        if (res.success) setMetrics(res.data);
+        else setError("Failed to load metrics");
+      })
+      .catch(() => setError("Failed to load metrics"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="p-6 text-gray-500 font-bold">Loading dashboard...</div>;
+  if (error) return <div className="p-6 text-red-500 font-bold">{error}</div>;
+  if (!metrics) return null;
+
+  return (
+    <div className="fade-in">
+      <h1 className="text-2xl font-extrabold text-gray-900 mb-6">Store Dashboard</h1>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="card p-5 border-l-4 border-l-brand-green">
+          <p className="text-xs font-bold text-gray-500 uppercase">Today's Sales</p>
+          <p className="text-2xl font-extrabold text-gray-900 mt-1">₹ {metrics.total_gross_revenue?.toLocaleString() || 0}</p>
+        </div>
+        <div className="card p-5">
+          <p className="text-xs font-bold text-gray-500 uppercase">Pending Orders</p>
+          <p className="text-2xl font-extrabold text-gray-900 mt-1">{metrics.total_orders - metrics.fulfilled_orders - metrics.cancelled_orders}</p>
+        </div>
+        <div className="card p-5">
+          <p className="text-xs font-bold text-gray-500 uppercase">Avg Fulfillment</p>
+          <p className="text-2xl font-extrabold text-gray-900 mt-1">{metrics.avg_fulfillment_time_minutes} min</p>
+        </div>
+        <div className="card p-5">
+          <p className="text-xs font-bold text-gray-500 uppercase">Store Rating</p>
+          <p className="text-2xl font-extrabold text-gray-900 mt-1">{metrics.customer_rating_avg} ★</p>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const OrdersPage = () => <div className="fade-in p-6"><h1 className="text-2xl font-extrabold text-gray-900 mb-6">App Orders</h1></div>;
 const POSPage = () => <div className="fade-in p-6"><h1 className="text-2xl font-extrabold text-gray-900 mb-6">Bill Counter</h1></div>;
@@ -85,12 +115,10 @@ const MainLayout = ({ children, store, profile }) => {
             <button className="hidden lg:flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-full bg-green-50 text-green-800 text-xs sm:text-sm font-bold border border-green-200">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Open
             </button>
-            <button className="bg-brand-dark text-white text-xs !py-1.5 !px-2.5 hidden xl:flex items-center gap-1 rounded-full font-bold">
-              <i className="fa-solid fa-list-check"></i> Setup
-            </button>
-            <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 bg-white">
+            <NotificationBell />
+            <Link to="/settings" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors">
               <i className="fa-solid fa-store text-green-700"></i> <span className="hidden sm:inline">Store Account</span>
-            </button>
+            </Link>
           </div>
         </div>
       </header>
@@ -184,6 +212,7 @@ function App() {
           <Route path="/marketing" element={<Marketing />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/pos" element={<POSPage />} />
+          <Route path="/settings" element={<Settings />} />
         </Routes>
       </MainLayout>
     </BrowserRouter>
