@@ -150,6 +150,10 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+  .leaflet-div-icon {
+    background: transparent !important;
+    border: none !important;
+  }
 }
 
 @keyframes fade {

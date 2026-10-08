@@ -138,19 +138,25 @@ function OrderMapModal({ order, onClose, onUpdateStatus }) {
         dashArray: '6 4'
       }).addTo(map);
 
-      // 2. Store Marker (Green Store Pin)
+      // 2. Store Marker (Green Icon Pin)
       const storeIcon = leaflet.divIcon({
-        className: 'custom-store-pin',
-        html: '<div style="background:#15803D;color:white;padding:4px 8px;border-radius:8px;font-size:11px;font-weight:bold;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.3);border:2px solid white;display:flex;align-items:center;gap:4px;"><i class="fa-solid fa-store"></i> Your Store</div>'
+        className: 'border-0 bg-transparent',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        popupAnchor: [0, -16],
+        html: '<div style="width:32px;height:32px;background:#15803D;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 3px 8px rgba(0,0,0,0.35);border:2.5px solid white;cursor:pointer;"><i class="fa-solid fa-store"></i></div>'
       });
       leaflet.marker([storeLat, storeLng], { icon: storeIcon })
         .addTo(map)
-        .bindPopup('<b>Shri Balaji Store</b><br>10 km delivery radius');
+        .bindPopup('<b>Your Store (Shri Balaji)</b><br>10 km delivery radius');
 
-      // 3. Customer Marker (Blue Location Pin)
+      // 3. Customer Marker (Blue Icon Pin)
       const customerIcon = leaflet.divIcon({
-        className: 'custom-cust-pin',
-        html: `<div style="background:#2563EB;color:white;padding:4px 8px;border-radius:8px;font-size:11px;font-weight:bold;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.3);border:2px solid white;display:flex;align-items:center;gap:4px;"><i class="fa-solid fa-location-dot"></i> ${displayCustomer} (${distance} km)</div>`
+        className: 'border-0 bg-transparent',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        popupAnchor: [0, -16],
+        html: '<div style="width:32px;height:32px;background:#2563EB;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 3px 8px rgba(0,0,0,0.35);border:2.5px solid white;cursor:pointer;"><i class="fa-solid fa-location-dot"></i></div>'
       });
       leaflet.marker([custLat, custLng], { icon: customerIcon })
         .addTo(map)
