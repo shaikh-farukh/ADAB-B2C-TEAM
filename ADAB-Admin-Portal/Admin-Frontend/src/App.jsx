@@ -9,6 +9,7 @@ import Customers from './pages/Customers';
 import Reports from './pages/Reports';
 import Audit from './pages/Audit';
 import Settings from './pages/Settings';
+import ProductCatalog from './pages/ProductCatalog';
 
 export default function App() {
   useEffect(() => {
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/" element={<AdminLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="approvals" element={<ApprovalQueue />} />
+          <Route path="products" element={<ProductCatalog />} />
           <Route path="sellers" element={<Sellers />} />
           <Route path="customers" element={<Customers />} />
           <Route path="reports" element={<Reports />} />

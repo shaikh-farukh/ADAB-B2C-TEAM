@@ -12,6 +12,7 @@ export default function AdminSidebar() {
         <div className="nav-label">Overview</div>
         <NavLink to="/" className={getNavClass}><i className="fa-solid fa-gauge-high w-4"></i> Dashboard</NavLink>
         <NavLink to="/approvals" className={getNavClass}><i className="fa-solid fa-check-to-slot w-4 text-amber-500"></i> Approvals</NavLink>
+        <NavLink to="/products" className={getNavClass}><i className="fa-solid fa-box w-4 text-purple-600"></i> Products</NavLink>
         <div className="nav-label">Portals</div>
         <NavLink to="/sellers" className={getNavClass}><i className="fa-solid fa-store w-4 text-green-600"></i> Sellers</NavLink>
         <NavLink to="/customers" className={getNavClass}><i className="fa-solid fa-users w-4 text-blue-600"></i> Customers</NavLink>

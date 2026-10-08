@@ -7,6 +7,7 @@ const notificationController = require('../controllers/adminNotificationControll
 const sellerController = require('../controllers/adminSellerController');
 const customerController = require('../controllers/adminCustomerController');
 const approvalController = require('../controllers/adminApprovalController');
+const productController = require('../controllers/adminProductController');
 
 // Dev login to get a token easily
 router.post('/dev-login', (req, res) => {
@@ -40,5 +41,13 @@ router.patch('/customers/:id/status', customerController.updateCustomerStatus);
 // Approvals (Day-2)
 router.get('/approvals', approvalController.getApprovals);
 router.patch('/approvals/:id', approvalController.updateApproval);
+
+// Products / Moderation (Day-3)
+router.get('/products', productController.getProducts);
+router.get('/products/:id', productController.getProductDetails);
+router.post('/products/:id/approve', productController.approveProduct);
+router.post('/products/:id/reject', productController.rejectProduct);
+router.post('/products/:id/request-changes', productController.requestChangesProduct);
+router.post('/products/:id/suspend', productController.suspendProduct);
 
 module.exports = router;
