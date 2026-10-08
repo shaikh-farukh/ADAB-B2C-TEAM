@@ -82,7 +82,12 @@ class SellerController {
 
   async getOrders(req, res) {
     try {
-      const storeId = req.headers['x-store-id'];
+      const { userId, storeId: ctxStoreId } = getAuthenticatedSellerContext(req);
+      let storeId = req.headers['x-store-id'] || ctxStoreId;
+      if (!storeId || storeId === '00000000-0000-0000-0000-000000000001') {
+        const store = await sellerService.getSellerStore(userId);
+        if (store) storeId = store.id;
+      }
       const orders = await sellerService.getSellerOrders(storeId);
       res.json({ success: true, data: orders });
     } catch (error) {

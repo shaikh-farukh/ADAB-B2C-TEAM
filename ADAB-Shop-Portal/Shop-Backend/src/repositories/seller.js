@@ -18,7 +18,8 @@ class SellerRepository {
   async getStore(userId) {
     const query = `
       SELECT s.id, s.seller_id as owner_id, s.store_name, s.city, s.address_line, 
-             s.ui_mode, s.is_online, s.delivery_radius_km, s.rating, s.phone, s.category
+             s.ui_mode, s.is_online, s.delivery_radius_km, s.rating, s.phone, s.category,
+             s.latitude, s.longitude
       FROM stores s
       JOIN seller_profiles sp ON s.seller_id = sp.id
       WHERE sp.user_id = $1
@@ -140,10 +141,25 @@ class SellerRepository {
 
   async getOrders(storeId) {
     const query = `
-      SELECT o.id, o.order_number, o.created_at, o.order_status as status,
-             o.payment_method, o.payment_status, o.delivery_mode,
-             o.grand_total as amount, o.delivery_address,
-             u.full_name as customer, u.phone as customer_phone,
+      SELECT so.id as seller_order_id,
+             so.parent_order_id,
+             so.store_id,
+             so.status as seller_order_status,
+             so.subtotal as store_subtotal,
+             so.commission_fee,
+             so.seller_payout_amount,
+             so.created_at as seller_order_created_at,
+             o.id as order_id,
+             o.order_number,
+             o.created_at,
+             o.order_status,
+             o.payment_method,
+             o.payment_status,
+             o.delivery_mode,
+             o.grand_total as amount,
+             o.delivery_address,
+             u.full_name as customer,
+             u.phone as customer_phone,
              (
                SELECT json_agg(json_build_object(
                  'name', COALESCE(oi.product_name, 'Item'),
@@ -151,57 +167,86 @@ class SellerRepository {
                  'unit_price', oi.unit_price,
                  'total_price', oi.total_price
                ))
-               FROM seller_orders so
-               JOIN order_items oi ON oi.seller_order_id = so.id
-               WHERE so.parent_order_id = o.id
+               FROM order_items oi
+               WHERE oi.seller_order_id = so.id
              ) as items_list,
              COALESCE(
                (SELECT string_agg(CONCAT(COALESCE(oi.product_name, 'Item'), ' (x', oi.quantity, ')'), ', ')
-                FROM seller_orders so
-                JOIN order_items oi ON oi.seller_order_id = so.id
-                WHERE so.parent_order_id = o.id),
+                FROM order_items oi
+                WHERE oi.seller_order_id = so.id),
                'Items'
              ) as item_summary
-      FROM orders o
+      FROM seller_orders so
+      JOIN orders o ON so.parent_order_id = o.id
       LEFT JOIN users u ON o.customer_id = u.id
-      ORDER BY o.created_at DESC
+      WHERE ($1::uuid IS NULL OR so.store_id = $1::uuid)
+      ORDER BY so.created_at DESC
       LIMIT 50
     `;
-    const res = await pool.query(query);
+    const res = await pool.query(query, [storeId || null]);
     return res.rows.map(r => ({
-      id: r.order_number || r.id,
-      real_id: r.id,
+      id: r.order_number || r.order_id,
+      real_id: r.seller_order_id,
+      parent_order_id: r.parent_order_id,
+      store_id: r.store_id,
       customer: r.customer || r.delivery_address?.full_name || 'Customer',
       customer_phone: r.customer_phone || r.delivery_address?.phone || '',
-      distance: (Math.abs((parseInt((r.order_number || r.id || '10').replace(/\D/g, '') || 12, 10) % 80) / 10) + 0.8).toFixed(1),
+      distance: (Math.abs((parseInt((r.order_number || r.seller_order_id || '10').replace(/\D/g, '') || 12, 10) % 80) / 10) + 0.8).toFixed(1),
       delivery_mode: r.delivery_mode ? r.delivery_mode.toLowerCase() : 'normal',
       delivery_address: r.delivery_address,
       items: r.items_list || [],
       item_summary: r.item_summary || 'Items',
-      amount: Number(r.amount) || 0,
-      status: r.status ? (r.status === 'PLACED' ? 'new' : r.status.toLowerCase()) : 'new',
-      created_at: r.created_at
+      amount: Number(r.store_subtotal || r.amount) || 0,
+      status: r.seller_order_status ? (
+        r.seller_order_status === 'NEW' ? 'new' :
+        r.seller_order_status === 'ACCEPTED' ? 'packing' :
+        r.seller_order_status === 'PACKED' ? 'packed' :
+        r.seller_order_status === 'DISPATCHED' ? 'dispatched' :
+        r.seller_order_status.toLowerCase()
+      ) : 'new',
+      created_at: r.seller_order_created_at || r.created_at
     }));
   }
 
   async updateOrderStatus(orderId, status) {
-    const statusMap = {
-      'new': 'PLACED',
-      'packing': 'PROCESSING',
-      'processing': 'PROCESSING',
-      'dispatched': 'SHIPPED',
-      'shipped': 'SHIPPED',
+    const sellerStatusMap = {
+      'new': 'NEW',
+      'packing': 'ACCEPTED',
+      'accepted': 'ACCEPTED',
+      'packed': 'PACKED',
+      'dispatched': 'DISPATCHED',
+      'shipped': 'DISPATCHED',
       'delivered': 'DELIVERED',
       'cancelled': 'CANCELLED'
     };
-    const dbStatus = statusMap[status.toLowerCase()] || status.toUpperCase();
-    const query = `
+    const orderStatusMap = {
+      'new': 'PLACED',
+      'packing': 'PREPARING',
+      'accepted': 'CONFIRMED',
+      'packed': 'PREPARING',
+      'dispatched': 'OUT_FOR_DELIVERY',
+      'shipped': 'OUT_FOR_DELIVERY',
+      'delivered': 'DELIVERED',
+      'cancelled': 'CANCELLED'
+    };
+
+    const sStatus = sellerStatusMap[status.toLowerCase()] || 'ACCEPTED';
+    const oStatus = orderStatusMap[status.toLowerCase()] || 'PREPARING';
+
+    await pool.query(`
+      UPDATE seller_orders
+      SET status = $1
+      WHERE id::text = $2 
+         OR parent_order_id IN (SELECT id FROM orders WHERE id::text = $2 OR order_number = $2)
+    `, [sStatus, orderId]);
+
+    const res = await pool.query(`
       UPDATE orders
       SET order_status = $1, updated_at = NOW()
-      WHERE id::text = $2 OR order_number = $2
+      WHERE id::text = $2 OR order_number = $2 OR id IN (SELECT parent_order_id FROM seller_orders WHERE id::text = $2)
       RETURNING *
-    `;
-    const res = await pool.query(query, [dbStatus, orderId]);
+    `, [oStatus, orderId]);
+
     return res.rows[0];
   }
 

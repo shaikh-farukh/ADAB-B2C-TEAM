@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
+import { useSeller } from '../context/SellerContext';
 import L from 'leaflet';
 
 function OrderItemsModal({ order, onClose }) {
@@ -92,7 +93,7 @@ function OrderItemsModal({ order, onClose }) {
   );
 }
 
-function OrderMapModal({ order, onClose, onUpdateStatus }) {
+function OrderMapModal({ order, store, onClose, onUpdateStatus }) {
   if (!order) return null;
   const mapContainerRef = useRef(null);
   const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '#9000';
@@ -103,9 +104,11 @@ function OrderMapModal({ order, onClose, onUpdateStatus }) {
     : 'Ring Road, Surat, Gujarat';
   const distance = parseFloat(order.distance) || 2.0;
 
-  // Store Location (Surat merchant base)
-  const storeLat = 21.1702;
-  const storeLng = 72.8311;
+  // Active Store Location and Details from database
+  const storeName = store?.store_name || 'Your Store';
+  const storeLat = Number(store?.latitude) || 21.1702;
+  const storeLng = Number(store?.longitude) || 72.8311;
+  const radiusKm = Number(store?.delivery_radius_km) || 10;
 
   // Calculate customer location based on distance and order seed
   const angle = ((parseInt((order.id || '10').replace(/\D/g, '') || 7, 10) * 53) % 360);
@@ -128,9 +131,9 @@ function OrderMapModal({ order, onClose, onUpdateStatus }) {
         maxZoom: 18
       }).addTo(map);
 
-      // 1. Delivery Zone Radius Circle (10 km green dashed boundary)
+      // 1. Delivery Zone Radius Circle (green dashed boundary)
       leaflet.circle([storeLat, storeLng], {
-        radius: 10 * 1000,
+        radius: radiusKm * 1000,
         color: '#22C55E',
         fillColor: '#22C55E',
         fillOpacity: 0.08,
@@ -148,7 +151,7 @@ function OrderMapModal({ order, onClose, onUpdateStatus }) {
       });
       leaflet.marker([storeLat, storeLng], { icon: storeIcon })
         .addTo(map)
-        .bindPopup('<b>Your Store (Shri Balaji)</b><br>10 km delivery radius');
+        .bindPopup(`<b>${storeName}</b><br>${radiusKm} km delivery radius`);
 
       // 3. Customer Marker (Blue Icon Pin)
       const customerIcon = leaflet.divIcon({
@@ -224,7 +227,7 @@ function OrderMapModal({ order, onClose, onUpdateStatus }) {
             )}
           </div>
           <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-green-100 text-green-800 border border-green-200 shrink-0">
-            Within Zone (10 km)
+            Within Zone ({radiusKm} km)
           </span>
         </div>
 
@@ -233,7 +236,7 @@ function OrderMapModal({ order, onClose, onUpdateStatus }) {
           <div ref={mapContainerRef} className="w-full h-full z-1"></div>
           <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-[11px] font-bold text-gray-800 shadow-sm flex items-center gap-1.5 z-10 pointer-events-none">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-            <span>Store Zone Radius: 10 km</span>
+            <span>{storeName} Zone: {radiusKm} km</span>
           </div>
         </div>
 
@@ -373,6 +376,7 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap }) {
 }
 
 export default function OrdersPage() {
+  const { store } = useSeller();
   const { orders, loading, error, updateStatus } = useOrders();
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [mapOrder, setMapOrder] = useState(null);
@@ -556,6 +560,7 @@ export default function OrdersPage() {
       {mapOrder && (
         <OrderMapModal 
           order={mapOrder} 
+          store={store}
           onClose={() => setMapOrder(null)} 
           onUpdateStatus={updateStatus}
         />

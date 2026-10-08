@@ -8,6 +8,7 @@ import Settings from './pages/Settings';
 import HomePage from './pages/HomePage';
 import NotificationBell from './components/NotificationBell';
 import PlaceholderPage from './components/common/PlaceholderPage';
+import { SellerProvider } from './context/SellerContext';
 
 // Mayank's Domain Pages
 import OrdersPage from './pages/OrdersPage';
@@ -185,71 +186,73 @@ function App() {
 
   return (
     <BrowserRouter>
-      <MainLayout profile={profile} store={store}>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/products" element={<Products />} />
-          <Route path="/pricing" element={<Pricing />} />
-          <Route path="/marketing" element={<Marketing />} />
-          <Route path="/settings" element={<Settings />} />
+      <SellerProvider>
+        <MainLayout profile={profile} store={store}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/products" element={<Products />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/marketing" element={<Marketing />} />
+            <Route path="/settings" element={<Settings />} />
 
-          {/* Mayank's Routes */}
-          <Route path="/orders" element={<OrdersPage />} />
-          <Route path="/pos" element={<POSPage />} />
-          <Route path="/partner" element={<PartnerPage />} />
-          <Route path="/delivery" element={<DeliveryPage />} />
-          <Route path="/zones" element={<ZonesPage />} />
-          <Route path="/finance" element={<FinancePage />} />
-          <Route path="/credit-apply" element={<CreditApplyPage />} />
-          <Route path="/onboarding" element={<OnboardingPage />} />
-          <Route path="/regstatus" element={<RegStatusPage />} />
-          <Route path="/returns" element={<ReturnsPage />} />
-          <Route path="/mastersearch" element={<MasterSearchPage />} />
-          <Route path="/buy" element={<BuyNearbyPage />} />
-          <Route path="/buycart" element={<BuyCartPage />} />
-          <Route path="/creditterms" element={<CreditTermsPage />} />
-          <Route path="/points" element={<PointsPage />} />
-          <Route path="/freight" element={<FreightPage />} />
-          <Route path="/messages" element={<MessagesPage />} />
-          <Route path="/recommendations" element={<RecommendationsPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
+            {/* Mayank's Routes */}
+            <Route path="/orders" element={<OrdersPage />} />
+            <Route path="/pos" element={<POSPage />} />
+            <Route path="/partner" element={<PartnerPage />} />
+            <Route path="/delivery" element={<DeliveryPage />} />
+            <Route path="/zones" element={<ZonesPage />} />
+            <Route path="/finance" element={<FinancePage />} />
+            <Route path="/credit-apply" element={<CreditApplyPage />} />
+            <Route path="/onboarding" element={<OnboardingPage />} />
+            <Route path="/regstatus" element={<RegStatusPage />} />
+            <Route path="/returns" element={<ReturnsPage />} />
+            <Route path="/mastersearch" element={<MasterSearchPage />} />
+            <Route path="/buy" element={<BuyNearbyPage />} />
+            <Route path="/buycart" element={<BuyCartPage />} />
+            <Route path="/creditterms" element={<CreditTermsPage />} />
+            <Route path="/points" element={<PointsPage />} />
+            <Route path="/freight" element={<FreightPage />} />
+            <Route path="/messages" element={<MessagesPage />} />
+            <Route path="/recommendations" element={<RecommendationsPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
 
-          {/* Catalog & Brand expansions */}
-          <Route 
-            path="/create" 
-            element={
-              <PlaceholderPage 
-                title="Add New Product (Studio)" 
-                fileName="CreateProductPage.jsx" 
-                description="Fast product creation with barcode scanner, photo upload, category, price, and GST slab." 
-              />
-            } 
-          />
-          <Route 
-            path="/catalog" 
-            element={
-              <PlaceholderPage 
-                title="National FMCG Catalog" 
-                fileName="CatalogPage.jsx" 
-                description="5,000+ FMCG national master catalog with 1-click addition to seller inventory." 
-              />
-            } 
-          />
-          <Route 
-            path="/partnerbrands" 
-            element={
-              <PlaceholderPage 
-                title="Partner Brands & Packs" 
-                fileName="PartnerBrandsPage.jsx" 
-                description="White-label and manufacturer packs from other registered merchant brands." 
-              />
-            } 
-          />
+            {/* Catalog & Brand expansions */}
+            <Route 
+              path="/create" 
+              element={
+                <PlaceholderPage 
+                  title="Add New Product (Studio)" 
+                  fileName="CreateProductPage.jsx" 
+                  description="Fast product creation with barcode scanner, photo upload, category, price, and GST slab." 
+                />
+              } 
+            />
+            <Route 
+              path="/catalog" 
+              element={
+                <PlaceholderPage 
+                  title="National FMCG Catalog" 
+                  fileName="CatalogPage.jsx" 
+                  description="5,000+ FMCG national master catalog with 1-click addition to seller inventory." 
+                />
+              } 
+            />
+            <Route 
+              path="/partnerbrands" 
+              element={
+                <PlaceholderPage 
+                  title="Partner Brands & Packs" 
+                  fileName="PartnerBrandsPage.jsx" 
+                  description="White-label and manufacturer packs from other registered merchant brands." 
+                />
+              } 
+            />
 
-          {/* Catch-all fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </MainLayout>
+            {/* Catch-all fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </MainLayout>
+      </SellerProvider>
     </BrowserRouter>
   );
 }

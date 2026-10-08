@@ -41,7 +41,7 @@ export function SellerProvider({ children }) {
 export function useSeller() {
   const context = useContext(SellerContext);
   if (!context) {
-    throw new Error('useSeller must be used within a SellerProvider');
+    return { profile: null, store: null, loading: false, refreshSellerData: () => {} };
   }
   return context;
 }
