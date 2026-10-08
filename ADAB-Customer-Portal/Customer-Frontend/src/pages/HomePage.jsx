@@ -3,7 +3,7 @@ import { api } from '../api/api';
 import ProductCard from '../components/ProductCard';
 import { Link, useNavigate } from 'react-router-dom';
 
-export default function HomePage({ onAddToCart, onNavigate }) {
+export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wishlist }) {
   const [recommended, setRecommended] = useState([]);
   const [categories, setCategories] = useState([]);
   const [stores, setStores] = useState([]);
@@ -54,7 +54,7 @@ export default function HomePage({ onAddToCart, onNavigate }) {
           })}
           <button onClick={() => go('stores')} className="flex flex-col items-center gap-1.5 shrink-0">
             <div className="w-14 h-14 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 text-gray-500 font-bold flex items-center justify-center text-xs"><i className="fa-solid fa-plus text-base"></i></div>
-            <span className="text-[11px] font-bold text-gray-600">48+ More</span>
+            <span className="text-[11px] font-bold text-gray-600">{stores.length > 0 ? `${stores.length}+ More` : 'More'}</span>
           </button>
         </div>
       </div>
@@ -126,7 +126,7 @@ export default function HomePage({ onAddToCart, onNavigate }) {
             <h2 className="section-title">Top Verified Stores</h2>
             <p className="text-xs text-gray-500 mt-0.5">Direct from your trusted local merchants</p>
           </div>
-          <button onClick={() => go('stores')} className="text-brand-green text-xs font-extrabold hover:underline">All 48 shops →</button>
+          <button onClick={() => go('stores')} className="text-brand-green text-xs font-extrabold hover:underline">All {stores.length} shops →</button>
         </div>
         <div className="space-y-3.5">
           {stores.slice(0, 2).map((shop) => (
@@ -171,7 +171,13 @@ export default function HomePage({ onAddToCart, onNavigate }) {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
             {recommended.slice(0, 6).map(product => (
-              <ProductCard key={product.id} product={product} onAddToCart={onAddToCart} />
+              <ProductCard 
+                key={product.id} 
+                product={product} 
+                onAddToCart={onAddToCart} 
+                onToggleWishlist={onToggleWishlist}
+                wishlist={wishlist}
+              />
             ))}
           </div>
         )}
@@ -188,7 +194,13 @@ export default function HomePage({ onAddToCart, onNavigate }) {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
             {recommended.slice(6, 12).map(product => (
-              <ProductCard key={product.id} product={product} onAddToCart={onAddToCart} />
+              <ProductCard 
+                key={product.id} 
+                product={product} 
+                onAddToCart={onAddToCart} 
+                onToggleWishlist={onToggleWishlist}
+                wishlist={wishlist}
+              />
             ))}
           </div>
         </div>

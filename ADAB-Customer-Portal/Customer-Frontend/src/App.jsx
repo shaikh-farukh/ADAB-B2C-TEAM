@@ -1,14 +1,21 @@
 import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import './App.css';
 import FloatingCartBar from './components/FloatingCartBar';
 import CartView from './components/CartView';
 import CheckoutView from './components/CheckoutView';
 import HomePage from './pages/HomePage';
 import BrowsePage from './pages/BrowsePage';
-import { CartAPI, CheckoutAPI } from './services/api';
+import SearchPage from './pages/SearchPage';
+import ProductDetailPage from './pages/ProductDetailPage';
+import WishlistPage from './pages/WishlistPage';
+import { CartAPI, CheckoutAPI, WishlistAPI } from './services/api';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('home');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeTab = location.pathname.substring(1) || 'home';
+  const setActiveTab = (tab) => navigate(`/${tab === 'home' ? '' : tab}`);
   const [points] = useState(2840);
   const [unreadNotifications] = useState(4);
   const [cartData, setCartData] = useState({
@@ -19,6 +26,8 @@ export default function App() {
   const [placingOrder, setPlacingOrder] = useState(false);
   const [activeOrder, setActiveOrder] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
+  const [wishlist, setWishlist] = useState([]);
+  const mockUserId = "11111111-1111-1111-1111-111111111111"; // Using a valid mock UUID since database expects UUID
 
   // Load cart from backend
   const refreshCart = async () => {
@@ -41,7 +50,37 @@ export default function App() {
 
   useEffect(() => {
     refreshCart();
+    refreshWishlist();
   }, []);
+
+  const refreshWishlist = async () => {
+    try {
+      const res = await WishlistAPI.getWishlist(mockUserId);
+      if (res.success) {
+        setWishlist(res.wishlist || []);
+      }
+    } catch (err) {
+      console.warn('Could not fetch wishlist:', err.message);
+    }
+  };
+
+  const handleToggleWishlist = async (listingId) => {
+    try {
+      const isWishlisted = wishlist.includes(listingId);
+      if (isWishlisted) {
+        await WishlistAPI.removeItem(mockUserId, listingId);
+        setWishlist(wishlist.filter(id => id !== listingId));
+        showToast(`Removed from wishlist`);
+      } else {
+        await WishlistAPI.addItem(mockUserId, listingId);
+        setWishlist([...wishlist, listingId]);
+        showToast(`Added to wishlist`);
+      }
+    } catch (err) {
+      console.error('Error toggling wishlist:', err);
+      showToast('Error updating wishlist');
+    }
+  };
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -184,6 +223,19 @@ export default function App() {
 
                 <button
                   type="button"
+                  onClick={() => setActiveTab('wishlist')}
+                  className="glass w-9 h-9 rounded-full flex items-center justify-center relative transition hover:bg-white/30 cursor-pointer text-brand-coral"
+                >
+                  <i className="fa-solid fa-heart text-sm"></i>
+                  {wishlist.length > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-brand-coral text-white rounded-full text-[8px] font-bold flex items-center justify-center">
+                      {wishlist.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
                   className="glass px-2.5 h-9 rounded-full flex items-center gap-1 text-xs font-bold transition hover:bg-white/30 cursor-pointer"
                 >
                   <i className="fa-solid fa-star text-amber-300"></i>
@@ -213,7 +265,10 @@ export default function App() {
             </button>
 
             {/* Search Pill */}
-            <div className="search-pill w-full flex items-center gap-3 bg-white rounded-2xl px-4 py-3.5 text-left text-gray-800 cursor-pointer">
+            <div 
+              onClick={() => setActiveTab('search')}
+              className="search-pill w-full flex items-center gap-3 bg-white rounded-2xl px-4 py-3.5 text-left text-gray-800 cursor-pointer"
+            >
               <i className="fa-solid fa-magnifying-glass text-brand-green text-lg"></i>
               <span className="text-gray-400 text-sm font-medium">Search shops, products, brands...</span>
             </div>
@@ -222,7 +277,7 @@ export default function App() {
       )}
 
       {/* Subpage Header (Shown on Cart/Checkout/Orders/Track/Other screens) */}
-      {activeTab !== 'home' && (
+      {activeTab !== 'home' && activeTab !== 'search' && (
         <div id="subHeader" className="subpage-header">
           <button
             type="button"
@@ -244,6 +299,10 @@ export default function App() {
               ? 'Your Orders'
               : activeTab === 'track'
               ? 'Track Delivery'
+              : activeTab === 'stores'
+              ? 'Stores'
+              : activeTab.startsWith('product/')
+              ? 'Product Details'
               : activeTab}
           </h1>
           <button
@@ -267,9 +326,12 @@ export default function App() {
         {activeTab === 'home' && (
           <HomePage
             onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
+            onToggleWishlist={handleToggleWishlist}
+            wishlist={wishlist}
             onNavigate={(tab) => {
               if (tab === 'track') setActiveTab('track');
-              else if (tab === 'stores' || tab.startsWith('search')) setActiveTab('stores');
+              else if (tab === 'stores') setActiveTab('stores');
+              else if (tab.startsWith('search')) setActiveTab('search');
               else if (tab === 'cart') setActiveTab('cart');
               else if (tab === 'orders') setActiveTab('orders');
               else setActiveTab(tab);
@@ -277,10 +339,39 @@ export default function App() {
           />
         )}
 
+        {/* Real Search Screen */}
+        {activeTab === 'search' && (
+          <SearchPage 
+            onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)} 
+            onToggleWishlist={handleToggleWishlist}
+            wishlist={wishlist}
+          />
+        )}
+
+        {/* Product Detail Page */}
+        {activeTab.startsWith('product/') && (
+          <ProductDetailPage 
+            onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
+            onToggleWishlist={handleToggleWishlist}
+            wishlist={wishlist}
+          />
+        )}
+
         {/* Stores / Browse Products Screen (Mahi's BrowsePage) */}
         {activeTab === 'stores' && (
           <BrowsePage
             onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
+            onToggleWishlist={handleToggleWishlist}
+            wishlist={wishlist}
+          />
+        )}
+
+        {/* Wishlist Page */}
+        {activeTab === 'wishlist' && (
+          <WishlistPage
+            onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
+            onToggleWishlist={handleToggleWishlist}
+            wishlist={wishlist}
           />
         )}
 
@@ -494,7 +585,11 @@ export default function App() {
           activeTab !== 'cart' &&
           activeTab !== 'checkout' &&
           activeTab !== 'orders' &&
-          activeTab !== 'track' && (
+          activeTab !== 'track' &&
+          activeTab !== 'search' &&
+          activeTab !== 'stores' &&
+          activeTab !== 'wishlist' &&
+          !activeTab.startsWith('product/') && (
             <div className="bg-white rounded-2xl p-6 text-center border border-gray-200">
               <h2 className="font-extrabold text-lg capitalize">{activeTab} Section</h2>
               <p className="text-xs text-gray-500 mt-1">Ready for upcoming roadmap screens.</p>

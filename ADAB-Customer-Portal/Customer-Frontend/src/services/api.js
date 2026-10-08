@@ -82,3 +82,18 @@ export const OrderAPI = {
   getOrders: () => apiRequest('/orders'),
   getOrderById: (orderId) => apiRequest(`/orders/${orderId}`)
 };
+
+// Wishlist APIs
+export const WishlistAPI = {
+  getWishlist: (userId) => apiRequest(`/wishlist/${userId}`),
+  addItem: (userId, listingId) =>
+    apiRequest('/wishlist', {
+      method: 'POST',
+      body: JSON.stringify({ userId, listingId })
+    }),
+  removeItem: (userId, listingId) =>
+    apiRequest('/wishlist', {
+      method: 'DELETE',
+      body: JSON.stringify({ userId, listingId })
+    })
+};

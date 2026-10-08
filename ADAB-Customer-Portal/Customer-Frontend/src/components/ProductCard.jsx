@@ -1,9 +1,14 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
-export default function ProductCard({ product, onAddToCart }) {
+export default function ProductCard({ product, onAddToCart, onToggleWishlist, wishlist, actionButtonText = 'ADD' }) {
+  const navigate = useNavigate();
   return (
     <div className="prod-card group">
-      <div className="relative aspect-square bg-gradient-to-br from-gray-50 to-green-50/50 flex items-center justify-center overflow-hidden p-4">
+      <div 
+        onClick={() => navigate(`/product/${product.id}`)}
+        className="relative aspect-square bg-gradient-to-br from-gray-50 to-green-50/50 flex items-center justify-center overflow-hidden p-4 cursor-pointer"
+      >
         <img 
           src={product.image || 'https://via.placeholder.com/300'} 
           alt={product.name} 
@@ -14,10 +19,24 @@ export default function ProductCard({ product, onAddToCart }) {
             {product.discount}% OFF
           </div>
         )}
+        
+        {/* Wishlist Heart Icon */}
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onToggleWishlist) onToggleWishlist(product.id);
+          }}
+          className="absolute top-2 right-2 w-7 h-7 bg-white/80 backdrop-blur rounded-full flex items-center justify-center text-brand-coral hover:bg-white shadow-sm z-10"
+        >
+          <i className={`fa-regular fa-heart text-[13px] ${wishlist?.includes(product.id) ? 'fa-solid' : ''}`}></i>
+        </button>
       </div>
       <div className="p-3">
         <span className="store-chip">{product.sellerName || 'Store'}</span>
-        <div className="font-bold text-[13px] leading-snug mt-1.5 line-clamp-2 min-h-[2.4rem] text-gray-900">
+        <div 
+          onClick={() => navigate(`/product/${product.id}`)}
+          className="font-bold text-[13px] leading-snug mt-1.5 line-clamp-2 min-h-[2.4rem] text-gray-900 cursor-pointer hover:text-brand-green"
+        >
           {product.name}
         </div>
         <div className="text-[11px] text-gray-400 mt-0.5">
@@ -30,7 +49,7 @@ export default function ProductCard({ product, onAddToCart }) {
             onClick={() => onAddToCart && onAddToCart(product.id, product.name)}
             className="add-btn hover:bg-brand-green hover:text-white transition-colors cursor-pointer"
           >
-            ADD
+            {actionButtonText}
           </button>
         </div>
       </div>

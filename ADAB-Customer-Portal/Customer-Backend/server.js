@@ -15,10 +15,12 @@ app.use(express.json());
 // Route imports
 const catalogRoutes = require('./routes/catalog');
 const customerRoutes = require('./routes/customer');
+const wishlistRoutes = require('./routes/wishlist');
 
 // API V1 Mounting
 app.use('/api/v1/catalog', catalogRoutes);
 app.use('/api/v1/customers', customerRoutes);
+app.use('/api/v1/wishlist', wishlistRoutes);
 
 // Health / Sample API Route with DB check
 app.get('/api/health', async (req, res) => {
