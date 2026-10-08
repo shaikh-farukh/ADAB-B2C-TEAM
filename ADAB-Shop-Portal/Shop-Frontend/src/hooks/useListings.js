@@ -17,6 +17,8 @@ export const useListings = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
 
+  const [globalStats, setGlobalStats] = useState({ total: 0, ownBrand: 0, loose: 0, packed: 0, food: 0, lowStock: 0, outOfStock: 0 });
+
   const fetchListings = useCallback(async () => {
     try {
       setLoading(true);
@@ -37,6 +39,21 @@ export const useListings = () => {
       // The API returns { data, total }
       setListings(res.data || []);
       setTotalItems(res.total || 0);
+
+      // Background fetch for global accurate stats (unfiltered)
+      listingApi.fetchListings({ limit: 10000 }).then(statsRes => {
+        const all = statsRes.data || [];
+        setGlobalStats({
+          total: all.length,
+          ownBrand: all.filter(l => l.product_type === 'OWN_BRAND').length,
+          loose: all.filter(l => l.product_type === 'LOOSE_WEIGHT').length,
+          packed: all.filter(l => l.product_type === 'PACKED_ITEM').length,
+          food: all.filter(l => l.product_type === 'FOOD').length,
+          lowStock: all.filter(l => l.stock_qty > 0 && l.stock_qty <= 10).length,
+          outOfStock: all.filter(l => l.stock_qty === 0).length
+        });
+      }).catch(e => console.error("Stats fetch failed", e));
+
     } catch (err) {
       console.error(err);
       setError(err);
@@ -80,6 +97,7 @@ export const useListings = () => {
       itemsPerPage, setItemsPerPage,
       totalItems
     },
+    globalStats,
     createListing,
     updateListing,
     deleteListing,

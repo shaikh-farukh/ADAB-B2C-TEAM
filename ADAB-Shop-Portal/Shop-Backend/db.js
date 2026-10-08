@@ -18,6 +18,15 @@ const pool = new Pool({
   connectionTimeoutMillis: 10000
 });
 
+pool.connect((err, client, release) => {
+  if (err) {
+    console.error('❌ Error connecting to Shop Portal database:', err.message);
+  } else {
+    console.log('✅ Shop Portal database connected successfully');
+    release();
+  }
+});
+
 pool.on('error', (err) => {
   console.error('❌ Unexpected database error on Shop Portal client:', err);
 });

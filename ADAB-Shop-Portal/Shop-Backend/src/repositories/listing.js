@@ -43,9 +43,9 @@ class ListingRepository {
       conditions.push(`sl.product_type = $${values.length}`);
     }
     if (filters.stock === 'in_stock') {
-      conditions.push(`sl.stock_qty > 0`);
+      conditions.push(`COALESCE(i.available_quantity::integer, sl.stock_qty) > 0`);
     } else if (filters.stock === 'out_of_stock') {
-      conditions.push(`sl.stock_qty <= 0`);
+      conditions.push(`COALESCE(i.available_quantity::integer, sl.stock_qty) <= 0`);
     }
     if (filters.buyer && filters.buyer !== 'all' && filters.buyer !== 'ALL') {
       // buyer maps to allowed_buyers
@@ -90,7 +90,12 @@ class ListingRepository {
 
     const result = await pool.query(query, dataValues);
     
-    const countQuery = `SELECT COUNT(*) FROM seller_listings sl WHERE ${whereClause}`;
+    const countQuery = `
+      SELECT COUNT(*) 
+      FROM seller_listings sl 
+      LEFT JOIN inventory i ON sl.id = i.listing_id 
+      WHERE ${whereClause}
+    `;
     const countResult = await pool.query(countQuery, values);
     
     return {
@@ -199,32 +204,35 @@ class ListingRepository {
     const row = result.rows[0];
     const issues = [];
 
-    // Inventory Issues (Cross-domain read-only from Mayank's table, fallback to sl.stock_qty)
-    const effectiveStock = row.available_quantity !== null ? Number(row.available_quantity) : Number(row.stock_qty);
-    if (effectiveStock <= 0) {
-      issues.push({
-        issue_type: 'INVENTORY',
-        severity: 'high',
-        message: 'Product is out of stock',
-        details: { stock: effectiveStock }
-      });
-    } else if (row.low_stock_threshold !== null && effectiveStock <= Number(row.low_stock_threshold)) {
-      issues.push({
-        issue_type: 'INVENTORY',
-        severity: 'medium',
-        message: 'Product is running low on stock',
-        details: { stock: effectiveStock, low_stock_threshold: Number(row.low_stock_threshold) }
-      });
-    }
+    // Operational Issues (Inventory and Price) only apply to approved/published products
+    if (['APPROVED', 'PUBLISHED'].includes(row.approval_status)) {
+      // Inventory Issues (Cross-domain read-only from Mayank's table, fallback to sl.stock_qty)
+      const effectiveStock = row.available_quantity !== null ? Number(row.available_quantity) : Number(row.stock_qty);
+      if (effectiveStock <= 0) {
+        issues.push({
+          issue_type: 'INVENTORY',
+          severity: 'high',
+          message: 'Product is out of stock',
+          details: { stock: effectiveStock }
+        });
+      } else if (row.low_stock_threshold !== null && effectiveStock <= Number(row.low_stock_threshold)) {
+        issues.push({
+          issue_type: 'INVENTORY',
+          severity: 'medium',
+          message: 'Product is running low on stock',
+          details: { stock: effectiveStock, low_stock_threshold: Number(row.low_stock_threshold) }
+        });
+      }
 
-    // Price Issues
-    if (row.mrp !== null && row.sell_price !== null && Number(row.sell_price) > Number(row.mrp)) {
-      issues.push({
-        issue_type: 'PRICE',
-        severity: 'high',
-        message: 'Selling price cannot be greater than MRP',
-        details: { mrp: Number(row.mrp), sell_price: Number(row.sell_price) }
-      });
+      // Price Issues
+      if (row.mrp !== null && row.sell_price !== null && Number(row.sell_price) > Number(row.mrp)) {
+        issues.push({
+          issue_type: 'PRICE',
+          severity: 'high',
+          message: 'Selling price cannot be greater than MRP',
+          details: { mrp: Number(row.mrp), sell_price: Number(row.sell_price) }
+        });
+      }
     }
 
     // Listing / Approval Issues

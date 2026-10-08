@@ -8,6 +8,7 @@ const Products = () => {
     loading, 
     filters: { searchQuery, setSearchQuery, stockFilter, setStockFilter, typeFilter, setTypeFilter, buyerFilter, setBuyerFilter },
     pagination: { currentPage, setCurrentPage, itemsPerPage, setItemsPerPage, totalItems },
+    globalStats,
     createListing,
     updateListing,
     deleteListing,
@@ -165,19 +166,19 @@ const Products = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
           <div className="text-xs text-gray-400 font-bold mb-1">Total SKUs</div>
-          <div className="text-2xl font-extrabold text-gray-900">{listings.length}</div>
+          <div className="text-2xl font-extrabold text-gray-900">{globalStats.total}</div>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
           <div className="text-xs text-gray-400 font-bold mb-1">Own Brand</div>
-          <div className="text-2xl font-extrabold text-purple-700">{listings.filter(l => l.product_type === 'OWN_BRAND').length}</div>
+          <div className="text-2xl font-extrabold text-purple-700">{globalStats.ownBrand}</div>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
           <div className="text-xs text-gray-400 font-bold mb-1">Low Stock</div>
-          <div className="text-2xl font-extrabold text-orange-600">{listings.filter(l => l.stock_qty > 0 && l.stock_qty <= 10).length}</div>
+          <div className="text-2xl font-extrabold text-orange-600">{globalStats.lowStock}</div>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
           <div className="text-xs text-gray-400 font-bold mb-1">Out of Stock</div>
-          <div className="text-2xl font-extrabold text-gray-400">{listings.filter(l => l.stock_qty === 0).length}</div>
+          <div className="text-2xl font-extrabold text-gray-400">{globalStats.outOfStock}</div>
         </div>
       </div>
 
@@ -208,12 +209,12 @@ const Products = () => {
 
         {/* Pills Row */}
         <div className="flex flex-wrap gap-2 mb-4">
-          <button onClick={() => setTypeFilter('ALL')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'ALL' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>All ({listings.length})</button>
-          <button onClick={() => setTypeFilter('OWN_BRAND')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'OWN_BRAND' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>Own Brand ({listings.filter(l => l.product_type === 'OWN_BRAND').length})</button>
-          <button onClick={() => setTypeFilter('LOOSE_WEIGHT')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'LOOSE_WEIGHT' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>Loose / Weight ({listings.filter(l => l.product_type === 'LOOSE_WEIGHT').length})</button>
+          <button onClick={() => setTypeFilter('ALL')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'ALL' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>All ({globalStats.total})</button>
+          <button onClick={() => setTypeFilter('OWN_BRAND')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'OWN_BRAND' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>Own Brand ({globalStats.ownBrand})</button>
+          <button onClick={() => setTypeFilter('LOOSE_WEIGHT')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'LOOSE_WEIGHT' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>Loose / Weight ({globalStats.loose})</button>
           <button onClick={() => setTypeFilter('NATIONAL_PACK')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'NATIONAL_PACK' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>National Pack (0)</button>
           <button onClick={() => setTypeFilter('PARTNER_PACK')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'PARTNER_PACK' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>Partner Pack (0)</button>
-          <button onClick={() => setTypeFilter('FOOD')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'FOOD' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>Food ({listings.filter(l => l.product_type === 'FOOD').length})</button>
+          <button onClick={() => setTypeFilter('FOOD')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'FOOD' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>Food ({globalStats.food})</button>
         </div>
 
         {/* Table */}

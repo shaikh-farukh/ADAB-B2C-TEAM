@@ -1,22 +1,22 @@
 const { z } = require('zod');
 
 const pricingUpdateSchema = z.object({
-  sell_price: z.number().positive(),
-  mrp: z.number().positive()
+  sell_price: z.coerce.number().positive(),
+  mrp: z.coerce.number().positive()
 });
 
 const bulkPricingUpdateSchema = z.object({
   updates: z.array(z.object({
     listing_id: z.string().uuid(),
-    sell_price: z.number().positive(),
-    mrp: z.number().positive()
+    sell_price: z.coerce.number().positive(),
+    mrp: z.coerce.number().positive()
   }))
 });
 
 const schedulePricingSchema = z.object({
-  scheduled_price: z.number().positive(),
-  start_date: z.string().datetime(),
-  end_date: z.string().datetime()
+  scheduled_price: z.coerce.number().positive(),
+  start_date: z.coerce.date(),
+  end_date: z.coerce.date()
 });
 
 module.exports = {
