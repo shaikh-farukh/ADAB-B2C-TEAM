@@ -126,11 +126,11 @@ class SellerRepository {
     if (!store) throw new Error("Store not found");
 
     const query = `
-      SELECT *
-      FROM store_performance_metrics
-      WHERE store_id = $1
-      ORDER BY metric_date DESC
-      LIMIT 1
+      SELECT 
+        (SELECT COUNT(*) FROM orders) as total_orders,
+        (SELECT COALESCE(SUM(grand_total), 0) FROM orders) as total_revenue,
+        (SELECT COUNT(*) FROM seller_listings WHERE store_id = $1) as total_products,
+        (SELECT COUNT(*) FROM orders WHERE order_status = 'PLACED' OR order_status = 'PROCESSING' OR order_status = 'new' OR order_status = 'pending') as pending_orders
     `;
     const res = await pool.query(query, [store.id]);
     return res.rows[0];

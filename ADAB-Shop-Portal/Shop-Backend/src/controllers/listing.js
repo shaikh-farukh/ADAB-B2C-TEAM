@@ -164,6 +164,66 @@ class ListingController {
       res.status(400).json({ success: false, error: err.message });
     }
   }
+
+  async bulkUpload(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      if (!storeId) return res.status(401).json({ success: false, error: 'Missing store context' });
+      if (!req.file) return res.status(400).json({ success: false, error: 'CSV file is required' });
+
+      const { bulkUploadQueue, processCsvDirectly, connection } = require('../jobs/bulkUploadJob');
+      
+      // If Redis is not running locally (development fallback), process directly
+      if (connection.status !== 'ready') {
+        console.log('Redis is offline. Processing CSV synchronously instead of via BullMQ...');
+        const result = await processCsvDirectly(storeId, req.file.path);
+        return res.status(200).json({ 
+          success: true, 
+          message: 'Bulk upload completed synchronously', 
+          result 
+        });
+      }
+
+      const job = await bulkUploadQueue.add('bulk-upload-csv', {
+        storeId,
+        filePath: req.file.path
+      });
+
+      res.status(202).json({ success: true, message: 'Bulk upload started', jobId: job.id });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
+  async getBulkUploadStatus(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      if (!storeId) return res.status(401).json({ success: false, error: 'Missing store context' });
+
+      const { bulkUploadQueue } = require('../jobs/bulkUploadJob');
+      const job = await bulkUploadQueue.getJob(req.params.jobId);
+      
+      if (!job) {
+        return res.status(404).json({ success: false, error: 'Job not found' });
+      }
+
+      const state = await job.getState();
+      const progress = job.progress;
+      const result = job.returnvalue;
+
+      res.json({
+        success: true,
+        data: {
+          id: job.id,
+          state,
+          progress,
+          result
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  }
 }
 
 module.exports = new ListingController();

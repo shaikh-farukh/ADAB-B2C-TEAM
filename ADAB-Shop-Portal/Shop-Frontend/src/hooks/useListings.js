@@ -82,6 +82,14 @@ export const useListings = () => {
     return await listingApi.submitListing(id);
   };
 
+  const bulkUpload = async (formData) => {
+    return await listingApi.bulkUpload(formData);
+  };
+
+  const checkUploadStatus = async (jobId) => {
+    return await listingApi.checkUploadStatus(jobId);
+  };
+
   return {
     listings,
     loading,
@@ -102,6 +110,8 @@ export const useListings = () => {
     updateListing,
     deleteListing,
     submitListing,
+    bulkUpload,
+    checkUploadStatus,
     refresh: fetchListings
   };
 };

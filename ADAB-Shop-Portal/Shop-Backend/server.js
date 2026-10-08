@@ -17,6 +17,9 @@ const listingRoutes = require('./src/routes/listing');
 const marketingRoutes = require('./src/routes/marketing');
 const pricingRoutes = require('./src/routes/pricing');
 
+// Initialize Background Jobs
+require('./src/jobs/bulkUploadJob');
+
 // Health / Sample API Route with DB check
 app.get('/api/health', async (req, res) => {
   try {

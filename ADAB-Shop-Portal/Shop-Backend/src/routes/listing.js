@@ -1,10 +1,15 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/' });
 const ListingController = require('../controllers/listing');
 const { requireSellerAuth } = require('../middlewares/auth');
 
 // Base route: /api/v1/listings
 router.use(requireSellerAuth);
+
+router.post('/bulk-upload', upload.single('file'), ListingController.bulkUpload);
+router.get('/bulk-upload/:jobId/status', ListingController.getBulkUploadStatus);
 
 router.post('/', ListingController.createListing);
 router.get('/', ListingController.getListings);

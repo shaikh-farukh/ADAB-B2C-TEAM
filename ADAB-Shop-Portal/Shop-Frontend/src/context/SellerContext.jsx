@@ -6,17 +6,20 @@ const SellerContext = createContext();
 export function SellerProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [store, setStore] = useState(null);
+  const [dashboardMetrics, setDashboardMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const fetchSellerData = async () => {
     try {
       setLoading(true);
-      const [profileRes, storeRes] = await Promise.all([
+      const [profileRes, storeRes, metricsRes] = await Promise.all([
         sellerService.getProfile().catch(() => ({ data: null })),
-        sellerService.getStore().catch(() => ({ data: null }))
+        sellerService.getStore().catch(() => ({ data: null })),
+        sellerService.getDashboardMetrics().catch(() => ({ data: null }))
       ]);
       setProfile(profileRes?.data || null);
       setStore(storeRes?.data || null);
+      setDashboardMetrics(metricsRes?.data || null);
     } catch (err) {
       console.error('Failed to load seller context:', err);
     } finally {
@@ -29,7 +32,7 @@ export function SellerProvider({ children }) {
   }, []);
 
   return (
-    <SellerContext.Provider value={{ profile, store, loading, refreshSellerData: fetchSellerData }}>
+    <SellerContext.Provider value={{ profile, store, dashboardMetrics, loading, refreshSellerData: fetchSellerData }}>
       {children}
     </SellerContext.Provider>
   );

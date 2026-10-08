@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useListings } from '../hooks/useListings';
 import listingService from '../services/listingService';
 
@@ -13,6 +13,8 @@ const Products = () => {
     updateListing,
     deleteListing,
     submitListing,
+    bulkUpload,
+    checkUploadStatus,
     refresh
   } = useListings();
 
@@ -20,6 +22,11 @@ const Products = () => {
   const [editingListing, setEditingListing] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [listingIssues, setListingIssues] = useState({});
+  const fileInputRef = useRef(null);
+  
+  // Bulk Upload Widget State
+  const [uploadJobs, setUploadJobs] = useState([]);
+  const [isWidgetMinimized, setIsWidgetMinimized] = useState(false);
 
   useEffect(() => {
     // Fetch issues for currently visible listings
@@ -41,7 +48,77 @@ const Products = () => {
     };
     if (listings.length > 0) fetchIssues();
   }, [listings]);
+
+  // Polling for active background jobs
+  useEffect(() => {
+    const activeJobs = uploadJobs.filter(j => j.state !== 'completed' && j.state !== 'failed');
+    if (activeJobs.length === 0) return;
+
+    const timer = setInterval(async () => {
+      for (const job of activeJobs) {
+        try {
+          const res = await checkUploadStatus(job.id);
+          if (res.success) {
+            setUploadJobs(prev => prev.map(p => p.id === job.id ? {
+              ...p,
+              state: res.data.state,
+              progress: res.data.progress || 0,
+              result: res.data.result
+            } : p));
+
+            // Auto refresh table when a job completes
+            if (res.data.state === 'completed' && job.state !== 'completed') {
+              refresh();
+            }
+          }
+        } catch (e) {
+          console.error("Polling error", e);
+        }
+      }
+    }, 1500);
+    return () => clearInterval(timer);
+  }, [uploadJobs, checkUploadStatus, refresh]);
   
+  const handleBulkUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await bulkUpload(formData);
+      
+      if (response.jobId) {
+        // BullMQ Background Job
+        setUploadJobs(prev => [...prev, { id: response.jobId, filename: file.name, state: 'active', progress: 0 }]);
+        setIsWidgetMinimized(false);
+      } else if (response.result) {
+        // Fallback synchronous direct result
+        setUploadJobs(prev => [...prev, { id: Date.now(), filename: file.name, state: 'completed', progress: 100, result: response.result }]);
+        setIsWidgetMinimized(false);
+        refresh();
+      }
+      
+      e.target.value = null; // reset
+    } catch (err) {
+      alert('Upload failed: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleExportCSV = () => {
+    const headers = ['title', 'sku', 'barcode', 'mrp', 'sell_price', 'stock_qty'];
+    const csvContent = "data:text/csv;charset=utf-8," 
+        + headers.join(",") + "\n" 
+        + listings.map(l => headers.map(h => l[h] || '').join(",")).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "listings_export.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const [formData, setFormData] = useState({
     title: '', sku: '', mrp: '', sell_price: '', product_type: 'OWN_BRAND', allowed_buyers: 'ALL', image_url: '', approval_status: 'DRAFT', is_active: true
   });
@@ -144,10 +221,11 @@ const Products = () => {
           <p className="text-gray-500 text-sm">{totalItems} items matching criteria</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 lg:gap-3">
-          <button className="px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2 shadow-sm">
+          <button onClick={handleExportCSV} className="px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2 shadow-sm">
             <i className="fa-solid fa-download"></i> Export CSV
           </button>
-          <button className="px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2 shadow-sm">
+          <input type="file" ref={fileInputRef} onChange={handleBulkUpload} accept=".csv" className="hidden" />
+          <button onClick={() => fileInputRef.current.click()} className="px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2 shadow-sm">
             <i className="fa-solid fa-upload"></i> Bulk Upload
           </button>
           <button className="px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2 shadow-sm">
@@ -546,6 +624,75 @@ const Products = () => {
                 Delete
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Background Upload Progress Widget */}
+      {uploadJobs.length > 0 && (
+        <div className={`fixed bottom-6 right-6 z-50 transition-all duration-300 ease-out flex flex-col items-end ${isWidgetMinimized ? 'translate-y-0' : 'translate-y-0'}`}>
+          <div className={`bg-white rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] border border-gray-100 overflow-hidden transition-all duration-300 ease-in-out ${isWidgetMinimized ? 'w-[280px] h-[60px]' : 'w-[350px] max-h-[400px]'}`}>
+            
+            {/* Widget Header */}
+            <div className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between cursor-pointer" onClick={() => setIsWidgetMinimized(!isWidgetMinimized)}>
+              <div className="flex items-center gap-2 font-bold text-sm">
+                <i className={`fa-solid fa-cloud-arrow-up ${uploadJobs.some(j => j.state === 'active') ? 'animate-bounce text-blue-400' : 'text-green-400'}`}></i>
+                <span>Bulk Uploads ({uploadJobs.filter(j => j.state !== 'completed').length} active)</span>
+              </div>
+              <button className="text-gray-400 hover:text-white transition">
+                <i className={`fa-solid ${isWidgetMinimized ? 'fa-chevron-up' : 'fa-chevron-down'}`}></i>
+              </button>
+            </div>
+
+            {/* Widget Body */}
+            {!isWidgetMinimized && (
+              <div className="bg-gray-50 p-2 overflow-y-auto max-h-[300px] flex flex-col gap-2">
+                {uploadJobs.map(job => (
+                  <div key={job.id} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <i className="fa-solid fa-file-csv text-emerald-600 text-lg"></i>
+                        <span className="text-xs font-bold text-gray-800 truncate" title={job.filename}>{job.filename}</span>
+                      </div>
+                      {job.state === 'completed' ? (
+                        <span className="text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">DONE</span>
+                      ) : job.state === 'failed' ? (
+                        <span className="text-[10px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full">FAILED</span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">{job.progress}%</span>
+                      )}
+                    </div>
+                    
+                    {/* Progress Bar */}
+                    {job.state !== 'completed' && job.state !== 'failed' && (
+                      <div className="w-full bg-gray-100 rounded-full h-1.5 mb-1 overflow-hidden">
+                        <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${job.progress}%` }}></div>
+                      </div>
+                    )}
+                    
+                    {/* Status Text */}
+                    {job.state === 'completed' && job.result && (
+                      <div className="text-[10px] text-gray-500 font-medium">
+                        <span className="text-green-600 font-bold">{job.result.successCount || job.result.total} saved</span> 
+                        {job.result.failCount > 0 && <span className="text-red-500 ml-2">({job.result.failCount} failed)</span>}
+                      </div>
+                    )}
+                    {job.state === 'active' && (
+                      <div className="text-[10px] text-gray-500 font-medium animate-pulse">Processing rows...</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Clear Button */}
+            {!isWidgetMinimized && uploadJobs.every(j => j.state === 'completed' || j.state === 'failed') && (
+              <div className="p-2 bg-white border-t border-gray-100">
+                <button onClick={() => setUploadJobs([])} className="w-full py-1.5 text-xs font-bold text-gray-500 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 rounded-lg transition">
+                  Clear All
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

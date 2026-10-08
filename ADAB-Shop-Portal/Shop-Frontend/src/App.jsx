@@ -5,6 +5,7 @@ import Marketing from './pages/Marketing';
 import Pricing from './pages/Pricing';
 import sellerService from './services/sellerService';
 import Settings from './pages/Settings';
+import HomePage from './pages/HomePage';
 import NotificationBell from './components/NotificationBell';
 import PlaceholderPage from './components/common/PlaceholderPage';
 
@@ -28,51 +29,6 @@ import FreightPage from './pages/FreightPage';
 import MessagesPage from './pages/MessagesPage';
 import RecommendationsPage from './pages/RecommendationsPage';
 import ReportsPage from './pages/ReportsPage';
-
-// --- COMPONENTS ---
-const Dashboard = ({ store }) => {
-  const [metrics, setMetrics] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    sellerService.getDashboardMetrics()
-      .then(res => {
-        if (res.success) setMetrics(res.data);
-        else setError("Failed to load metrics");
-      })
-      .catch(() => setError("Failed to load metrics"))
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) return <div className="p-6 text-gray-500 font-bold">Loading dashboard...</div>;
-  if (error) return <div className="p-6 text-red-500 font-bold">{error}</div>;
-  if (!metrics) return null;
-
-  return (
-    <div className="fade-in">
-      <h1 className="text-2xl font-extrabold text-gray-900 mb-6">Store Dashboard</h1>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="card p-5 border-l-4 border-l-brand-green">
-          <p className="text-xs font-bold text-gray-500 uppercase">Today's Sales</p>
-          <p className="text-2xl font-extrabold text-gray-900 mt-1">₹ {metrics.total_gross_revenue?.toLocaleString() || 0}</p>
-        </div>
-        <div className="card p-5">
-          <p className="text-xs font-bold text-gray-500 uppercase">Pending Orders</p>
-          <p className="text-2xl font-extrabold text-gray-900 mt-1">{metrics.total_orders - metrics.fulfilled_orders - metrics.cancelled_orders}</p>
-        </div>
-        <div className="card p-5">
-          <p className="text-xs font-bold text-gray-500 uppercase">Avg Fulfillment</p>
-          <p className="text-2xl font-extrabold text-gray-900 mt-1">{metrics.avg_fulfillment_time_minutes} min</p>
-        </div>
-        <div className="card p-5">
-          <p className="text-xs font-bold text-gray-500 uppercase">Store Rating</p>
-          <p className="text-2xl font-extrabold text-gray-900 mt-1">{metrics.customer_rating_avg} ★</p>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // --- LAYOUT COMPONENTS ---
 const SidebarItem = ({ to, icon, label }) => {
@@ -231,7 +187,7 @@ function App() {
     <BrowserRouter>
       <MainLayout profile={profile} store={store}>
         <Routes>
-          <Route path="/" element={<Dashboard store={store} />} />
+          <Route path="/" element={<HomePage />} />
           <Route path="/products" element={<Products />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/marketing" element={<Marketing />} />
