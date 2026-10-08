@@ -101,4 +101,43 @@ describe('OrdersPage Component', () => {
       expect(screen.getByText('Game controller')).toBeDefined();
     });
   });
+
+  it('opens delivery map modal when map icon button is clicked', async () => {
+    sellerApi.getOrders.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'ORD-6840',
+          customer: 'Pooja Sharma',
+          distance: '4.8',
+          delivery_address: {
+            full_name: 'Pooja Sharma',
+            address_line: 'Ring Road',
+            city: 'Surat'
+          },
+          items: [],
+          amount: 1015,
+          status: 'new'
+        }
+      ]
+    });
+
+    render(
+      <BrowserRouter>
+        <OrdersPage />
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTitle('View on Map')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByTitle('View on Map'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Customer Location • #ORD-6840/i)).toBeDefined();
+      expect(screen.getByText(/4.8 km away/i)).toBeDefined();
+      expect(screen.getByText(/Within Zone \(10 km\)/i)).toBeDefined();
+    });
+  });
 });
