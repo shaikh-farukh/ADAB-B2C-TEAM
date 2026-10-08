@@ -119,6 +119,12 @@ class ListingService {
     await this.getListingById(storeId, id);
     return await ListingRepository.deleteImage(imageId);
   }
+
+  async getListingIssues(storeId, id) {
+    const issues = await ListingRepository.getListingIssues(storeId, id);
+    if (!issues) throw new Error('Listing not found');
+    return issues;
+  }
 }
 
 module.exports = new ListingService();

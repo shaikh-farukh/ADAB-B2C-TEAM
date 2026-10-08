@@ -1,10 +1,11 @@
 const ListingService = require('../services/listing');
+const { getAuthenticatedSellerContext } = require('../middlewares/auth');
 
 class ListingController {
   async createListing(req, res) {
     try {
-      const storeId = req.headers['x-store-id']; // In a real app, this comes from auth token
-      if (!storeId) return res.status(401).json({ error: 'Missing x-store-id header' });
+      const { storeId } = getAuthenticatedSellerContext(req);
+      if (!storeId) return res.status(401).json({ error: 'Missing store context' });
       
       const listing = await ListingService.createListing(storeId, req.body);
       res.status(201).json(listing);
@@ -15,8 +16,8 @@ class ListingController {
 
   async getListings(req, res) {
     try {
-      const storeId = req.headers['x-store-id'];
-      if (!storeId) return res.status(401).json({ error: 'Missing x-store-id header' });
+      const { storeId } = getAuthenticatedSellerContext(req);
+      if (!storeId) return res.status(401).json({ error: 'Missing store context' });
 
       const filters = {
         status: req.query.status,
@@ -37,8 +38,8 @@ class ListingController {
 
   async getListingById(req, res) {
     try {
-      const storeId = req.headers['x-store-id'];
-      if (!storeId) return res.status(401).json({ error: 'Missing x-store-id header' });
+      const { storeId } = getAuthenticatedSellerContext(req);
+      if (!storeId) return res.status(401).json({ error: 'Missing store context' });
 
       const listing = await ListingService.getListingById(storeId, req.params.id);
       res.json(listing);
@@ -49,8 +50,8 @@ class ListingController {
 
   async updateListing(req, res) {
     try {
-      const storeId = req.headers['x-store-id'];
-      if (!storeId) return res.status(401).json({ error: 'Missing x-store-id header' });
+      const { storeId } = getAuthenticatedSellerContext(req);
+      if (!storeId) return res.status(401).json({ error: 'Missing store context' });
 
       const listing = await ListingService.updateListing(storeId, req.params.id, req.body);
       res.json(listing);
@@ -61,8 +62,8 @@ class ListingController {
 
   async deleteListing(req, res) {
     try {
-      const storeId = req.headers['x-store-id'];
-      if (!storeId) return res.status(401).json({ error: 'Missing x-store-id header' });
+      const { storeId } = getAuthenticatedSellerContext(req);
+      if (!storeId) return res.status(401).json({ error: 'Missing store context' });
 
       await ListingService.deleteListing(storeId, req.params.id);
       res.json({ success: true });
@@ -73,8 +74,8 @@ class ListingController {
 
   async submitListing(req, res) {
     try {
-      const storeId = req.headers['x-store-id'];
-      if (!storeId) return res.status(401).json({ error: 'Missing x-store-id header' });
+      const { storeId } = getAuthenticatedSellerContext(req);
+      if (!storeId) return res.status(401).json({ error: 'Missing store context' });
 
       const listing = await ListingService.submitListing(storeId, req.params.id);
       res.json(listing);
@@ -122,8 +123,8 @@ class ListingController {
   // Shabbir's Missing Day 2 endpoints
   async getApprovalHistory(req, res) {
     try {
-      const storeId = req.headers['x-store-id'];
-      if (!storeId) return res.status(401).json({ error: 'Missing x-store-id header' });
+      const { storeId } = getAuthenticatedSellerContext(req);
+      if (!storeId) return res.status(401).json({ error: 'Missing store context' });
       const history = await ListingService.getApprovalHistory(storeId, req.params.id);
       res.json(history);
     } catch (err) {
@@ -133,8 +134,8 @@ class ListingController {
 
   async addDocument(req, res) {
     try {
-      const storeId = req.headers['x-store-id'];
-      if (!storeId) return res.status(401).json({ error: 'Missing x-store-id header' });
+      const { storeId } = getAuthenticatedSellerContext(req);
+      if (!storeId) return res.status(401).json({ error: 'Missing store context' });
       const doc = await ListingService.addDocument(storeId, req.params.id, req.body);
       res.status(201).json(doc);
     } catch (err) {
@@ -144,12 +145,23 @@ class ListingController {
 
   async deleteImage(req, res) {
     try {
-      const storeId = req.headers['x-store-id'];
-      if (!storeId) return res.status(401).json({ error: 'Missing x-store-id header' });
+      const { storeId } = getAuthenticatedSellerContext(req);
+      if (!storeId) return res.status(401).json({ error: 'Missing store context' });
       await ListingService.deleteImage(storeId, req.params.id, req.params.imageId);
       res.json({ success: true });
     } catch (err) {
       res.status(400).json({ error: err.message });
+    }
+  }
+
+  async getListingIssues(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      if (!storeId) return res.status(401).json({ success: false, error: 'Missing store context' });
+      const issues = await ListingService.getListingIssues(storeId, req.params.id);
+      res.json({ success: true, data: issues });
+    } catch (err) {
+      res.status(400).json({ success: false, error: err.message });
     }
   }
 }

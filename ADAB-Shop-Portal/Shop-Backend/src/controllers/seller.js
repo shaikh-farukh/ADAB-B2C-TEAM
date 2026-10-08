@@ -1,9 +1,12 @@
 const sellerService = require('../services/seller');
+const { getAuthenticatedSellerContext } = require('../middlewares/auth');
 
 class SellerController {
+  // === Shabbir's Day 1-4 APIs ===
+
   async getProfile(req, res) {
     try {
-      const sellerId = req.headers['x-user-id'] || '00000000-0000-0000-0000-000000000001';
+      const { userId: sellerId } = getAuthenticatedSellerContext(req);
       const profile = await sellerService.getSellerProfile(sellerId);
       if (!profile) return res.status(404).json({ success: false, error: 'Profile not found' });
       
@@ -15,7 +18,7 @@ class SellerController {
 
   async getStore(req, res) {
     try {
-      const sellerId = req.headers['x-user-id'] || '00000000-0000-0000-0000-000000000001';
+      const { userId: sellerId } = getAuthenticatedSellerContext(req);
       const store = await sellerService.getSellerStore(sellerId);
       if (!store) return res.status(404).json({ success: false, error: 'Store not found' });
       
@@ -24,6 +27,58 @@ class SellerController {
       res.status(400).json({ success: false, error: error.message });
     }
   }
+
+  async updateProfile(req, res) {
+    try {
+      const { userId: sellerId } = getAuthenticatedSellerContext(req);
+      const profile = await sellerService.updateSellerProfile(sellerId, req.body);
+      res.json({ success: true, data: profile });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async updateStore(req, res) {
+    try {
+      const { userId: sellerId } = getAuthenticatedSellerContext(req);
+      const store = await sellerService.updateSellerStore(sellerId, req.body);
+      res.json({ success: true, data: store });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async getSettings(req, res) {
+    try {
+      const { userId: sellerId } = getAuthenticatedSellerContext(req);
+      const settings = await sellerService.getSellerSettings(sellerId);
+      res.json({ success: true, data: settings });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async updateSettings(req, res) {
+    try {
+      const { userId: sellerId } = getAuthenticatedSellerContext(req);
+      const settings = await sellerService.updateSellerSettings(sellerId, req.body);
+      res.json({ success: true, data: settings });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async getDashboardMetrics(req, res) {
+    try {
+      const { userId: sellerId } = getAuthenticatedSellerContext(req);
+      const metrics = await sellerService.getDashboardMetrics(sellerId);
+      res.json({ success: true, data: metrics || {} });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  // === Mayank's Fulfillment / Operations APIs ===
 
   async getOrders(req, res) {
     try {
@@ -139,6 +194,3 @@ class SellerController {
 }
 
 module.exports = new SellerController();
-
-
-

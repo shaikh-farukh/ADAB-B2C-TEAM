@@ -1,53 +1,49 @@
 import React, { useState, useEffect } from 'react';
+import { useListings } from '../hooks/useListings';
 import listingService from '../services/listingService';
 
 const Products = () => {
-  const [listings, setListings] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { 
+    listings, 
+    loading, 
+    filters: { searchQuery, setSearchQuery, stockFilter, setStockFilter, typeFilter, setTypeFilter, buyerFilter, setBuyerFilter },
+    pagination: { currentPage, setCurrentPage, itemsPerPage, setItemsPerPage, totalItems },
+    createListing,
+    updateListing,
+    deleteListing,
+    submitListing,
+    refresh
+  } = useListings();
+
   const [showModal, setShowModal] = useState(false);
   const [editingListing, setEditingListing] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [listingIssues, setListingIssues] = useState({});
+
+  useEffect(() => {
+    // Fetch issues for currently visible listings
+    const fetchIssues = async () => {
+      const issuesMap = { ...listingIssues };
+      let updated = false;
+      for (const l of listings) {
+        if (!issuesMap[l.id]) {
+          try {
+            const res = await listingService.getListingIssues(l.id);
+            if (res.success) {
+              issuesMap[l.id] = res.data;
+              updated = true;
+            }
+          } catch (e) {}
+        }
+      }
+      if (updated) setListingIssues(issuesMap);
+    };
+    if (listings.length > 0) fetchIssues();
+  }, [listings]);
   
   const [formData, setFormData] = useState({
     title: '', sku: '', mrp: '', sell_price: '', product_type: 'OWN_BRAND', allowed_buyers: 'ALL', image_url: '', approval_status: 'DRAFT', is_active: true
   });
-
-  const [searchQuery, setSearchQuery] = useState('');
-  const [stockFilter, setStockFilter] = useState('All stock');
-  const [typeFilter, setTypeFilter] = useState('ALL');
-  const [buyerFilter, setBuyerFilter] = useState('ALL');
-  
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-
-  const [totalItems, setTotalItems] = useState(0);
-
-  useEffect(() => {
-    fetchListings();
-  }, [currentPage, itemsPerPage, searchQuery, stockFilter, typeFilter, buyerFilter]);
-
-  const fetchListings = async () => {
-    try {
-      setLoading(true);
-      const stock = stockFilter === 'In stock' ? 'in_stock' : stockFilter === 'Out of stock' ? 'out_of_stock' : 'all';
-      const filters = {
-        search: searchQuery,
-        stock: stock,
-        type: typeFilter,
-        buyer: buyerFilter,
-        limit: itemsPerPage,
-        offset: (currentPage - 1) * itemsPerPage
-      };
-      const res = await listingService.getListings(filters);
-      // The API returns { data, total }
-      setListings(res.data || []);
-      setTotalItems(res.total || 0);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleFormChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -88,17 +84,17 @@ const Products = () => {
       
       let savedListing;
       if (editingListing) {
-        savedListing = await listingService.updateListing(editingListing.id, dataToSave);
+        savedListing = await updateListing(editingListing.id, dataToSave);
       } else {
-        savedListing = await listingService.createListing(dataToSave);
+        savedListing = await createListing(dataToSave);
       }
       
       if (submitForReview) {
-        await listingService.submitListing(savedListing.id);
+        await submitListing(savedListing.id);
       }
       
       setShowModal(false);
-      fetchListings();
+      refresh();
     } catch (err) {
       console.error('Failed to save listing', err);
       alert('Failed to save: ' + (err.response?.data?.error || err.message));
@@ -108,9 +104,9 @@ const Products = () => {
   const handleDeleteListing = async () => {
     if (deleteConfirm) {
       try {
-        await listingService.deleteListing(deleteConfirm);
+        await deleteListing(deleteConfirm);
         setDeleteConfirm(null);
-        fetchListings();
+        refresh();
       } catch (err) {
         console.error('Failed to delete listing', err);
         alert('Failed to delete: ' + (err.response?.data?.error || err.message));
@@ -241,51 +237,78 @@ const Products = () => {
               ) : paginatedListings.length === 0 ? (
                 <tr><td colSpan="8" className="text-center py-8 text-gray-500 font-bold">No products match your filters.</td></tr>
               ) : (
-                paginatedListings.map(l => (
-                  <tr key={l.id} className="hover:bg-gray-50 transition">
-                    <td className="px-4 py-4"><input type="checkbox" className="rounded text-brand-dark border-gray-300 focus:ring-brand-dark" /></td>
-                    <td className="px-4 py-4 font-bold text-gray-900">
-                      {l.title} 
-                      {l.approval_status === 'DRAFT' && <span className="ml-2 bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">DRAFT</span>} 
-                      {l.approval_status === 'SUBMITTED' && <span className="ml-2 bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">SUBMITTED</span>}
-                      {l.approval_status === 'UNDER_REVIEW' && <span className="ml-2 bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">UNDER REVIEW</span>}
-                      {l.approval_status === 'APPROVED' && <span className="ml-2 bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">APPROVED</span>}
-                      {l.approval_status === 'CHANGES_REQUIRED' && <span className="ml-2 bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">CHANGES REQUIRED</span>}
-                      {l.approval_status === 'REJECTED' && <span className="ml-2 bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">REJECTED</span>}
-                      {l.approval_status === 'PUBLISHED' && <span className="ml-2 bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">PUBLISHED</span>}
-                    </td>
-                    <td className="px-4 py-4">
-                      {l.barcode ? (
-                        <div className="text-xs text-gray-900 font-mono font-bold" title="Barcode">{l.barcode}</div>
-                      ) : null}
-                      {l.sku ? (
-                        <div className="text-[10px] text-gray-400 font-mono" title="SKU">SKU: {l.sku}</div>
-                      ) : null}
-                      {!l.barcode && !l.sku && <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-4 py-4">
-                      {l.product_type === 'PACKED_ITEM' && <span className="px-2 py-1 rounded bg-blue-50 text-blue-700 text-[10px] font-extrabold">Packed</span>}
-                      {l.product_type === 'LOOSE_WEIGHT' && <span className="px-2 py-1 rounded bg-amber-50 text-amber-700 text-[10px] font-extrabold">Loose</span>}
-                      {l.product_type === 'OWN_BRAND' && <span className="px-2 py-1 rounded bg-purple-50 text-purple-700 text-[10px] font-extrabold">Own Brand</span>}
-                      {l.product_type === 'FOOD' && <span className="px-2 py-1 rounded bg-rose-50 text-rose-700 text-[10px] font-extrabold">Food</span>}
-                    </td>
-                    <td className="px-4 py-4 font-bold text-brand-dark">₹{l.sell_price}</td>
-                    <td className="px-4 py-4 text-gray-600 text-sm">
-                      {l.stock_qty || 0} {l.product_type === 'LOOSE_WEIGHT' ? (l.unit ? l.unit.split(' ')[2].replace(/[()]/g, '') : 'kg') : (l.product_type === 'PACKED_ITEM' ? 'packs' : 'pcs')}
-                    </td>
-                    <td className="px-4 py-4 text-gray-500 text-sm">
-                      {l.allowed_buyers === 'ALL' ? 'Customers + Stores' : l.allowed_buyers === 'CUSTOMERS_ONLY' ? 'Customers only' : 'Stores only'}
-                    </td>
-                    <td className="px-4 py-4 text-right space-x-4">
-                      <button onClick={() => openEdit(l)} className="text-gray-400 hover:text-brand-dark transition tooltip-trigger" title="Edit">
-                        <i className="fa-solid fa-pen"></i>
-                      </button>
-                      <button onClick={() => setDeleteConfirm(l.id)} className="text-gray-400 hover:text-red-500 transition tooltip-trigger" title="Delete">
-                        <i className="fa-solid fa-trash"></i>
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                paginatedListings.map(l => {
+                  const issues = listingIssues[l.id] || [];
+                  const hasIssues = issues.length > 0;
+                  return (
+                    <React.Fragment key={l.id}>
+                      <tr className={`hover:bg-gray-50 transition ${hasIssues ? 'border-l-4 border-l-red-500 bg-red-50/10' : ''}`}>
+                        <td className="px-4 py-4"><input type="checkbox" className="rounded text-brand-dark border-gray-300 focus:ring-brand-dark" /></td>
+                        <td className="px-4 py-4 font-bold text-gray-900">
+                          {l.title} 
+                          {l.approval_status === 'DRAFT' && <span className="ml-2 bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">DRAFT</span>} 
+                          {l.approval_status === 'SUBMITTED' && <span className="ml-2 bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">SUBMITTED</span>}
+                          {l.approval_status === 'UNDER_REVIEW' && <span className="ml-2 bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">UNDER REVIEW</span>}
+                          {l.approval_status === 'APPROVED' && <span className="ml-2 bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">APPROVED</span>}
+                          {l.approval_status === 'CHANGES_REQUIRED' && <span className="ml-2 bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">CHANGES REQUIRED</span>}
+                          {l.approval_status === 'REJECTED' && <span className="ml-2 bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">REJECTED</span>}
+                          {l.approval_status === 'PUBLISHED' && <span className="ml-2 bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">PUBLISHED</span>}
+                        </td>
+                        <td className="px-4 py-4">
+                          {l.barcode ? (
+                            <div className="text-xs text-gray-900 font-mono font-bold" title="Barcode">{l.barcode}</div>
+                          ) : null}
+                          {l.sku ? (
+                            <div className="text-[10px] text-gray-400 font-mono" title="SKU">SKU: {l.sku}</div>
+                          ) : null}
+                          {!l.barcode && !l.sku && <span className="text-gray-300">—</span>}
+                        </td>
+                        <td className="px-4 py-4">
+                          {l.product_type === 'PACKED_ITEM' && <span className="px-2 py-1 rounded bg-blue-50 text-blue-700 text-[10px] font-extrabold">Packed</span>}
+                          {l.product_type === 'LOOSE_WEIGHT' && <span className="px-2 py-1 rounded bg-amber-50 text-amber-700 text-[10px] font-extrabold">Loose</span>}
+                          {l.product_type === 'OWN_BRAND' && <span className="px-2 py-1 rounded bg-purple-50 text-purple-700 text-[10px] font-extrabold">Own Brand</span>}
+                          {l.product_type === 'FOOD' && <span className="px-2 py-1 rounded bg-rose-50 text-rose-700 text-[10px] font-extrabold">Food</span>}
+                        </td>
+                        <td className="px-4 py-4 font-bold text-brand-dark">₹{l.sell_price}</td>
+                        <td className="px-4 py-4 text-gray-600 text-sm">
+                          {l.stock_qty || 0} {l.product_type === 'LOOSE_WEIGHT' ? (l.unit ? l.unit.split(' ')[2].replace(/[()]/g, '') : 'kg') : (l.product_type === 'PACKED_ITEM' ? 'packs' : 'pcs')}
+                        </td>
+                        <td className="px-4 py-4 text-gray-500 text-sm">
+                          {l.allowed_buyers === 'ALL' ? 'Customers + Stores' : l.allowed_buyers === 'CUSTOMERS_ONLY' ? 'Customers only' : 'Stores only'}
+                        </td>
+                        <td className="px-4 py-4 text-right space-x-4">
+                          <button onClick={() => openEdit(l)} className="text-gray-400 hover:text-brand-dark transition tooltip-trigger" title="Edit">
+                            <i className="fa-solid fa-pen"></i>
+                          </button>
+                          <button onClick={() => setDeleteConfirm(l.id)} className="text-gray-400 hover:text-red-500 transition tooltip-trigger" title="Delete">
+                            <i className="fa-solid fa-trash"></i>
+                          </button>
+                        </td>
+                      </tr>
+                      {hasIssues && (
+                        <tr>
+                          <td colSpan="8" className="px-4 py-2 bg-red-50/50 border-b border-gray-100">
+                            <div className="flex flex-col gap-1 pl-8">
+                              {issues.map((issue, idx) => (
+                                <div key={idx} className="flex items-start gap-2 text-xs">
+                                  <i className={`fa-solid mt-0.5 ${issue.severity === 'high' ? 'fa-circle-xmark text-red-500' : 'fa-triangle-exclamation text-amber-500'}`}></i>
+                                  <div>
+                                    <span className="font-bold text-gray-900">{issue.issue_type} ISSUE:</span> <span className="text-gray-700">{issue.message}</span>
+                                    {issue.details && (
+                                      <span className="text-gray-500 ml-1">
+                                        (Details: {JSON.stringify(issue.details).replace(/[{}"]/g, '').replace(/:/g, ': ')})
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })
               )}
             </tbody>
           </table>

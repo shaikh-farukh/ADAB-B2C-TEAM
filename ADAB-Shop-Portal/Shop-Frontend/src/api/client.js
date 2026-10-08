@@ -1,25 +1,39 @@
 import axios from 'axios';
 
-// The base URL comes from Vite's environment variables.
-// In development, it defaults to localhost if not set.
-// In production, it will be the Render URL.
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5003/api';
+// The backend API base URL for seller domain
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5003/api/v1/seller';
 
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+const client = axios.create({
+  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 15000,
+  timeout: 10000,
 });
 
-// Optionally add interceptors here for auth tokens, etc.
-apiClient.interceptors.response.use(
-  response => response,
-  error => {
-    console.error('API Error:', error.response || error.message);
+// Request Interceptor: Attach token if we had auth (mocking for Day 1)
+client.interceptors.request.use(
+  (config) => {
+    // const token = localStorage.getItem('seller_token');
+    // if (token) {
+    //   config.headers.Authorization = `Bearer ${token}`;
+    // }
+    return config;
+  },
+  (error) => {
     return Promise.reject(error);
   }
 );
 
-export default apiClient;
+// Response Interceptor: Handle global errors
+client.interceptors.response.use(
+  (response) => {
+    return response.data;
+  },
+  (error) => {
+    console.error('API Error:', error.response?.data || error.message);
+    return Promise.reject(error);
+  }
+);
+
+export default client;
