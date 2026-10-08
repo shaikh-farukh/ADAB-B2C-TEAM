@@ -8,11 +8,33 @@ const { PERMISSIONS, ADMIN_ROLES } = require('../middleware/rolesPermissions');
 
 const productCtrl = require('../controllers/productBoundaryController');
 const approvalCtrl = require('../controllers/approvalContractController');
+const orderCtrl = require('../controllers/adminOrderController');
+const returnCtrl = require('../controllers/adminReturnController');
 
 // All admin routes require authentication, correlation trace & base Admin guard
 router.use(authMiddleware);
 router.use(auditMiddleware());
 router.use(adminGuard());
+
+// ─── Orders Management APIs ───
+router.get('/orders', adminGuard({ permissions: [PERMISSIONS.ORDERS_READ] }), orderCtrl.getOrders);
+router.get('/orders/:id', adminGuard({ permissions: [PERMISSIONS.ORDERS_READ] }), orderCtrl.getOrderById);
+router.patch(
+  '/orders/:id/status',
+  adminGuard({ permissions: [PERMISSIONS.ORDERS_WRITE] }),
+  auditMiddleware({ action: 'ADMIN_UPDATE_ORDER_STATUS', entityType: 'ORDER' }),
+  orderCtrl.updateOrderStatus
+);
+
+// ─── Returns & Resolution APIs ───
+router.get('/returns', adminGuard({ permissions: [PERMISSIONS.RETURNS_READ] }), returnCtrl.getReturns);
+router.get('/returns/:id', adminGuard({ permissions: [PERMISSIONS.RETURNS_READ] }), returnCtrl.getReturnById);
+router.post(
+  '/returns/:id/resolve',
+  adminGuard({ permissions: [PERMISSIONS.RETURNS_WRITE] }),
+  auditMiddleware({ action: 'ADMIN_RESOLVE_RETURN', entityType: 'RETURN' }),
+  returnCtrl.resolveReturn
+);
 
 // ─── Categories APIs ───
 router.get('/categories', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), productCtrl.getCategories);

@@ -9,6 +9,8 @@ import Categories from './pages/Categories';
 import Brands from './pages/Brands';
 import Sellers from './pages/Sellers';
 import Customers from './pages/Customers';
+import Orders from './pages/Orders';
+import Returns from './pages/Returns';
 import Reports from './pages/Reports';
 import Audit from './pages/Audit';
 import Settings from './pages/Settings';
@@ -40,6 +42,8 @@ export default function App() {
           <Route path="products" element={<Products />} />
           <Route path="categories" element={<Categories />} />
           <Route path="brands" element={<Brands />} />
+          <Route path="orders" element={<Orders />} />
+          <Route path="returns" element={<Returns />} />
           <Route path="sellers" element={<Sellers />} />
           <Route path="customers" element={<Customers />} />
           <Route path="reports" element={<Reports />} />

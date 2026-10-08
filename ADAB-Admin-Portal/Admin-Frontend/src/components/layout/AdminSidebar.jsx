@@ -18,6 +18,10 @@ export default function AdminSidebar() {
         <NavLink to="/categories" className={getNavClass}><i className="fa-solid fa-folder-tree w-4 text-purple-600"></i> Categories</NavLink>
         <NavLink to="/brands" className={getNavClass}><i className="fa-solid fa-copyright w-4 text-pink-600"></i> Brands</NavLink>
 
+        <div className="nav-label">Operations</div>
+        <NavLink to="/orders" className={getNavClass}><i className="fa-solid fa-shopping-bag w-4 text-blue-600"></i> Orders</NavLink>
+        <NavLink to="/returns" className={getNavClass}><i className="fa-solid fa-rotate-left w-4 text-rose-600"></i> Returns</NavLink>
+
         <div className="nav-label">Portals</div>
         <NavLink to="/sellers" className={getNavClass}><i className="fa-solid fa-store w-4 text-green-600"></i> Sellers</NavLink>
         <NavLink to="/customers" className={getNavClass}><i className="fa-solid fa-users w-4 text-blue-600"></i> Customers</NavLink>
