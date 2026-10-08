@@ -11,8 +11,9 @@ export default function PointsPage() {
       try {
         setLoading(true);
         const res = await sellerApi.getPoints();
-        if (res.data && res.data.success) {
-          setPointsData(res.data.data);
+        const data = res?.data !== undefined ? res.data : res;
+        if (data) {
+          setPointsData(data?.data || data);
         }
       } catch (e) {
         // fallback to default

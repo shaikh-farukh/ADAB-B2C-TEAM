@@ -13,11 +13,9 @@ export default function BuyNearbyPage() {
       try {
         setLoading(true);
         const res = await sellerApi.getNearbyCatalog();
-        if (res.data && res.data.success) {
-          setItems(res.data.data || []);
-        } else {
-          setItems([]);
-        }
+        const raw = res?.data !== undefined ? res.data : res;
+        const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
+        setItems(list);
       } catch (e) {
         setItems([]);
       } finally {

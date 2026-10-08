@@ -11,11 +11,9 @@ export function useB2B() {
       setLoading(true);
       setError(null);
       const response = await sellerApi.getB2BOrders();
-      if (response.data && response.data.success) {
-        setOrders(response.data.data || []);
-      } else {
-        setOrders([]);
-      }
+      const raw = response?.data !== undefined ? response.data : response;
+      const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
+      setOrders(list);
     } catch (err) {
       setError(err.message || 'Failed to fetch B2B orders');
       setOrders([]);

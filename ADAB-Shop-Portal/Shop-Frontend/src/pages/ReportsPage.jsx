@@ -11,8 +11,9 @@ export default function ReportsPage() {
       try {
         setLoading(true);
         const res = await sellerApi.getAnalytics();
-        if (res.data && res.data.success) {
-          setStats(res.data.data);
+        const data = res?.data !== undefined ? res.data : res;
+        if (data) {
+          setStats(data?.data || data);
         }
       } catch (e) {
         // fallback

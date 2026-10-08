@@ -11,7 +11,7 @@ export function useFinance() {
     try {
       setLoading(true);
       const response = await sellerApi.getFinanceSummary();
-      setSummary(response.data.data || response.data);
+      setSummary(response?.data?.data || response?.data || response);
       setError(null);
     } catch (err) {
       console.error('Failed to fetch finance summary:', err);

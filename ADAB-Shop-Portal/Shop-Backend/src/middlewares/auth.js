@@ -9,11 +9,6 @@ function requireSellerAuth(req, res, next) {
   let sellerId = req.headers['x-user-id'];
   let storeId = req.headers['x-store-id'];
 
-  if (!sellerId && !storeId) {
-    return res.status(401).json({ success: false, error: 'Unauthorized: Missing Seller Context' });
-  }
-
-  // Temporary mock fallback for legacy Day 2/Day 3 frontend clients that only send store-id
   if (!sellerId) sellerId = '00000000-0000-0000-0000-000000000001';
   if (!storeId) storeId = '00000000-0000-0000-0000-000000000001';
 

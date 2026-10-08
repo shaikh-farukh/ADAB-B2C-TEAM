@@ -12,11 +12,9 @@ export default function OffersPage() {
       try {
         setLoading(true);
         const res = await sellerApi.getCoupons();
-        if (res.data && res.data.success) {
-          setCoupons(res.data.data || []);
-        } else {
-          setCoupons([]);
-        }
+        const raw = res?.data !== undefined ? res.data : res;
+        const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
+        setCoupons(list);
       } catch (e) {
         setCoupons([]);
       } finally {

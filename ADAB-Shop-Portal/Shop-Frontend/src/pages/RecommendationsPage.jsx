@@ -12,11 +12,9 @@ export default function RecommendationsPage() {
       try {
         setLoading(true);
         const res = await sellerApi.getRecommendations();
-        if (res.data && res.data.success) {
-          setRecommendations(res.data.data || []);
-        } else {
-          setRecommendations([]);
-        }
+        const raw = res?.data !== undefined ? res.data : res;
+        const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
+        setRecommendations(list);
       } catch (e) {
         setRecommendations([]);
       } finally {

@@ -13,18 +13,15 @@ export default function MessagesPage() {
       try {
         setLoading(true);
         const res = await sellerApi.getMessages();
-        if (res.data && res.data.success) {
-          const list = res.data.data || [];
-          setMessages(list);
-          if (list.length > 0) {
-            setActiveChat(list[0]);
-            setConversation([
-              { sender: 'customer', text: 'Hi, is there any update on my order?' },
-              { sender: 'merchant', text: 'Hello! Your order has been packed and is ready for dispatch.' }
-            ]);
-          }
-        } else {
-          setMessages([]);
+        const raw = res?.data !== undefined ? res.data : res;
+        const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
+        setMessages(list);
+        if (list.length > 0) {
+          setActiveChat(list[0]);
+          setConversation([
+            { sender: 'customer', text: 'Hi, is there any update on my order?' },
+            { sender: 'merchant', text: 'Hello! Your order has been packed and is ready for dispatch.' }
+          ]);
         }
       } catch (e) {
         setMessages([]);

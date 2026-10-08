@@ -10,8 +10,10 @@ export function useOrders() {
     try {
       setLoading(true);
       setError(null);
-      const response = await sellerApi.getOrders();
-      setOrders(response.data.data || response.data || []);
+      const res = await sellerApi.getOrders();
+      const raw = res?.data !== undefined ? res.data : res;
+      const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
+      setOrders(list);
     } catch (err) {
       console.error('Failed to fetch orders:', err);
       const reason = err.response?.data?.message || err.response?.data?.error || err.message || 'Unknown network error';

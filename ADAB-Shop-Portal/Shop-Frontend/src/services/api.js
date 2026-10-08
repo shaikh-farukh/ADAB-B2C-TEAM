@@ -14,10 +14,8 @@ const api = axios.create({
 // Request Interceptor: Attach token if we had auth (mocking for Day 1)
 api.interceptors.request.use(
   (config) => {
-    // const token = localStorage.getItem('seller_token');
-    // if (token) {
-    //   config.headers.Authorization = `Bearer ${token}`;
-    // }
+    config.headers['x-user-id'] = localStorage.getItem('seller_user_id') || '00000000-0000-0000-0000-000000000001';
+    config.headers['x-store-id'] = localStorage.getItem('seller_store_id') || '00000000-0000-0000-0000-000000000001';
     return config;
   },
   (error) => {

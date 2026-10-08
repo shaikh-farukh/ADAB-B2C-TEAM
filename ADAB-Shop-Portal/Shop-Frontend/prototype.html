@@ -230,7 +230,7 @@
       <button onclick="go('buycart')" class="relative flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-full bg-blue-50 text-blue-800 text-xs sm:text-sm font-bold border border-blue-200 hover:bg-blue-100"><i class="fa-solid fa-cart-shopping"></i> <span class="hidden md:inline">Buy Cart</span><span id="hdrBuyCartCount" class="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-blue-600 text-white text-[9px] sm:text-[10px] font-bold rounded-full flex items-center justify-center hidden">0</span></button>
       <button onclick="toggleOnline()" id="onlineBtn" class="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-full bg-green-50 text-green-800 text-xs sm:text-sm font-bold border border-green-200"><span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> <span id="onlineTxt">Open</span></button>
       <button onclick="openSetup()" class="btn-primary text-xs !py-1.5 !px-2.5 hidden xl:flex items-center gap-1"><i class="fa-solid fa-list-check"></i> Setup</button>
-      <button onclick="openSellerAuthModal()" id="sellerAuthBtn" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-100 text-xs font-bold text-gray-700 bg-white">
+      <button onclick="go('settings')" id="sellerAuthBtn" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-100 text-xs font-bold text-gray-700 bg-white">
         <i class="fa-solid fa-store text-green-700"></i> <span class="hidden sm:inline" id="sellerAuthLabel">Store Account</span>
       </button>
     </div>
@@ -4347,6 +4347,10 @@
     t.textContent = msg;
     t.classList.remove('hidden');
     setTimeout(() => t.classList.add('hidden'), 3000);
+  }
+
+  function openSellerAuthModal() {
+    go('settings');
   }
 
   function toggleOnline() {

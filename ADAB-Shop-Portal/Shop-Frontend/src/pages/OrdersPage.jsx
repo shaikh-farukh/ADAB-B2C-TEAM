@@ -17,7 +17,7 @@ function OrderRow({ order, onUpdateStatus }) {
 
   const getDeliveryBadge = (type) => {
     const t = (type || '').toLowerCase();
-    if (t.includes('fast')) return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-800">Fast 45m</span>;
+    if (t.includes('fast') || t.includes('express')) return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-800">Fast 45m</span>;
     if (t.includes('same')) return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">Same-day</span>;
     if (t.includes('pickup')) return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800">Pickup</span>;
     return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800">Normal</span>;
@@ -85,7 +85,12 @@ export default function OrdersPage() {
       statusFilter === 'dispatched' ? (s === 'dispatched' || s === 'shipped') :
       statusFilter === 'ready' ? s === 'ready' : true
     );
-    const matchesDelivery = deliveryFilter === 'all' ? true : d.includes(deliveryFilter);
+    const matchesDelivery = deliveryFilter === 'all' ? true : (
+      deliveryFilter === 'fast' ? (d.includes('fast') || d.includes('express')) :
+      deliveryFilter === 'same' ? d.includes('same') :
+      deliveryFilter === 'pickup' ? d.includes('pickup') :
+      (!d.includes('fast') && !d.includes('express') && !d.includes('same') && !d.includes('pickup'))
+    );
     const matchesSearch = !q ? true : (
       (o.id && o.id.toString().toLowerCase().includes(q)) ||
       (o.customer && o.customer.toLowerCase().includes(q)) ||
@@ -95,11 +100,14 @@ export default function OrdersPage() {
     return matchesStatus && matchesDelivery && matchesSearch;
   });
 
-  const fastCount = orders.filter(o => (o.delivery_mode || o.delivery_type || '').toLowerCase().includes('fast')).length;
+  const fastCount = orders.filter(o => {
+    const d = (o.delivery_mode || o.delivery_type || '').toLowerCase();
+    return d.includes('fast') || d.includes('express');
+  }).length;
   const sameCount = orders.filter(o => (o.delivery_mode || o.delivery_type || '').toLowerCase().includes('same')).length;
   const normalCount = orders.filter(o => {
     const d = (o.delivery_mode || o.delivery_type || '').toLowerCase();
-    return !d.includes('fast') && !d.includes('same') && !d.includes('pickup');
+    return !d.includes('fast') && !d.includes('express') && !d.includes('same') && !d.includes('pickup');
   }).length;
   const pickupCount = orders.filter(o => (o.delivery_mode || o.delivery_type || '').toLowerCase().includes('pickup')).length;
 

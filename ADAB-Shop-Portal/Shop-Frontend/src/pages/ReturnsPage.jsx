@@ -16,11 +16,9 @@ export default function ReturnsPage() {
       setLoading(true);
       setError(null);
       const res = await sellerApi.getReturns();
-      if (res.data && res.data.success) {
-        setReturnsList(res.data.data || []);
-      } else {
-        setReturnsList([]);
-      }
+      const raw = res?.data !== undefined ? res.data : res;
+      const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
+      setReturnsList(list);
     } catch (err) {
       setError(err.message || 'Failed to load return requests');
       setReturnsList([]);

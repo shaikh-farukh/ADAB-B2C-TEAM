@@ -11,11 +11,9 @@ export default function FreightPage() {
       try {
         setLoading(true);
         const res = await sellerApi.getB2BOrders();
-        if (res.data && res.data.success) {
-          setShipments(res.data.data || []);
-        } else {
-          setShipments([]);
-        }
+        const raw = res?.data !== undefined ? res.data : res;
+        const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
+        setShipments(list);
       } catch (e) {
         setShipments([]);
       } finally {
