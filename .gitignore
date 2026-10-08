@@ -95,7 +95,7 @@ walkthrough.md
 *.bak
 output.txt
 curl_output.json
-check*.js
+/check*.js
 alter*.js
 scratch*.js
 test_*.cjs
