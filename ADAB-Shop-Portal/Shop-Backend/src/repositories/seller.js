@@ -144,11 +144,23 @@ class SellerRepository {
              o.payment_method, o.payment_status, o.delivery_mode,
              o.grand_total as amount, o.delivery_address,
              u.full_name as customer, u.phone as customer_phone,
+             (
+               SELECT json_agg(json_build_object(
+                 'name', COALESCE(oi.product_name, 'Item'),
+                 'quantity', oi.quantity,
+                 'unit_price', oi.unit_price,
+                 'total_price', oi.total_price
+               ))
+               FROM seller_orders so
+               JOIN order_items oi ON oi.seller_order_id = so.id
+               WHERE so.parent_order_id = o.id
+             ) as items_list,
              COALESCE(
                (SELECT string_agg(CONCAT(COALESCE(oi.product_name, 'Item'), ' (x', oi.quantity, ')'), ', ')
-                FROM order_items oi
-                WHERE oi.seller_order_id = o.id),
-               'Standard Basket'
+                FROM seller_orders so
+                JOIN order_items oi ON oi.seller_order_id = so.id
+                WHERE so.parent_order_id = o.id),
+               'Items'
              ) as item_summary
       FROM orders o
       LEFT JOIN users u ON o.customer_id = u.id
@@ -164,7 +176,8 @@ class SellerRepository {
       distance: (Math.abs((parseInt((r.order_number || r.id || '10').replace(/\D/g, '') || 12, 10) % 80) / 10) + 0.8).toFixed(1),
       delivery_mode: r.delivery_mode ? r.delivery_mode.toLowerCase() : 'normal',
       delivery_address: r.delivery_address,
-      items: r.item_summary || 'Order Items',
+      items: r.items_list || [],
+      item_summary: r.item_summary || 'Items',
       amount: Number(r.amount) || 0,
       status: r.status ? (r.status === 'PLACED' ? 'new' : r.status.toLowerCase()) : 'new',
       created_at: r.created_at

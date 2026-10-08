@@ -2,7 +2,96 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 
-function OrderRow({ order, onUpdateStatus }) {
+function OrderItemsModal({ order, onClose }) {
+  if (!order) return null;
+  const items = Array.isArray(order.items) ? order.items : [];
+  const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '#9000';
+  const displayCustomer = order.customer || order.customer_name || 'Customer';
+  const displayAmount = order.amount !== undefined ? order.amount : (order.total_amount || 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-200">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-emerald-50 to-teal-50">
+          <div>
+            <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
+              <i className="fa-solid fa-basket-shopping text-emerald-600"></i>
+              <span>Order Items • {displayId}</span>
+            </h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Customer: <span className="font-semibold text-gray-700">{displayCustomer}</span>
+              {order.customer_phone && <span className="ml-2 font-mono text-gray-600">({order.customer_phone})</span>}
+            </p>
+          </div>
+          <button 
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors text-base font-bold shadow-xs cursor-pointer"
+            title="Close"
+          >
+            &times;
+          </button>
+        </div>
+
+        {/* Items List */}
+        <div className="p-5 max-h-[350px] overflow-y-auto">
+          {items.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-6">No itemized records found for this order.</p>
+          ) : (
+            <table className="w-full text-xs text-left">
+              <thead>
+                <tr className="border-b border-gray-200 text-gray-400 font-bold uppercase text-[10px]">
+                  <th className="pb-2">Item</th>
+                  <th className="pb-2 text-center">Qty</th>
+                  <th className="pb-2 text-right">Unit Price</th>
+                  <th className="pb-2 text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {items.map((item, idx) => {
+                  const qty = Number(item.quantity) || 1;
+                  const unitPrice = Number(item.unit_price) || 0;
+                  const itemTotal = Number(item.total_price) || (qty * unitPrice);
+                  return (
+                    <tr key={idx} className="hover:bg-gray-50/70">
+                      <td className="py-2.5 font-semibold text-gray-800">{item.name || 'Item'}</td>
+                      <td className="py-2.5 text-center font-bold text-gray-600">{qty}</td>
+                      <td className="py-2.5 text-right text-gray-500">₹{unitPrice.toLocaleString('en-IN')}</td>
+                      <td className="py-2.5 text-right font-extrabold text-gray-900">₹{itemTotal.toLocaleString('en-IN')}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+          <div className="text-xs text-gray-500">
+            Total Items: <span className="font-extrabold text-gray-800">{items.length}</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block leading-tight">Grand Total</span>
+              <span className="text-base font-extrabold text-emerald-700">₹{Number(displayAmount).toLocaleString('en-IN')}</span>
+            </div>
+            <button 
+              type="button"
+              onClick={onClose}
+              className="btn-soft !py-1.5 !px-3 !text-xs font-bold cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OrderRow({ order, onUpdateStatus, onViewItems }) {
   const getStatusBadge = (status) => {
     switch (status?.toLowerCase()) {
       case 'new': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">New</span>;
@@ -31,9 +120,8 @@ function OrderRow({ order, onUpdateStatus }) {
     return <button disabled className="btn-soft !text-xs !py-1 !px-2 opacity-50 cursor-not-allowed">Done</button>;
   };
 
-  const itemString = Array.isArray(order.items) 
-    ? order.items.map(i => i.name || i.product_id).join(', ') 
-    : typeof order.items === 'string' ? order.items : (order.items ? JSON.stringify(order.items) : 'Assorted items');
+  const itemsList = Array.isArray(order.items) ? order.items : [];
+  const itemCount = itemsList.length;
 
   const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '#9000';
   const displayCustomer = order.customer || order.customer_name || 'Customer';
@@ -50,8 +138,17 @@ function OrderRow({ order, onUpdateStatus }) {
           {displayDistance} km
         </span>
       </td>
-      <td className="px-3 py-3 text-gray-600 text-xs truncate max-w-[150px]" title={itemString}>
-        {itemString}
+      <td className="px-3 py-3">
+        <button
+          type="button"
+          onClick={() => onViewItems(order)}
+          className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-colors shadow-2xs cursor-pointer"
+          title="Click to view all items ordered"
+        >
+          <i className="fa-solid fa-basket-shopping text-[11px] text-emerald-600"></i>
+          <span>{itemCount > 0 ? `${itemCount} items` : (order.item_summary || 'Items')}</span>
+          <i className="fa-solid fa-chevron-right text-[9px] text-emerald-500 group-hover:translate-x-0.5 transition-transform"></i>
+        </button>
       </td>
       <td className="px-3 py-3">
         {getDeliveryBadge(deliveryType)}
@@ -71,6 +168,7 @@ function OrderRow({ order, onUpdateStatus }) {
 
 export default function OrdersPage() {
   const { orders, loading, error, updateStatus } = useOrders();
+  const [selectedOrder, setSelectedOrder] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [deliveryFilter, setDeliveryFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -95,7 +193,9 @@ export default function OrdersPage() {
       (o.id && o.id.toString().toLowerCase().includes(q)) ||
       (o.customer && o.customer.toLowerCase().includes(q)) ||
       (o.customer_name && o.customer_name.toLowerCase().includes(q)) ||
-      (typeof o.items === 'string' && o.items.toLowerCase().includes(q))
+      (Array.isArray(o.items) && o.items.some(it => (it.name || '').toLowerCase().includes(q))) ||
+      (typeof o.items === 'string' && o.items.toLowerCase().includes(q)) ||
+      (o.item_summary && o.item_summary.toLowerCase().includes(q))
     );
     return matchesStatus && matchesDelivery && matchesSearch;
   });
@@ -220,7 +320,12 @@ export default function OrdersPage() {
                 </tr>
               )}
               {!loading && !error && filteredOrders.map(order => (
-                <OrderRow key={order.id} order={order} onUpdateStatus={updateStatus} />
+                <OrderRow 
+                  key={order.id} 
+                  order={order} 
+                  onUpdateStatus={updateStatus} 
+                  onViewItems={setSelectedOrder}
+                />
               ))}
             </tbody>
           </table>
@@ -239,6 +344,14 @@ export default function OrdersPage() {
         <p className="text-sm text-green-800"><i className="fa-solid fa-motorcycle mr-1"></i> <b>App orders are always nearby.</b> Customers outside your zone cannot order from the app.</p>
         <button className="btn-primary !text-xs whitespace-nowrap">Manage Delivery Zone</button>
       </div>
+
+      {/* Itemized Order Modal */}
+      {selectedOrder && (
+        <OrderItemsModal 
+          order={selectedOrder} 
+          onClose={() => setSelectedOrder(null)} 
+        />
+      )}
     </section>
   );
 }

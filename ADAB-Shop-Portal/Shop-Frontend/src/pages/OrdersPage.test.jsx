@@ -1,8 +1,8 @@
 /**
  * @vitest-environment jsdom
  */
-import { render, screen, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import OrdersPage from './OrdersPage';
@@ -16,6 +16,14 @@ vi.mock('../api/sellerApi', () => ({
 }));
 
 describe('OrdersPage Component', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
   it('renders orders fetched from the backend API', async () => {
     sellerApi.getOrders.mockResolvedValue({
       success: true,
@@ -55,6 +63,42 @@ describe('OrdersPage Component', () => {
       expect(screen.getByText('₹1015')).toBeDefined();
       expect(screen.getByText('#ORD-7532')).toBeDefined();
       expect(screen.getByText('Anita Desai')).toBeDefined();
+    });
+  });
+
+  it('opens itemized breakdown modal when items pill button is clicked', async () => {
+    sellerApi.getOrders.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'ORD-6840',
+          customer: 'Pooja Sharma',
+          items: [
+            { name: 'banana chip', quantity: 1, unit_price: 15, total_price: 15 },
+            { name: 'Game controller', quantity: 1, unit_price: 1000, total_price: 1000 }
+          ],
+          amount: 1015,
+          status: 'new'
+        }
+      ]
+    });
+
+    render(
+      <BrowserRouter>
+        <OrdersPage />
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('2 items')).toBeDefined();
+    });
+
+    // Click on the 2 items pill button
+    fireEvent.click(screen.getByText('2 items').closest('button'));
+
+    await waitFor(() => {
+      expect(screen.getByText('banana chip')).toBeDefined();
+      expect(screen.getByText('Game controller')).toBeDefined();
     });
   });
 });
