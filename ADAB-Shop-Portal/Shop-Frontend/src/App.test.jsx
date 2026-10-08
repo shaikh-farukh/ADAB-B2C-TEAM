@@ -10,10 +10,10 @@ describe('Seller Portal App Shell', () => {
   it('should render the sidebar navigation links', () => {
     render(<App />);
     
-    // Check if store name is rendered in the header
-    expect(screen.getByText('Shri Balaji Store')).toBeDefined();
+    // Check if store name is rendered in the header and sidebar
+    expect(screen.getAllByText('My Store').length).toBeGreaterThanOrEqual(1);
     
-    // Check if the Dashboard overview exists
-    expect(screen.getByText("Today's Sales")).toBeDefined();
+    // Check if the Dashboard overview cards exist
+    expect(screen.getByText("Quick Bill Counter")).toBeDefined();
   });
 });

@@ -1,17 +1,17 @@
 const { Pool } = require('pg');
 const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
 const dotenv = require('dotenv');
 dotenv.config();
 
+const connectionString = process.env.DATABASE_URL || 
+  `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME}`;
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || undefined,
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  port: Number(process.env.DB_PORT) || 5432,
+  connectionString,
   ssl: process.env.DB_SSL_MODE === 'disable' ? false : {
-    rejectUnauthorized: false
+    rejectUnauthorized: false,
+    servername: process.env.DB_HOST
   },
   max: 10,
   idleTimeoutMillis: 30000,

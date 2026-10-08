@@ -32,10 +32,9 @@ class SellerRepository {
              o.grand_total as amount, o.delivery_address,
              u.full_name as customer, u.phone as customer_phone,
              COALESCE(
-               (SELECT string_agg(CONCAT(COALESCE(p.name, p.title, 'Item'), ' (x', oi.quantity, ')'), ', ')
+               (SELECT string_agg(CONCAT(COALESCE(oi.product_name, 'Item'), ' (x', oi.quantity, ')'), ', ')
                 FROM order_items oi
-                LEFT JOIN products p ON oi.product_id = p.id
-                WHERE oi.order_id = o.id),
+                WHERE oi.seller_order_id = o.id),
                'Standard Basket'
              ) as item_summary
       FROM orders o
