@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-  <title>ADAB Shop — Your Local Stores, One App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>ADAB Shop — Your Local Stores, Delivered</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -75,11 +75,101 @@
       .app-header .page { padding-left: 14px; padding-right: 14px; }
       main.page { padding-left: 14px; padding-right: 14px; }
     }
+
+    /* ===== WEBSITE LAYER: responsive across phone / tablet / laptop / desktop ===== */
+    html { scroll-behavior: smooth; }
+    img, video, svg { max-width: 100%; }
+    .site-nav, .site-footer { display: none; }
+    .hero-copy h1 { font-size: clamp(24px, 4.2vw, 46px); line-height: 1.1; font-weight: 800; letter-spacing: -.03em; margin: 2px 0 6px; }
+    .hero-copy p { font-size: clamp(12px, 1.5vw, 16px); color: #D1FAE5; font-weight: 500; margin: 0 0 14px; max-width: 560px; }
+    .hero-stats { display: none; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+    .hero-stats span { background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25); border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 700; color: #fff; }
+    #storeList { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    #storeList.space-y-3 > * { margin: 0 !important; }
+
+    @media (min-width: 640px) {
+      #storeList { grid-template-columns: repeat(2, 1fr); }
+      #homeProducts, #trendingProducts, #searchGrid, #shopProducts { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)) !important; }
+    }
+    @media (min-width: 900px) {
+      body { padding-bottom: 0; background: #F3F7F4; }
+      .bottom-nav { display: none !important; }
+      .site-nav { display: block; position: sticky; top: 0; z-index: 45; background: rgba(255,255,255,.92); backdrop-filter: blur(16px); border-bottom: 1px solid #E2E8F0; }
+      .site-nav-inner { max-width: 1240px; margin: 0 auto; padding: 0 28px; height: 68px; display: flex; align-items: center; gap: 28px; }
+      .site-logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 19px; letter-spacing: -.02em; color: #064E3B; cursor: pointer; background: none; border: 0; }
+      .site-logo i { width: 38px; height: 38px; border-radius: 12px; background: linear-gradient(135deg,#047857,#10B981); color: #fff; display: flex; align-items: center; justify-content: center; font-style: normal; font-size: 18px; }
+      .site-links { display: flex; gap: 4px; flex: 1; }
+      .site-link { padding: 9px 16px; border-radius: 12px; font-size: 14px; font-weight: 700; color: #475569; background: none; border: 0; cursor: pointer; transition: all .15s; }
+      .site-link:hover { background: #F0FDF4; color: #047857; }
+      .site-link.on { background: #DCFCE7; color: #047857; }
+      .site-actions { display: flex; align-items: center; gap: 10px; }
+      .site-btn { height: 40px; padding: 0 14px; border-radius: 999px; border: 1.5px solid #E2E8F0; background: #fff; font-weight: 700; font-size: 13px; color: #0F172A; display: flex; align-items: center; gap: 8px; cursor: pointer; transition: all .15s; position: relative; }
+      .site-btn:hover { border-color: #10B981; color: #047857; }
+      .site-btn.primary { background: linear-gradient(135deg,#047857,#059669); color: #fff; border-color: transparent; }
+      .site-badge { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px; background: #F97316; color: #fff; font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+
+      #appHeader { position: relative !important; top: auto !important; }
+      #appHeader .page { padding: 52px 28px 60px; }
+      #appHeader .page > div:first-child { display: none; }
+      #appHeader .search-pill { max-width: 760px; padding-top: 18px; padding-bottom: 18px; }
+      #appHeader .page > button:nth-of-type(1) { max-width: 760px; }
+      .hero-stats { display: flex; }
+      .page { max-width: 1240px !important; }
+      main.page { padding-left: 28px; padding-right: 28px; }
+      #sec-home { padding-top: 32px; }
+      .subpage-header { top: 68px; padding-left: max(24px, calc((100% - 1184px) / 2)); padding-right: max(24px, calc((100% - 1184px) / 2)); }
+      #sec-cart, #sec-checkout, #sec-orders, #sec-track, #sec-orderhistory, #sec-returns, #sec-account, #sec-credit, #sec-points, #sec-wallet, #sec-favorites, #sec-reviews, #sec-messages, #sec-notifications, #sec-addresses, #sec-settings, #sec-help, #sec-faq { max-width: 880px; margin-left: auto; margin-right: auto; }
+      #sec-offers { max-width: 1000px; margin-left: auto; margin-right: auto; }
+      #sec-home .grid.grid-cols-4 { grid-template-columns: repeat(8, 1fr); }
+      #sec-home .banner-slide { min-width: 0; flex: 1 1 0; }
+      #sec-home .snap-x { overflow: visible; }
+      #searchShops { grid-template-columns: repeat(3, 1fr) !important; }
+      #sec-categories .grid { grid-template-columns: repeat(4, 1fr) !important; }
+      #trackMap { height: 360px; }
+      .float-cart, .float-cart.hidden-bar { left: auto; right: 28px; bottom: 28px; width: 360px; max-width: 360px; }
+      .float-cart { transform: none; }
+      .float-cart.hidden-bar { transform: translateY(160%); }
+      .toast { bottom: 40px; }
+      .site-footer { display: block; background: #052E22; color: #A7C4B8; margin-top: 56px; }
+      .site-footer-inner { max-width: 1240px; margin: 0 auto; padding: 48px 28px 28px; display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 40px; }
+      .site-footer h4 { color: #fff; font-weight: 800; font-size: 14px; margin: 0 0 14px; }
+      .site-footer a { display: block; font-size: 13px; padding: 4px 0; cursor: pointer; color: #A7C4B8; }
+      .site-footer a:hover { color: #fff; }
+      .site-footer .copy { grid-column: 1 / -1; border-top: 1px solid rgba(255,255,255,.1); padding-top: 20px; font-size: 12px; }
+    }
+    @media (min-width: 1280px) {
+      #homeProducts, #trendingProducts, #searchGrid, #shopProducts { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)) !important; }
+      #storeList { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 380px) { .section-title { font-size: 18px; } .chip { padding: 8px 14px; } }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
   </style>
 </head>
 <body>
 
 <div id="toast" class="toast hidden"></div>
+
+<!-- Website top navigation (shown on tablets/desktops) -->
+<header class="site-nav" id="siteNav">
+  <div class="site-nav-inner">
+    <button class="site-logo" onclick="go('home')"><i>A</i>ADAB Shop</button>
+    <nav class="site-links">
+      <button class="site-link" data-go="home" onclick="go('home')">Explore</button>
+      <button class="site-link" data-go="stores" onclick="go('stores')">Shops</button>
+      <button class="site-link" data-go="categories" onclick="go('categories')">Categories</button>
+      <button class="site-link" data-go="offers" onclick="go('offers')">Offers</button>
+      <button class="site-link" data-go="orders" onclick="go('orders')">Orders</button>
+      <button class="site-link" data-go="account" onclick="go('account')">Account</button>
+    </nav>
+    <div class="site-actions">
+      <button class="site-btn" onclick="go('search')" aria-label="Search"><i class="fa-solid fa-magnifying-glass"></i>Search</button>
+      <button class="site-btn" onclick="go('points')"><i class="fa-solid fa-star" style="color:#F59E0B"></i><span id="navPoints">2,840</span></button>
+      <button class="site-btn" onclick="go('notifications')" aria-label="Notifications"><i class="fa-solid fa-bell"></i><span class="site-badge">4</span></button>
+      <button class="site-btn" onclick="openCustomerAuth()"><i class="fa-solid fa-user"></i><span id="navAuth">Sign In</span></button>
+      <button class="site-btn primary" onclick="go('cart')"><i class="fa-solid fa-cart-shopping"></i>Cart<span class="site-badge" id="navCart" style="display:none">0</span></button>
+    </div>
+  </div>
+</header>
 
 <!-- App header -->
 <div id="appHeader" class="app-header sticky top-0 z-40 text-white">
@@ -100,10 +190,15 @@
       <div class="flex-1 min-w-0"><div class="text-[10px] font-bold text-green-100 uppercase tracking-wider">Deliver to</div><div class="font-extrabold text-sm truncate">Home · Ring Road, Surat <i class="fa-solid fa-chevron-down text-[9px] ml-1 opacity-70"></i></div></div>
       <span class="delivery-pill shrink-0"><i class="fa-solid fa-bolt mr-1"></i>14–45 min</span>
     </button>
+    <div class="hero-copy">
+      <h1>Your neighbourhood shops,<br class="hidden md:block"> delivered in minutes.</h1>
+      <p>Groceries, dairy, fashion and more from 48 trusted local stores in Surat — one cart, one delivery.</p>
+    </div>
     <button onclick="go('search')" class="search-pill w-full flex items-center gap-3 bg-white rounded-2xl px-4 py-3.5 text-left text-gray-800">
       <i class="fa-solid fa-magnifying-glass text-brand-green text-lg"></i>
       <span class="text-gray-400 text-sm font-medium">Search shops, products, brands...</span>
     </button>
+    <div class="hero-stats"><span>🏪 48 local stores</span><span>⚡ 14–45 min delivery</span><span>⭐ Earn rewards on every order</span><span>🔒 Secure payments</span></div>
   </div>
 </div>
 
@@ -756,6 +851,16 @@
 
 </main>
 
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <div><h4 style="font-size:18px">ADAB Shop</h4><p style="font-size:13px;line-height:1.7;max-width:320px">Your local stores, one place. Supporting neighbourhood businesses across Surat with fast, reliable delivery.</p></div>
+    <div><h4>Shop</h4><a onclick="go('stores')">All shops</a><a onclick="go('categories')">Categories</a><a onclick="go('offers')">Offers</a></div>
+    <div><h4>Account</h4><a onclick="go('orders')">My orders</a><a onclick="go('wallet')">Wallet</a><a onclick="go('points')">Rewards</a></div>
+    <div><h4>Support</h4><a onclick="go('help')">Help centre</a><a onclick="go('faq')">FAQs</a><a onclick="go('returns')">Returns</a></div>
+    <div class="copy">© 2026 ADAB Shop · Surat, Gujarat · Made for local businesses</div>
+  </div>
+</footer>
+
 <!-- Floating cart -->
 <button id="floatCart" onclick="go('cart')" class="float-cart hidden-bar">
   <div class="flex items-center gap-3 min-w-0">
@@ -1342,6 +1447,20 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   go('home');
 });
+
+/* ===== Website layer: nav sync (mirrors existing app state into the top bar) ===== */
+(function(){
+  const mirror=(srcId,dstId,fn)=>{const src=document.getElementById(srcId),dst=document.getElementById(dstId);if(!src||!dst)return;
+    const upd=()=>fn?fn(src,dst):(dst.textContent=src.textContent);upd();new MutationObserver(upd).observe(src,{childList:true,characterData:true,subtree:true});};
+  mirror('custAuthLabel','navAuth');
+  mirror('hdrPoints','navPoints');
+  mirror('subCartBadge','navCart',(a,b)=>{const n=parseInt(a.textContent)||0;b.textContent=n;b.style.display=n>0?'flex':'none';});
+  const _go=go;
+  go=function(id){_go.apply(this,arguments);
+    const m={home:'home',shop:'stores',stores:'stores',search:'home',categories:'categories',offers:'offers',orders:'orders',track:'orders',orderhistory:'orders',account:'account'}[id];
+    document.querySelectorAll('.site-link').forEach(b=>b.classList.toggle('on',b.dataset.go===m));};
+  document.querySelectorAll('.site-link').forEach(b=>b.classList.toggle('on',b.dataset.go==='home'));
+})();
 </script>
 <!-- ADAB Customer — local shop marketplace · pairs with unified-one-portal-demo.html -->
 </body>

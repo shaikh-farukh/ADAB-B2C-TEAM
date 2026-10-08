@@ -19,6 +19,7 @@ export default function App() {
   const [placingOrder, setPlacingOrder] = useState(false);
   const [activeOrder, setActiveOrder] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
+  const [validationIssues, setValidationIssues] = useState([]);
 
   // Load cart from backend
   const refreshCart = async () => {
@@ -29,6 +30,7 @@ export default function App() {
         setCartData({
           cart: res.data.cart,
           items: res.data.items || [],
+          stores: res.data.stores || [],
           summary: res.data.summary || { subtotal: 0, grand_total: 0, delivery_fee: 29, discount: 0 }
         });
       }
@@ -84,6 +86,7 @@ export default function App() {
   // Update item quantity (+ / -)
   const handleUpdateCartQty = async (itemId, delta) => {
     try {
+      setValidationIssues([]);
       await CartAPI.updateItem(itemId, delta);
       await refreshCart();
     } catch (err) {
@@ -96,10 +99,12 @@ export default function App() {
     try {
       const res = await CartAPI.applyCoupon(code);
       await refreshCart();
-      const saved = res.data?.summary?.discount || 0;
-      showToast(saved > 0 ? `Saved ₹${saved} with ${code}!` : `Coupon ${code} applied`);
+      const saved = res.data?.summary?.discount || res.data?.discount || 0;
+      showToast(saved > 0 ? `🎉 Saved ₹${saved} with ${code}!` : `Coupon ${code} applied`);
+      return res.data;
     } catch (err) {
-      showToast(`Coupon error: ${err.message}`);
+      showToast(`⚠️ ${err.message}`);
+      throw err;
     }
   };
 
@@ -111,12 +116,14 @@ export default function App() {
       showToast('Coupon removed');
     } catch (err) {
       showToast(`Error: ${err.message}`);
+      throw err;
     }
   };
 
   // Clear cart
   const handleClearCart = async () => {
     try {
+      setValidationIssues([]);
       for (const item of cartData.items) {
         await CartAPI.removeItem(item.cart_item_id || item.id);
       }
@@ -124,6 +131,62 @@ export default function App() {
       showToast('Cart cleared');
     } catch (err) {
       showToast(`Error clearing cart: ${err.message}`);
+    }
+  };
+
+  // Proceed to Checkout with live cart validation (Day 2 Frontend Task 3)
+  const handleProceedToCheckout = async () => {
+    try {
+      setLoadingCart(true);
+      const payload = {
+        client_subtotal: Number(cartData.summary?.subtotal || 0),
+        client_total: Number(cartData.summary?.grand_total || 0),
+        client_items: (cartData.items || []).map((it) => ({
+          listing_id: it.listing_id || it.id,
+          name: it.product_name || it.name,
+          price: Number(it.sell_price || it.price || 0),
+          quantity: Number(it.quantity || 1)
+        }))
+      };
+
+      const valRes = await CartAPI.validateCart(payload);
+      const data = valRes?.data || {};
+      const isValid = (data.is_valid ?? data.isValid) === true;
+      const issues = data.issues || data.stock_issues || [];
+
+      if (!isValid && issues.length > 0) {
+        setValidationIssues(issues);
+        const issueMsgs = issues.map((iss) => {
+          const name = iss.name || iss.product_name || 'Item';
+          if (iss.issue === 'OUT_OF_STOCK' || iss.type === 'OUT_OF_STOCK') {
+            return `"${name}" is Out of Stock`;
+          }
+          if (iss.issue === 'INSUFFICIENT_STOCK' || iss.type === 'INSUFFICIENT_STOCK') {
+            const avail = iss.available_stock ?? iss.available_quantity ?? 0;
+            return `"${name}": only ${avail} available`;
+          }
+          if (iss.issue === 'PRICE_CHANGED' || iss.type === 'PRICE_CHANGED') {
+            const newPrice = iss.current_price ?? iss.new_price ?? 0;
+            return `"${name}" price changed to ₹${newPrice}`;
+          }
+          return iss.message || 'Cart item update needed';
+        });
+
+        showToast(`⚠️ Cannot proceed: ${issueMsgs.slice(0, 2).join('. ')}`);
+        await refreshCart();
+        return false;
+      }
+
+      // Valid: clear issues and navigate to checkout
+      setValidationIssues([]);
+      setActiveTab('checkout');
+      return true;
+    } catch (err) {
+      console.warn('Cart validation check warning:', err.message);
+      showToast(`⚠️ Validation check warning: ${err.message}`);
+      return false;
+    } finally {
+      setLoadingCart(false);
     }
   };
 
@@ -140,16 +203,119 @@ export default function App() {
     <div className="min-h-screen bg-[#F6F9F6] text-[#0F172A] flex flex-col font-sans">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="toast">
+        <div className="toast" id="toast">
           {toastMessage}
         </div>
       )}
+
+      {/* Website Top Navigation (shown on tablets/desktops >= 900px matching unified-customer-portal-demo.html) */}
+      <header className="site-nav" id="siteNav">
+        <div className="site-nav-inner">
+          <button type="button" className="site-logo" onClick={() => setActiveTab('home')}>
+            <i>A</i>ADAB Shop
+          </button>
+          <nav className="site-links">
+            <button
+              type="button"
+              className={`site-link ${activeTab === 'home' ? 'on' : ''}`}
+              onClick={() => setActiveTab('home')}
+            >
+              Explore
+            </button>
+            <button
+              type="button"
+              className={`site-link ${activeTab === 'stores' ? 'on' : ''}`}
+              onClick={() => setActiveTab('stores')}
+            >
+              Shops
+            </button>
+            <button
+              type="button"
+              className={`site-link ${activeTab === 'categories' ? 'on' : ''}`}
+              onClick={() => setActiveTab('stores')}
+            >
+              Categories
+            </button>
+            <button
+              type="button"
+              className={`site-link ${activeTab === 'offers' ? 'on' : ''}`}
+              onClick={() => {
+                showToast('Viewing available store coupons & discounts');
+                setActiveTab('cart');
+              }}
+            >
+              Offers
+            </button>
+            <button
+              type="button"
+              className={`site-link ${activeTab === 'orders' ? 'on' : ''}`}
+              onClick={() => setActiveTab('orders')}
+            >
+              Orders
+            </button>
+            <button
+              type="button"
+              className={`site-link ${activeTab === 'account' ? 'on' : ''}`}
+              onClick={() => showToast('Guest profile active · Surat')}
+            >
+              Account
+            </button>
+          </nav>
+          <div className="site-actions">
+            <button
+              type="button"
+              className="site-btn"
+              onClick={() => setActiveTab('stores')}
+              aria-label="Search"
+            >
+              <i className="fa-solid fa-magnifying-glass"></i>Search
+            </button>
+            <button
+              type="button"
+              className="site-btn"
+              onClick={() => showToast(`ADAB Reward Points Balance: ${points.toLocaleString('en-IN')}`)}
+            >
+              <i className="fa-solid fa-star" style={{ color: '#F59E0B' }}></i>
+              <span id="navPoints">{points.toLocaleString('en-IN')}</span>
+            </button>
+            <button
+              type="button"
+              className="site-btn"
+              onClick={() => showToast('No unread notifications')}
+              aria-label="Notifications"
+            >
+              <i className="fa-solid fa-bell"></i>
+              {unreadNotifications > 0 && <span className="site-badge">{unreadNotifications}</span>}
+            </button>
+            <button
+              type="button"
+              className="site-btn"
+              onClick={() => showToast('Signed in as Guest Customer')}
+            >
+              <i className="fa-solid fa-user"></i>
+              <span id="navAuth">Sign In</span>
+            </button>
+            <button
+              type="button"
+              className="site-btn primary"
+              onClick={() => setActiveTab('cart')}
+            >
+              <i className="fa-solid fa-cart-shopping"></i>Cart
+              {totalItemCount > 0 && (
+                <span className="site-badge" id="navCart">
+                  {totalItemCount}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+      </header>
 
       {/* Main App Header (Shown on Home) */}
       {activeTab === 'home' && (
         <header id="appHeader" className="app-header sticky top-0 z-40 text-white">
           <div className="page px-4 pt-4 pb-5">
-            {/* Top Bar: Brand + Action Buttons */}
+            {/* Top Bar: Brand + Action Buttons (hidden on >=900px by CSS) */}
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center font-extrabold text-lg shadow-sm">
@@ -164,6 +330,7 @@ export default function App() {
               <div className="flex gap-2">
                 <button
                   type="button"
+                  onClick={() => showToast('Signed in as Guest Customer')}
                   className="glass px-2.5 h-9 rounded-full flex items-center gap-1.5 text-xs font-bold transition hover:bg-white/30 cursor-pointer"
                 >
                   <i className="fa-solid fa-user"></i>
@@ -172,6 +339,7 @@ export default function App() {
 
                 <button
                   type="button"
+                  onClick={() => showToast('No unread alerts')}
                   className="glass w-9 h-9 rounded-full flex items-center justify-center relative transition hover:bg-white/30 cursor-pointer"
                 >
                   <i className="fa-solid fa-bell text-sm"></i>
@@ -184,6 +352,7 @@ export default function App() {
 
                 <button
                   type="button"
+                  onClick={() => showToast(`ADAB Reward Points: ${points.toLocaleString('en-IN')}`)}
                   className="glass px-2.5 h-9 rounded-full flex items-center gap-1 text-xs font-bold transition hover:bg-white/30 cursor-pointer"
                 >
                   <i className="fa-solid fa-star text-amber-300"></i>
@@ -195,6 +364,7 @@ export default function App() {
             {/* Location Delivery Selector */}
             <button
               type="button"
+              onClick={() => showToast('Delivery zone verified: Surat Ring Road (48 stores connected)')}
               className="flex items-center gap-2 mb-3 text-left w-full group cursor-pointer"
             >
               <i className="fa-solid fa-location-dot text-brand-coral text-base"></i>
@@ -212,10 +382,31 @@ export default function App() {
               </span>
             </button>
 
+            {/* Hero Copy (shown on desktop >= 900px matching demo) */}
+            <div className="hero-copy">
+              <h1>
+                Your neighbourhood shops,<br className="hidden md:block" /> delivered in minutes.
+              </h1>
+              <p>
+                Groceries, dairy, fashion and more from 48 trusted local stores in Surat — one cart, one delivery.
+              </p>
+            </div>
+
             {/* Search Pill */}
-            <div className="search-pill w-full flex items-center gap-3 bg-white rounded-2xl px-4 py-3.5 text-left text-gray-800 cursor-pointer">
+            <div
+              onClick={() => setActiveTab('stores')}
+              className="search-pill w-full flex items-center gap-3 bg-white rounded-2xl px-4 py-3.5 text-left text-gray-800 cursor-pointer"
+            >
               <i className="fa-solid fa-magnifying-glass text-brand-green text-lg"></i>
               <span className="text-gray-400 text-sm font-medium">Search shops, products, brands...</span>
+            </div>
+
+            {/* Hero Stats (shown on desktop >= 900px matching demo) */}
+            <div className="hero-stats">
+              <span>🏪 48 local stores</span>
+              <span>⚡ 14–45 min delivery</span>
+              <span>⭐ Earn rewards on every order</span>
+              <span>🔒 Secure payments</span>
             </div>
           </div>
         </header>
@@ -253,7 +444,7 @@ export default function App() {
           >
             <i className="fa-solid fa-cart-shopping"></i>
             {totalItemCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-brand-coral text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+              <span id="subCartBadge" className="absolute -top-1 -right-1 w-4 h-4 bg-brand-coral text-white text-[9px] font-bold rounded-full flex items-center justify-center">
                 {totalItemCount}
               </span>
             )}
@@ -292,7 +483,9 @@ export default function App() {
             onApplyCoupon={handleApplyCoupon}
             onRemoveCoupon={handleRemoveCoupon}
             onStartShopping={() => setActiveTab('home')}
-            onProceedToCheckout={() => setActiveTab('checkout')}
+            onProceedToCheckout={handleProceedToCheckout}
+            validationIssues={validationIssues}
+            onClearValidationIssues={() => setValidationIssues([])}
             loading={loadingCart}
           />
         )}
@@ -508,6 +701,42 @@ export default function App() {
             </div>
           )}
       </main>
+
+      {/* Website Footer (Desktop >= 900px matching unified-customer-portal-demo.html) */}
+      <footer className="site-footer">
+        <div className="site-footer-inner">
+          <div>
+            <h4 style={{ fontSize: '18px' }}>ADAB Shop</h4>
+            <p style={{ fontSize: '13px', lineHeight: '1.7', maxWidth: '320px' }}>
+              Your local stores, one place. Supporting neighbourhood businesses across Surat with fast, reliable delivery.
+            </p>
+          </div>
+          <div>
+            <h4>Shop</h4>
+            <a onClick={() => setActiveTab('stores')}>All shops</a>
+            <a onClick={() => setActiveTab('stores')}>Categories</a>
+            <a onClick={() => {
+              showToast('Viewing offers & coupons');
+              setActiveTab('cart');
+            }}>Offers</a>
+          </div>
+          <div>
+            <h4>Account</h4>
+            <a onClick={() => setActiveTab('orders')}>My orders</a>
+            <a onClick={() => showToast('Wallet balance: ₹0')}>Wallet</a>
+            <a onClick={() => showToast(`Rewards Points: ${points}`)}>Rewards</a>
+          </div>
+          <div>
+            <h4>Support</h4>
+            <a onClick={() => showToast('Help centre: support@adab.shop')}>Help centre</a>
+            <a onClick={() => showToast('Frequently asked questions')}>FAQs</a>
+            <a onClick={() => showToast('Returns & refund policy')}>Returns</a>
+          </div>
+          <div className="copy">
+            © 2026 ADAB Shop · Surat, Gujarat · Made for local businesses
+          </div>
+        </div>
+      </footer>
 
       {/* Floating Cart Bar (Task 2) */}
       {activeTab !== 'cart' && activeTab !== 'checkout' && (

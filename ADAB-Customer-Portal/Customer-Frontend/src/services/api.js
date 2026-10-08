@@ -30,7 +30,11 @@ export async function apiRequest(endpoint, options = {}) {
 
   const data = await response.json();
   if (!response.ok) {
-    throw new Error(data.message || 'API request failed');
+    const error = new Error(data.message || 'API request failed');
+    error.status = response.status;
+    error.code = data.code || (data.data && data.data.coupon_status);
+    error.details = data.data;
+    throw error;
   }
   return data;
 }
@@ -38,6 +42,7 @@ export async function apiRequest(endpoint, options = {}) {
 // Cart APIs
 export const CartAPI = {
   getCart: () => apiRequest('/cart'),
+  getCoupons: () => apiRequest('/cart/coupons'),
   addItem: (listingId, quantity = 1) =>
     apiRequest('/cart/items', {
       method: 'POST',
@@ -61,6 +66,16 @@ export const CartAPI = {
   removeCoupon: () =>
     apiRequest('/cart/coupon', {
       method: 'DELETE'
+    }),
+  validateCart: (payload = {}) =>
+    apiRequest('/cart/validate', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+  mergeCart: (customerId, sessionToken) =>
+    apiRequest('/cart/merge', {
+      method: 'POST',
+      body: JSON.stringify({ customer_id: customerId, session_token: sessionToken })
     })
 };
 
