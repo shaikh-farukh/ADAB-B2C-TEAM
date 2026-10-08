@@ -225,6 +225,7 @@ async function updateApprovalItemState({ id, admin_id, transitionResult }) {
   if (transitionResult.new_status === 'APPROVED') eventType = 'PRODUCT_APPROVED';
   if (transitionResult.new_status === 'REJECTED') eventType = 'PRODUCT_REJECTED';
   if (transitionResult.new_status === 'CHANGES_REQUESTED') eventType = 'CHANGES_REQUESTED';
+  if (transitionResult.new_status === 'SUSPENDED') eventType = 'PRODUCT_SUSPENDED';
 
   await emitOutboxEvent({
     aggregate_type: 'PRODUCT_LISTING',

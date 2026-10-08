@@ -11,7 +11,7 @@ const approvalController = require('../controllers/adminApprovalController');
 // Dev login to get a token easily
 router.post('/dev-login', (req, res) => {
   const jwt = require('jsonwebtoken');
-  const token = jwt.sign({ userId: 1, role: 'admin' }, process.env.JWT_SECRET || 'dev-secret-key', { expiresIn: '1d' });
+  const token = jwt.sign({ userId: 1, role: 'admin' }, process.env.JWT_SECRET || 'adab-secret-key-change-in-prod', { expiresIn: '1d' });
   res.json({ success: true, token });
 });
 

@@ -8,7 +8,8 @@ const APPROVAL_STATES = Object.freeze({
   PENDING: 'PENDING',
   APPROVED: 'APPROVED',
   REJECTED: 'REJECTED',
-  CHANGES_REQUESTED: 'CHANGES_REQUESTED'
+  CHANGES_REQUESTED: 'CHANGES_REQUESTED',
+  SUSPENDED: 'SUSPENDED'
 });
 
 const APPROVAL_ACTIONS = Object.freeze({
@@ -17,7 +18,9 @@ const APPROVAL_ACTIONS = Object.freeze({
   REQUEST_CHANGES: 'REQUEST_CHANGES',
   RESUBMIT: 'RESUBMIT',
   REOPEN: 'REOPEN',
-  REVOKE: 'REVOKE'
+  REVOKE: 'REVOKE',
+  SUSPEND: 'SUSPEND',
+  UNSUSPEND: 'UNSUSPEND'
 });
 
 // Allowed State Transition Map: currentState -> allowed next states & required conditions
@@ -25,18 +28,25 @@ const ALLOWED_TRANSITIONS = Object.freeze({
   [APPROVAL_STATES.PENDING]: [
     { targetState: APPROVAL_STATES.APPROVED, action: APPROVAL_ACTIONS.APPROVE },
     { targetState: APPROVAL_STATES.REJECTED, action: APPROVAL_ACTIONS.REJECT, requireReason: true },
-    { targetState: APPROVAL_STATES.CHANGES_REQUESTED, action: APPROVAL_ACTIONS.REQUEST_CHANGES, requireNotes: true }
+    { targetState: APPROVAL_STATES.CHANGES_REQUESTED, action: APPROVAL_ACTIONS.REQUEST_CHANGES, requireNotes: true },
+    { targetState: APPROVAL_STATES.SUSPENDED, action: APPROVAL_ACTIONS.SUSPEND, requireReason: true }
   ],
   [APPROVAL_STATES.CHANGES_REQUESTED]: [
     { targetState: APPROVAL_STATES.PENDING, action: APPROVAL_ACTIONS.RESUBMIT },
     { targetState: APPROVAL_STATES.APPROVED, action: APPROVAL_ACTIONS.APPROVE },
-    { targetState: APPROVAL_STATES.REJECTED, action: APPROVAL_ACTIONS.REJECT, requireReason: true }
+    { targetState: APPROVAL_STATES.REJECTED, action: APPROVAL_ACTIONS.REJECT, requireReason: true },
+    { targetState: APPROVAL_STATES.SUSPENDED, action: APPROVAL_ACTIONS.SUSPEND, requireReason: true }
   ],
   [APPROVAL_STATES.REJECTED]: [
     { targetState: APPROVAL_STATES.PENDING, action: APPROVAL_ACTIONS.REOPEN }
   ],
   [APPROVAL_STATES.APPROVED]: [
-    { targetState: APPROVAL_STATES.REJECTED, action: APPROVAL_ACTIONS.REVOKE, requireReason: true }
+    { targetState: APPROVAL_STATES.REJECTED, action: APPROVAL_ACTIONS.REVOKE, requireReason: true },
+    { targetState: APPROVAL_STATES.SUSPENDED, action: APPROVAL_ACTIONS.SUSPEND, requireReason: true }
+  ],
+  [APPROVAL_STATES.SUSPENDED]: [
+    { targetState: APPROVAL_STATES.APPROVED, action: APPROVAL_ACTIONS.UNSUSPEND },
+    { targetState: APPROVAL_STATES.REJECTED, action: APPROVAL_ACTIONS.REJECT, requireReason: true }
   ]
 });
 

@@ -2,6 +2,7 @@ const {
   validateApproveDTO,
   validateRejectDTO,
   validateRequestChangesDTO,
+  validateSuspendDTO,
   formatApprovalItemDTO,
   formatApprovalHistoryDTO,
   formatApprovalCountsDTO
@@ -205,7 +206,84 @@ async function requestChangesItem(req, res) {
   }
 }
 
-// 6. Approval History Endpoint
+// 6. Suspend Item Action
+async function suspendItem(req, res) {
+  const { id } = req.params;
+  const validation = validateSuspendDTO(req.body);
+  if (!validation.isValid) {
+    return res.status(400).json({ success: false, error: 'INVALID_CONTRACT', errors: validation.errors });
+  }
+
+  const currentItemRes = await fetchApprovalItemById(id);
+  const currentStatus = (currentItemRes.success && currentItemRes.data)
+    ? currentItemRes.data.current_status || currentItemRes.data.status || APPROVAL_STATES.PENDING
+    : req.body.current_status || APPROVAL_STATES.PENDING;
+
+  try {
+    const transitionResult = transition(currentStatus, APPROVAL_STATES.SUSPENDED, {
+      rejection_reason: validation.data.rejection_reason,
+      notes: validation.data.notes,
+      listing_id: id,
+      admin_id: req.user ? req.user.id : 'system'
+    });
+
+    req.auditPreviousState = transitionResult.previous_status;
+    req.auditNewState = transitionResult.new_status;
+
+    await updateApprovalItemState({
+      id,
+      admin_id: req.user ? req.user.id : null,
+      transitionResult
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Item '${id}' suspended`,
+      data: transitionResult
+    });
+  } catch (error) {
+    if (error instanceof ApprovalStateMachineError) {
+      return res.status(400).json({
+        success: false,
+        error: error.errorCode,
+        message: error.message,
+        details: error.details
+      });
+    }
+    return res.status(500).json({ success: false, error: 'SERVER_ERROR', message: error.message });
+  }
+}
+
+// 7. General Listing Status Update Action (PATCH /products/:id/status or /listings/:id/status)
+async function updateListingStatus(req, res) {
+  const { id } = req.params;
+  const { status, action, reason, rejection_reason, notes } = req.body;
+  const targetAction = (action || status || '').toUpperCase();
+
+  if (targetAction === 'APPROVE' || targetAction === 'APPROVED') {
+    return approveItem(req, res);
+  }
+  if (targetAction === 'REJECT' || targetAction === 'REJECTED') {
+    req.body.rejection_reason = rejection_reason || reason || req.body.rejection_reason;
+    return rejectItem(req, res);
+  }
+  if (targetAction === 'REQUEST_CHANGES' || targetAction === 'CHANGES_REQUESTED') {
+    req.body.notes = notes || reason || req.body.notes;
+    return requestChangesItem(req, res);
+  }
+  if (targetAction === 'SUSPEND' || targetAction === 'SUSPENDED') {
+    req.body.reason = reason || rejection_reason || req.body.reason;
+    return suspendItem(req, res);
+  }
+
+  return res.status(400).json({
+    success: false,
+    error: 'INVALID_STATUS',
+    message: `Invalid or unsupported status/action '${targetAction}'. Allowed: APPROVE, REJECT, REQUEST_CHANGES, SUSPEND`
+  });
+}
+
+// 8. Approval History Endpoint
 async function getApprovalHistory(req, res) {
   const { id } = req.params;
   const result = await fetchApprovalItemById(id);
@@ -225,7 +303,7 @@ async function getApprovalHistory(req, res) {
   });
 }
 
-// 7. Approval Counts Endpoint
+// 9. Approval Counts Endpoint
 async function getApprovalCounts(req, res) {
   return res.status(200).json({
     success: true,
@@ -234,12 +312,13 @@ async function getApprovalCounts(req, res) {
       approved: 145,
       rejected: 8,
       changes_requested: 5,
-      total: 170
+      suspended: 2,
+      total: 172
     })
   });
 }
 
-// 8. Seller / Customer User Status Authorization Endpoint
+// 10. Seller / Customer User Status Authorization Endpoint
 async function handleUserStatusUpdate(req, res) {
   const { id } = req.params;
   const { status, reason } = req.body;
@@ -276,6 +355,8 @@ module.exports = {
   approveItem,
   rejectItem,
   requestChangesItem,
+  suspendItem,
+  updateListingStatus,
   getApprovalHistory,
   getApprovalCounts,
   handleUserStatusUpdate

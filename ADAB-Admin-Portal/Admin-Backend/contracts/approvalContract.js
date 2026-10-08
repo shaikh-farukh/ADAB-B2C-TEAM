@@ -56,6 +56,25 @@ function validateRequestChangesDTO(body = {}) {
 }
 
 /**
+ * Validates request contract for Suspend action.
+ */
+function validateSuspendDTO(body = {}) {
+  const errors = [];
+  const reason = body.reason || body.rejection_reason;
+  if (!reason || typeof reason !== 'string' || !reason.trim()) {
+    errors.push("'reason' (or 'rejection_reason') is required and must be a non-empty string");
+  }
+  return {
+    isValid: errors.length === 0,
+    errors,
+    data: {
+      rejection_reason: reason ? reason.trim() : null,
+      notes: body.notes ? body.notes.trim() : null
+    }
+  };
+}
+
+/**
  * Standardized Approval Item DTO format
  */
 function formatApprovalItemDTO(item = {}) {
@@ -95,6 +114,7 @@ function formatApprovalCountsDTO(counts = {}) {
     approved: Number(counts.approved) || 0,
     rejected: Number(counts.rejected) || 0,
     changes_requested: Number(counts.changes_requested) || 0,
+    suspended: Number(counts.suspended) || 0,
     total: Number(counts.total) || 0
   };
 }
@@ -103,6 +123,7 @@ module.exports = {
   validateApproveDTO,
   validateRejectDTO,
   validateRequestChangesDTO,
+  validateSuspendDTO,
   formatApprovalItemDTO,
   formatApprovalHistoryDTO,
   formatApprovalCountsDTO

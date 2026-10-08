@@ -22,7 +22,6 @@ apiClient.interceptors.response.use(
     if (error.response && (error.response.status === 401 || error.response.status === 403)) {
       if (localStorage.getItem('token')) {
         localStorage.removeItem('token');
-        window.location.reload();
       }
     }
     return Promise.reject(error);
