@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
+import L from 'leaflet';
 
 function OrderItemsModal({ order, onClose }) {
   if (!order) return null;
@@ -93,13 +94,90 @@ function OrderItemsModal({ order, onClose }) {
 
 function OrderMapModal({ order, onClose, onUpdateStatus }) {
   if (!order) return null;
+  const mapContainerRef = useRef(null);
   const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '#9000';
   const displayCustomer = order.customer || order.customer_name || 'Customer';
   const addr = order.delivery_address || {};
   const addrText = addr.address_line 
     ? `${addr.address_line}, ${addr.city || 'Surat'} ${addr.pincode || ''}`
     : 'Ring Road, Surat, Gujarat';
-  const distance = order.distance || '2.0';
+  const distance = parseFloat(order.distance) || 2.0;
+
+  // Store Location (Surat merchant base)
+  const storeLat = 21.1702;
+  const storeLng = 72.8311;
+
+  // Calculate customer location based on distance and order seed
+  const angle = ((parseInt((order.id || '10').replace(/\D/g, '') || 7, 10) * 53) % 360);
+  const rad = (angle * Math.PI) / 180;
+  const custLat = storeLat + (distance / 111) * Math.cos(rad);
+  const custLng = storeLng + (distance / (111 * Math.cos((storeLat * Math.PI) / 180))) * Math.sin(rad);
+
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+    try {
+      const leaflet = typeof window !== 'undefined' ? (window.L || L) : null;
+      if (!leaflet || !leaflet.map) return;
+
+      const map = leaflet.map(mapContainerRef.current, {
+        zoomControl: true,
+        attributionControl: false
+      }).setView([storeLat, storeLng], 12);
+
+      leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18
+      }).addTo(map);
+
+      // 1. Delivery Zone Radius Circle (10 km green dashed boundary)
+      leaflet.circle([storeLat, storeLng], {
+        radius: 10 * 1000,
+        color: '#22C55E',
+        fillColor: '#22C55E',
+        fillOpacity: 0.08,
+        weight: 2,
+        dashArray: '6 4'
+      }).addTo(map);
+
+      // 2. Store Marker (Green Store Pin)
+      const storeIcon = leaflet.divIcon({
+        className: 'custom-store-pin',
+        html: '<div style="background:#15803D;color:white;padding:4px 8px;border-radius:8px;font-size:11px;font-weight:bold;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.3);border:2px solid white;display:flex;align-items:center;gap:4px;"><i class="fa-solid fa-store"></i> Your Store</div>'
+      });
+      leaflet.marker([storeLat, storeLng], { icon: storeIcon })
+        .addTo(map)
+        .bindPopup('<b>Shri Balaji Store</b><br>10 km delivery radius');
+
+      // 3. Customer Marker (Blue Location Pin)
+      const customerIcon = leaflet.divIcon({
+        className: 'custom-cust-pin',
+        html: `<div style="background:#2563EB;color:white;padding:4px 8px;border-radius:8px;font-size:11px;font-weight:bold;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.3);border:2px solid white;display:flex;align-items:center;gap:4px;"><i class="fa-solid fa-location-dot"></i> ${displayCustomer} (${distance} km)</div>`
+      });
+      leaflet.marker([custLat, custLng], { icon: customerIcon })
+        .addTo(map)
+        .bindPopup(`<b>${displayCustomer}</b><br>${addrText}<br><b>Distance:</b> ${distance} km`)
+        .openPopup();
+
+      // 4. Connecting Delivery Polyline
+      leaflet.polyline([[storeLat, storeLng], [custLat, custLng]], {
+        color: '#3B82F6',
+        weight: 2.5,
+        dashArray: '6 6',
+        opacity: 0.85
+      }).addTo(map);
+
+      // Fit bounds to show store, customer, and boundary
+      map.fitBounds([
+        [storeLat, storeLng],
+        [custLat, custLng]
+      ], { padding: [50, 50] });
+
+      return () => {
+        map.remove();
+      };
+    } catch (e) {
+      console.warn('Map initialization skipped (e.g. non-browser environment):', e);
+    }
+  }, [storeLat, storeLng, custLat, custLng, distance, displayCustomer, addrText]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
@@ -144,15 +222,10 @@ function OrderMapModal({ order, onClose, onUpdateStatus }) {
           </span>
         </div>
 
-        {/* Map View */}
-        <div className="relative h-64 bg-gray-100 overflow-hidden">
-          <iframe
-            title="Customer Delivery Location Map"
-            className="w-full h-full border-0"
-            loading="lazy"
-            src="https://www.openstreetmap.org/export/embed.html?bbox=72.78%2C21.14%2C72.92%2C21.24&layer=mapnik&marker=21.1702%2C72.8311"
-          />
-          <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-[11px] font-bold text-gray-800 shadow-sm flex items-center gap-1.5">
+        {/* Real Leaflet Map View */}
+        <div className="relative h-72 w-full bg-gray-100 overflow-hidden">
+          <div ref={mapContainerRef} className="w-full h-full z-1"></div>
+          <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-[11px] font-bold text-gray-800 shadow-sm flex items-center gap-1.5 z-10 pointer-events-none">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
             <span>Store Zone Radius: 10 km</span>
           </div>
