@@ -67,31 +67,47 @@ async function getApprovalQueue({ status = 'PENDING', seller_id, category_id, so
 
   try {
     if (pool && typeof pool.query === 'function') {
+      let countQuery = `SELECT COUNT(*) FROM seller_listings WHERE 1=1`;
       let queryText = `
-        SELECT id, seller_id, product_id, title, status, price, created_at, updated_at
+        SELECT id, store_id AS seller_id, master_catalog_id AS product_id, title, approval_status AS status, sell_price AS price, created_at, updated_at, rejection_reason
         FROM seller_listings
         WHERE 1=1
       `;
       const params = [];
 
+      let dbStatus = status;
       if (status && status !== 'ALL') {
-        params.push(status.toUpperCase());
-        queryText += ` AND status = $${params.length}`;
+        if (status === 'LIVE') dbStatus = 'APPROVED';
+        if (status === 'PENDING') dbStatus = 'SUBMITTED';
+        params.push(dbStatus.toUpperCase());
+        queryText += ` AND approval_status = $${params.length}`;
+        countQuery += ` AND approval_status = $${params.length}`;
       }
 
       if (seller_id && UUID_REGEX.test(seller_id)) {
         params.push(seller_id);
-        queryText += ` AND seller_id = $${params.length}`;
+        queryText += ` AND store_id = $${params.length}`;
+        countQuery += ` AND store_id = $${params.length}`;
       }
 
       queryText += ` ORDER BY created_at ${sortOrder} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-      params.push(limitNum, offset);
+      
+      const [countRes, res] = await Promise.all([
+        pool.query(countQuery, params),
+        pool.query(queryText, [...params, limitNum, offset])
+      ]);
 
-      const res = await pool.query(queryText, params);
-      if (res.rowCount > 0) {
+      if (res.rows) {
+        const totalRecords = parseInt(countRes.rows[0].count, 10);
         return {
           success: true,
-          pagination: { page: pageNum, limit: limitNum, count: res.rowCount },
+          pagination: { 
+            page: pageNum, 
+            limit: limitNum, 
+            count: res.rowCount,
+            total: totalRecords,
+            totalPages: Math.ceil(totalRecords / limitNum)
+          },
           data: res.rows
         };
       }
@@ -133,7 +149,7 @@ async function getApprovalQueue({ status = 'PENDING', seller_id, category_id, so
 async function getApprovalItemById(id) {
   try {
     if (pool && typeof pool.query === 'function' && UUID_REGEX.test(id)) {
-      const itemRes = await pool.query('SELECT * FROM seller_listings WHERE id = $1', [id]);
+      const itemRes = await pool.query('SELECT id, store_id AS seller_id, master_catalog_id AS product_id, title, approval_status AS status, sell_price AS price, created_at, updated_at, rejection_reason FROM seller_listings WHERE id = $1', [id]);
       if (itemRes.rowCount > 0) {
         const histRes = await pool.query(
           'SELECT * FROM product_approval_history WHERE listing_id = $1 ORDER BY action_at DESC',
@@ -198,7 +214,7 @@ async function updateApprovalItemState({ id, admin_id, transitionResult }) {
   // 2. Database persistence
   try {
     if (pool && typeof pool.query === 'function' && UUID_REGEX.test(id)) {
-      await pool.query('UPDATE seller_listings SET status = $1, updated_at = NOW() WHERE id = $2', [
+      await pool.query('UPDATE seller_listings SET approval_status = $1, updated_at = NOW() WHERE id = $2', [
         transitionResult.new_status,
         id
       ]);
