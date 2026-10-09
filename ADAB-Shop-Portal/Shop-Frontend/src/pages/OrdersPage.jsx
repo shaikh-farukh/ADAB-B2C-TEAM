@@ -535,9 +535,19 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline }) 
       <td className="px-4 py-3.5 font-bold text-gray-900">{displayId}</td>
       <td className="px-4 py-3.5 font-medium text-gray-700">{displayCustomer}</td>
       <td className="px-4 py-3.5">
-        <span className="text-[10px] font-bold bg-green-100 text-green-800 px-2 py-0.5 rounded">
-          {displayDistance} km
-        </span>
+        <div className="inline-flex items-center gap-1.5">
+          <span className="text-[10px] font-bold bg-green-100 text-green-800 px-2 py-0.5 rounded whitespace-nowrap">
+            {displayDistance} km
+          </span>
+          <button 
+            type="button"
+            onClick={() => onOpenMap(order)}
+            className="w-6 h-6 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors text-xs font-bold cursor-pointer shrink-0 shadow-2xs" 
+            title="View on Map"
+          >
+            <i className="fa-solid fa-location-dot"></i>
+          </button>
+        </div>
       </td>
       <td className="px-4 py-3.5">
         <button
@@ -560,15 +570,7 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline }) 
       <td className="px-4 py-3.5 text-center">
         {getStatusBadge(order.status)}
       </td>
-      <td className="px-4 py-3.5 flex items-center gap-2">
-        <button 
-          type="button"
-          onClick={() => onOpenMap(order)}
-          className="w-7 h-7 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors text-xs font-bold cursor-pointer" 
-          title="View on Map"
-        >
-          <i className="fa-solid fa-location-dot"></i>
-        </button>
+      <td className="px-4 py-3.5">
         {getActionBtn(order.status)}
       </td>
     </tr>
