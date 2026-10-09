@@ -6,6 +6,8 @@ router.get('/recommended', catalogController.getRecommended);
 router.get('/suggest', catalogController.getSearchSuggestions);
 router.get('/search', catalogController.searchProducts);
 router.get('/products/:id', catalogController.getProductById);
+router.get('/products/:id/sellers', catalogController.getProductSellers);
+router.get('/products/:id/related', catalogController.getRelatedProducts);
 router.get('/categories', catalogController.getCategories);
 router.get('/categories/:slug/products', catalogController.getProductsByCategory);
 router.get('/stores', catalogController.getStores);

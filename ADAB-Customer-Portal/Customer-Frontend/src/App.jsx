@@ -10,6 +10,7 @@ import SearchPage from './pages/SearchPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import ProductPage from './pages/ProductPage';
 import WishlistPage from './pages/WishlistPage';
+import AccountPage from './pages/AccountPage';
 import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI } from './services/api';
 import { api } from './api/api';
 
@@ -19,6 +20,16 @@ export default function App() {
   const activeTab = location.pathname.substring(1) || 'home';
   const setActiveTab = (tab) => navigate(`/${tab === 'home' ? '' : tab}`);
   const [points] = useState(2840);
+  
+  const [storeCount, setStoreCount] = useState(48); // default mock, replaced by API
+
+  useEffect(() => {
+    api.get('/catalog/stores').then(res => {
+      if (res.data?.success && res.data?.data) {
+        setStoreCount(res.data.data.length || 48);
+      }
+    }).catch(err => console.error("Failed to fetch stores in App", err));
+  }, []);
   const [unreadNotifications] = useState(4);
   const [cartData, setCartData] = useState({
     items: [],
@@ -62,7 +73,7 @@ export default function App() {
     e.preventDefault();
     if (searchQuery.trim()) {
       setShowSuggestions(false);
-      navigate(`/browse?q=${encodeURIComponent(searchQuery)}`);
+      navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
     }
   };
 
@@ -347,7 +358,7 @@ export default function App() {
             <button
               type="button"
               className={`site-link ${activeTab === 'account' ? 'on' : ''}`}
-              onClick={() => showToast('Guest profile active · Surat')}
+              onClick={() => setActiveTab('account')}
             >
               Account
             </button>
@@ -356,7 +367,7 @@ export default function App() {
             <button
               type="button"
               className="site-btn"
-              onClick={() => setActiveTab('stores')}
+              onClick={() => setActiveTab('search')}
               aria-label="Search"
             >
               <i className="fa-solid fa-magnifying-glass"></i>Search
@@ -414,7 +425,7 @@ export default function App() {
                 </div>
                 <div>
                   <div className="font-extrabold text-sm tracking-tight">ADAB</div>
-                  <div className="text-[10px] text-green-100 font-semibold">48 local stores · Surat</div>
+                  <div className="text-[10px] text-green-100 font-semibold">{storeCount} local stores · Surat</div>
                 </div>
               </div>
 
@@ -468,7 +479,7 @@ export default function App() {
             {/* Location Delivery Selector */}
             <button
               type="button"
-              onClick={() => showToast('Delivery zone verified: Surat Ring Road (48 stores connected)')}
+              onClick={() => showToast(`Delivery zone verified: Surat Ring Road (${storeCount} stores connected)`)}
               className="flex items-center gap-2 mb-3 text-left w-full group cursor-pointer"
             >
               <i className="fa-solid fa-location-dot text-brand-coral text-base"></i>
@@ -492,7 +503,7 @@ export default function App() {
                 Your neighbourhood shops,<br className="hidden md:block" /> delivered in minutes.
               </h1>
               <p>
-                Groceries, dairy, fashion and more from 48 trusted local stores in Surat — one cart, one delivery.
+                Groceries, dairy, fashion and more from {storeCount} trusted local stores in Surat — one cart, one delivery.
               </p>
             </div>
 
@@ -530,7 +541,7 @@ export default function App() {
                         e.preventDefault();
                         setSearchQuery(suggestion);
                         setShowSuggestions(false);
-                        navigate(`/browse?q=${encodeURIComponent(suggestion)}`);
+                        navigate(`/search?q=${encodeURIComponent(suggestion)}`);
                       }}
                       className="px-4 py-3 hover:bg-green-50 cursor-pointer text-sm font-semibold text-gray-700 flex items-center gap-3 transition-colors border-b border-gray-50 last:border-0"
                     >
@@ -544,7 +555,7 @@ export default function App() {
 
             {/* Hero Stats (shown on desktop >= 900px matching demo) */}
             <div className="hero-stats">
-              <span>🏪 48 local stores</span>
+              <span>🏪 {storeCount} local stores</span>
               <span>⚡ 14–45 min delivery</span>
               <span>⭐ Earn rewards on every order</span>
               <span>🔒 Secure payments</span>
@@ -638,6 +649,11 @@ export default function App() {
             onToggleWishlist={handleToggleWishlist}
             wishlist={wishlist}
           />
+        )}
+
+        {/* Account Page */}
+        {activeTab === 'account' && (
+          <AccountPage onNavigate={setActiveTab} />
         )}
 
         {/* Shopping Cart Screen (Task 3: sec-cart) */}
@@ -856,6 +872,7 @@ export default function App() {
           activeTab !== 'stores' &&
           activeTab !== 'browse' &&
           activeTab !== 'wishlist' &&
+          activeTab !== 'account' &&
           !activeTab.startsWith('product/') && (
             <div className="bg-white rounded-2xl p-6 text-center border border-gray-200">
               <h2 className="font-extrabold text-lg capitalize">{activeTab} Section</h2>

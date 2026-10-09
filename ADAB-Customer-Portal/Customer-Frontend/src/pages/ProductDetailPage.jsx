@@ -11,14 +11,21 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedVariant, setSelectedVariant] = useState(0);
+  const [sellers, setSellers] = useState([]);
+  const [related, setRelated] = useState([]);
 
   useEffect(() => {
-    const fetchProduct = async () => {
+    const fetchProductDetails = async () => {
       try {
         setLoading(true);
-        const res = await api.get(`/catalog/products/${id}`);
-        if (res.data.success && res.data.data) {
-          const fetchedProduct = res.data.data;
+        const [productRes, sellersRes, relatedRes] = await Promise.all([
+          api.get(`/catalog/products/${id}`),
+          api.get(`/catalog/products/${id}/sellers`).catch(() => ({ data: { data: [] } })),
+          api.get(`/catalog/products/${id}/related`).catch(() => ({ data: { data: [] } }))
+        ]);
+
+        if (productRes.data.success && productRes.data.data) {
+          const fetchedProduct = productRes.data.data;
           setProduct({
             ...fetchedProduct,
             images: fetchedProduct.images || [fetchedProduct.image],
@@ -26,10 +33,21 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
             returnPolicy: fetchedProduct.returnPolicy || '7 Days Returnable',
             variants: fetchedProduct.variants || [
               { id: 1, name: 'Standard', price: fetchedProduct.price }
+            ],
+            reviewsList: [
+              { id: 1, user: "Alex M.", rating: 5, comment: "Excellent quality and fast delivery!", date: "2 days ago" },
+              { id: 2, user: "Sarah J.", rating: 4, comment: "Good product, exactly as described.", date: "1 week ago" }
             ]
           });
         } else {
           setProduct(null);
+        }
+
+        if (sellersRes?.data?.data) {
+          setSellers(sellersRes.data.data);
+        }
+        if (relatedRes?.data?.data) {
+          setRelated(relatedRes.data.data);
         }
       } catch (err) {
         console.error("Error fetching product details:", err);
@@ -39,7 +57,7 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
       }
     };
     if (id) {
-      fetchProduct();
+      fetchProductDetails();
     }
   }, [id]);
 
@@ -237,6 +255,79 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
           )}
         </div>
       </div>
+
+      {/* Other Sellers */}
+      {sellers.length > 0 && (
+        <div className="mt-12 pt-8 border-t border-gray-100">
+          <h2 className="text-lg font-black text-gray-900 mb-4">Other Sellers on ADAB</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {sellers.map((seller) => (
+              <div key={seller.id} className="bg-white border border-gray-200 rounded-2xl p-4 flex justify-between items-center shadow-sm">
+                <div>
+                  <h4 className="font-bold text-sm text-gray-900">{seller.store_name}</h4>
+                  <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                    <Star className="w-3 h-3 text-amber-400 fill-current" />
+                    <span>{seller.rating}</span>
+                    <span className="mx-1">•</span>
+                    <span>₹{seller.price}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => onAddToCart && onAddToCart(seller.id, product.name)}
+                  className="bg-brand-green/10 text-brand-green hover:bg-brand-green hover:text-white transition-colors px-4 py-2 rounded-xl text-xs font-bold cursor-pointer"
+                >
+                  Add to Cart
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Reviews */}
+      {product.reviewsList && product.reviewsList.length > 0 && (
+        <div className="mt-12 pt-8 border-t border-gray-100">
+          <h2 className="text-lg font-black text-gray-900 mb-4">Customer Reviews</h2>
+          <div className="space-y-4">
+            {product.reviewsList.map((review) => (
+              <div key={review.id} className="bg-gray-50 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold text-sm text-gray-900">{review.user}</span>
+                  <span className="text-xs text-gray-500">{review.date}</span>
+                </div>
+                <div className="flex items-center gap-1 mb-2">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className={`w-3 h-3 ${i < review.rating ? 'text-amber-400 fill-current' : 'text-gray-300'}`} />
+                  ))}
+                </div>
+                <p className="text-sm text-gray-700">{review.comment}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Related Products */}
+      {related.length > 0 && (
+        <div className="mt-12 pt-8 border-t border-gray-100 mb-12">
+          <h2 className="text-lg font-black text-gray-900 mb-4">You might also like</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {related.slice(0, 4).map((rel) => (
+              <div key={rel.id} className="group bg-white rounded-2xl border border-gray-100 p-3 hover:shadow-xl transition-all cursor-pointer" onClick={() => navigate(`/product/${rel.id}`)}>
+                <div className="aspect-square bg-gray-50 rounded-xl mb-3 overflow-hidden">
+                  <img src={rel.image} alt={rel.name} className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform" />
+                </div>
+                <h4 className="font-bold text-sm text-gray-900 truncate mb-1">{rel.name}</h4>
+                <div className="flex items-center gap-1 text-xs text-gray-500 mb-2">
+                  <Star className="w-3 h-3 text-amber-400 fill-current" />
+                  <span>{rel.rating}</span>
+                </div>
+                <div className="font-black text-gray-900">₹{rel.price}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

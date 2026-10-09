@@ -14,8 +14,8 @@ exports.getProfile = async (userId) => {
 };
 
 exports.updateProfile = async (userId, body) => {
-  if (body.name || body.phone) {
-    await pool.query(`UPDATE users SET full_name = $1, phone = $2 WHERE id = $3`, [body.name, body.phone, userId]);
+  if (body.name || body.phone || body.email) {
+    await pool.query(`UPDATE users SET full_name = $1, phone = $2, email = $3 WHERE id = $4`, [body.name, body.phone, body.email, userId]);
   }
   return this.getProfile(userId);
 };
@@ -34,6 +34,9 @@ exports.getAddresses = async (userId) => {
 };
 
 exports.addAddress = async (userId, body) => {
+  if (body.isDefault) {
+    await pool.query(`UPDATE addresses SET is_default = false WHERE user_id = $1`, [userId]);
+  }
   const res = await pool.query(`
     INSERT INTO addresses (id, user_id, label, address_line, city, state, pincode, is_default, created_at)
     VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, NOW())
@@ -43,6 +46,9 @@ exports.addAddress = async (userId, body) => {
 };
 
 exports.updateAddress = async (userId, id, body) => {
+  if (body.isDefault) {
+    await pool.query(`UPDATE addresses SET is_default = false WHERE user_id = $1`, [userId]);
+  }
   await pool.query(`
     UPDATE addresses SET label = $1, address_line = $2, city = $3, state = $4, pincode = $5, is_default = $6
     WHERE id = $7 AND user_id = $8
