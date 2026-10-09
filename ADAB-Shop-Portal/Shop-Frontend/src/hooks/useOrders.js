@@ -26,11 +26,14 @@ export function useOrders() {
 
   const updateStatus = async (orderId, newStatus) => {
     try {
-      await sellerApi.updateOrderStatus(orderId, newStatus);
-      // Optimistically update local state
-      setOrders(prev => prev.map(o => 
-        o.id === orderId ? { ...o, status: newStatus } : o
-      ));
+      const cleanId = orderId ? orderId.toString().replace(/^#/, '') : orderId;
+      await sellerApi.updateOrderStatus(cleanId, newStatus);
+      // Optimistically update local state immediately
+      setOrders(prev => prev.map(o => {
+        const oClean = o.id ? o.id.toString().replace(/^#/, '') : o.id;
+        const matches = oClean === cleanId || o.id === orderId || o.real_id === orderId || o.real_id === cleanId;
+        return matches ? { ...o, status: newStatus } : o;
+      }));
       return true;
     } catch (err) {
       console.error('Failed to update order status:', err);

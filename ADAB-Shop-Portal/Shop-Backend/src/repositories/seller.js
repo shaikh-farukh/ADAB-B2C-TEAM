@@ -232,6 +232,7 @@ class SellerRepository {
   }
 
   async updateOrderStatus(orderId, status) {
+    const cleanId = orderId ? orderId.toString().replace(/^#/, '') : orderId;
     const sellerStatusMap = {
       'new': 'NEW',
       'packing': 'ACCEPTED',
@@ -265,14 +266,14 @@ class SellerRepository {
       SET status = $1
       WHERE id::text = $2 
          OR parent_order_id IN (SELECT id FROM orders WHERE id::text = $2 OR order_number = $2)
-    `, [sStatus, orderId]);
+    `, [sStatus, cleanId]);
 
     const res = await pool.query(`
       UPDATE orders
       SET order_status = $1, updated_at = NOW()
       WHERE id::text = $2 OR order_number = $2 OR id IN (SELECT parent_order_id FROM seller_orders WHERE id::text = $2)
       RETURNING *
-    `, [oStatus, orderId]);
+    `, [oStatus, cleanId]);
 
     return res.rows[0];
   }

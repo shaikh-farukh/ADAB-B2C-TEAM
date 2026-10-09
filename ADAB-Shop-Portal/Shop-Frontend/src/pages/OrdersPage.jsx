@@ -557,6 +557,9 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline }) 
       <td className="px-4 py-3.5 font-bold text-gray-900">
         ₹{displayAmount}
       </td>
+      <td className="px-4 py-3.5 text-center">
+        {getStatusBadge(order.status)}
+      </td>
       <td className="px-4 py-3.5 flex items-center gap-2">
         <button 
           type="button"
@@ -581,6 +584,21 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [deliveryFilter, setDeliveryFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [toastMessage, setToastMessage] = useState(null);
+
+  const handleStatusUpdate = async (orderId, newStatus) => {
+    const success = await updateStatus(orderId, newStatus);
+    if (success) {
+      const clean = orderId ? orderId.toString().replace(/^#/, '') : '';
+      const readable = newStatus === 'packing' ? 'Packing' :
+                       newStatus === 'dispatched' ? 'Dispatched' :
+                       newStatus === 'delivered' ? 'Delivered' :
+                       newStatus === 'cancelled' ? 'Declined' : newStatus;
+      setToastMessage(`Order #${clean} status updated to ${readable}`);
+      setTimeout(() => setToastMessage(null), 3500);
+    }
+    return success;
+  };
 
   const filteredOrders = orders.filter(o => {
     const s = (o.status || '').toLowerCase();
@@ -696,20 +714,21 @@ export default function OrdersPage() {
               <th className="px-4 py-3.5">Items</th>
               <th className="px-4 py-3.5">Delivery</th>
               <th className="px-4 py-3.5">Total</th>
+              <th className="px-4 py-3.5 text-center">Status</th>
               <th className="px-4 py-3.5">Action</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
+                <td colSpan="8" className="px-4 py-8 text-center text-gray-500">
                   <i className="fa-solid fa-spinner fa-spin mr-2"></i> Loading orders from server...
                 </td>
               </tr>
             )}
             {!loading && error && (
               <tr>
-                <td colSpan="7" className="px-4 py-8 text-center">
+                <td colSpan="8" className="px-4 py-8 text-center">
                   <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs inline-flex flex-col sm:flex-row items-center gap-2 max-w-lg mx-auto">
                     <div className="flex items-center gap-1.5 font-bold">
                       <i className="fa-solid fa-triangle-exclamation text-red-500"></i>
@@ -727,14 +746,14 @@ export default function OrdersPage() {
             )}
             {!loading && !error && filteredOrders.length === 0 && (
               <tr>
-                <td colSpan="7" className="px-4 py-8 text-center text-gray-500">No orders found.</td>
+                <td colSpan="8" className="px-4 py-8 text-center text-gray-500">No orders found.</td>
               </tr>
             )}
             {!loading && !error && filteredOrders.map(order => (
               <OrderRow 
                 key={order.id} 
                 order={order} 
-                onUpdateStatus={updateStatus} 
+                onUpdateStatus={handleStatusUpdate} 
                 onViewItems={setSelectedOrder}
                 onOpenMap={setMapOrder}
                 onDecline={setDeclineOrder}
@@ -763,7 +782,7 @@ export default function OrdersPage() {
           order={mapOrder} 
           store={store}
           onClose={() => setMapOrder(null)} 
-          onUpdateStatus={updateStatus}
+          onUpdateStatus={handleStatusUpdate}
           onDecline={setDeclineOrder}
         />
       )}
@@ -774,9 +793,24 @@ export default function OrdersPage() {
           order={declineOrder}
           onClose={() => setDeclineOrder(null)}
           onConfirm={async (orderId, reason, note) => {
-            await updateStatus(orderId, 'cancelled');
+            await handleStatusUpdate(orderId, 'cancelled');
           }}
         />
+      )}
+
+      {/* Real-time Status Feedback Toast */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-gray-900/95 backdrop-blur-md text-white px-4 py-3 rounded-xl shadow-xl text-xs font-semibold flex items-center gap-2.5 transition-all border border-gray-700">
+          <i className="fa-solid fa-circle-check text-emerald-400 text-sm"></i>
+          <span>{toastMessage}</span>
+          <button 
+            type="button"
+            onClick={() => setToastMessage(null)} 
+            className="ml-2 text-gray-400 hover:text-white cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
       )}
     </section>
   );
