@@ -470,42 +470,6 @@ async function getAvailableCoupons({ subtotal = 0 } = {}) {
   );
 
   const dbCoupons = res.rows;
-
-  // Add demo coupons if not in db
-  if (!dbCoupons.some(c => c.code === 'BALAJI15')) {
-    dbCoupons.push({
-      code: 'BALAJI15',
-      discount_type: 'PERCENTAGE',
-      discount_value: '15.00',
-      min_order_value: '199.00',
-      is_active: true,
-      valid_until: '2026-12-31T23:59:59.000Z',
-      description: '15% OFF on groceries'
-    });
-  }
-  if (!dbCoupons.some(c => c.code === 'ADAB100')) {
-    dbCoupons.push({
-      code: 'ADAB100',
-      discount_type: 'FLAT_AMOUNT',
-      discount_value: '100.00',
-      min_order_value: '399.00',
-      is_active: true,
-      valid_until: '2026-12-31T23:59:59.000Z',
-      description: '₹100 OFF on orders above ₹399'
-    });
-  }
-  if (!dbCoupons.some(c => c.code === 'WELCOME50')) {
-    dbCoupons.push({
-      code: 'WELCOME50',
-      discount_type: 'FLAT_AMOUNT',
-      discount_value: '50.00',
-      min_order_value: '150.00',
-      is_active: true,
-      valid_until: '2026-12-31T23:59:59.000Z',
-      description: '₹50 welcome discount'
-    });
-  }
-
   const now = new Date();
   return dbCoupons.map(c => {
     const minOrder = Number(c.min_order_value || 0);

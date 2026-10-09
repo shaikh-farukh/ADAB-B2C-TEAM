@@ -10,7 +10,7 @@ import SearchPage from './pages/SearchPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import ProductPage from './pages/ProductPage';
 import WishlistPage from './pages/WishlistPage';
-import { CartAPI, CheckoutAPI, WishlistAPI } from './services/api';
+import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI } from './services/api';
 import { api } from './api/api';
 
 export default function App() {
@@ -27,6 +27,7 @@ export default function App() {
   const [loadingCart, setLoadingCart] = useState(false);
   const [placingOrder, setPlacingOrder] = useState(false);
   const [activeOrder, setActiveOrder] = useState(null);
+  const [ordersList, setOrdersList] = useState([]);
   const [toastMessage, setToastMessage] = useState(null);
   const [validationIssues, setValidationIssues] = useState([]);
   const [wishlist, setWishlist] = useState([]);
@@ -85,9 +86,24 @@ export default function App() {
     }
   };
 
+  const refreshOrders = async () => {
+    try {
+      const res = await OrderAPI.getOrders();
+      if (res.status === 'success' && res.data) {
+        setOrdersList(res.data);
+        if (res.data.length > 0 && !activeOrder) {
+          setActiveOrder(res.data[0]);
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch orders:', err.message);
+    }
+  };
+
   useEffect(() => {
     refreshCart();
     refreshWishlist();
+    refreshOrders();
   }, []);
 
   const refreshWishlist = async () => {
@@ -132,6 +148,7 @@ export default function App() {
       if (res.status === 'success' && res.data) {
         setActiveOrder(res.data);
         await refreshCart();
+        await refreshOrders();
         showToast('🎉 Order placed successfully! Tracking live dispatch...');
         setActiveTab('orders');
       } else {
@@ -565,18 +582,6 @@ export default function App() {
               ? 'Product Details'
               : activeTab}
           </h1>
-          <button
-            type="button"
-            onClick={() => setActiveTab('cart')}
-            className="relative w-9 h-9 flex items-center justify-center rounded-full bg-brand-light text-brand-green cursor-pointer"
-          >
-            <i className="fa-solid fa-cart-shopping"></i>
-            {totalItemCount > 0 && (
-              <span id="subCartBadge" className="absolute -top-1 -right-1 w-4 h-4 bg-brand-coral text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                {totalItemCount}
-              </span>
-            )}
-          </button>
         </div>
       )}
 
@@ -663,93 +668,92 @@ export default function App() {
         {/* Orders Screen (sec-orders) */}
         {activeTab === 'orders' && (
           <section id="sec-orders" className="pt-2 pb-4 space-y-3">
-            {activeOrder ? (
-              <div
-                className="border border-green-200 bg-green-50 rounded-2xl p-4 cursor-pointer hover:shadow-md transition"
-                onClick={() => setActiveTab('track')}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <div className="font-extrabold text-base text-gray-900">
-                      #{activeOrder.order_number || (activeOrder.order_id && activeOrder.order_id.slice(0, 8)) || '9021'}
-                    </div>
-                    <div className="text-xs text-gray-600 mt-0.5">
-                      {activeOrder.seller_orders?.[0]?.seller_name || 'Shri Balaji Store'} · ₹{activeOrder.grand_total}
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold bg-orange-500 text-white px-2.5 py-1 rounded-full uppercase tracking-wider">
-                    {activeOrder.order_status === 'PLACED' ? 'ON THE WAY' : activeOrder.order_status}
-                  </span>
+            {ordersList.length === 0 ? (
+              <div className="bg-white border border-gray-200 rounded-3xl p-8 text-center">
+                <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center text-brand-green mx-auto mb-3">
+                  <i className="fa-solid fa-bag-shopping text-2xl"></i>
                 </div>
-                <div className="order-track-bar mb-2">
-                  <div className="order-track-fill" style={{ width: '72%' }}></div>
-                </div>
-                <div className="text-xs text-brand-green font-bold flex items-center gap-1.5">
-                  <i className="fa-solid fa-motorcycle"></i>
-                  <span>Arriving in {activeOrder.eta_minutes || 18} min · Ramesh (Rider)</span>
-                </div>
+                <h3 className="font-extrabold text-base text-gray-900 mb-1">No Orders Placed Yet</h3>
+                <p className="text-xs text-gray-500 mb-4">Explore local stores to place your first order with fast delivery.</p>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('stores')}
+                  className="site-btn primary mx-auto"
+                >
+                  Browse Products
+                </button>
               </div>
             ) : (
-              <div
-                className="border border-green-200 bg-green-50 rounded-2xl p-4 cursor-pointer hover:shadow-md transition"
-                onClick={() => setActiveTab('track')}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <div className="font-extrabold text-base text-gray-900">#9021</div>
-                    <div className="text-xs text-gray-600 mt-0.5">Shri Balaji Store · ₹840</div>
+              ordersList.map((order, idx) => {
+                const storeName = order.seller_orders?.[0]?.store_name || order.seller_orders?.[0]?.seller_name || 'Shabbir Grocery Shop';
+                const isLive = order.order_status === 'PLACED' || order.order_status === 'PROCESSING' || order.order_status === 'DISPATCHED';
+                const orderNum = order.order_number || (order.id && order.id.slice(0, 8)) || `ORD-${idx + 1000}`;
+                const dateStr = order.created_at
+                  ? new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                  : 'Recent';
+
+                if (idx === 0 && isLive) {
+                  return (
+                    <div
+                      key={order.id || idx}
+                      className="border border-green-200 bg-green-50 rounded-2xl p-4 cursor-pointer hover:shadow-md transition"
+                      onClick={() => {
+                        setActiveOrder(order);
+                        setActiveTab('track');
+                      }}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <div className="font-extrabold text-base text-gray-900">
+                            #{orderNum}
+                          </div>
+                          <div className="text-xs text-gray-600 mt-0.5">
+                            {storeName} · ₹{parseFloat(order.grand_total).toFixed(2)}
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold bg-orange-500 text-white px-2.5 py-1 rounded-full uppercase tracking-wider">
+                          {order.order_status === 'PLACED' ? 'ON THE WAY' : order.order_status}
+                        </span>
+                      </div>
+                      <div className="order-track-bar mb-2">
+                        <div className="order-track-fill" style={{ width: '72%' }}></div>
+                      </div>
+                      <div className="text-xs text-brand-green font-bold flex items-center gap-1.5">
+                        <i className="fa-solid fa-motorcycle"></i>
+                        <span>Arriving in {order.eta_minutes || 18} min · Ramesh (Rider)</span>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={order.id || idx}
+                    className="border border-gray-100 bg-white rounded-2xl p-4 shadow-sm hover:border-gray-200 transition cursor-pointer"
+                    onClick={() => {
+                      setActiveOrder(order);
+                      setActiveTab('track');
+                    }}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-extrabold text-sm text-gray-900">#{orderNum}</div>
+                        <div className="text-xs text-gray-600 mt-0.5">
+                          {storeName} · ₹{parseFloat(order.grand_total).toFixed(2)} · {dateStr}
+                        </div>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
+                        order.order_status === 'DELIVERED' 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {order.order_status}
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-[10px] font-bold bg-orange-500 text-white px-2 py-1 rounded-full uppercase tracking-wider">
-                    ON THE WAY
-                  </span>
-                </div>
-                <div className="order-track-bar mb-2">
-                  <div className="order-track-fill" style={{ width: '72%' }}></div>
-                </div>
-                <div className="text-xs text-brand-green font-bold flex items-center gap-1.5">
-                  <i className="fa-solid fa-motorcycle"></i>
-                  <span>Arriving in 18 min · Ramesh (Rider)</span>
-                </div>
-              </div>
+                );
+              })
             )}
-
-            {/* Previous sample orders matching demo */}
-            <div
-              className="border border-gray-100 bg-white rounded-2xl p-4 shadow-sm hover:border-gray-200 transition cursor-pointer"
-              onClick={() => setActiveTab('track')}
-            >
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="font-extrabold text-sm text-gray-900">#9018</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Balaji Silk Kurti M · ₹899 · Shri Balaji</div>
-                </div>
-                <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-2.5 py-1 rounded-full font-bold">
-                  PACKING
-                </span>
-              </div>
-            </div>
-
-            <div className="border border-gray-100 bg-white rounded-2xl p-4 shadow-sm flex justify-between items-center text-xs">
-              <div>
-                <div className="font-extrabold text-gray-900">#9010</div>
-                <div className="text-gray-500 mt-0.5">Yesterday · ₹560 · Delivered</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => showToast('Reorder items added to cart')}
-                className="text-brand-green font-bold text-xs border border-brand-green px-3 py-1.5 rounded-xl hover:bg-green-50 cursor-pointer"
-              >
-                Reorder
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => showToast('Viewing past order history archive...')}
-              className="w-full text-center text-brand-green font-bold text-sm py-2 hover:underline cursor-pointer"
-            >
-              View past orders →
-            </button>
           </section>
         )}
 
@@ -764,7 +768,7 @@ export default function App() {
                 Ramesh is on the way with your order
               </div>
               <div className="text-xs text-gray-500 mt-0.5">
-                Order #{activeOrder?.order_number || (activeOrder?.order_id && activeOrder.order_id.slice(0, 8)) || '9021'} · Dispatched instantly
+                Order #{activeOrder?.order_number || (activeOrder?.id && activeOrder.id.slice(0, 8)) || (activeOrder?.order_id && activeOrder.order_id.slice(0, 8)) || 'ORD-9028'} · Dispatched instantly
               </div>
             </div>
 
@@ -784,12 +788,12 @@ export default function App() {
                   </div>
                   <div className="text-xs">
                     <div className="text-gray-400 text-[10px]">PICKUP STORE</div>
-                    <div className="font-bold">{activeOrder?.seller_orders?.[0]?.seller_name || 'Shri Balaji Supermarket'}</div>
+                    <div className="font-bold">{activeOrder?.seller_orders?.[0]?.store_name || activeOrder?.seller_orders?.[0]?.seller_name || 'Shabbir Grocery Shop'}</div>
                   </div>
                 </div>
                 <div className="ml-4 pl-4 border-l-2 border-dashed border-white/20 py-1 text-[11px] text-emerald-300 flex items-center gap-1.5">
                   <i className="fa-solid fa-motorcycle"></i>
-                  <span>Rider in transit via Ring Road Flyover (1.2 km away)</span>
+                  <span>Rider in transit via Vesu Main Road (1.2 km away)</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-sm shrink-0">
@@ -797,7 +801,7 @@ export default function App() {
                   </div>
                   <div className="text-xs">
                     <div className="text-gray-400 text-[10px]">DELIVERY DESTINATION</div>
-                    <div className="font-bold">Flat 402, Green Valley Apt, Ring Road, Surat</div>
+                    <div className="font-bold">{activeOrder?.shipping_address_line || activeOrder?.delivery_address?.address_line || activeOrder?.delivery_address || 'Vesu, Surat'}</div>
                   </div>
                 </div>
               </div>
@@ -812,13 +816,13 @@ export default function App() {
               <div className="border border-gray-100 bg-white rounded-2xl p-3 shadow-sm">
                 <div className="text-[11px] text-gray-500 font-medium">Store</div>
                 <div className="font-extrabold text-xs text-gray-900 mt-0.5 truncate">
-                  {activeOrder?.seller_orders?.[0]?.seller_name || 'Balaji Store'}
+                  {activeOrder?.seller_orders?.[0]?.store_name || activeOrder?.seller_orders?.[0]?.seller_name || 'Shabbir Grocery Shop'}
                 </div>
               </div>
               <div className="border border-gray-100 bg-white rounded-2xl p-3 shadow-sm">
                 <div className="text-[11px] text-gray-500 font-medium">Packages</div>
                 <div className="font-extrabold text-gray-900 mt-0.5">
-                  {activeOrder?.seller_orders_count || 1} pkg
+                  {activeOrder?.seller_orders?.length || activeOrder?.seller_orders_count || 1} pkg
                 </div>
               </div>
             </div>

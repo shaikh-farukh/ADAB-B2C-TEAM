@@ -39,11 +39,15 @@ exports.searchProducts = async (req, res) => {
       limit
     };
 
-    const data = await catalogService.searchProducts(filters);
+    const result = await catalogService.searchProducts(filters);
+    const data = Array.isArray(result) ? result : (result.data || []);
+    const total = result.total !== undefined ? result.total : data.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+
     res.json({
       success: true,
       data,
-      pagination: { total: data.length, page, limit }
+      pagination: { total, page, limit, totalPages }
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -86,3 +90,13 @@ exports.getStores = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+exports.getPromotions = async (req, res) => {
+  try {
+    const data = await catalogService.getPromotions();
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+

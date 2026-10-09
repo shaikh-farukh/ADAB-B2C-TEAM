@@ -103,6 +103,61 @@ exports.searchProducts = async (qOrFilters = {}, pageArg = 1, limitArg = 20, fil
   }
 
   const offset = (page - 1) * limit;
+  let whereClause = ` WHERE sl.is_active = true`;
+  const params = [];
+  let paramIdx = 1;
+
+  if (q) {
+    whereClause += ` AND sl.title ILIKE $${paramIdx++}`;
+    params.push(`%${q}%`);
+  }
+
+  if (category) {
+    whereClause += ` AND (sl.category_id::text = $${paramIdx} OR c.slug = $${paramIdx})`;
+    paramIdx++;
+    params.push(String(category));
+  }
+
+  if (categories && categories.length > 0) {
+    whereClause += ` AND c.name = ANY($${paramIdx++})`;
+    params.push(categories);
+  }
+
+  if (minPrice !== null && !isNaN(minPrice)) {
+    whereClause += ` AND sl.sell_price >= $${paramIdx++}`;
+    params.push(minPrice);
+  }
+
+  if (maxPrice !== null && !isNaN(maxPrice)) {
+    whereClause += ` AND sl.sell_price <= $${paramIdx++}`;
+    params.push(maxPrice);
+  }
+
+  if (brand) {
+    whereClause += ` AND sl.brand_tag ILIKE $${paramIdx++}`;
+    params.push(`%${brand}%`);
+  }
+
+  if (minRating !== null && !isNaN(minRating)) {
+    whereClause += ` AND sl.rating >= $${paramIdx++}`;
+    params.push(minRating);
+  }
+
+  if (inStockOnly) {
+    whereClause += ` AND sl.stock_qty > 0`;
+  }
+
+  // Count total matches for accurate pagination
+  const countQuery = `
+    SELECT COUNT(*) as total
+    FROM seller_listings sl
+    LEFT JOIN stores st ON sl.store_id = st.id
+    LEFT JOIN categories c ON sl.category_id = c.id
+    ${whereClause}
+  `;
+  const countRes = await pool.query(countQuery, params);
+  const total = parseInt(countRes.rows[0]?.total || 0, 10);
+
   let query = `
     SELECT 
       sl.id, 
@@ -119,50 +174,8 @@ exports.searchProducts = async (qOrFilters = {}, pageArg = 1, limitArg = 20, fil
     FROM seller_listings sl
     LEFT JOIN stores st ON sl.store_id = st.id
     LEFT JOIN categories c ON sl.category_id = c.id
-    WHERE sl.is_active = true 
+    ${whereClause}
   `;
-  const params = [];
-  let paramIdx = 1;
-
-  if (q) {
-    query += ` AND sl.title ILIKE $${paramIdx++}`;
-    params.push(`%${q}%`);
-  }
-
-  if (category) {
-    query += ` AND (sl.category_id::text = $${paramIdx} OR c.slug = $${paramIdx})`;
-    paramIdx++;
-    params.push(String(category));
-  }
-
-  if (categories && categories.length > 0) {
-    query += ` AND c.name = ANY($${paramIdx++})`;
-    params.push(categories);
-  }
-
-  if (minPrice !== null && !isNaN(minPrice)) {
-    query += ` AND sl.sell_price >= $${paramIdx++}`;
-    params.push(minPrice);
-  }
-
-  if (maxPrice !== null && !isNaN(maxPrice)) {
-    query += ` AND sl.sell_price <= $${paramIdx++}`;
-    params.push(maxPrice);
-  }
-
-  if (brand) {
-    query += ` AND sl.brand_tag ILIKE $${paramIdx++}`;
-    params.push(`%${brand}%`);
-  }
-
-  if (minRating !== null && !isNaN(minRating)) {
-    query += ` AND sl.rating >= $${paramIdx++}`;
-    params.push(minRating);
-  }
-
-  if (inStockOnly) {
-    query += ` AND sl.stock_qty > 0`;
-  }
 
   const effectiveSort = sortOrder || sortBy;
   switch (effectiveSort) {
@@ -184,18 +197,20 @@ exports.searchProducts = async (qOrFilters = {}, pageArg = 1, limitArg = 20, fil
       break;
   }
 
+  const dataParams = [...params, limit, offset];
   query += ` LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
-  params.push(limit, offset);
 
-  const res = await pool.query(query, params);
+  const res = await pool.query(query, dataParams);
 
-  return res.rows.map(row => ({
+  const data = res.rows.map(row => ({
     ...row,
     status: row.status ? 'PUBLISHED' : 'HIDDEN',
     price: parseFloat(row.price),
     mrp: parseFloat(row.mrp),
     rating: parseFloat(row.rating || 4.5)
   }));
+
+  return { data, total };
 };
 
 exports.getSearchSuggestions = async (q) => {
@@ -262,3 +277,17 @@ exports.getStores = async () => {
     rating: parseFloat(row.rating || 4.5)
   }));
 };
+
+exports.getPromotions = async () => {
+  const res = await pool.query(`
+    SELECT 
+      p.*, 
+      s.store_name 
+    FROM promotions p
+    LEFT JOIN stores s ON p.store_id = s.id
+    WHERE p.is_active = true
+    ORDER BY p.created_at DESC
+  `);
+  return res.rows;
+};
+

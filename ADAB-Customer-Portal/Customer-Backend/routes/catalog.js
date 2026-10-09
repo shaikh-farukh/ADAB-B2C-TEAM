@@ -9,4 +9,5 @@ router.get('/products/:id', catalogController.getProductById);
 router.get('/categories', catalogController.getCategories);
 router.get('/categories/:slug/products', catalogController.getProductsByCategory);
 router.get('/stores', catalogController.getStores);
+router.get('/promotions', catalogController.getPromotions);
 module.exports = router;

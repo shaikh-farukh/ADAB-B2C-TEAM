@@ -8,6 +8,8 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [totalPages, setTotalPages] = useState(1);
+  const [categoriesList, setCategoriesList] = useState([]);
 
   // Read URL State
   const q = searchParams.get('q') || '';
@@ -18,6 +20,16 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
   const minPrice = searchParams.get('minPrice') || '';
   const maxPrice = searchParams.get('maxPrice') || '';
   const page = parseInt(searchParams.get('page')) || 1;
+
+  // Fetch categories dynamically from database
+  useEffect(() => {
+    api.get('/catalog/categories')
+      .then(res => {
+        const cats = res.data?.data || res.data || [];
+        setCategoriesList(cats);
+      })
+      .catch(err => console.error('Error fetching categories:', err));
+  }, []);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -38,6 +50,9 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
 
         const res = await api.get(`/catalog/search?${params.toString()}`);
         setProducts(res.data?.data || []);
+        const total = res.data?.pagination?.total ?? (res.data?.data?.length || 0);
+        const pages = res.data?.pagination?.totalPages ?? Math.max(1, Math.ceil(total / 12));
+        setTotalPages(pages);
       } catch (err) {
         console.error('Error fetching browse products:', err);
       } finally {
@@ -56,7 +71,10 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
     } else {
       newParams.delete(key);
     }
-    newParams.set('page', 1); // Reset page on filter change
+    // Only reset page to 1 when a filter other than 'page' changes!
+    if (key !== 'page') {
+      newParams.set('page', 1);
+    }
     setSearchParams(newParams);
   };
 
@@ -80,16 +98,19 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
           <div>
             <h3 className="text-sm font-bold mb-3 uppercase tracking-wider text-gray-500">Categories</h3>
             <div className="space-y-2">
-              {['Fresh Produce', 'Dairy & Eggs', 'Pantry Staples'].map(cat => (
-                <label key={cat} className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                  <input 
-                    type="checkbox" 
-                    className="rounded text-brand-green focus:ring-brand-green" 
-                    checked={selectedCategories.includes(cat)}
-                    onChange={() => toggleCategoryName(cat)}
-                  /> {cat}
-                </label>
-              ))}
+              {categoriesList.map(cat => {
+                const catName = cat.name || cat;
+                return (
+                  <label key={cat.id || catName} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                    <input 
+                      type="checkbox" 
+                      className="rounded text-brand-green focus:ring-brand-green" 
+                      checked={selectedCategories.includes(catName)}
+                      onChange={() => toggleCategoryName(catName)}
+                    /> {catName}
+                  </label>
+                );
+              })}
             </div>
           </div>
           
@@ -150,7 +171,7 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
                 <ProductCard 
                   key={product.id} 
                   product={product} 
-                  onAddToCart={onAddToCart}
+                  onAddToCart={onAddToCart} 
                   onToggleWishlist={onToggleWishlist}
                   wishlist={wishlist}
                 />
@@ -162,14 +183,15 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
               <button 
                 disabled={page <= 1}
                 onClick={() => updateFilter('page', page - 1)}
-                className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm disabled:opacity-50 font-bold"
+                className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm disabled:opacity-50 font-bold hover:bg-gray-50 cursor-pointer disabled:cursor-not-allowed"
               >
                 Previous
               </button>
-              <span className="text-sm font-bold text-gray-700">Page {page}</span>
+              <span className="text-sm font-bold text-gray-700">Page {page} of {totalPages}</span>
               <button 
+                disabled={page >= totalPages}
                 onClick={() => updateFilter('page', page + 1)}
-                className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-bold"
+                className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-bold disabled:opacity-50 hover:bg-gray-50 cursor-pointer disabled:cursor-not-allowed"
               >
                 Next
               </button>

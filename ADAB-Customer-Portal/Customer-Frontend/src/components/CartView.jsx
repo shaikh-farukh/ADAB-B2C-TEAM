@@ -26,49 +26,8 @@ export default function CartView({
   const [showCouponsList, setShowCouponsList] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
 
-  // Available coupons from backend or defaults
-  const [availableCoupons, setAvailableCoupons] = useState([
-    {
-      code: 'BALAJI15',
-      discount_type: 'PERCENTAGE',
-      discount_value: 15,
-      min_order_value: 199,
-      is_active: true,
-      description: '15% OFF at Shri Balaji & partner grocery stores'
-    },
-    {
-      code: 'ADAB100',
-      discount_type: 'FLAT_AMOUNT',
-      discount_value: 100,
-      min_order_value: 399,
-      is_active: true,
-      description: '₹100 Flat OFF on orders above ₹399'
-    },
-    {
-      code: 'WELCOME50',
-      discount_type: 'FLAT_AMOUNT',
-      discount_value: 50,
-      min_order_value: 150,
-      is_active: true,
-      description: '₹50 Flat OFF on your first grocery basket'
-    },
-    {
-      code: 'DIWALI52',
-      discount_type: 'PERCENTAGE',
-      discount_value: 10,
-      min_order_value: 0,
-      is_active: true,
-      description: '10% Festive Discount'
-    },
-    {
-      code: 'DIWALI50',
-      discount_type: 'PERCENTAGE',
-      discount_value: 50,
-      min_order_value: 0,
-      is_active: true,
-      description: '50% Super Saver'
-    }
-  ]);
+  // Available coupons fetched live from backend
+  const [availableCoupons, setAvailableCoupons] = useState([]);
 
   // Address selection state
   const [addressList, setAddressList] = useState([
@@ -764,7 +723,7 @@ export default function CartView({
                     setCouponInput(e.target.value);
                     setCouponError(null);
                   }}
-                  placeholder="Enter coupon (e.g. BALAJI15, ADAB100)"
+                  placeholder="Enter coupon (e.g. DIWALI50, NAVRATRI)"
                   className={`w-full pl-10 pr-8 py-3 rounded-2xl border text-xs font-bold uppercase tracking-wider outline-none bg-white shadow-2xs transition ${
                     couponError
                       ? 'border-red-400 focus:border-red-500 bg-red-50/10'

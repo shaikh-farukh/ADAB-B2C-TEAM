@@ -249,6 +249,7 @@ async function getCustomerOrders(customerId = null) {
           DISTINCT jsonb_build_object(
             'id', so.id,
             'store_id', so.store_id,
+            'store_name', st.store_name,
             'subtotal', so.subtotal,
             'status', so.status
           )
@@ -256,6 +257,7 @@ async function getCustomerOrders(customerId = null) {
       ) AS seller_orders
     FROM orders o
     LEFT JOIN seller_orders so ON so.parent_order_id = o.id
+    LEFT JOIN stores st ON so.store_id = st.id
     WHERE 1=1
   `;
   const params = [];

@@ -7,6 +7,9 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
   const [recommended, setRecommended] = useState([]);
   const [categories, setCategories] = useState([]);
   const [stores, setStores] = useState([]);
+  const [coupons, setCoupons] = useState([]);
+  const [promotions, setPromotions] = useState([]);
+  const [latestOrder, setLatestOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -14,12 +17,21 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
     Promise.all([
       api.get('/catalog/recommended').catch(() => ({ data: { data: [] } })),
       api.get('/catalog/categories').catch(() => ({ data: { data: [] } })),
-      api.get('/catalog/stores').catch(() => ({ data: { data: [] } }))
+      api.get('/catalog/stores').catch(() => ({ data: { data: [] } })),
+      api.get('/cart/coupons').catch(() => ({ data: { data: { coupons: [] } } })),
+      api.get('/catalog/promotions').catch(() => ({ data: { data: [] } })),
+      api.get('/orders').catch(() => ({ data: { data: [] } }))
     ])
-      .then(([recRes, catRes, storeRes]) => {
+      .then(([recRes, catRes, storeRes, couponRes, promoRes, orderRes]) => {
         setRecommended(recRes?.data?.data || recRes?.data || []);
         setCategories(catRes?.data?.data || catRes?.data || []);
         setStores(storeRes?.data?.data || storeRes?.data || []);
+        setCoupons(couponRes?.data?.data?.coupons || couponRes?.data?.coupons || []);
+        setPromotions(promoRes?.data?.data || promoRes?.data || []);
+        const orders = orderRes?.data?.data || orderRes?.data || [];
+        if (orders.length > 0) {
+          setLatestOrder(orders[0]);
+        }
       })
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
@@ -44,57 +56,109 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
         <div className="flex gap-3 overflow-x-auto hide-scroll pb-1">
           {stores.map((shop, i) => {
             const colors = ['bg-emerald-600', 'bg-blue-600', 'bg-orange-500', 'bg-cyan-600', 'bg-purple-600'];
-            const initial = shop.name.substring(0, 2).toUpperCase();
+            const initial = (shop.name || 'Store').substring(0, 2).toUpperCase();
             return (
               <button key={shop.id} onClick={() => go('stores')} className="flex flex-col items-center gap-1.5 shrink-0 group">
                 <div className="story-ring"><div className={`w-14 h-14 rounded-full ${colors[i % 5]} text-white font-extrabold flex items-center justify-center text-sm shadow-md group-hover:scale-105 transition-transform`}>{initial}</div></div>
-                <span className="text-[11px] font-bold text-gray-800 truncate max-w-[64px]">{shop.name.split(' ')[0]}</span>
+                <span className="text-[11px] font-bold text-gray-800 truncate max-w-[64px]">{(shop.name || '').split(' ')[0]}</span>
               </button>
             )
           })}
           <button onClick={() => go('stores')} className="flex flex-col items-center gap-1.5 shrink-0">
             <div className="w-14 h-14 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 text-gray-500 font-bold flex items-center justify-center text-xs"><i className="fa-solid fa-plus text-base"></i></div>
-            <span className="text-[11px] font-bold text-gray-600">{stores.length > 0 ? `${stores.length}+ More` : 'More'}</span>
+            <span className="text-[11px] font-bold text-gray-600">{stores.length > 0 ? `${stores.length} Shops` : 'Shops'}</span>
           </button>
         </div>
       </div>
 
-      {/* Active Live Order Strip */}
-      <div onClick={() => go('track')} className="cursor-pointer bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-4 flex items-center gap-3.5 shadow-lg shadow-emerald-700/20 hover:scale-[1.01] transition-all">
-        <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-xl shrink-0"><i className="fa-solid fa-motorcycle animate-bounce"></i></div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white/25">ON THE WAY</span>
-            <span className="text-xs text-emerald-100">Order #9021</span>
+      {/* Active Live Order Strip from DB */}
+      {latestOrder ? (
+        <div onClick={() => go('track')} className="cursor-pointer bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-4 flex items-center gap-3.5 shadow-lg shadow-emerald-700/20 hover:scale-[1.01] transition-all">
+          <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-xl shrink-0"><i className="fa-solid fa-motorcycle animate-bounce"></i></div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white/25">
+                {latestOrder.order_status === 'PLACED' ? 'ON THE WAY' : latestOrder.order_status}
+              </span>
+              <span className="text-xs text-emerald-100">
+                Order #{latestOrder.order_number || (latestOrder.id && latestOrder.id.slice(0, 8))}
+              </span>
+            </div>
+            <div className="font-extrabold text-sm mt-0.5 truncate">
+              Arriving in ~{latestOrder.eta_minutes || 18} min · {latestOrder.seller_orders?.[0]?.store_name || stores[0]?.name || 'Shabbir Grocery Shop'}
+            </div>
           </div>
-          <div className="font-extrabold text-sm mt-0.5 truncate">Arriving in ~18 min · Shri Balaji Store</div>
+          <span className="px-3 py-1.5 rounded-xl bg-white text-emerald-800 font-extrabold text-xs shrink-0 shadow-sm">Track <i className="fa-solid fa-arrow-right ml-1 text-[10px]"></i></span>
         </div>
-        <span className="px-3 py-1.5 rounded-xl bg-white text-emerald-800 font-extrabold text-xs shrink-0 shadow-sm">Track <i className="fa-solid fa-arrow-right ml-1 text-[10px]"></i></span>
-      </div>
+      ) : stores.length > 0 ? (
+        <div onClick={() => go('stores')} className="cursor-pointer bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-4 flex items-center gap-3.5 shadow-lg shadow-emerald-700/20 hover:scale-[1.01] transition-all">
+          <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-xl shrink-0"><i className="fa-solid fa-shop"></i></div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white/25">OPEN NOW</span>
+              <span className="text-xs text-emerald-100">{stores[0].area}</span>
+            </div>
+            <div className="font-extrabold text-sm mt-0.5 truncate">
+              Order fresh daily essentials from {stores[0].name}
+            </div>
+          </div>
+          <span className="px-3 py-1.5 rounded-xl bg-white text-emerald-800 font-extrabold text-xs shrink-0 shadow-sm">Shop Now <i className="fa-solid fa-arrow-right ml-1 text-[10px]"></i></span>
+        </div>
+      ) : null}
 
-      {/* Hero Deal Banners */}
+      {/* Dynamic Deal Banners from DB */}
       <div className="flex gap-3 overflow-x-auto hide-scroll snap-x pb-1">
-        <button onClick={() => go('offers')} className="banner-slide shrink-0 bg-gradient-to-br from-amber-500 via-orange-500 to-rose-600 p-5 text-white text-left min-h-[125px] flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-extrabold bg-black/20 px-2.5 py-0.5 rounded-full">FLASH DEAL</span>
-            <span className="text-xs font-bold text-amber-100">Ends in 2 hrs</span>
-          </div>
-          <div>
-            <span className="font-extrabold text-xl leading-tight block">15% OFF at Balaji Store</span>
-            <span className="text-xs text-orange-100 mt-0.5 block">Use code <code className="bg-white/25 px-1.5 py-0.5 rounded font-bold text-white">BALAJI15</code> on daily essentials</span>
-          </div>
-        </button>
+        {coupons.length > 0 ? (
+          coupons.slice(0, 3).map((cp, idx) => {
+            const bannerGradients = [
+              'from-amber-500 via-orange-500 to-rose-600',
+              'from-indigo-600 via-purple-600 to-pink-600',
+              'from-emerald-600 via-teal-600 to-cyan-600'
+            ];
+            const grad = bannerGradients[idx % bannerGradients.length];
+            const discountText = cp.discount_type === 'PERCENTAGE' 
+              ? `${parseInt(cp.discount_value)}% OFF` 
+              : `Flat ₹${parseInt(cp.discount_value)} OFF`;
 
-        <button onClick={() => go('offers')} className="banner-slide shrink-0 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 p-5 text-white text-left min-h-[125px] flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-extrabold bg-white/20 px-2.5 py-0.5 rounded-full">NEW CUSTOMER</span>
-            <span className="text-xs font-bold text-indigo-200">Zero Delivery Fee</span>
-          </div>
-          <div>
-            <span className="font-extrabold text-xl leading-tight block">Flat ₹100 Off First Order</span>
-            <span className="text-xs text-indigo-100 mt-0.5 block">Across any neighborhood shop with <code className="bg-white/25 px-1.5 py-0.5 rounded font-bold text-white">ADAB100</code></span>
-          </div>
-        </button>
+            return (
+              <button 
+                key={cp.code || idx} 
+                onClick={() => go('cart')} 
+                className={`banner-slide shrink-0 bg-gradient-to-br ${grad} p-5 text-white text-left min-h-[125px] flex flex-col justify-between`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold bg-black/20 px-2.5 py-0.5 rounded-full">LIVE COUPON</span>
+                  <span className="text-xs font-bold text-amber-100">
+                    {cp.min_order_value > 0 ? `Min ₹${parseInt(cp.min_order_value)}` : 'No minimum'}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-extrabold text-xl leading-tight block">{discountText}</span>
+                  <span className="text-xs text-orange-100 mt-0.5 block">
+                    Use code <code className="bg-white/25 px-1.5 py-0.5 rounded font-bold text-white">{cp.code}</code> at checkout
+                  </span>
+                </div>
+              </button>
+            );
+          })
+        ) : promotions.length > 0 ? (
+          promotions.slice(0, 2).map((promo, idx) => (
+            <button 
+              key={promo.id || idx} 
+              onClick={() => go('stores')} 
+              className="banner-slide shrink-0 bg-gradient-to-br from-amber-500 via-orange-500 to-rose-600 p-5 text-white text-left min-h-[125px] flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold bg-black/20 px-2.5 py-0.5 rounded-full">{promo.promo_type || 'PROMO'}</span>
+                <span className="text-xs font-bold text-amber-100">{promo.store_name || 'Active Sale'}</span>
+              </div>
+              <div>
+                <span className="font-extrabold text-xl leading-tight block">{promo.title}</span>
+                <span className="text-xs text-orange-100 mt-0.5 block">Discounts applied directly on verified seller catalog</span>
+              </div>
+            </button>
+          ))
+        ) : null}
       </div>
 
       {/* Category Pills */}
@@ -102,7 +166,7 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
         <div className="flex justify-between items-end mb-3">
           <div>
             <h2 className="section-title">What are you looking for?</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Explore 10+ categories across local stores</p>
+            <p className="text-xs text-gray-500 mt-0.5">Explore categories across local stores</p>
           </div>
           <button onClick={() => go('categories')} className="text-brand-green text-xs font-extrabold hover:underline">View All →</button>
         </div>
@@ -110,7 +174,7 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
           {categories.slice(0, 6).map((cat, i) => {
              const icons = ['🥬', '🥛', '🌾', '🫒', '👗', '🍿'];
              return (
-              <button key={cat.id} onClick={() => go(`search?q=${cat.slug}`)} className="cat-pill flex flex-col items-center gap-1 text-center">
+              <button key={cat.id} onClick={() => go(`search?q=${cat.slug || cat.name}`)} className="cat-pill flex flex-col items-center gap-1 text-center">
                 <span className="text-2xl transform hover:scale-110 transition-transform">{icons[i % 6]}</span>
                 <span className="text-[11px] font-extrabold text-gray-800">{cat.name}</span>
               </button>
@@ -142,10 +206,10 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
                         <h3 className="font-extrabold text-sm text-gray-900 leading-tight">{shop.name}</h3>
                         <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{shop.distance}</span>
                     </div>
-                    <p className="text-[11px] text-gray-500 mt-0.5 truncate">{shop.tags.join(' & ')} · {shop.area}</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5 truncate">{(Array.isArray(shop.tags) && shop.tags.length > 0 ? shop.tags.join(' & ') : 'General Store')} · {shop.area}</p>
                     <div className="mt-2 flex gap-1.5">
-                        <span className="store-chip">14m Delivery</span>
-                        <span className="store-chip">15% OFF</span>
+                        <span className="store-chip">{shop.distance || 'Local'} Delivery</span>
+                        <span className="store-chip">{shop.rating} ★ Rating</span>
                     </div>
                 </div>
             </div>
