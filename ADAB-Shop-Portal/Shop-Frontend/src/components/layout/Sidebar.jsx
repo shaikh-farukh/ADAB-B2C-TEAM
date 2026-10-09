@@ -13,6 +13,13 @@ export default function Sidebar() {
   const posClass = ({ isActive }) =>
     `${isActive ? 'nav-on font-bold ' : 'text-gray-700 hover:bg-indigo-50/70 hover:text-indigo-900 '}w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition`;
 
+  const closeDrawer = () => {
+    const drawer = document.getElementById('sellerDrawer');
+    if (drawer) drawer.classList.remove('open');
+    const overlay = document.getElementById('drawerOverlaySeller');
+    if (overlay) overlay.classList.remove('open');
+  };
+
   return (
     <aside id="sellerDrawer" className="mobile-seller-drawer lg:static lg:transform-none lg:w-60 lg:p-0 lg:bg-transparent lg:shadow-none shrink-0">
       <div className="lg:hidden flex items-center justify-between pb-3 mb-2 border-b border-gray-100">
@@ -21,17 +28,20 @@ export default function Sidebar() {
           ADAB Seller
         </div>
         <button 
-          onClick={() => {
-            const drawer = document.getElementById('sellerDrawer');
-            if (drawer) drawer.classList.remove('open');
-          }}
-          className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500"
+          onClick={closeDrawer}
+          className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition"
+          aria-label="Close navigation"
         >
           <i className="fa-solid fa-xmark"></i>
         </button>
       </div>
 
-      <nav className="card p-2.5 text-sm sticky top-20 sidebar-scroll shadow-sm border border-gray-200/80 space-y-1">
+      <nav 
+        onClick={(e) => {
+          if (e.target.closest('a')) closeDrawer();
+        }}
+        className="card p-2.5 text-sm sticky top-20 sidebar-scroll shadow-sm border border-gray-200/80 space-y-1"
+      >
         {/* Store Quick Profile Badge in Sidebar */}
         <div className="p-2.5 mb-2 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white font-extrabold flex items-center justify-center text-xs shrink-0 shadow-sm">
@@ -120,8 +130,11 @@ export default function Sidebar() {
         <NavLink to="/points" className={navClass}>
           <i className="fa-solid fa-star w-4 text-amber-500"></i> <span data-i18n="navPoints">Reward Points</span>
         </NavLink>
-        <NavLink to="/offers" className={navClass}>
-          <i className="fa-solid fa-ticket w-4 text-rose-500"></i> <span>Coupons & Offers</span>
+        <NavLink to="/marketing" className={navClass}>
+          <i className="fa-solid fa-ticket w-4 text-rose-500"></i> <span>Coupons & Promos</span>
+        </NavLink>
+        <NavLink to="/pricing" className={navClass}>
+          <i className="fa-solid fa-tags w-4 text-purple-600"></i> <span>Pricing Schedules</span>
         </NavLink>
 
         {/* 5. LOGISTICS & OPERATIONS */}
@@ -148,6 +161,24 @@ export default function Sidebar() {
         <NavLink to="/settings" className={navClass}>
           <i className="fa-solid fa-gear w-4 text-gray-500"></i> <span data-i18n="navSettings">Store Settings</span>
         </NavLink>
+
+        {/* 6. EXPANDABLE MORE UTILITIES */}
+        <details className="mt-2 px-1 border-t border-gray-100 pt-1.5">
+          <summary className="text-xs font-extrabold text-gray-400 hover:text-gray-700 cursor-pointer py-1 flex items-center justify-between" data-i18n="navShowMore">
+            <span>More Utilities</span> <i className="fa-solid fa-chevron-down text-[10px]"></i>
+          </summary>
+          <div className="space-y-0.5 mt-1">
+            <NavLink to="/" className={({ isActive }) => `${isActive ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Order History Archive</NavLink>
+            <NavLink to="/" className={({ isActive }) => `${isActive ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Customer Ratings &amp; Reviews</NavLink>
+            <NavLink to="/" className={({ isActive }) => `${isActive ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Help &amp; Support</NavLink>
+            <NavLink to="/" className={({ isActive }) => `${isActive ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Merchant FAQ</NavLink>
+            <NavLink to="/" className={({ isActive }) => `${isActive ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Driver Management</NavLink>
+            <NavLink to="/" className={({ isActive }) => `${isActive ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Export &amp; IEC Trade</NavLink>
+            <NavLink to="/" className={({ isActive }) => `${isActive ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Certificates &amp; FSSAI</NavLink>
+            <NavLink to="/" className={({ isActive }) => `${isActive ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Store Health &amp; Audits</NavLink>
+            <NavLink to="/" className={({ isActive }) => `${isActive ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Notifications Log</NavLink>
+          </div>
+        </details>
       </nav>
     </aside>
   );
