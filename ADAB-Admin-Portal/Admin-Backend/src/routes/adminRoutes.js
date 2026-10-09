@@ -12,7 +12,11 @@ const productController = require('../controllers/adminProductController');
 // Dev login to get a token easily
 router.post('/dev-login', (req, res) => {
   const jwt = require('jsonwebtoken');
-  const token = jwt.sign({ userId: 1, role: 'admin' }, process.env.JWT_SECRET || 'adab-secret-key-change-in-prod', { expiresIn: '1d' });
+  const token = jwt.sign(
+    { userId: 'admin-dev', role: 'admin', user_type: 'ADMIN', permissions: ['catalog:read', 'catalog:write', 'catalog:approve', 'orders:read', 'orders:write', 'returns:read', 'returns:write'] },
+    process.env.JWT_SECRET || 'adab-secret-key-change-in-prod',
+    { expiresIn: '1d' }
+  );
   res.json({ success: true, token });
 });
 
@@ -42,7 +46,7 @@ router.patch('/customers/:id/status', customerController.updateCustomerStatus);
 router.get('/approvals', approvalController.getApprovals);
 router.patch('/approvals/:id', approvalController.updateApproval);
 
-// Products / Moderation (Day-3)
+// Legacy Products / Moderation (Day-3 Test Support)
 router.get('/products', productController.getProducts);
 router.get('/products/:id', productController.getProductDetails);
 router.post('/products/:id/approve', productController.approveProduct);

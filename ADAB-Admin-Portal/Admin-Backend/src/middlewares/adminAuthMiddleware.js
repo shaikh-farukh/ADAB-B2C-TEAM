@@ -1,5 +1,7 @@
 const adminAuth = (req, res, next) => {
-  if (!req.user || req.user.role !== 'admin') {
+  const role = (req.user?.role || '').toLowerCase();
+  const userType = (req.user?.user_type || '').toLowerCase();
+  if (!req.user || (role !== 'admin' && role !== 'super_admin' && userType !== 'admin')) {
     return res.status(403).json({ success: false, message: 'Admin access required' });
   }
   next();

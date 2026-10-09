@@ -10,14 +10,37 @@ const productCtrl = require('../controllers/productBoundaryController');
 const approvalCtrl = require('../controllers/approvalContractController');
 const orderCtrl = require('../controllers/adminOrderController');
 const returnCtrl = require('../controllers/adminReturnController');
+const offerCtrl = require('../controllers/adminOfferController');
+const orderService = require('../services/adminOrderService');
+const returnService = require('../services/adminReturnService');
 
-// All admin routes require authentication, correlation trace & base Admin guard
-router.use(authMiddleware);
+// Allow /dev-login to bypass auth middleware for dev auto-login
+router.use((req, res, next) => {
+  if (req.path === '/dev-login') return next();
+  authMiddleware(req, res, next);
+});
 router.use(auditMiddleware());
-router.use(adminGuard());
+router.use((req, res, next) => {
+  if (req.path === '/dev-login') return next();
+  adminGuard()(req, res, next);
+});
 
 // ─── Orders Management APIs ───
+router.get('/orders/exceptions', adminGuard({ permissions: [PERMISSIONS.ORDERS_READ] }), (req, res, next) => {
+  req.query.exceptions = 'true';
+  return orderCtrl.getOrders(req, res, next);
+});
 router.get('/orders', adminGuard({ permissions: [PERMISSIONS.ORDERS_READ] }), orderCtrl.getOrders);
+router.get('/orders/:id/status-history', adminGuard({ permissions: [PERMISSIONS.ORDERS_READ] }), async (req, res) => {
+  const order = await orderService.getAdminOrderById(req.params.id);
+  if (!order) return res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'Order not found' });
+  res.status(200).json({ success: true, data: order.status_history || [] });
+});
+router.get('/orders/:id/shipments', adminGuard({ permissions: [PERMISSIONS.ORDERS_READ] }), async (req, res) => {
+  const order = await orderService.getAdminOrderById(req.params.id);
+  if (!order) return res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'Order not found' });
+  res.status(200).json({ success: true, data: order.shipments || [] });
+});
 router.get('/orders/:id', adminGuard({ permissions: [PERMISSIONS.ORDERS_READ] }), orderCtrl.getOrderById);
 router.patch(
   '/orders/:id/status',
@@ -27,7 +50,16 @@ router.patch(
 );
 
 // ─── Returns & Resolution APIs ───
+router.get('/returns/exceptions', adminGuard({ permissions: [PERMISSIONS.RETURNS_READ] }), (req, res, next) => {
+  req.query.exceptions = 'true';
+  return returnCtrl.getReturns(req, res, next);
+});
 router.get('/returns', adminGuard({ permissions: [PERMISSIONS.RETURNS_READ] }), returnCtrl.getReturns);
+router.get('/returns/:id/refund', adminGuard({ permissions: [PERMISSIONS.RETURNS_READ] }), async (req, res) => {
+  const ret = await returnService.getAdminReturnById(req.params.id);
+  if (!ret) return res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'Return not found' });
+  res.status(200).json({ success: true, data: ret.refunds || [] });
+});
 router.get('/returns/:id', adminGuard({ permissions: [PERMISSIONS.RETURNS_READ] }), returnCtrl.getReturnById);
 router.post(
   '/returns/:id/resolve',
@@ -107,6 +139,7 @@ router.get('/approvals', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] })
 router.get('/approvals/counts', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), approvalCtrl.getApprovalCounts);
 router.get('/approvals/:id', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), approvalCtrl.getApprovalById);
 router.get('/approvals/:id/history', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), approvalCtrl.getApprovalHistory);
+router.get('/approvals/:type/:id/history', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), approvalCtrl.getApprovalHistory);
 
 // Sensitive Admin Listing Moderation Mutations (Audited & Outbox Emitted)
 router.post(
@@ -135,6 +168,40 @@ router.post(
   adminGuard({ permissions: [PERMISSIONS.CATALOG_APPROVE] }),
   auditMiddleware({ action: 'ADMIN_SUSPEND_ITEM', entityType: 'PRODUCT_LISTING' }),
   approvalCtrl.suspendItem
+);
+
+// ─── Platform Offers & Coupons APIs ───
+router.get('/offers', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), offerCtrl.getOffers);
+router.post(
+  '/offers',
+  adminGuard({ permissions: [PERMISSIONS.CATALOG_WRITE] }),
+  auditMiddleware({ action: 'ADMIN_CREATE_OFFER', entityType: 'OFFER' }),
+  offerCtrl.createOffer
+);
+router.post('/offers/validate', offerCtrl.validateOffer);
+router.patch(
+  '/offers/:id',
+  adminGuard({ permissions: [PERMISSIONS.CATALOG_WRITE] }),
+  auditMiddleware({ action: 'ADMIN_UPDATE_OFFER', entityType: 'OFFER' }),
+  offerCtrl.updateOffer
+);
+router.delete(
+  '/offers/:id',
+  adminGuard({ permissions: [PERMISSIONS.CATALOG_WRITE] }),
+  auditMiddleware({ action: 'ADMIN_DELETE_OFFER', entityType: 'OFFER' }),
+  offerCtrl.deleteOffer
+);
+router.post(
+  '/offers/:id/activate',
+  adminGuard({ permissions: [PERMISSIONS.CATALOG_WRITE] }),
+  auditMiddleware({ action: 'ADMIN_ACTIVATE_OFFER', entityType: 'OFFER' }),
+  offerCtrl.activateOffer
+);
+router.post(
+  '/offers/:id/pause',
+  adminGuard({ permissions: [PERMISSIONS.CATALOG_WRITE] }),
+  auditMiddleware({ action: 'ADMIN_PAUSE_OFFER', entityType: 'OFFER' }),
+  offerCtrl.pauseOffer
 );
 
 // ─── Seller / Customer User Status Authorization ───

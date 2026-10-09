@@ -15,8 +15,8 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
-app.use('/api/v1/admin', legacyAdminRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/admin', legacyAdminRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Health Route

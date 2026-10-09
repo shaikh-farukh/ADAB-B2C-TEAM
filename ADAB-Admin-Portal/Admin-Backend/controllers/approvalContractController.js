@@ -283,7 +283,7 @@ async function updateListingStatus(req, res) {
   });
 }
 
-// 8. Approval History Endpoint
+// 8. Approval History Endpoint (Supports GET /approvals/:id/history & GET /approvals/:type/:id/history)
 async function getApprovalHistory(req, res) {
   const { id } = req.params;
   const result = await fetchApprovalItemById(id);
@@ -305,16 +305,21 @@ async function getApprovalHistory(req, res) {
 
 // 9. Approval Counts Endpoint
 async function getApprovalCounts(req, res) {
+  const queueRes = await fetchApprovalQueue({ status: 'ALL', limit: 1000 });
+  const items = queueRes.data || [];
+
+  const counts = {
+    pending: items.filter(i => (i.status || i.current_status) === 'PENDING').length,
+    approved: items.filter(i => (i.status || i.current_status) === 'APPROVED').length,
+    rejected: items.filter(i => (i.status || i.current_status) === 'REJECTED').length,
+    changes_requested: items.filter(i => (i.status || i.current_status) === 'CHANGES_REQUESTED').length,
+    suspended: items.filter(i => (i.status || i.current_status) === 'SUSPENDED').length,
+    total: items.length
+  };
+
   return res.status(200).json({
     success: true,
-    data: formatApprovalCountsDTO({
-      pending: 12,
-      approved: 145,
-      rejected: 8,
-      changes_requested: 5,
-      suspended: 2,
-      total: 172
-    })
+    data: formatApprovalCountsDTO(counts)
   });
 }
 

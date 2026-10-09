@@ -14,6 +14,7 @@ import Returns from './pages/Returns';
 import Reports from './pages/Reports';
 import Audit from './pages/Audit';
 import Settings from './pages/Settings';
+import Offers from './pages/Offers';
 import ProductCatalog from './pages/ProductCatalog';
 
 export default function App() {
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="products" element={<Products />} />
           <Route path="categories" element={<Categories />} />
           <Route path="brands" element={<Brands />} />
+          <Route path="offers" element={<Offers />} />
           <Route path="orders" element={<Orders />} />
           <Route path="returns" element={<Returns />} />
           <Route path="productcatalog" element={<ProductCatalog />} />

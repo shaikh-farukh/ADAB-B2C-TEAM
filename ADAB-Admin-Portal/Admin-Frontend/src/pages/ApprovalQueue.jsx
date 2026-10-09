@@ -21,9 +21,21 @@ export default function ApprovalQueue() {
     notes: ''
   });
 
+  const [counts, setCounts] = useState({ pending: 0, approved: 0, rejected: 0, total: 0 });
+  const [historyModal, setHistoryModal] = useState({ isOpen: false, data: [] });
+
+  const fetchCounts = () => {
+    apiClient.get('/approvals/counts')
+      .then(res => {
+        if (res.data.data) setCounts(res.data.data);
+      })
+      .catch(() => {});
+  };
+
   const fetchApprovals = (type = activeTab, p = 1) => {
     setLoading(true);
     setError(null);
+    fetchCounts();
 
     if (type === 'product') {
       apiClient.get(`/approvals/queue?page=${p}&limit=10`)
@@ -53,6 +65,14 @@ export default function ApprovalQueue() {
   useEffect(() => {
     fetchApprovals(activeTab, 1);
   }, [activeTab]);
+
+  const viewHistory = (id) => {
+    apiClient.get(`/approvals/product/${id}/history`)
+      .then(res => {
+        setHistoryModal({ isOpen: true, data: res.data.data || [] });
+      })
+      .catch(() => alert('Failed to fetch approval history'));
+  };
 
   const openActionModal = (id, action) => {
     if (action === 'approve') {
@@ -124,6 +144,7 @@ export default function ApprovalQueue() {
     { header: 'Status', render: (row) => <StatusBadge status={row.current_status || row.status} /> },
     { header: 'Actions', render: (row) => (
       <div className="flex gap-1.5 flex-wrap">
+        <button onClick={() => viewHistory(row.id || row.listing_id)} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded-lg font-bold">History</button>
         <button onClick={() => openActionModal(row.id || row.listing_id, 'approve')} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-lg font-bold">Approve</button>
         <button onClick={() => openActionModal(row.id || row.listing_id, 'request-changes')} className="text-xs bg-amber-500 hover:bg-amber-600 text-white px-2.5 py-1 rounded-lg font-bold">Request Changes</button>
         <button onClick={() => openActionModal(row.id || row.listing_id, 'reject')} className="text-xs bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1 rounded-lg font-bold">Reject</button>
@@ -153,6 +174,20 @@ export default function ApprovalQueue() {
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900">Moderation &amp; Approval Queue</h1>
           <p className="text-xs text-slate-500 mt-1">Review product listings, seller applications &amp; compliance submissions</p>
+        </div>
+        <div className="flex gap-3">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 text-center">
+            <div className="text-xs text-amber-600 font-bold uppercase">Pending</div>
+            <div className="text-lg font-extrabold text-amber-700">{counts.pending || 0}</div>
+          </div>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5 text-center">
+            <div className="text-xs text-emerald-600 font-bold uppercase">Approved</div>
+            <div className="text-lg font-extrabold text-emerald-700">{counts.approved || 0}</div>
+          </div>
+          <div className="bg-rose-50 border border-rose-200 rounded-xl px-3 py-1.5 text-center">
+            <div className="text-xs text-rose-600 font-bold uppercase">Rejected</div>
+            <div className="text-lg font-extrabold text-rose-700">{counts.rejected || 0}</div>
+          </div>
         </div>
       </div>
       
@@ -214,6 +249,32 @@ export default function ApprovalQueue() {
             placeholder={modalState.action === 'reject' ? 'Enter clear rejection reason...' : modalState.action === 'suspend' ? 'Enter suspension justification...' : 'Enter details of requested changes...'}
             className="w-full p-2.5 rounded-xl border border-slate-200 text-xs focus:border-indigo-600 outline-none"
           />
+        </div>
+      </Modal>
+
+      {/* Approval History Modal */}
+      <Modal
+        isOpen={historyModal.isOpen}
+        title="Approval Transition History"
+        onClose={() => setHistoryModal({ isOpen: false, data: [] })}
+        primaryLabel="Close"
+        onPrimary={() => setHistoryModal({ isOpen: false, data: [] })}
+      >
+        <div className="space-y-3 max-h-80 overflow-y-auto">
+          {historyModal.data.length === 0 ? (
+            <p className="text-xs text-slate-500 font-medium">No transition history recorded for this item.</p>
+          ) : (
+            historyModal.data.map((h, idx) => (
+              <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
+                <div className="flex justify-between font-bold text-slate-800">
+                  <span>{h.previous_status || 'INIT'} &rarr; {h.new_status}</span>
+                  <span className="text-slate-400 font-normal">{h.action_at ? new Date(h.action_at).toLocaleString() : ''}</span>
+                </div>
+                {h.rejection_reason && <p className="text-rose-600 font-medium">Reason: {h.rejection_reason}</p>}
+                {h.notes && <p className="text-slate-600">Notes: {h.notes}</p>}
+              </div>
+            ))
+          )}
         </div>
       </Modal>
     </div>
