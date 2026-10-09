@@ -14,6 +14,7 @@ import Returns from './pages/Returns';
 import Reports from './pages/Reports';
 import Audit from './pages/Audit';
 import Settings from './pages/Settings';
+import ProductCatalog from './pages/ProductCatalog';
 
 export default function App() {
   const [loadingToken, setLoadingToken] = React.useState(!localStorage.getItem('token'));
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="brands" element={<Brands />} />
           <Route path="orders" element={<Orders />} />
           <Route path="returns" element={<Returns />} />
+          <Route path="productcatalog" element={<ProductCatalog />} />
           <Route path="sellers" element={<Sellers />} />
           <Route path="customers" element={<Customers />} />
           <Route path="reports" element={<Reports />} />

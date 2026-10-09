@@ -38,8 +38,12 @@ export default function Products() {
 
     apiClient.get(`/products?${params.toString()}`)
       .then(res => {
-        setProducts(res.data.data || []);
-        if (res.data.pagination) setPagination(res.data.pagination);
+        setProducts(res.data.data?.products || []);
+        setPagination({
+          page: res.data.data?.page || 1,
+          limit: res.data.data?.limit || 10,
+          total: res.data.data?.totalRecords || 0
+        });
       })
       .catch(() => setError('Failed to load products'))
       .finally(() => setLoading(false));
