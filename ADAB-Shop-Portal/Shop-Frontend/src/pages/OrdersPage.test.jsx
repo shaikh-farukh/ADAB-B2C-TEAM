@@ -180,4 +180,87 @@ describe('OrdersPage Component', () => {
       expect(sellerApi.updateOrderStatus).toHaveBeenCalledWith('ORD-6840', 'packing');
     });
   });
+
+  it('opens decline modal when Decline button is clicked and confirms cancellation', async () => {
+    sellerApi.getOrders.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'ORD-6840',
+          customer: 'Pooja Sharma',
+          distance: '4.8',
+          items: [],
+          amount: 1015,
+          status: 'new'
+        }
+      ]
+    });
+    sellerApi.updateOrderStatus.mockResolvedValue({ success: true });
+
+    render(
+      <BrowserRouter>
+        <OrdersPage />
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTitle('Decline Order')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByTitle('Decline Order'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Decline Order • #ORD-6840/i)).toBeDefined();
+      expect(screen.getByText('Confirm Decline')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('Confirm Decline'));
+
+    await waitFor(() => {
+      expect(sellerApi.updateOrderStatus).toHaveBeenCalledWith('ORD-6840', 'cancelled');
+    });
+  });
+
+  it('renders Status column and updates status badge and shows toast when Accept button is clicked', async () => {
+    sellerApi.getOrders.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'ORD-6840',
+          customer: 'Pooja Sharma',
+          distance: '4.8',
+          items: [],
+          amount: 1015,
+          status: 'new'
+        }
+      ]
+    });
+    sellerApi.updateOrderStatus.mockResolvedValue({ success: true });
+
+    render(
+      <BrowserRouter>
+        <OrdersPage />
+      </BrowserRouter>
+    );
+
+    // Verify Status column header
+    await waitFor(() => {
+      expect(screen.getByRole('columnheader', { name: /status/i })).toBeDefined();
+      expect(screen.getByText('New')).toBeDefined();
+      expect(screen.getByTitle('Accept Order')).toBeDefined();
+    });
+
+    // Click Accept button directly in table row
+    fireEvent.click(screen.getByTitle('Accept Order'));
+
+    await waitFor(() => {
+      expect(sellerApi.updateOrderStatus).toHaveBeenCalledWith('ORD-6840', 'packing');
+      // Status badge updates to Packing in table cell
+      expect(screen.getByText('Packing', { selector: 'span' })).toBeDefined();
+      // Action button updates to Send
+      expect(screen.getByTitle('Dispatch / Send Package')).toBeDefined();
+      // Toast message is displayed
+      expect(screen.getByText(/Order #ORD-6840 status updated to Packing/i)).toBeDefined();
+    });
+  });
 });

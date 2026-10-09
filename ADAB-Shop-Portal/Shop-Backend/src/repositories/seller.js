@@ -144,6 +144,8 @@ class SellerRepository {
       SELECT so.id as seller_order_id,
              so.parent_order_id,
              so.store_id,
+             st.latitude as store_latitude,
+             st.longitude as store_longitude,
              so.status as seller_order_status,
              so.subtotal as store_subtotal,
              so.commission_fee,
@@ -178,37 +180,59 @@ class SellerRepository {
              ) as item_summary
       FROM seller_orders so
       JOIN orders o ON so.parent_order_id = o.id
+      LEFT JOIN stores st ON so.store_id = st.id
       LEFT JOIN users u ON o.customer_id = u.id
       WHERE ($1::uuid IS NULL OR so.store_id = $1::uuid)
       ORDER BY so.created_at DESC
       LIMIT 50
     `;
     const res = await pool.query(query, [storeId || null]);
-    return res.rows.map(r => ({
-      id: r.order_number || r.order_id,
-      real_id: r.seller_order_id,
-      parent_order_id: r.parent_order_id,
-      store_id: r.store_id,
-      customer: r.customer || r.delivery_address?.full_name || 'Customer',
-      customer_phone: r.customer_phone || r.delivery_address?.phone || '',
-      distance: (Math.abs((parseInt((r.order_number || r.seller_order_id || '10').replace(/\D/g, '') || 12, 10) % 80) / 10) + 0.8).toFixed(1),
-      delivery_mode: r.delivery_mode ? r.delivery_mode.toLowerCase() : 'normal',
-      delivery_address: r.delivery_address,
-      items: r.items_list || [],
-      item_summary: r.item_summary || 'Items',
-      amount: Number(r.store_subtotal || r.amount) || 0,
-      status: r.seller_order_status ? (
-        r.seller_order_status === 'NEW' ? 'new' :
-        r.seller_order_status === 'ACCEPTED' ? 'packing' :
-        r.seller_order_status === 'PACKED' ? 'packed' :
-        r.seller_order_status === 'DISPATCHED' ? 'dispatched' :
-        r.seller_order_status.toLowerCase()
-      ) : 'new',
-      created_at: r.seller_order_created_at || r.created_at
-    }));
+    return res.rows.map(r => {
+      const addr = r.delivery_address;
+      let distance = '2.0';
+      if (addr && addr.latitude != null && addr.longitude != null) {
+        const sLat = Number(r.store_latitude) || 21.1702;
+        const sLng = Number(r.store_longitude) || 72.8311;
+        const cLat = Number(addr.latitude);
+        const cLng = Number(addr.longitude);
+        const R = 6371; // km
+        const dLat = (cLat - sLat) * Math.PI / 180;
+        const dLon = (cLng - sLng) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(sLat * Math.PI / 180) * Math.cos(cLat * Math.PI / 180) *
+                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        distance = (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1);
+      } else {
+        distance = (Math.abs((parseInt((r.order_number || r.seller_order_id || '10').replace(/\D/g, '') || 12, 10) % 80) / 10) + 0.8).toFixed(1);
+      }
+
+      return {
+        id: r.order_number || r.order_id,
+        real_id: r.seller_order_id,
+        parent_order_id: r.parent_order_id,
+        store_id: r.store_id,
+        customer: r.customer || r.delivery_address?.full_name || 'Customer',
+        customer_phone: r.customer_phone || r.delivery_address?.phone || '',
+        distance,
+        delivery_mode: r.delivery_mode ? r.delivery_mode.toLowerCase() : 'normal',
+        delivery_address: r.delivery_address,
+        items: r.items_list || [],
+        item_summary: r.item_summary || 'Items',
+        amount: Number(r.store_subtotal || r.amount) || 0,
+        status: r.seller_order_status ? (
+          r.seller_order_status === 'NEW' ? 'new' :
+          r.seller_order_status === 'ACCEPTED' ? 'packing' :
+          r.seller_order_status === 'PACKED' ? 'packed' :
+          r.seller_order_status === 'DISPATCHED' ? 'dispatched' :
+          r.seller_order_status.toLowerCase()
+        ) : 'new',
+        created_at: r.seller_order_created_at || r.created_at
+      };
+    });
   }
 
   async updateOrderStatus(orderId, status) {
+    const cleanId = orderId ? orderId.toString().replace(/^#/, '') : orderId;
     const sellerStatusMap = {
       'new': 'NEW',
       'packing': 'ACCEPTED',
@@ -217,7 +241,9 @@ class SellerRepository {
       'dispatched': 'DISPATCHED',
       'shipped': 'DISPATCHED',
       'delivered': 'DELIVERED',
-      'cancelled': 'CANCELLED'
+      'cancelled': 'CANCELLED',
+      'declined': 'CANCELLED',
+      'rejected': 'CANCELLED'
     };
     const orderStatusMap = {
       'new': 'PLACED',
@@ -227,7 +253,9 @@ class SellerRepository {
       'dispatched': 'OUT_FOR_DELIVERY',
       'shipped': 'OUT_FOR_DELIVERY',
       'delivered': 'DELIVERED',
-      'cancelled': 'CANCELLED'
+      'cancelled': 'CANCELLED',
+      'declined': 'CANCELLED',
+      'rejected': 'CANCELLED'
     };
 
     const sStatus = sellerStatusMap[status.toLowerCase()] || 'ACCEPTED';
@@ -238,14 +266,14 @@ class SellerRepository {
       SET status = $1
       WHERE id::text = $2 
          OR parent_order_id IN (SELECT id FROM orders WHERE id::text = $2 OR order_number = $2)
-    `, [sStatus, orderId]);
+    `, [sStatus, cleanId]);
 
     const res = await pool.query(`
       UPDATE orders
       SET order_status = $1, updated_at = NOW()
       WHERE id::text = $2 OR order_number = $2 OR id IN (SELECT parent_order_id FROM seller_orders WHERE id::text = $2)
       RETURNING *
-    `, [oStatus, orderId]);
+    `, [oStatus, cleanId]);
 
     return res.rows[0];
   }
