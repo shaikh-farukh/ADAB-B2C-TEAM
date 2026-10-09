@@ -9,11 +9,52 @@ exports.getRecommended = async (req, res) => {
   }
 };
 
+exports.getProductById = async (req, res) => {
+  try {
+    const data = await catalogService.getProductById(req.params.id);
+    if (!data) return res.status(404).json({ success: false, message: 'Product not found' });
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 exports.searchProducts = async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+
+    const filters = {
+      q: req.query.q || '',
+      category: req.query.category || null,
+      categories: req.query.categories ? req.query.categories.split(',') : [],
+      minPrice: req.query.minPrice ? parseFloat(req.query.minPrice) : null,
+      maxPrice: req.query.maxPrice ? parseFloat(req.query.maxPrice) : null,
+      brand: req.query.brand || null,
+      minRating: req.query.minRating ? parseFloat(req.query.minRating) : null,
+      inStockOnly: req.query.inStockOnly === 'true',
+      sortOrder: req.query.sortOrder || null,
+      sortBy: req.query.sortBy || 'relevance',
+      page,
+      limit
+    };
+
+    const data = await catalogService.searchProducts(filters);
+    res.json({
+      success: true,
+      data,
+      pagination: { total: data.length, page, limit }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.getSearchSuggestions = async (req, res) => {
+  try {
     const q = req.query.q || '';
-    const data = await catalogService.searchProducts(q);
-    res.json({ success: true, data, pagination: { total: data.length, page: 1, limit: 10 } });
+    const data = await catalogService.getSearchSuggestions(q);
+    res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

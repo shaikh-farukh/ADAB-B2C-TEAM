@@ -1,8 +1,10 @@
 const customerService = require('../services/customerService');
 
+const getUserId = (req) => req.headers['x-session-token'] || req.headers['x-user-id'] || '11111111-1111-1111-1111-111111111111';
+
 exports.getProfile = async (req, res) => {
   try {
-    const data = await customerService.getProfile();
+    const data = await customerService.getProfile(getUserId(req));
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -11,7 +13,7 @@ exports.getProfile = async (req, res) => {
 
 exports.updateProfile = async (req, res) => {
   try {
-    const data = await customerService.updateProfile(req.body);
+    const data = await customerService.updateProfile(getUserId(req), req.body);
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -20,7 +22,7 @@ exports.updateProfile = async (req, res) => {
 
 exports.getAddresses = async (req, res) => {
   try {
-    const data = await customerService.getAddresses();
+    const data = await customerService.getAddresses(getUserId(req));
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -29,7 +31,7 @@ exports.getAddresses = async (req, res) => {
 
 exports.addAddress = async (req, res) => {
   try {
-    const data = await customerService.addAddress(req.body);
+    const data = await customerService.addAddress(getUserId(req), req.body);
     res.status(201).json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -38,7 +40,7 @@ exports.addAddress = async (req, res) => {
 
 exports.updateAddress = async (req, res) => {
   try {
-    const data = await customerService.updateAddress(req.params.id, req.body);
+    const data = await customerService.updateAddress(getUserId(req), req.params.id, req.body);
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -47,7 +49,7 @@ exports.updateAddress = async (req, res) => {
 
 exports.deleteAddress = async (req, res) => {
   try {
-    await customerService.deleteAddress(req.params.id);
+    await customerService.deleteAddress(getUserId(req), req.params.id);
     res.json({ success: true, message: 'Address deleted' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -56,7 +58,7 @@ exports.deleteAddress = async (req, res) => {
 
 exports.getWishlist = async (req, res) => {
   try {
-    const data = await customerService.getWishlist();
+    const data = await customerService.getWishlist(getUserId(req));
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -65,7 +67,7 @@ exports.getWishlist = async (req, res) => {
 
 exports.addWishlistItem = async (req, res) => {
   try {
-    const data = await customerService.addWishlistItem(req.body);
+    const data = await customerService.addWishlistItem(getUserId(req), req.body);
     res.status(201).json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
