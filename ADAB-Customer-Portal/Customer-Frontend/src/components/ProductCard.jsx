@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 export default function ProductCard({ product, onAddToCart, onToggleWishlist, wishlist, actionButtonText = 'ADD' }) {
   const navigate = useNavigate();
@@ -46,7 +46,10 @@ export default function ProductCard({ product, onAddToCart, onToggleWishlist, wi
           <span className="font-extrabold text-base text-brand-dark">₹{product.price}</span>
           <button 
             type="button"
-            onClick={() => onAddToCart && onAddToCart(product.id, product.name)}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onAddToCart) onAddToCart(product.id, product.name);
+            }}
             className="add-btn hover:bg-brand-green hover:text-white transition-colors cursor-pointer"
           >
             {actionButtonText}
@@ -56,4 +59,3 @@ export default function ProductCard({ product, onAddToCart, onToggleWishlist, wi
     </div>
   );
 }
-

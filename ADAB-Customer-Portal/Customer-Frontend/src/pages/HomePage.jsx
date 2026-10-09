@@ -12,14 +12,14 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
 
   useEffect(() => {
     Promise.all([
-      api.get('/catalog/recommended'),
-      api.get('/catalog/categories'),
-      api.get('/catalog/stores')
+      api.get('/catalog/recommended').catch(() => ({ data: { data: [] } })),
+      api.get('/catalog/categories').catch(() => ({ data: { data: [] } })),
+      api.get('/catalog/stores').catch(() => ({ data: { data: [] } }))
     ])
       .then(([recRes, catRes, storeRes]) => {
-        setRecommended(recRes.data?.data || recRes.data || []);
-        setCategories(catRes.data?.data || catRes.data || []);
-        setStores(storeRes.data?.data || storeRes.data || []);
+        setRecommended(recRes?.data?.data || recRes?.data || []);
+        setCategories(catRes?.data?.data || catRes?.data || []);
+        setStores(storeRes?.data?.data || storeRes?.data || []);
       })
       .catch(err => console.error(err))
       .finally(() => setLoading(false));

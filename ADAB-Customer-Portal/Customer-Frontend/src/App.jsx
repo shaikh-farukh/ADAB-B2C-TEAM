@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import './App.css';
 import FloatingCartBar from './components/FloatingCartBar';
 import CartView from './components/CartView';
@@ -8,8 +8,10 @@ import HomePage from './pages/HomePage';
 import BrowsePage from './pages/BrowsePage';
 import SearchPage from './pages/SearchPage';
 import ProductDetailPage from './pages/ProductDetailPage';
+import ProductPage from './pages/ProductPage';
 import WishlistPage from './pages/WishlistPage';
 import { CartAPI, CheckoutAPI, WishlistAPI } from './services/api';
+import { api } from './api/api';
 
 export default function App() {
   const location = useLocation();
@@ -28,6 +30,39 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState(null);
   const [wishlist, setWishlist] = useState([]);
   const mockUserId = "11111111-1111-1111-1111-111111111111"; // Using a valid mock UUID since database expects UUID
+
+  // Search autocomplete state from Day 1
+  const [searchQuery, setSearchQuery] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      if (searchQuery.trim().length > 1) {
+        try {
+          const res = await api.get(`/catalog/suggest?q=${encodeURIComponent(searchQuery)}`);
+          setSuggestions(res.data?.data || []);
+          setShowSuggestions(true);
+        } catch (err) {
+          console.error("Error fetching suggestions", err);
+        }
+      } else {
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    };
+
+    const timeoutId = setTimeout(fetchSuggestions, 300);
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      setShowSuggestions(false);
+      navigate(`/browse?q=${encodeURIComponent(searchQuery)}`);
+    }
+  };
 
   // Load cart from backend
   const refreshCart = async () => {
@@ -264,14 +299,51 @@ export default function App() {
               </span>
             </button>
 
-            {/* Search Pill */}
-            <div 
-              onClick={() => setActiveTab('search')}
-              className="search-pill w-full flex items-center gap-3 bg-white rounded-2xl px-4 py-3.5 text-left text-gray-800 cursor-pointer"
-            >
-              <i className="fa-solid fa-magnifying-glass text-brand-green text-lg"></i>
-              <span className="text-gray-400 text-sm font-medium">Search shops, products, brands...</span>
-            </div>
+            {/* Search Input with autocomplete suggestions */}
+            <form onSubmit={handleSearchSubmit} className="relative w-full">
+              <div className="search-pill w-full flex items-center gap-3 bg-white rounded-2xl px-4 py-3 text-left text-gray-800 shadow-sm">
+                <i className="fa-solid fa-magnifying-glass text-brand-green text-lg"></i>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                  placeholder="Search for fresh groceries, fashion, electronics..."
+                  className="w-full bg-transparent border-none text-sm font-medium text-gray-900 placeholder-gray-400 focus:outline-none"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => { setSearchQuery(''); setSuggestions([]); }}
+                    className="text-gray-400 hover:text-gray-600 text-xs cursor-pointer"
+                  >
+                    <i className="fa-solid fa-xmark"></i>
+                  </button>
+                )}
+              </div>
+
+              {/* Suggestions Dropdown */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-gray-200 rounded-2xl shadow-xl z-50 overflow-hidden text-gray-800">
+                  {suggestions.map((suggestion, idx) => (
+                    <div
+                      key={idx}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setSearchQuery(suggestion);
+                        setShowSuggestions(false);
+                        navigate(`/browse?q=${encodeURIComponent(suggestion)}`);
+                      }}
+                      className="px-4 py-3 hover:bg-green-50 cursor-pointer text-sm font-semibold text-gray-700 flex items-center gap-3 transition-colors border-b border-gray-50 last:border-0"
+                    >
+                      <i className="fa-solid fa-magnifying-glass text-gray-400 text-xs"></i>
+                      <span>{suggestion}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </form>
           </div>
         </header>
       )}
@@ -299,8 +371,8 @@ export default function App() {
               ? 'Your Orders'
               : activeTab === 'track'
               ? 'Track Delivery'
-              : activeTab === 'stores'
-              ? 'Stores'
+              : activeTab === 'stores' || activeTab === 'browse'
+              ? 'Browse Products'
               : activeTab.startsWith('product/')
               ? 'Product Details'
               : activeTab}
@@ -358,7 +430,7 @@ export default function App() {
         )}
 
         {/* Stores / Browse Products Screen (Mahi's BrowsePage) */}
-        {activeTab === 'stores' && (
+        {(activeTab === 'stores' || activeTab === 'browse') && (
           <BrowsePage
             onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
             onToggleWishlist={handleToggleWishlist}
@@ -588,6 +660,7 @@ export default function App() {
           activeTab !== 'track' &&
           activeTab !== 'search' &&
           activeTab !== 'stores' &&
+          activeTab !== 'browse' &&
           activeTab !== 'wishlist' &&
           !activeTab.startsWith('product/') && (
             <div className="bg-white rounded-2xl p-6 text-center border border-gray-200">

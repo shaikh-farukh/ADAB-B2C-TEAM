@@ -10,34 +10,48 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
   const [loading, setLoading] = useState(true);
 
   // Read URL State
+  const q = searchParams.get('q') || '';
   const category = searchParams.get('category') || '';
-  const sortBy = searchParams.get('sortBy') || 'relevance';
+  const categoriesParam = searchParams.get('categories') || '';
+  const selectedCategories = categoriesParam ? categoriesParam.split(',').filter(Boolean) : [];
+  const sortBy = searchParams.get('sortBy') || searchParams.get('sortOrder') || 'relevance';
   const minPrice = searchParams.get('minPrice') || '';
   const maxPrice = searchParams.get('maxPrice') || '';
   const page = parseInt(searchParams.get('page')) || 1;
 
   useEffect(() => {
-    setLoading(true);
-    
-    // Construct Backend URL params
-    const params = new URLSearchParams();
-    if (category) params.append('category', category);
-    if (sortBy) params.append('sortBy', sortBy);
-    if (minPrice) params.append('minPrice', minPrice);
-    if (maxPrice) params.append('maxPrice', maxPrice);
-    params.append('page', page);
-    params.append('limit', 10);
+    const fetchProducts = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (q) params.append('q', q);
+        if (category) params.append('category', category);
+        if (selectedCategories.length > 0) params.append('categories', selectedCategories.join(','));
+        if (minPrice) params.append('minPrice', minPrice);
+        if (maxPrice) params.append('maxPrice', maxPrice);
+        if (sortBy) {
+          params.append('sortBy', sortBy);
+          params.append('sortOrder', sortBy);
+        }
+        params.append('page', page);
+        params.append('limit', 12);
 
-    api.get(`/catalog/search?${params.toString()}`)
-      .then(res => setProducts(res.data.data))
-      .catch(err => console.error(err))
-      .finally(() => setLoading(false));
-  }, [category, sortBy, minPrice, maxPrice, page]);
+        const res = await api.get(`/catalog/search?${params.toString()}`);
+        setProducts(res.data?.data || []);
+      } catch (err) {
+        console.error('Error fetching browse products:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, [q, category, categoriesParam, minPrice, maxPrice, sortBy, page]);
 
   // Handlers for Filter changes
   const updateFilter = (key, value) => {
     const newParams = new URLSearchParams(searchParams);
-    if (value) {
+    if (value !== undefined && value !== null && value !== '') {
       newParams.set(key, value);
     } else {
       newParams.delete(key);
@@ -46,12 +60,15 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
     setSearchParams(newParams);
   };
 
-  const toggleCategory = (catId) => {
-    updateFilter('category', category === catId ? '' : catId);
+  const toggleCategoryName = (catName) => {
+    const next = selectedCategories.includes(catName)
+      ? selectedCategories.filter(c => c !== catName)
+      : [...selectedCategories, catName];
+    updateFilter('categories', next.join(','));
   };
 
   return (
-    <div className="flex flex-col md:flex-row gap-6 items-start">
+    <div className="flex flex-col md:flex-row gap-6 items-start animate-fade-in">
       {/* Sidebar Filters */}
       <aside className="w-full md:w-64 bg-white border border-gray-200 rounded-2xl p-5 shrink-0 sticky top-20">
         <div className="flex items-center gap-2 mb-6 pb-4 border-b border-gray-100">
@@ -63,30 +80,16 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
           <div>
             <h3 className="text-sm font-bold mb-3 uppercase tracking-wider text-gray-500">Categories</h3>
             <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm">
-                <input 
-                  type="checkbox" 
-                  checked={category === '1'}
-                  onChange={() => toggleCategory('1')}
-                  className="rounded text-brand-green focus:ring-brand-green" 
-                /> Fresh Produce
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input 
-                  type="checkbox" 
-                  checked={category === '2'}
-                  onChange={() => toggleCategory('2')}
-                  className="rounded text-brand-green focus:ring-brand-green" 
-                /> Dairy & Eggs
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input 
-                  type="checkbox" 
-                  checked={category === '3'}
-                  onChange={() => toggleCategory('3')}
-                  className="rounded text-brand-green focus:ring-brand-green" 
-                /> Pantry Staples
-              </label>
+              {['Fresh Produce', 'Dairy & Eggs', 'Pantry Staples'].map(cat => (
+                <label key={cat} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <input 
+                    type="checkbox" 
+                    className="rounded text-brand-green focus:ring-brand-green" 
+                    checked={selectedCategories.includes(cat)}
+                    onChange={() => toggleCategoryName(cat)}
+                  /> {cat}
+                </label>
+              ))}
             </div>
           </div>
           
@@ -116,7 +119,9 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
       {/* Product Grid */}
       <div className="flex-1 w-full">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-black text-gray-900">All Products</h1>
+          <h1 className="text-2xl font-black text-gray-900">
+            {q ? `Results for "${q}"` : 'All Products'}
+          </h1>
           <div className="flex items-center gap-2 text-sm">
             <span className="text-gray-500">Sort by:</span>
             <select 

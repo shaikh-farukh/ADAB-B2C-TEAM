@@ -18,6 +18,27 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
     inStockOnly: false
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      if (query.trim().length > 1) {
+        try {
+          const res = await api.get(`/catalog/suggest?q=${encodeURIComponent(query)}`);
+          setSuggestions(res.data?.data || []);
+          setShowSuggestions(true);
+        } catch (err) {
+          console.error("Error fetching suggestions", err);
+        }
+      } else {
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    };
+    const t = setTimeout(fetchSuggestions, 250);
+    return () => clearTimeout(t);
+  }, [query]);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -50,25 +71,48 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
   return (
     <div className="flex flex-col gap-4">
       <div className="sticky top-0 z-10 bg-[#F6F9F6] pt-2 pb-4">
-        <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
-          <button onClick={() => navigate('/home')} className="text-gray-500 hover:text-black">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <Search className="w-5 h-5 text-brand-green" />
-          <input 
-            type="text" 
-            autoFocus
-            className="w-full bg-transparent border-none focus:outline-none text-sm font-medium text-gray-900 placeholder-gray-400"
-            placeholder="Search shops, products, brands..." 
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <button 
-            onClick={() => setShowFilters(!showFilters)} 
-            className={`text-sm font-medium px-3 py-1 rounded-full ${showFilters ? 'bg-brand-green text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            Filters
-          </button>
+        <div className="relative">
+          <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
+            <button onClick={() => navigate('/home')} className="text-gray-500 hover:text-black cursor-pointer">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <Search className="w-5 h-5 text-brand-green" />
+            <input 
+              type="text" 
+              autoFocus
+              className="w-full bg-transparent border-none focus:outline-none text-sm font-medium text-gray-900 placeholder-gray-400"
+              placeholder="Search shops, products, brands..." 
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+            />
+            <button 
+              onClick={() => setShowFilters(!showFilters)} 
+              className={`text-sm font-medium px-3 py-1 rounded-full cursor-pointer ${showFilters ? 'bg-brand-green text-white' : 'bg-gray-100 text-gray-700'}`}
+            >
+              Filters
+            </button>
+          </div>
+
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-gray-200 rounded-2xl shadow-xl z-50 overflow-hidden text-gray-800">
+              {suggestions.map((suggestion, idx) => (
+                <div 
+                  key={idx}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setQuery(suggestion);
+                    setShowSuggestions(false);
+                  }}
+                  className="px-4 py-3 hover:bg-green-50 cursor-pointer text-sm font-semibold text-gray-700 flex items-center gap-3 transition-colors border-b border-gray-50 last:border-0"
+                >
+                  <Search className="w-4 h-4 text-gray-400" />
+                  {suggestion}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         
         {showFilters && (

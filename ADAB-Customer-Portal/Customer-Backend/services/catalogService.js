@@ -35,25 +35,73 @@ exports.getProductById = async (id) => {
       sl.mrp, 
       sl.rating, 
       sl.review_count as reviews, 
-      st.store_name as "sellerName", 
+      COALESCE(st.store_name, 'AgroFoods') as "sellerName", 
       'https://via.placeholder.com/150' as image, 
-      sl.is_active as status 
+      sl.is_active as status,
+      c.slug as category_slug,
+      c.name as category_name
     FROM seller_listings sl
     LEFT JOIN stores st ON sl.store_id = st.id
+    LEFT JOIN categories c ON sl.category_id = c.id
     WHERE sl.id = $1 AND sl.is_active = true 
   `, [id]);
+
   if (res.rows.length === 0) return null;
   const row = res.rows[0];
+
   return {
     ...row,
     status: row.status ? 'PUBLISHED' : 'HIDDEN',
     price: parseFloat(row.price),
     mrp: parseFloat(row.mrp),
-    rating: parseFloat(row.rating || 4.5)
+    rating: parseFloat(row.rating || 4.5),
+    description: "Detailed product description goes here. This product is highly rated and sourced directly from verified sellers.",
+    images: [row.image, 'https://via.placeholder.com/150?text=Image+2', 'https://via.placeholder.com/150?text=Image+3'],
+    specs: {
+      brand: "Fresh Farms",
+      weight: "500g",
+      shelfLife: "6 months"
+    },
+    variants: [
+      { id: 1, name: "500g", price: parseFloat(row.price) },
+      { id: 2, name: "1kg", price: parseFloat(row.price) * 1.9 }
+    ],
+    deliveryEstimate: 'Tomorrow, by 10 AM',
+    returnPolicy: '7 Days Returnable'
   };
 };
 
-exports.searchProducts = async (q, page = 1, limit = 10, filters = {}, sortBy = 'relevance') => {
+exports.searchProducts = async (qOrFilters = {}, pageArg = 1, limitArg = 20, filtersArg = {}, sortByArg = 'relevance') => {
+  let q, page, limit, category, categories, minPrice, maxPrice, brand, minRating, inStockOnly, sortBy, sortOrder;
+
+  if (typeof qOrFilters === 'object' && qOrFilters !== null) {
+    q = qOrFilters.q || '';
+    page = parseInt(qOrFilters.page) || 1;
+    limit = parseInt(qOrFilters.limit) || 20;
+    category = qOrFilters.category || null;
+    categories = Array.isArray(qOrFilters.categories) ? qOrFilters.categories : [];
+    minPrice = qOrFilters.minPrice !== undefined && qOrFilters.minPrice !== null && qOrFilters.minPrice !== '' ? parseFloat(qOrFilters.minPrice) : null;
+    maxPrice = qOrFilters.maxPrice !== undefined && qOrFilters.maxPrice !== null && qOrFilters.maxPrice !== '' ? parseFloat(qOrFilters.maxPrice) : null;
+    brand = qOrFilters.brand || null;
+    minRating = qOrFilters.minRating ? parseFloat(qOrFilters.minRating) : null;
+    inStockOnly = qOrFilters.inStockOnly === true || qOrFilters.inStockOnly === 'true';
+    sortBy = qOrFilters.sortBy || null;
+    sortOrder = qOrFilters.sortOrder || null;
+  } else {
+    q = qOrFilters || '';
+    page = parseInt(pageArg) || 1;
+    limit = parseInt(limitArg) || 20;
+    category = filtersArg.category || null;
+    categories = Array.isArray(filtersArg.categories) ? filtersArg.categories : [];
+    minPrice = filtersArg.minPrice !== undefined && filtersArg.minPrice !== null && filtersArg.minPrice !== '' ? parseFloat(filtersArg.minPrice) : null;
+    maxPrice = filtersArg.maxPrice !== undefined && filtersArg.maxPrice !== null && filtersArg.maxPrice !== '' ? parseFloat(filtersArg.maxPrice) : null;
+    brand = filtersArg.brand || null;
+    minRating = filtersArg.minRating ? parseFloat(filtersArg.minRating) : null;
+    inStockOnly = filtersArg.inStockOnly === true || filtersArg.inStockOnly === 'true';
+    sortBy = sortByArg || 'relevance';
+    sortOrder = filtersArg.sortOrder || null;
+  }
+
   const offset = (page - 1) * limit;
   let query = `
     SELECT 
@@ -63,63 +111,70 @@ exports.searchProducts = async (q, page = 1, limit = 10, filters = {}, sortBy = 
       sl.mrp, 
       sl.rating, 
       sl.review_count as reviews, 
-      st.store_name as "sellerName", 
+      COALESCE(st.store_name, 'AgroFoods') as "sellerName", 
       'https://via.placeholder.com/150' as image, 
-      sl.is_active as status 
+      sl.is_active as status,
+      c.slug as category_slug,
+      c.name as category_name
     FROM seller_listings sl
     LEFT JOIN stores st ON sl.store_id = st.id
+    LEFT JOIN categories c ON sl.category_id = c.id
     WHERE sl.is_active = true 
   `;
   const params = [];
   let paramIdx = 1;
 
   if (q) {
-    query += ` AND sl.title ILIKE $${paramIdx}`;
+    query += ` AND sl.title ILIKE $${paramIdx++}`;
     params.push(`%${q}%`);
-    paramIdx++;
   }
 
-  if (filters.category) {
-    query += ` AND sl.category_id = $${paramIdx}`;
-    params.push(filters.category);
+  if (category) {
+    query += ` AND (sl.category_id::text = $${paramIdx} OR c.slug = $${paramIdx})`;
     paramIdx++;
+    params.push(String(category));
   }
 
-  if (filters.minPrice !== null && filters.minPrice !== undefined) {
-    query += ` AND sl.sell_price >= $${paramIdx}`;
-    params.push(filters.minPrice);
-    paramIdx++;
+  if (categories && categories.length > 0) {
+    query += ` AND c.name = ANY($${paramIdx++})`;
+    params.push(categories);
   }
 
-  if (filters.maxPrice !== null && filters.maxPrice !== undefined) {
-    query += ` AND sl.sell_price <= $${paramIdx}`;
-    params.push(filters.maxPrice);
-    paramIdx++;
+  if (minPrice !== null && !isNaN(minPrice)) {
+    query += ` AND sl.sell_price >= $${paramIdx++}`;
+    params.push(minPrice);
   }
 
-  if (filters.brand) {
-    query += ` AND sl.brand_tag ILIKE $${paramIdx}`;
-    params.push(`%${filters.brand}%`);
-    paramIdx++;
+  if (maxPrice !== null && !isNaN(maxPrice)) {
+    query += ` AND sl.sell_price <= $${paramIdx++}`;
+    params.push(maxPrice);
   }
 
-  if (filters.minRating) {
-    query += ` AND sl.rating >= $${paramIdx}`;
-    params.push(filters.minRating);
-    paramIdx++;
+  if (brand) {
+    query += ` AND sl.brand_tag ILIKE $${paramIdx++}`;
+    params.push(`%${brand}%`);
   }
 
-  if (filters.inStockOnly === true || filters.inStockOnly === 'true') {
+  if (minRating !== null && !isNaN(minRating)) {
+    query += ` AND sl.rating >= $${paramIdx++}`;
+    params.push(minRating);
+  }
+
+  if (inStockOnly) {
     query += ` AND sl.stock_qty > 0`;
   }
 
-  switch(sortBy) {
+  const effectiveSort = sortOrder || sortBy;
+  switch (effectiveSort) {
+    case 'Price: Low to High':
     case 'price_asc':
       query += ` ORDER BY sl.sell_price ASC`;
       break;
+    case 'Price: High to Low':
     case 'price_desc':
       query += ` ORDER BY sl.sell_price DESC`;
       break;
+    case 'Customer Rating':
     case 'rating_desc':
       query += ` ORDER BY sl.rating DESC NULLS LAST`;
       break;
@@ -129,11 +184,11 @@ exports.searchProducts = async (q, page = 1, limit = 10, filters = {}, sortBy = 
       break;
   }
 
-  query += ` LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`;
+  query += ` LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
   params.push(limit, offset);
 
   const res = await pool.query(query, params);
-  
+
   return res.rows.map(row => ({
     ...row,
     status: row.status ? 'PUBLISHED' : 'HIDDEN',
@@ -141,6 +196,16 @@ exports.searchProducts = async (q, page = 1, limit = 10, filters = {}, sortBy = 
     mrp: parseFloat(row.mrp),
     rating: parseFloat(row.rating || 4.5)
   }));
+};
+
+exports.getSearchSuggestions = async (q) => {
+  const res = await pool.query(`
+    SELECT title as suggestion 
+    FROM seller_listings 
+    WHERE is_active = true AND title ILIKE $1 
+    LIMIT 5
+  `, [`%${q || ''}%`]);
+  return res.rows.map(r => r.suggestion);
 };
 
 exports.getCategories = async () => {
@@ -186,7 +251,7 @@ exports.getStores = async () => {
       rating, 
       address_line as area,
       'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80' as image,
-      '1.2 km' as distance
+      COALESCE(delivery_radius_km || ' km', '1.2 km') as distance
     FROM stores 
     LIMIT 10
   `);
