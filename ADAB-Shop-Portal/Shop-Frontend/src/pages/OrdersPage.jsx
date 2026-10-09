@@ -110,11 +110,14 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus }) {
   const storeLng = Number(store?.longitude) || 72.8311;
   const radiusKm = Number(store?.delivery_radius_km) || 10;
 
-  // Calculate customer location based on distance and order seed
-  const angle = ((parseInt((order.id || '10').replace(/\D/g, '') || 7, 10) * 53) % 360);
-  const rad = (angle * Math.PI) / 180;
-  const custLat = storeLat + (distance / 111) * Math.cos(rad);
-  const custLng = storeLng + (distance / (111 * Math.cos((storeLat * Math.PI) / 180))) * Math.sin(rad);
+  // Exact Customer Coordinates from delivery_address in orders table
+  const hasCoordinates = addr.latitude != null && addr.longitude != null;
+  const custLat = hasCoordinates
+    ? Number(addr.latitude)
+    : (storeLat + (distance / 111) * Math.cos(((parseInt((order.id || '10').replace(/\D/g, '') || 7, 10) * 53) % 360 * Math.PI) / 180));
+  const custLng = hasCoordinates
+    ? Number(addr.longitude)
+    : (storeLng + (distance / (111 * Math.cos((storeLat * Math.PI) / 180))) * Math.sin(((parseInt((order.id || '10').replace(/\D/g, '') || 7, 10) * 53) % 360 * Math.PI) / 180));
 
   useEffect(() => {
     if (!mapContainerRef.current) return;
