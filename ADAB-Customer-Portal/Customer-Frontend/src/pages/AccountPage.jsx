@@ -10,15 +10,19 @@ export default function AccountPage({ onNavigate }) {
   const [activeView, setActiveView] = useState('dashboard');
   const [placeholderText, setPlaceholderText] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [toast, setToast] = useState(null);
 
-  // Edit forms
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };  // Edit forms
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({ name: '', phone: '', email: '' });
 
   const [isAddingAddress, setIsAddingAddress] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState(null);
   const [addressForm, setAddressForm] = useState({
-    type: 'Home', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false
+    type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false
   });
 
   useEffect(() => {
@@ -53,26 +57,38 @@ export default function AccountPage({ onNavigate }) {
       if (res.data?.success) {
         setProfile(res.data.data);
         setIsEditingProfile(false);
+        showToast('Profile updated successfully!', 'success');
+      } else {
+        showToast(res.data?.message || 'Failed to update profile', 'error');
       }
     } catch (err) {
       console.error(err);
+      showToast(err.response?.data?.message || 'An error occurred while updating profile', 'error');
     }
   };
 
   const handleSaveAddress = async (e) => {
     e.preventDefault();
     try {
+      let res;
       if (editingAddressId) {
-        await api.patch(`/customers/me/addresses/${editingAddressId}`, addressForm);
+        res = await api.patch(`/customers/me/addresses/${editingAddressId}`, addressForm);
       } else {
-        await api.post('/customers/me/addresses', addressForm);
+        res = await api.post('/customers/me/addresses', addressForm);
       }
-      setIsAddingAddress(false);
-      setEditingAddressId(null);
-      setAddressForm({ type: 'Home', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false });
-      fetchData();
+      
+      if (res.data?.success || res.status === 200 || res.status === 201) {
+        setIsAddingAddress(false);
+        setEditingAddressId(null);
+        setAddressForm({ type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false });
+        fetchData();
+        showToast('Address saved successfully!', 'success');
+      } else {
+        showToast(res.data?.message || 'Failed to save address', 'error');
+      }
     } catch (err) {
       console.error(err);
+      showToast(err.response?.data?.message || 'An error occurred while saving address', 'error');
     }
   };
 
@@ -81,8 +97,10 @@ export default function AccountPage({ onNavigate }) {
     try {
       await api.delete(`/customers/me/addresses/${id}`);
       fetchData();
+      showToast('Address deleted successfully!', 'success');
     } catch (err) {
       console.error(err);
+      showToast(err.response?.data?.message || 'Failed to delete address', 'error');
     }
   };
 
@@ -251,15 +269,15 @@ export default function AccountPage({ onNavigate }) {
                 {addr.isDefault && <span className="bg-[#E8F5E9] text-[#18753C] text-[10px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider">DEFAULT</span>}
               </div>
               <p className="text-gray-600 text-sm mb-1">{addr.address}, {addr.city} {addr.zip}</p>
-              <p className="text-gray-400 text-sm">{profile?.name || 'Pooja Sharma'} &bull; {profile?.phone || '+91 98765 12340'}</p>
+              <p className="text-gray-400 text-sm">{addr.recipientName || profile?.name || 'Pooja Sharma'} &bull; {addr.phone || profile?.phone || '+91 98765 12340'}</p>
             </div>
-            <button onClick={() => { setEditingAddressId(addr.id); setAddressForm({ type: addr.type, address: addr.address, city: addr.city, state: addr.state, zip: addr.zip, isDefault: addr.isDefault }); setIsAddingAddress(true); }} className="text-sm font-bold text-gray-700 bg-gray-100 px-5 py-2 rounded-xl hover:bg-gray-200 transition-colors">Edit</button>
+            <button onClick={() => { setEditingAddressId(addr.id); setAddressForm({ type: addr.type, recipientName: addr.recipientName || '', phone: addr.phone || '', address: addr.address, city: addr.city, state: addr.state, zip: addr.zip, isDefault: addr.isDefault }); setIsAddingAddress(true); }} className="text-sm font-bold text-gray-700 bg-gray-100 px-5 py-2 rounded-xl hover:bg-gray-200 transition-colors">Edit</button>
           </div>
         ))}
         
         {/* ADD NEW ADDRESS BUTTON */}
         {!isAddingAddress && (
-          <button onClick={() => { setIsAddingAddress(true); setEditingAddressId(null); setAddressForm({ type: 'Home', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false }); }} className="w-full border-2 border-dashed border-[#18753C]/40 bg-white text-[#18753C] font-bold py-6 rounded-2xl flex items-center justify-center gap-2 hover:bg-green-50 transition-colors text-lg">
+          <button onClick={() => { setIsAddingAddress(true); setEditingAddressId(null); setAddressForm({ type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false }); }} className="w-full border-2 border-dashed border-[#18753C]/40 bg-white text-[#18753C] font-bold py-6 rounded-2xl flex items-center justify-center gap-2 hover:bg-green-50 transition-colors text-lg">
             <i className="fa-solid fa-plus"></i> Add New Address
           </button>
         )}
@@ -272,6 +290,10 @@ export default function AccountPage({ onNavigate }) {
               <option value="Office">Office</option>
               <option value="Other">Other</option>
             </select>
+            <div className="flex gap-4">
+              <input type="text" value={addressForm.recipientName} onChange={e => setAddressForm({...addressForm, recipientName: e.target.value})} className="border border-gray-200 p-3 rounded-xl text-sm w-1/2 focus:border-brand-green outline-none" placeholder="Name" required />
+              <input type="tel" value={addressForm.phone} onChange={e => setAddressForm({...addressForm, phone: e.target.value})} className="border border-gray-200 p-3 rounded-xl text-sm w-1/2 focus:border-brand-green outline-none" placeholder="Phone Number" required />
+            </div>
             <textarea value={addressForm.address} onChange={e => setAddressForm({...addressForm, address: e.target.value})} className="border border-gray-200 p-3 rounded-xl text-sm focus:border-brand-green outline-none" placeholder="Street Address / Area" required rows="3" />
             <div className="flex gap-4">
               <input type="text" value={addressForm.city} onChange={e => setAddressForm({...addressForm, city: e.target.value})} className="border border-gray-200 p-3 rounded-xl text-sm w-1/2 focus:border-brand-green outline-none" placeholder="City" required />
@@ -451,6 +473,13 @@ export default function AccountPage({ onNavigate }) {
       {activeView === 'addresses' && renderAddresses()}
       {activeView === 'profile' && renderProfile()}
       {activeView === 'placeholder' && renderPlaceholder()}
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full text-white font-medium shadow-xl transition-all duration-300 ${toast.type === 'error' ? 'bg-red-500' : 'bg-[#18753C]'}`}>
+          {toast.message}
+        </div>
+      )}
     </div>
   );
 }

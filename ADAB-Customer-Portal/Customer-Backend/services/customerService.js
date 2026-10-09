@@ -26,6 +26,8 @@ exports.getAddresses = async (userId) => {
     id: r.id,
     type: r.label,
     address: r.address_line,
+    recipientName: r.recipient_name,
+    phone: r.phone,
     city: r.city,
     state: r.state,
     zip: r.pincode,
@@ -38,10 +40,10 @@ exports.addAddress = async (userId, body) => {
     await pool.query(`UPDATE addresses SET is_default = false WHERE user_id = $1`, [userId]);
   }
   const res = await pool.query(`
-    INSERT INTO addresses (id, user_id, label, address_line, city, state, pincode, is_default, created_at)
-    VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, NOW())
+    INSERT INTO addresses (id, user_id, label, recipient_name, phone, address_line, city, state, pincode, is_default, created_at)
+    VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
     RETURNING id
-  `, [userId, body.type, body.address, body.city, body.state, body.zip, body.isDefault || false]);
+  `, [userId, body.type, body.recipientName || 'Name', body.phone || '0000000000', body.address, body.city, body.state, body.zip, body.isDefault || false]);
   return { id: res.rows[0].id, ...body };
 };
 
@@ -50,9 +52,9 @@ exports.updateAddress = async (userId, id, body) => {
     await pool.query(`UPDATE addresses SET is_default = false WHERE user_id = $1`, [userId]);
   }
   await pool.query(`
-    UPDATE addresses SET label = $1, address_line = $2, city = $3, state = $4, pincode = $5, is_default = $6
-    WHERE id = $7 AND user_id = $8
-  `, [body.type, body.address, body.city, body.state, body.zip, body.isDefault, id, userId]);
+    UPDATE addresses SET label = $1, recipient_name = $2, phone = $3, address_line = $4, city = $5, state = $6, pincode = $7, is_default = $8
+    WHERE id = $9 AND user_id = $10
+  `, [body.type, body.recipientName || 'Name', body.phone || '0000000000', body.address, body.city, body.state, body.zip, body.isDefault, id, userId]);
   return { id, ...body };
 };
 
