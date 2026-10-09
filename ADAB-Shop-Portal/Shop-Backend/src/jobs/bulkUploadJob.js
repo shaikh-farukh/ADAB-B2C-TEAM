@@ -25,7 +25,7 @@ const bulkUploadQueue = new Queue('bulk-upload-queue', { connection });
 bulkUploadQueue.on('error', () => {});
 
 // Create the Worker
-const processCsvDirectly = async (storeId, filePath) => {
+const processCsvDirectly = async (storeId, filePath, userId) => {
   const results = [];
   
   // Parse CSV
@@ -75,25 +75,58 @@ const processCsvDirectly = async (storeId, filePath) => {
   // Cleanup file
   try { fs.unlinkSync(filePath); } catch(e) {}
 
-  return { successCount, failCount, total: successCount + failCount };
+  const result = { successCount, failCount, total: successCount + failCount };
+  
+  // Send synchronous notification if userId is provided
+  if (userId) {
+    const notificationService = require('../services/notification');
+    await notificationService.createNotification(
+      userId,
+      'Bulk Upload Completed',
+      `Processed ${result.total} items: ${result.successCount} successful, ${result.failCount} failed.`,
+      'GENERAL'
+    ).catch(e => console.error(e));
+  }
+  
+  return result;
 };
 
 const worker = new Worker('bulk-upload-queue', async job => {
-  const { storeId, filePath } = job.data;
+  const { storeId, filePath, userId } = job.data;
   await job.updateProgress(10);
   
-  const result = await processCsvDirectly(storeId, filePath);
+  // Don't pass userId here so it doesn't duplicate the notification for BullMQ, we'll handle BullMQ below
+  const result = await processCsvDirectly(storeId, filePath, null);
   
   await job.updateProgress(100);
   return result;
 }, { connection });
 
-worker.on('completed', job => {
+worker.on('completed', async job => {
   console.log(`Job ${job.id} has completed with result ${JSON.stringify(job.returnvalue)}`);
+  if (job.data.userId) {
+    const notificationService = require('../services/notification');
+    const result = job.returnvalue;
+    await notificationService.createNotification(
+      job.data.userId,
+      'Bulk Upload Completed',
+      `Processed ${result.total} items: ${result.successCount} successful, ${result.failCount} failed.`,
+      'GENERAL'
+    ).catch(e => console.error(e));
+  }
 });
 
-worker.on('failed', (job, err) => {
+worker.on('failed', async (job, err) => {
   console.log(`Job ${job.id} has failed with ${err.message}`);
+  if (job && job.data && job.data.userId) {
+    const notificationService = require('../services/notification');
+    await notificationService.createNotification(
+      job.data.userId,
+      'Bulk Upload Failed',
+      `Your bulk upload failed to process. Error: ${err.message}`,
+      'GENERAL'
+    ).catch(e => console.error(e));
+  }
 });
 
 worker.on('error', err => {

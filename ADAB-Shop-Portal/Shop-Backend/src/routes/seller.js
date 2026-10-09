@@ -20,6 +20,7 @@ router.get('/dashboard', sellerController.getDashboardMetrics);
 router.get('/notifications', notificationController.getNotifications);
 router.get('/notifications/unread-count', notificationController.getUnreadCount);
 router.post('/notifications/:id/read', notificationController.markAsRead);
+router.post('/notifications/test', notificationController.createTestNotification);
 
 // Dynamic Operations: Orders, Returns, B2B, Coupons, Points, Analytics, Catalog, Recommendations, Messages, Finance
 router.get('/orders', sellerController.getOrders);
@@ -32,6 +33,8 @@ router.get('/analytics', sellerController.getAnalytics);
 router.get('/nearby-catalog', sellerController.getNearbyCatalog);
 router.get('/recommendations', sellerController.getRecommendations);
 router.get('/messages', sellerController.getMessages);
+router.post('/messages', sellerController.sendMessage);
+router.post('/messages/:id/read', sellerController.markMessageRead);
 router.get('/finance/summary', sellerController.getFinanceSummary);
 router.get('/finance/khata', sellerController.getKhataLedger);
 

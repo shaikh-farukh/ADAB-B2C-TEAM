@@ -1,19 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useSeller } from '../context/SellerContext';
 import { useOrders } from '../hooks/useOrders';
+import { sellerApi } from '../api/sellerApi';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 export default function HomePage() {
   const { profile, store, dashboardMetrics } = useSeller();
   const { orders } = useOrders();
   const [proMode, setProMode] = useState(false);
+  const [chartData, setChartData] = useState([]);
+  const [analyticsSummary, setAnalyticsSummary] = useState(null);
+
+  useEffect(() => {
+    if (proMode) {
+      sellerApi.getAnalytics().then(res => {
+        if (res?.data) {
+          setChartData(res.data.chartData || []);
+          setAnalyticsSummary(res.data.summary);
+        }
+      }).catch(console.error);
+    }
+  }, [proMode]);
 
   const ownerName = profile?.full_name || 'Seller';
   const storeName = store?.store_name || 'My Store';
   const radius = store?.delivery_radius_km ? `${parseInt(store.delivery_radius_km, 10)} km` : '10 km';
 
   const pendingCount = parseInt(dashboardMetrics?.pending_orders) || orders.filter(o => (o.status || '').toLowerCase() === 'new' || (o.status || '').toLowerCase() === 'pending').length;
-  const totalOrdersCount = parseInt(dashboardMetrics?.total_orders) || orders.length || 0;
+  const totalOrdersCount = analyticsSummary?.total_orders || parseInt(dashboardMetrics?.total_orders) || orders.length || 0;
+  const totalRevenue = analyticsSummary?.total_revenue || dashboardMetrics?.total_revenue || 0;
+
 
   return (
     <section id="sec-home" className="space-y-5">
@@ -185,13 +202,69 @@ export default function HomePage() {
             </div>
             <div className="card p-4 border-l-4 border-l-green-500">
               <div className="text-xs text-gray-500">Total Revenue</div>
-              <div className="text-2xl font-extrabold mt-1 text-green-700">₹{parseFloat(dashboardMetrics?.total_revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
+              <div className="text-2xl font-extrabold mt-1 text-green-700">₹{parseFloat(totalRevenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
               <div className="text-[10px] text-gray-400 mt-0.5">Lifetime revenue</div>
             </div>
             <div className="card p-4 border-l-4 border-l-purple-500">
               <div className="text-xs text-gray-500">Active Products</div>
               <div className="text-2xl font-extrabold mt-1 text-purple-700">{dashboardMetrics?.total_products || 0}</div>
               <div className="text-[10px] text-gray-400 mt-0.5">Listings in your store</div>
+            </div>
+          </div>
+
+          {/* Interactive Analytics Dashboard */}
+          <div className="card p-6 bg-white border border-gray-100 shadow-sm rounded-2xl">
+            <h2 className="font-bold text-gray-900 mb-6 flex justify-between items-center">
+              <span>Sales & Revenue Analytics <span className="text-xs font-normal text-gray-500 ml-2">(Last 30 Days)</span></span>
+            </h2>
+            <div className="grid lg:grid-cols-2 gap-8">
+              {/* Revenue Area Chart */}
+              <div className="h-64">
+                <h3 className="text-xs font-extrabold text-gray-500 uppercase tracking-wider mb-4">Daily Revenue (₹)</h3>
+                {chartData && chartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} tickFormatter={(val) => `₹${val/1000}k`} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                      <RechartsTooltip 
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                        formatter={(value) => [`₹${value}`, 'Revenue']}
+                      />
+                      <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-sm text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">Not enough data to display chart</div>
+                )}
+              </div>
+              
+              {/* Orders Bar Chart */}
+              <div className="h-64">
+                <h3 className="text-xs font-extrabold text-gray-500 uppercase tracking-wider mb-4">Daily Orders</h3>
+                {chartData && chartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                      <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                      <RechartsTooltip 
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                        cursor={{ fill: '#f3f4f6' }}
+                      />
+                      <Bar dataKey="orders" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={30} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-sm text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">Not enough data to display chart</div>
+                )}
+              </div>
             </div>
           </div>
 

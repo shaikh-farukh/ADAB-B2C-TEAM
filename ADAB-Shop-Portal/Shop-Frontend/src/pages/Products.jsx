@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSeller } from '../context/SellerContext';
 import { useListings } from '../hooks/useListings';
 import listingService from '../services/listingService';
 
@@ -15,6 +16,7 @@ const Products = () => {
     submitListing,
     bulkUpload,
     checkUploadStatus,
+    uploadImage,
     refresh
   } = useListings();
 
@@ -23,11 +25,8 @@ const Products = () => {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [listingIssues, setListingIssues] = useState({});
   const fileInputRef = useRef(null);
+  const { uploadJobs, setUploadJobs } = useSeller();
   
-  // Bulk Upload Widget State
-  const [uploadJobs, setUploadJobs] = useState([]);
-  const [isWidgetMinimized, setIsWidgetMinimized] = useState(false);
-
   useEffect(() => {
     // Fetch issues for currently visible listings
     const fetchIssues = async () => {
@@ -49,39 +48,19 @@ const Products = () => {
     if (listings.length > 0) fetchIssues();
   }, [listings]);
 
-  // Polling for active background jobs
-  useEffect(() => {
-    const activeJobs = uploadJobs.filter(j => j.state !== 'completed' && j.state !== 'failed');
-    if (activeJobs.length === 0) return;
-
-    const timer = setInterval(async () => {
-      for (const job of activeJobs) {
-        try {
-          const res = await checkUploadStatus(job.id);
-          if (res.success) {
-            setUploadJobs(prev => prev.map(p => p.id === job.id ? {
-              ...p,
-              state: res.data.state,
-              progress: res.data.progress || 0,
-              result: res.data.result
-            } : p));
-
-            // Auto refresh table when a job completes
-            if (res.data.state === 'completed' && job.state !== 'completed') {
-              refresh();
-            }
-          }
-        } catch (e) {
-          console.error("Polling error", e);
-        }
-      }
-    }, 1500);
-    return () => clearInterval(timer);
-  }, [uploadJobs, checkUploadStatus, refresh]);
+  // The polling for active background jobs is now handled globally in GlobalBulkUploadWidget.jsx
+  // We still use checkUploadStatus and refresh from useListings in the global widget via a side-effect or directly.
   
   const handleBulkUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    if (uploadJobs.some(j => j.state === 'active')) {
+      alert('Please wait for the current file to finish processing before uploading another one.');
+      e.target.value = null;
+      return;
+    }
+
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -91,11 +70,9 @@ const Products = () => {
       if (response.jobId) {
         // BullMQ Background Job
         setUploadJobs(prev => [...prev, { id: response.jobId, filename: file.name, state: 'active', progress: 0 }]);
-        setIsWidgetMinimized(false);
       } else if (response.result) {
         // Fallback synchronous direct result
         setUploadJobs(prev => [...prev, { id: Date.now(), filename: file.name, state: 'completed', progress: 100, result: response.result }]);
-        setIsWidgetMinimized(false);
         refresh();
       }
       
@@ -123,8 +100,29 @@ const Products = () => {
     title: '', sku: '', mrp: '', sell_price: '', product_type: 'OWN_BRAND', allowed_buyers: 'ALL', image_url: '', approval_status: 'DRAFT', is_active: true
   });
 
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
   const handleFormChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsUploadingImage(true);
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const response = await uploadImage(fd);
+      if (response.url) {
+        setFormData({ ...formData, image_url: response.url });
+      }
+    } catch (err) {
+      alert('Failed to upload image: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsUploadingImage(false);
+    }
   };
 
   const openEdit = (listing) => {
@@ -323,15 +321,26 @@ const Products = () => {
                     <React.Fragment key={l.id}>
                       <tr className={`hover:bg-gray-50 transition ${hasIssues ? 'border-l-4 border-l-red-500 bg-red-50/10' : ''}`}>
                         <td className="px-4 py-4"><input type="checkbox" className="rounded text-brand-dark border-gray-300 focus:ring-brand-dark" /></td>
-                        <td className="px-4 py-4 font-bold text-gray-900">
-                          {l.title} 
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-3">
+                            {l.image_url ? (
+                              <img src={l.image_url} alt={l.title} className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0 shadow-sm" />
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center shrink-0">
+                                <i className="fa-solid fa-box-open text-gray-300 text-sm"></i>
+                              </div>
+                            )}
+                            <div className="font-bold text-gray-900">
+                              {l.title}
                           {l.approval_status === 'DRAFT' && <span className="ml-2 bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">DRAFT</span>} 
                           {l.approval_status === 'SUBMITTED' && <span className="ml-2 bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">SUBMITTED</span>}
                           {l.approval_status === 'UNDER_REVIEW' && <span className="ml-2 bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">UNDER REVIEW</span>}
                           {l.approval_status === 'APPROVED' && <span className="ml-2 bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">APPROVED</span>}
                           {l.approval_status === 'CHANGES_REQUIRED' && <span className="ml-2 bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">CHANGES REQUIRED</span>}
                           {l.approval_status === 'REJECTED' && <span className="ml-2 bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">REJECTED</span>}
-                          {l.approval_status === 'PUBLISHED' && <span className="ml-2 bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">PUBLISHED</span>}
+                              {l.approval_status === 'PUBLISHED' && <span className="ml-2 bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">PUBLISHED</span>}
+                            </div>
+                          </div>
                         </td>
                         <td className="px-4 py-4">
                           {l.barcode ? (
@@ -542,10 +551,6 @@ const Products = () => {
                       <label className="block text-xs font-bold text-blue-900 mb-1">Barcode / EAN</label>
                       <input type="text" name="barcode" value={formData.barcode || ''} onChange={handleFormChange} placeholder="8901234567890" className="w-full px-3 py-2 rounded-xl border border-blue-200 bg-white text-sm outline-none focus:border-blue-500" />
                     </div>
-                    <div className="flex-1">
-                      <label className="block text-xs font-bold text-blue-900 mb-1">Printed MRP (₹)</label>
-                      <input type="number" name="mrp" value={formData.mrp || ''} onChange={handleFormChange} placeholder="MRP (₹)" className="w-full px-3 py-2 rounded-xl border border-blue-200 bg-white text-sm outline-none focus:border-blue-500" />
-                    </div>
                   </div>
                 </div>
               )}
@@ -558,8 +563,27 @@ const Products = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
+                  <label className="block text-sm font-bold text-gray-900 mb-2">Printed MRP (₹)</label>
+                  <input type="number" name="mrp" required min="0" value={formData.mrp || ''} onChange={handleFormChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-dark" placeholder="999" />
+                </div>
+                <div>
                   <label className="block text-sm font-bold text-gray-900 mb-2">Sell Price (₹)</label>
                   <input type="number" name="sell_price" required min="0" value={formData.sell_price} onChange={handleFormChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-dark" placeholder="899" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-900 mb-2">Product Image</label>
+                  <div className="flex items-center gap-3">
+                    {formData.image_url && (
+                      <img src={formData.image_url} alt="Product" className="w-12 h-12 rounded-lg object-cover border border-gray-200" />
+                    )}
+                    <label className={`flex-1 py-3 px-4 text-center rounded-xl border border-dashed border-brand-dark/50 bg-green-50 text-brand-dark font-bold text-sm cursor-pointer hover:bg-green-100 transition ${isUploadingImage ? 'opacity-50 cursor-wait' : ''}`}>
+                      {isUploadingImage ? 'Uploading to MinIO...' : formData.image_url ? 'Change Image' : 'Upload Image'}
+                      <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isUploadingImage} />
+                    </label>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-900 mb-2">
@@ -628,74 +652,6 @@ const Products = () => {
         </div>
       )}
 
-      {/* Floating Background Upload Progress Widget */}
-      {uploadJobs.length > 0 && (
-        <div className={`fixed bottom-6 right-6 z-50 transition-all duration-300 ease-out flex flex-col items-end ${isWidgetMinimized ? 'translate-y-0' : 'translate-y-0'}`}>
-          <div className={`bg-white rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] border border-gray-100 overflow-hidden transition-all duration-300 ease-in-out ${isWidgetMinimized ? 'w-[280px] h-[60px]' : 'w-[350px] max-h-[400px]'}`}>
-            
-            {/* Widget Header */}
-            <div className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between cursor-pointer" onClick={() => setIsWidgetMinimized(!isWidgetMinimized)}>
-              <div className="flex items-center gap-2 font-bold text-sm">
-                <i className={`fa-solid fa-cloud-arrow-up ${uploadJobs.some(j => j.state === 'active') ? 'animate-bounce text-blue-400' : 'text-green-400'}`}></i>
-                <span>Bulk Uploads ({uploadJobs.filter(j => j.state !== 'completed').length} active)</span>
-              </div>
-              <button className="text-gray-400 hover:text-white transition">
-                <i className={`fa-solid ${isWidgetMinimized ? 'fa-chevron-up' : 'fa-chevron-down'}`}></i>
-              </button>
-            </div>
-
-            {/* Widget Body */}
-            {!isWidgetMinimized && (
-              <div className="bg-gray-50 p-2 overflow-y-auto max-h-[300px] flex flex-col gap-2">
-                {uploadJobs.map(job => (
-                  <div key={job.id} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2 overflow-hidden">
-                        <i className="fa-solid fa-file-csv text-emerald-600 text-lg"></i>
-                        <span className="text-xs font-bold text-gray-800 truncate" title={job.filename}>{job.filename}</span>
-                      </div>
-                      {job.state === 'completed' ? (
-                        <span className="text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">DONE</span>
-                      ) : job.state === 'failed' ? (
-                        <span className="text-[10px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full">FAILED</span>
-                      ) : (
-                        <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">{job.progress}%</span>
-                      )}
-                    </div>
-                    
-                    {/* Progress Bar */}
-                    {job.state !== 'completed' && job.state !== 'failed' && (
-                      <div className="w-full bg-gray-100 rounded-full h-1.5 mb-1 overflow-hidden">
-                        <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${job.progress}%` }}></div>
-                      </div>
-                    )}
-                    
-                    {/* Status Text */}
-                    {job.state === 'completed' && job.result && (
-                      <div className="text-[10px] text-gray-500 font-medium">
-                        <span className="text-green-600 font-bold">{job.result.successCount || job.result.total} saved</span> 
-                        {job.result.failCount > 0 && <span className="text-red-500 ml-2">({job.result.failCount} failed)</span>}
-                      </div>
-                    )}
-                    {job.state === 'active' && (
-                      <div className="text-[10px] text-gray-500 font-medium animate-pulse">Processing rows...</div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            {/* Clear Button */}
-            {!isWidgetMinimized && uploadJobs.every(j => j.state === 'completed' || j.state === 'failed') && (
-              <div className="p-2 bg-white border-t border-gray-100">
-                <button onClick={() => setUploadJobs([])} className="w-full py-1.5 text-xs font-bold text-gray-500 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 rounded-lg transition">
-                  Clear All
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

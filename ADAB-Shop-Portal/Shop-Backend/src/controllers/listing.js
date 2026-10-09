@@ -1,4 +1,5 @@
 const ListingService = require('../services/listing');
+const minioService = require('../services/minioService');
 const { getAuthenticatedSellerContext } = require('../middlewares/auth');
 
 class ListingController {
@@ -11,6 +12,20 @@ class ListingController {
       res.status(201).json(listing);
     } catch (err) {
       res.status(400).json({ error: err.message });
+    }
+  }
+
+  async uploadImage(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      if (!storeId) return res.status(401).json({ error: 'Missing store context' });
+      if (!req.file) return res.status(400).json({ error: 'No image file provided' });
+
+      // upload to minio
+      const url = await minioService.uploadImage(req.file.buffer, req.file.originalname, req.file.mimetype);
+      res.status(201).json({ url });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   }
 
@@ -167,7 +182,7 @@ class ListingController {
 
   async bulkUpload(req, res) {
     try {
-      const { storeId } = getAuthenticatedSellerContext(req);
+      const { storeId, userId } = getAuthenticatedSellerContext(req);
       if (!storeId) return res.status(401).json({ success: false, error: 'Missing store context' });
       if (!req.file) return res.status(400).json({ success: false, error: 'CSV file is required' });
 
@@ -176,7 +191,7 @@ class ListingController {
       // If Redis is not running locally (development fallback), process directly
       if (connection.status !== 'ready') {
         console.log('Redis is offline. Processing CSV synchronously instead of via BullMQ...');
-        const result = await processCsvDirectly(storeId, req.file.path);
+        const result = await processCsvDirectly(storeId, req.file.path, userId);
         return res.status(200).json({ 
           success: true, 
           message: 'Bulk upload completed synchronously', 
@@ -186,6 +201,7 @@ class ListingController {
 
       const job = await bulkUploadQueue.add('bulk-upload-csv', {
         storeId,
+        userId,
         filePath: req.file.path
       });
 

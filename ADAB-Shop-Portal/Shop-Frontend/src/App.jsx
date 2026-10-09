@@ -9,6 +9,7 @@ import HomePage from './pages/HomePage';
 import NotificationBell from './components/NotificationBell';
 import PlaceholderPage from './components/common/PlaceholderPage';
 import { SellerProvider } from './context/SellerContext';
+import GlobalBulkUploadWidget from './components/GlobalBulkUploadWidget';
 
 // Mayank's Domain Pages
 import OrdersPage from './pages/OrdersPage';
@@ -152,6 +153,8 @@ const MainLayout = ({ children, store, profile }) => {
           {children}
         </main>
       </div>
+
+      <GlobalBulkUploadWidget />
     </div>
   );
 };

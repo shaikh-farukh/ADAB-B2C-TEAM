@@ -128,10 +128,10 @@ class SellerRepository {
 
     const query = `
       SELECT 
-        (SELECT COUNT(*) FROM orders) as total_orders,
-        (SELECT COALESCE(SUM(grand_total), 0) FROM orders) as total_revenue,
+        (SELECT COUNT(*) FROM seller_orders WHERE store_id = $1) as total_orders,
+        (SELECT COALESCE(SUM(subtotal), 0) FROM seller_orders WHERE store_id = $1) as total_revenue,
         (SELECT COUNT(*) FROM seller_listings WHERE store_id = $1) as total_products,
-        (SELECT COUNT(*) FROM orders WHERE order_status = 'PLACED' OR order_status = 'PROCESSING' OR order_status = 'new' OR order_status = 'pending') as pending_orders
+        (SELECT COUNT(*) FROM seller_orders WHERE store_id = $1 AND (status = 'PLACED' OR status = 'PROCESSING' OR status = 'new' OR status = 'pending')) as pending_orders
     `;
     const res = await pool.query(query, [store.id]);
     return res.rows[0];
@@ -311,19 +311,34 @@ class SellerRepository {
     }
   }
 
-  async getAnalytics() {
+  async getAnalytics(storeId) {
     const query = `
       SELECT 
-        COUNT(id) as total_orders,
-        COALESCE(SUM(grand_total), 0) as total_revenue,
-        COALESCE(AVG(grand_total), 0) as avg_order_value
-      FROM orders
+        TO_CHAR(DATE(created_at), 'Mon DD') as name,
+        COUNT(id)::int as orders,
+        COALESCE(SUM(subtotal), 0)::float as revenue
+      FROM seller_orders
+      WHERE store_id = $1 AND created_at >= NOW() - INTERVAL '30 days'
+      GROUP BY DATE(created_at)
+      ORDER BY DATE(created_at) ASC
     `;
     try {
-      const res = await pool.query(query);
-      return res.rows[0];
+      const res = await pool.query(query, [storeId]);
+      
+      // Compute aggregates as well for summary
+      const totals = res.rows.reduce((acc, row) => {
+        acc.total_orders += row.orders;
+        acc.total_revenue += row.revenue;
+        return acc;
+      }, { total_orders: 0, total_revenue: 0 });
+
+      return {
+        chartData: res.rows,
+        summary: totals
+      };
     } catch (e) {
-      return { total_orders: 0, total_revenue: 0, avg_order_value: 0 };
+      console.error('getAnalytics Error:', e);
+      return { chartData: [], summary: { total_orders: 0, total_revenue: 0 } };
     }
   }
 
@@ -362,23 +377,83 @@ class SellerRepository {
     }
   }
 
-  async getMessages() {
+  async getMessages(userId) {
     const query = `
-      SELECT u.id, u.full_name as customer_name, u.phone,
-             o.order_number, o.created_at,
-             'Order inquiry and delivery update' as message_preview,
-             '10 min ago' as time_ago
-      FROM users u
-      JOIN orders o ON o.customer_id = u.id
-      ORDER BY o.created_at DESC
-      LIMIT 10
+      SELECT 
+        m.id,
+        t.id as thread_id,
+        CASE WHEN t.participant_a = $1 THEN t.participant_b ELSE t.participant_a END as customer_id,
+        COALESCE(u.full_name, 'Customer') as customer_name,
+        CASE WHEN m.sender_id = $1 THEN 'OUTBOUND' ELSE 'INBOUND' END as direction,
+        m.body as content,
+        m.is_read,
+        m.created_at
+      FROM message_threads t
+      JOIN messages m ON m.thread_id = t.id
+      LEFT JOIN users u ON u.id = CASE WHEN t.participant_a = $1 THEN t.participant_b ELSE t.participant_a END
+      WHERE t.participant_a = $1 OR t.participant_b = $1
+      ORDER BY m.created_at ASC
     `;
     try {
-      const res = await pool.query(query);
+      const res = await pool.query(query, [userId]);
       return res.rows;
     } catch (e) {
+      console.error(e);
       return [];
     }
+  }
+
+  async sendMessage(userId, data) {
+    let threadId = null;
+    
+    // Check if thread exists
+    const threadCheck = await pool.query(
+      `SELECT id FROM message_threads WHERE (participant_a = $1 AND participant_b = $2) OR (participant_a = $2 AND participant_b = $1) LIMIT 1`,
+      [userId, data.customer_id]
+    );
+    
+    if (threadCheck.rows.length > 0) {
+      threadId = threadCheck.rows[0].id;
+    } else {
+      // Create thread
+      const threadCreate = await pool.query(
+        `INSERT INTO message_threads (participant_a, participant_b, subject) VALUES ($1, $2, 'Store Chat') RETURNING id`,
+        [userId, data.customer_id]
+      );
+      threadId = threadCreate.rows[0].id;
+    }
+
+    // Insert message
+    const msgQuery = `
+      INSERT INTO messages (thread_id, sender_id, body, is_read)
+      VALUES ($1, $2, $3, true)
+      RETURNING id, body as content, is_read, created_at, sender_id;
+    `;
+    const res = await pool.query(msgQuery, [threadId, userId, data.content]);
+    const inserted = res.rows[0];
+    
+    // Return mapped format for frontend
+    return {
+      id: inserted.id,
+      thread_id: threadId,
+      customer_id: data.customer_id,
+      customer_name: data.customer_name || 'Customer',
+      direction: 'OUTBOUND',
+      content: inserted.content,
+      is_read: inserted.is_read,
+      created_at: inserted.created_at
+    };
+  }
+
+  async markMessageRead(userId, messageId) {
+    const query = `
+      UPDATE messages
+      SET is_read = true
+      WHERE id = $1
+      RETURNING *;
+    `;
+    const res = await pool.query(query, [messageId]);
+    return res.rows[0];
   }
 
   async getFinanceSummary() {

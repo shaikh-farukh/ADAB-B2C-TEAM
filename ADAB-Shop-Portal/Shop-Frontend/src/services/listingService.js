@@ -61,9 +61,6 @@ const listingService = {
   getListingIssues: (id) => {
     return api.get(`/seller/listings/${id}/issues`, {
       headers: { 'x-store-id': storeId }
-    }).catch(async () => {
-      const { mockListingIssues } = await import('./day4Mocks');
-      return new Promise(resolve => setTimeout(() => resolve(mockListingIssues), 500));
     });
   }
 };

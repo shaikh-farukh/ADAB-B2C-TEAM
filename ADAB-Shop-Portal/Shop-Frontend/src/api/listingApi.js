@@ -73,5 +73,14 @@ export const listingApi = {
     return client.get(`/listings/bulk-upload/${jobId}/status`, {
       headers: getHeaders()
     });
+  },
+
+  uploadImage: (formData) => {
+    return client.post('/listings/upload-image', formData, {
+      headers: {
+        ...getHeaders(),
+        'Content-Type': 'multipart/form-data'
+      }
+    });
   }
 };

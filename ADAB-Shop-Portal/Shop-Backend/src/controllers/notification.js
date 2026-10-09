@@ -38,6 +38,24 @@ class NotificationController {
       res.status(400).json({ success: false, error: error.message });
     }
   }
+
+  async createTestNotification(req, res) {
+    try {
+      const { userId } = getAuthenticatedSellerContext(req);
+      const { title, message, type } = req.body;
+      
+      const notification = await notificationService.createNotification(
+        userId, 
+        title || 'Test Notification', 
+        message || 'This is a test live push notification.', 
+        type || 'GENERAL'
+      );
+      
+      res.json({ success: true, data: notification });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
 }
 
 module.exports = new NotificationController();

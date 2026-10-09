@@ -11,6 +11,9 @@ router.use(requireSellerAuth);
 router.post('/bulk-upload', upload.single('file'), ListingController.bulkUpload);
 router.get('/bulk-upload/:jobId/status', ListingController.getBulkUploadStatus);
 
+const memoryUpload = multer({ storage: multer.memoryStorage() });
+router.post('/upload-image', memoryUpload.single('image'), ListingController.uploadImage);
+
 router.post('/', ListingController.createListing);
 router.get('/', ListingController.getListings);
 router.get('/:id', ListingController.getListingById);

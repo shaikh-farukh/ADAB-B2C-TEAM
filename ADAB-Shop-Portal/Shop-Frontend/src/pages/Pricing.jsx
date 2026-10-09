@@ -4,7 +4,12 @@ import { useListings } from '../hooks/useListings';
 
 const Pricing = () => {
   const { schedules, loading, schedulePricing, updateBasePricing, updateBulkPricing } = usePricing();
-  const { listings, loading: loadingListings, refresh: refreshListings } = useListings();
+  const { 
+    listings, 
+    loading: loadingListings, 
+    refresh: refreshListings,
+    pagination: { currentPage, setCurrentPage, itemsPerPage, setItemsPerPage, totalItems }
+  } = useListings();
   const [activeTab, setActiveTab] = useState('current'); // 'current' or 'schedules'
   
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -89,6 +94,24 @@ const Pricing = () => {
 
   if (loading || loadingListings) return <div className="p-6">Loading Pricing data...</div>;
 
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  
+  const getPageNumbers = () => {
+    const pages = [];
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      if (currentPage <= 3) {
+        pages.push(1, 2, 3, 4, '...', totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+      } else {
+        pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages);
+      }
+    }
+    return pages;
+  };
+
   return (
     <div className="fade-in p-2 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
@@ -148,8 +171,19 @@ const Pricing = () => {
                   <tr key={l.id} className="hover:bg-gray-50">
                     <td className="p-4"><input type="checkbox" checked={selectedListings.includes(l.id)} onChange={() => toggleSelect(l.id)} className="rounded" /></td>
                     <td className="p-4">
-                      <div className="font-extrabold text-gray-900">{l.title || 'Unknown Product'}</div>
-                      <div className="text-xs text-gray-400 mt-0.5">SKU: {l.sku || 'N/A'}</div>
+                      <div className="flex items-center gap-3">
+                        {l.image_url ? (
+                          <img src={l.image_url} alt={l.title} className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0 shadow-sm" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center shrink-0">
+                            <i className="fa-solid fa-box-open text-gray-300 text-sm"></i>
+                          </div>
+                        )}
+                        <div>
+                          <div className="font-extrabold text-gray-900">{l.title || 'Unknown Product'}</div>
+                          <div className="text-xs text-gray-400 mt-0.5">SKU: {l.sku || 'N/A'}</div>
+                        </div>
+                      </div>
                     </td>
                     <td className="p-4 text-gray-500 line-through">₹{l.mrp}</td>
                     <td className="p-4 font-bold text-green-700">₹{l.sell_price}</td>
@@ -166,6 +200,66 @@ const Pricing = () => {
               })}
             </tbody>
           </table>
+
+          {/* Pagination Controls */}
+          {totalItems > 0 && (
+            <div className="flex flex-col md:flex-row justify-between items-center mt-4 px-4 py-4 gap-4 bg-white border-t border-gray-200">
+              <div className="flex items-center text-sm text-gray-500 font-medium">
+                <span>
+                  Showing <strong className="text-gray-900">{(currentPage - 1) * itemsPerPage + 1}</strong> to <strong className="text-gray-900">{Math.min(currentPage * itemsPerPage, totalItems)}</strong> of <strong className="text-brand-dark">{totalItems}</strong> items
+                </span>
+                <span className="mx-4 text-gray-300">|</span>
+                <div className="flex items-center gap-2">
+                  <span>Rows per page:</span>
+                  <select 
+                    value={itemsPerPage} 
+                    onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                    className="border border-gray-200 rounded-lg px-2 py-1 text-gray-700 outline-none focus:border-brand-dark cursor-pointer font-semibold"
+                  >
+                    <option value={10}>10</option>
+                    <option value={15}>15</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button 
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} 
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 rounded border border-gray-200 bg-white text-gray-500 text-sm font-semibold hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+                >
+                  <i className="fa-solid fa-chevron-left text-[10px]"></i> Prev
+                </button>
+                
+                {getPageNumbers().map((num, i) => (
+                  <button
+                    key={i}
+                    onClick={() => typeof num === 'number' && setCurrentPage(num)}
+                    disabled={num === '...'}
+                    className={`min-w-[32px] h-[32px] flex items-center justify-center rounded text-sm font-semibold transition ${
+                      num === currentPage 
+                        ? 'bg-brand-dark text-white border-brand-dark shadow-md' 
+                        : num === '...' 
+                          ? 'text-gray-400 cursor-default' 
+                          : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    {num}
+                  </button>
+                ))}
+
+                <button 
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} 
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 rounded border border-gray-200 bg-white text-gray-500 text-sm font-semibold hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+                >
+                  Next <i className="fa-solid fa-chevron-right text-[10px]"></i>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -184,8 +278,19 @@ const Pricing = () => {
               {schedules.map(s => (
                 <tr key={s.id} className="hover:bg-gray-50">
                   <td className="p-4">
-                    <div className="font-extrabold text-gray-900">{s.title || 'Unknown Product'}</div>
-                    <div className="text-xs text-gray-400 mt-0.5">SKU: {s.sku || 'N/A'}</div>
+                    <div className="flex items-center gap-3">
+                      {s.image_url ? (
+                        <img src={s.image_url} alt={s.title} className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0 shadow-sm" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center shrink-0">
+                          <i className="fa-solid fa-box-open text-gray-300 text-sm"></i>
+                        </div>
+                      )}
+                      <div>
+                        <div className="font-extrabold text-gray-900">{s.title || 'Unknown Product'}</div>
+                        <div className="text-xs text-gray-400 mt-0.5">SKU: {s.sku || 'N/A'}</div>
+                      </div>
+                    </div>
                   </td>
                   <td className="p-4 font-bold text-green-700">₹{s.scheduled_price}</td>
                   <td className="p-4">

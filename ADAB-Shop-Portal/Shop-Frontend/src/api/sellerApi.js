@@ -36,6 +36,8 @@ export const sellerApi = {
   getNearbyCatalog: () => apiClient.get('/nearby-catalog'),
   getRecommendations: () => apiClient.get('/recommendations'),
   getMessages: () => apiClient.get('/messages'),
+  sendMessage: (customer_id, content) => apiClient.post('/messages', { customer_id, content }),
+  markMessageRead: (messageId) => apiClient.post(`/messages/${messageId}/read`, {}),
 
   // Finance (Credit Apply & Khata)
   getFinanceSummary: () => apiClient.get('/finance/summary'),

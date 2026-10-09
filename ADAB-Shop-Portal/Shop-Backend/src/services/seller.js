@@ -69,8 +69,8 @@ class SellerService {
     return await sellerRepository.getPoints(userId);
   }
 
-  async getAnalytics() {
-    return await sellerRepository.getAnalytics();
+  async getAnalytics(storeId) {
+    return await sellerRepository.getAnalytics(storeId);
   }
 
   async getNearbyCatalog() {
@@ -81,8 +81,18 @@ class SellerService {
     return await sellerRepository.getRecommendations();
   }
 
-  async getMessages() {
-    return await sellerRepository.getMessages();
+  async getMessages(userId) {
+    return await sellerRepository.getMessages(userId);
+  }
+
+  async sendMessage(userId, data) {
+    if (!data.customer_id || !data.content) throw new Error("customer_id and content are required");
+    data.direction = 'OUTBOUND';
+    return await sellerRepository.sendMessage(userId, data);
+  }
+
+  async markMessageRead(userId, messageId) {
+    return await sellerRepository.markMessageRead(userId, messageId);
   }
 
   async getFinanceSummary() {

@@ -9,6 +9,20 @@ export function SellerProvider({ children }) {
   const [dashboardMetrics, setDashboardMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Global Bulk Upload Jobs State
+  const [uploadJobs, setUploadJobs] = useState(() => {
+    const saved = localStorage.getItem('adab_bulk_jobs');
+    if (saved) {
+      try { return JSON.parse(saved); } catch(e) {}
+    }
+    return [];
+  });
+
+  // Sync to localStorage
+  useEffect(() => {
+    localStorage.setItem('adab_bulk_jobs', JSON.stringify(uploadJobs));
+  }, [uploadJobs]);
+
   const fetchSellerData = async () => {
     try {
       setLoading(true);
@@ -32,7 +46,7 @@ export function SellerProvider({ children }) {
   }, []);
 
   return (
-    <SellerContext.Provider value={{ profile, store, dashboardMetrics, loading, refreshSellerData: fetchSellerData }}>
+    <SellerContext.Provider value={{ profile, store, dashboardMetrics, loading, refreshSellerData: fetchSellerData, uploadJobs, setUploadJobs }}>
       {children}
     </SellerContext.Provider>
   );
@@ -41,7 +55,7 @@ export function SellerProvider({ children }) {
 export function useSeller() {
   const context = useContext(SellerContext);
   if (!context) {
-    return { profile: null, store: null, loading: false, refreshSellerData: () => {} };
+    return { profile: null, store: null, loading: false, refreshSellerData: () => {}, uploadJobs: [], setUploadJobs: () => {} };
   }
   return context;
 }

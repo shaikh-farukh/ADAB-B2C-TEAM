@@ -145,7 +145,9 @@ class SellerController {
 
   async getAnalytics(req, res) {
     try {
-      const analytics = await sellerService.getAnalytics();
+      const { storeId } = getAuthenticatedSellerContext(req);
+      if (!storeId) return res.status(401).json({ error: 'Missing store context' });
+      const analytics = await sellerService.getAnalytics(storeId);
       res.json({ success: true, data: analytics });
     } catch (error) {
       res.status(400).json({ success: false, error: error.message });
@@ -172,8 +174,32 @@ class SellerController {
 
   async getMessages(req, res) {
     try {
-      const messages = await sellerService.getMessages();
+      const { userId } = getAuthenticatedSellerContext(req);
+      if (!userId) return res.status(401).json({ error: 'Missing user context' });
+      const messages = await sellerService.getMessages(userId);
       res.json({ success: true, data: messages });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async sendMessage(req, res) {
+    try {
+      const { userId } = getAuthenticatedSellerContext(req);
+      if (!userId) return res.status(401).json({ error: 'Missing user context' });
+      const message = await sellerService.sendMessage(userId, req.body);
+      res.json({ success: true, data: message });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async markMessageRead(req, res) {
+    try {
+      const { userId } = getAuthenticatedSellerContext(req);
+      if (!userId) return res.status(401).json({ error: 'Missing user context' });
+      const result = await sellerService.markMessageRead(userId, req.params.id);
+      res.json({ success: true, data: result });
     } catch (error) {
       res.status(400).json({ success: false, error: error.message });
     }

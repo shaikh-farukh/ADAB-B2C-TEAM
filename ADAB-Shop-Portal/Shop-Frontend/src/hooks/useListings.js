@@ -112,6 +112,7 @@ export const useListings = () => {
     submitListing,
     bulkUpload,
     checkUploadStatus,
+    uploadImage: listingApi.uploadImage,
     refresh: fetchListings
   };
 };

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import sellerService from '../services/sellerService';
+import sellerService, { userId } from '../services/sellerService';
+import { io } from 'socket.io-client';
 
 const NotificationBell = () => {
   const [unreadCount, setUnreadCount] = useState(0);
@@ -7,9 +8,49 @@ const NotificationBell = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  
+  // Real-time toast state
+  const [liveToast, setLiveToast] = useState(null);
 
   useEffect(() => {
     fetchUnreadCount();
+    
+    // Connect to backend WebSocket
+    const socket = io('http://localhost:5003', {
+      reconnectionDelayMax: 10000,
+    });
+    
+    socket.on('connect', () => {
+      console.log('Connected to notification WebSocket');
+      socket.emit('join_seller_room', userId);
+      // Fetch latest count on reconnect to ensure sync
+      fetchUnreadCount();
+    });
+
+    const handleNewNotification = (newNotification) => {
+      console.log('Received live notification!', newNotification);
+      
+      setUnreadCount(prev => prev + 1);
+      
+      setNotifications(prevList => {
+        // Prevent duplicates in strict mode
+        if (prevList.some(n => n.id === newNotification.id)) return prevList;
+        return [newNotification, ...prevList];
+      });
+      
+      setLiveToast(newNotification);
+      
+      setTimeout(() => {
+        setLiveToast(null);
+      }, 5000);
+    };
+
+    socket.on('notification', handleNewNotification);
+
+    return () => {
+      socket.off('notification', handleNewNotification);
+      socket.disconnect();
+    };
   }, []);
 
   const fetchUnreadCount = async () => {
@@ -29,9 +70,21 @@ const NotificationBell = () => {
       const res = await sellerService.getNotifications();
       if (res.success) {
         setNotifications(res.data);
+        
+        // Auto-mark all as read when opened
+        const unreadIds = res.data.filter(n => !n.is_read).map(n => n.id);
+        for (const id of unreadIds) {
+          await sellerService.markNotificationRead(id).catch(console.error);
+        }
+        
+        if (unreadIds.length > 0) {
+          setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+          setUnreadCount(0);
+        }
       }
     } catch (err) {
-      setError("Failed to load notifications");
+      console.error(err);
+      setError(`Failed to load notifications: ${err.response?.data?.error || err.message}`);
     } finally {
       setLoading(false);
     }
@@ -45,7 +98,7 @@ const NotificationBell = () => {
   };
 
   const handleMarkAsRead = async (id, e) => {
-    e.stopPropagation();
+    e?.stopPropagation();
     try {
       const res = await sellerService.markNotificationRead(id);
       if (res.success) {
@@ -93,8 +146,8 @@ const NotificationBell = () => {
               <div className="divide-y divide-gray-50">
                 {notifications.map(notif => (
                   <div key={notif.id} className={`p-4 hover:bg-gray-50 transition-colors flex gap-3 ${!notif.is_read ? 'bg-blue-50/30' : ''}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${notif.type === 'ORDER' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
-                      <i className={`fa-solid ${notif.type === 'ORDER' ? 'fa-box' : 'fa-triangle-exclamation'} text-xs`}></i>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${notif.type === 'ORDER_STATUS' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
+                      <i className={`fa-solid ${notif.type === 'ORDER_STATUS' ? 'fa-box' : 'fa-triangle-exclamation'} text-xs`}></i>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start mb-1">
@@ -125,6 +178,28 @@ const NotificationBell = () => {
           <div className="p-2 border-t border-gray-50 bg-gray-50/50 text-center">
             <button className="text-[11px] font-bold text-gray-500 hover:text-brand-dark transition-colors">
               View all activity
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Real-time floating toast */}
+      {liveToast && (
+        <div className="fixed bottom-6 right-6 z-[9999] bg-white border-l-4 border-brand-dark shadow-2xl rounded-lg p-4 w-72 animate-slide-up">
+          <div className="flex gap-3">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${liveToast.type === 'ORDER_STATUS' ? 'bg-green-100 text-green-600' : 'bg-brand/10 text-brand-dark'}`}>
+              <i className={`fa-solid ${liveToast.type === 'ORDER_STATUS' ? 'fa-box' : 'fa-bell'} text-xs`}></i>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-gray-900 truncate">
+                {liveToast.title}
+              </p>
+              <p className="text-[11px] text-gray-500 leading-snug line-clamp-2 mt-1">
+                {liveToast.message}
+              </p>
+            </div>
+            <button onClick={() => setLiveToast(null)} className="text-gray-400 hover:text-gray-600">
+              <i className="fa-solid fa-xmark text-xs"></i>
             </button>
           </div>
         </div>

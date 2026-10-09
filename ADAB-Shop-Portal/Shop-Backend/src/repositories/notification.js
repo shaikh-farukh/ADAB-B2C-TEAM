@@ -33,6 +33,16 @@ class NotificationRepository {
     const res = await pool.query(query, [notificationId, userId]);
     return res.rows[0];
   }
+
+  async createNotification(userId, title, message, type = 'GENERAL', actionUrl = null) {
+    const query = `
+      INSERT INTO notifications (user_id, title, message, type, action_url)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id, title, message, type, is_read, created_at, action_url
+    `;
+    const res = await pool.query(query, [userId, title, message, type, actionUrl]);
+    return res.rows[0];
+  }
 }
 
 module.exports = new NotificationRepository();

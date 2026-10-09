@@ -18,6 +18,23 @@ class NotificationService {
     if (!result) throw new Error('Notification not found or unauthorized');
     return result;
   }
+
+  async createNotification(userId, title, message, type = 'GENERAL', actionUrl = null) {
+    if (!userId || !title || !message) throw new Error('Missing required notification fields');
+    
+    // Save to database
+    const notification = await notificationRepository.createNotification(userId, title, message, type, actionUrl);
+    
+    // Emit via socket if initialized
+    try {
+      const io = require('../config/socket').getIO();
+      io.to(userId).emit('notification', notification);
+    } catch (err) {
+      console.warn('Socket.io not initialized or error emitting notification:', err.message);
+    }
+    
+    return notification;
+  }
 }
 
 module.exports = new NotificationService();
