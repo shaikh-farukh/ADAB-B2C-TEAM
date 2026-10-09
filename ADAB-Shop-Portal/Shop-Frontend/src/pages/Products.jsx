@@ -210,6 +210,44 @@ const Products = () => {
     return pages;
   };
 
+  const formatIssueDetails = (issue) => {
+    if (!issue.details) return null;
+    if (issue.issue_type === 'LISTING') {
+      const reason = issue.details.rejection_reason;
+      return (
+        <span className="text-gray-600 font-medium ml-1">
+          {reason ? `— Reason: ${reason}` : '— (Pending admin feedback)'}
+        </span>
+      );
+    }
+    if (issue.issue_type === 'INVENTORY') {
+      if (issue.details.low_stock_threshold !== undefined) {
+        return (
+          <span className="text-gray-500 ml-1">
+            (Current: {issue.details.stock}, Alert threshold: {issue.details.low_stock_threshold})
+          </span>
+        );
+      }
+      return (
+        <span className="text-gray-500 ml-1">
+          (Current stock: {issue.details.stock ?? 0})
+        </span>
+      );
+    }
+    if (issue.issue_type === 'PRICE') {
+      return (
+        <span className="text-gray-500 ml-1">
+          (Sell Price ₹{issue.details.sell_price} vs MRP ₹{issue.details.mrp})
+        </span>
+      );
+    }
+    const filtered = Object.entries(issue.details)
+      .filter(([_, v]) => v !== null && v !== undefined)
+      .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`)
+      .join(', ');
+    return filtered ? <span className="text-gray-500 ml-1">({filtered})</span> : null;
+  };
+
   return (
     <div className="fade-in w-full p-2 sm:p-4">
       {/* Header and Actions */}
@@ -382,11 +420,7 @@ const Products = () => {
                                   <i className={`fa-solid mt-0.5 ${issue.severity === 'high' ? 'fa-circle-xmark text-red-500' : 'fa-triangle-exclamation text-amber-500'}`}></i>
                                   <div>
                                     <span className="font-bold text-gray-900">{issue.issue_type} ISSUE:</span> <span className="text-gray-700">{issue.message}</span>
-                                    {issue.details && (
-                                      <span className="text-gray-500 ml-1">
-                                        (Details: {JSON.stringify(issue.details).replace(/[{}"]/g, '').replace(/:/g, ': ')})
-                                      </span>
-                                    )}
+                                    {formatIssueDetails(issue)}
                                   </div>
                                 </div>
                               ))}
