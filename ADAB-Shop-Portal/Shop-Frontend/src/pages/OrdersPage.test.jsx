@@ -180,4 +180,44 @@ describe('OrdersPage Component', () => {
       expect(sellerApi.updateOrderStatus).toHaveBeenCalledWith('ORD-6840', 'packing');
     });
   });
+
+  it('opens decline modal when Decline button is clicked and confirms cancellation', async () => {
+    sellerApi.getOrders.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'ORD-6840',
+          customer: 'Pooja Sharma',
+          distance: '4.8',
+          items: [],
+          amount: 1015,
+          status: 'new'
+        }
+      ]
+    });
+    sellerApi.updateOrderStatus.mockResolvedValue({ success: true });
+
+    render(
+      <BrowserRouter>
+        <OrdersPage />
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTitle('Decline Order')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByTitle('Decline Order'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Decline Order • #ORD-6840/i)).toBeDefined();
+      expect(screen.getByText('Confirm Decline')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('Confirm Decline'));
+
+    await waitFor(() => {
+      expect(sellerApi.updateOrderStatus).toHaveBeenCalledWith('ORD-6840', 'cancelled');
+    });
+  });
 });

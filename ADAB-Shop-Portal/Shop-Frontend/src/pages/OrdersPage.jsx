@@ -93,7 +93,117 @@ function OrderItemsModal({ order, onClose }) {
   );
 }
 
-function OrderMapModal({ order, store, onClose, onUpdateStatus }) {
+function DeclineOrderModal({ order, onClose, onConfirm }) {
+  if (!order) return null;
+  const [selectedReason, setSelectedReason] = useState('Item(s) Out of Stock');
+  const [note, setNote] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const reasons = [
+    { id: 'stock', label: 'Item(s) Out of Stock', icon: 'fa-box-open' },
+    { id: 'busy', label: 'Store is Closing / Too Busy', icon: 'fa-clock' },
+    { id: 'distance', label: 'Delivery Address Outside Reach', icon: 'fa-route' },
+    { id: 'customer', label: 'Customer Requested Cancellation', icon: 'fa-user-xmark' },
+    { id: 'pricing', label: 'Price / Catalog Mismatch', icon: 'fa-tag' }
+  ];
+
+  const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '#9000';
+  const displayCustomer = order.customer || order.customer_name || 'Customer';
+
+  const handleDecline = async () => {
+    setSubmitting(true);
+    await onConfirm(order.id, selectedReason, note);
+    setSubmitting(false);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-gray-200">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-rose-50 to-orange-50">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center text-sm font-bold shadow-2xs">
+              <i className="fa-solid fa-ban"></i>
+            </div>
+            <div>
+              <h3 className="font-extrabold text-sm text-gray-900">Decline Order • {displayId}</h3>
+              <p className="text-[11px] text-gray-500">Customer: <span className="font-semibold text-gray-700">{displayCustomer}</span></p>
+            </div>
+          </div>
+          <button 
+            type="button"
+            onClick={onClose}
+            className="w-7 h-7 rounded-full bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center text-sm font-bold shadow-2xs cursor-pointer"
+            title="Close"
+          >
+            &times;
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 space-y-3.5">
+          <p className="text-xs font-semibold text-gray-700">Please choose a reason for declining this order:</p>
+          <div className="space-y-2">
+            {reasons.map((r) => (
+              <label 
+                key={r.id} 
+                onClick={() => setSelectedReason(r.label)}
+                className={`flex items-center justify-between p-2.5 rounded-xl border text-xs cursor-pointer transition-colors ${selectedReason === r.label ? 'border-rose-300 bg-rose-50/60 text-rose-900 font-bold' : 'border-gray-200 hover:bg-gray-50 text-gray-700'}`}
+              >
+                <span className="flex items-center gap-2">
+                  <i className={`fa-solid ${r.icon} text-gray-400 w-4 text-center ${selectedReason === r.label ? 'text-rose-600' : ''}`}></i>
+                  <span>{r.label}</span>
+                </span>
+                <input 
+                  type="radio" 
+                  name="decline_reason" 
+                  checked={selectedReason === r.label} 
+                  onChange={() => setSelectedReason(r.label)}
+                  className="accent-rose-600 cursor-pointer"
+                />
+              </label>
+            ))}
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-gray-600 mb-1">Internal Note (Optional):</label>
+            <input
+              type="text"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="e.g., ran out of inventory"
+              className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:border-rose-400 outline-none"
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="btn-soft !py-1.5 !px-3 !text-xs font-bold cursor-pointer"
+          >
+            Keep Order
+          </button>
+          <button
+            type="button"
+            onClick={handleDecline}
+            disabled={submitting}
+            className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <i className="fa-solid fa-ban text-xs"></i>
+            {submitting ? 'Declining...' : 'Confirm Decline'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
   if (!order) return null;
   const mapContainerRef = useRef(null);
   const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '#9000';
@@ -259,17 +369,30 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus }) {
               Directions
             </button>
             {order.status === 'new' && (
-              <button 
-                type="button"
-                onClick={async () => {
-                  await onUpdateStatus(order.id, 'packing');
-                  onClose();
-                }}
-                className="btn-primary !py-1.5 !px-3 !text-xs font-bold flex items-center gap-1.5 cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-              >
-                <i className="fa-solid fa-check text-xs"></i>
-                Accept Order
-              </button>
+              <>
+                <button 
+                  type="button"
+                  onClick={async () => {
+                    await onUpdateStatus(order.id, 'packing');
+                    onClose();
+                  }}
+                  className="btn-primary !py-1.5 !px-3 !text-xs font-bold flex items-center gap-1.5 cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                >
+                  <i className="fa-solid fa-check text-xs"></i>
+                  Accept Order
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    if (onDecline) onDecline(order);
+                  }}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                >
+                  <i className="fa-solid fa-ban text-xs"></i>
+                  Decline
+                </button>
+              </>
             )}
             {(order.status === 'packing' || order.status === 'processing') && (
               <button 
@@ -298,7 +421,7 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus }) {
   );
 }
 
-function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap }) {
+function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline }) {
   const getStatusBadge = (status) => {
     switch (status?.toLowerCase()) {
       case 'new': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">New</span>;
@@ -307,6 +430,9 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap }) {
       case 'dispatched':
       case 'shipped': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800">Dispatched</span>;
       case 'ready': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800">Ready</span>;
+      case 'delivered': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">Delivered</span>;
+      case 'cancelled':
+      case 'declined': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">Declined</span>;
       default: return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-800">{status || 'Pending'}</span>;
     }
   };
@@ -321,10 +447,78 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap }) {
 
   const getActionBtn = (status) => {
     const s = (status || '').toLowerCase();
-    if (s === 'new') return <button onClick={() => onUpdateStatus(order.id, 'packing')} className="btn-primary !text-xs !py-1 !px-2">Accept</button>;
-    if (s === 'packing' || s === 'processing') return <button onClick={() => onUpdateStatus(order.id, 'dispatched')} className="btn-primary !text-xs !py-1 !px-2">Send</button>;
-    if (s === 'dispatched' || s === 'shipped') return <button disabled className="btn-soft !text-xs !py-1 !px-2 opacity-75">In Transit</button>;
-    return <button disabled className="btn-soft !text-xs !py-1 !px-2 opacity-50 cursor-not-allowed">Done</button>;
+    if (s === 'new') {
+      return (
+        <div className="flex items-center gap-1.5">
+          <button 
+            type="button"
+            onClick={() => onUpdateStatus(order.id, 'packing')} 
+            className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs whitespace-nowrap"
+            title="Accept Order"
+          >
+            Accept
+          </button>
+          <button 
+            type="button"
+            onClick={() => onDecline(order)} 
+            className="px-2 py-1 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer shadow-2xs whitespace-nowrap"
+            title="Decline Order"
+          >
+            Decline
+          </button>
+        </div>
+      );
+    }
+    if (s === 'packing' || s === 'processing') {
+      return (
+        <div className="flex items-center gap-1.5">
+          <button 
+            type="button"
+            onClick={() => onUpdateStatus(order.id, 'dispatched')} 
+            className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs whitespace-nowrap"
+            title="Dispatch / Send Package"
+          >
+            Send
+          </button>
+          <button 
+            type="button"
+            onClick={() => onDecline(order)} 
+            className="px-2 py-1 rounded-lg text-xs font-bold text-gray-500 hover:text-rose-600 bg-gray-50 hover:bg-rose-50 border border-gray-200 hover:border-rose-200 transition cursor-pointer whitespace-nowrap"
+            title="Cancel Order"
+          >
+            Cancel
+          </button>
+        </div>
+      );
+    }
+    if (s === 'dispatched' || s === 'shipped') {
+      return (
+        <button 
+          type="button"
+          onClick={() => onUpdateStatus(order.id, 'delivered')}
+          className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-teal-600 hover:bg-teal-700 text-white shadow-2xs flex items-center gap-1 whitespace-nowrap"
+          title="Mark Delivered"
+        >
+          <i className="fa-solid fa-check-double text-[10px]"></i>
+          Delivered
+        </button>
+      );
+    }
+    if (s === 'delivered') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 whitespace-nowrap">
+          <i className="fa-solid fa-circle-check text-[10px]"></i> Done
+        </span>
+      );
+    }
+    if (s === 'cancelled' || s === 'declined') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 whitespace-nowrap">
+          <i className="fa-solid fa-ban text-[10px]"></i> Declined
+        </span>
+      );
+    }
+    return <button disabled className="btn-soft !text-xs !py-1 !px-2 opacity-50 cursor-not-allowed whitespace-nowrap">Done</button>;
   };
 
   const itemsList = Array.isArray(order.items) ? order.items : [];
@@ -383,6 +577,7 @@ export default function OrdersPage() {
   const { orders, loading, error, updateStatus } = useOrders();
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [mapOrder, setMapOrder] = useState(null);
+  const [declineOrder, setDeclineOrder] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [deliveryFilter, setDeliveryFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -395,7 +590,8 @@ export default function OrdersPage() {
       statusFilter === 'new' ? s === 'new' :
       statusFilter === 'packing' ? (s === 'packing' || s === 'processing') :
       statusFilter === 'dispatched' ? (s === 'dispatched' || s === 'shipped') :
-      statusFilter === 'ready' ? s === 'ready' : true
+      statusFilter === 'ready' ? s === 'ready' :
+      statusFilter === 'declined' ? (s === 'cancelled' || s === 'declined') : true
     );
     const matchesDelivery = deliveryFilter === 'all' ? true : (
       deliveryFilter === 'fast' ? (d.includes('fast') || d.includes('express')) :
@@ -470,6 +666,7 @@ export default function OrdersPage() {
           <option value="packing">Packing</option>
           <option value="dispatched">Out for delivery</option>
           <option value="ready">Ready for pickup</option>
+          <option value="declined">Declined / Cancelled</option>
         </select>
         <select 
           id="ordersDelivery" 
@@ -540,6 +737,7 @@ export default function OrdersPage() {
                 onUpdateStatus={updateStatus} 
                 onViewItems={setSelectedOrder}
                 onOpenMap={setMapOrder}
+                onDecline={setDeclineOrder}
               />
             ))}
           </tbody>
@@ -566,6 +764,18 @@ export default function OrdersPage() {
           store={store}
           onClose={() => setMapOrder(null)} 
           onUpdateStatus={updateStatus}
+          onDecline={setDeclineOrder}
+        />
+      )}
+
+      {/* Decline Order Reason Modal */}
+      {declineOrder && (
+        <DeclineOrderModal 
+          order={declineOrder}
+          onClose={() => setDeclineOrder(null)}
+          onConfirm={async (orderId, reason, note) => {
+            await updateStatus(orderId, 'cancelled');
+          }}
         />
       )}
     </section>

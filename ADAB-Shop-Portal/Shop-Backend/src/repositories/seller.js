@@ -240,7 +240,9 @@ class SellerRepository {
       'dispatched': 'DISPATCHED',
       'shipped': 'DISPATCHED',
       'delivered': 'DELIVERED',
-      'cancelled': 'CANCELLED'
+      'cancelled': 'CANCELLED',
+      'declined': 'CANCELLED',
+      'rejected': 'CANCELLED'
     };
     const orderStatusMap = {
       'new': 'PLACED',
@@ -250,7 +252,9 @@ class SellerRepository {
       'dispatched': 'OUT_FOR_DELIVERY',
       'shipped': 'OUT_FOR_DELIVERY',
       'delivered': 'DELIVERED',
-      'cancelled': 'CANCELLED'
+      'cancelled': 'CANCELLED',
+      'declined': 'CANCELLED',
+      'rejected': 'CANCELLED'
     };
 
     const sStatus = sellerStatusMap[status.toLowerCase()] || 'ACCEPTED';
