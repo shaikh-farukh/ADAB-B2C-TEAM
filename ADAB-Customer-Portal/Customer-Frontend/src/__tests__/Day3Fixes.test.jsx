@@ -128,4 +128,32 @@ describe('User Feedback Fixes Validation', () => {
     expect(html).toContain('placeholder="9876512340"');
     expect(html).toContain('10-digit mobile number');
   });
+
+  it('4. OrderStatusView renders centered progress timeline with real status mapping and stage timestamps', () => {
+    const html = renderToString(
+      <OrderStatusView
+        order={sampleOrder}
+        onBackToOrders={() => {}}
+        showToast={() => {}}
+      />
+    );
+
+    // Timeline title & badges
+    expect(html).toContain('Order Progress Timeline');
+    expect(html).toContain('PLACED');
+
+    // Centered timeline track (12.5% - 87.5% across 4 grid columns)
+    expect(html).toContain('left-[12.5%]');
+    expect(html).toContain('right-[12.5%]');
+
+    // Stage milestones
+    expect(html).toContain('Accepted');
+    expect(html).toContain('Verified');
+    expect(html).toContain('Out for Delivery');
+    expect(html).toContain('Delivered');
+
+    // Real timestamp for placement and estimated timestamps for future stages
+    expect(html).toContain('12:04 pm');
+    expect(html).toContain('Est.');
+  });
 });

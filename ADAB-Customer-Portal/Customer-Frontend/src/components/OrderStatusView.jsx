@@ -55,8 +55,69 @@ export default function OrderStatusView({
   });
   const timeStr = orderDate.toLocaleTimeString('en-IN', {
     hour: '2-digit',
-    minute: '2-digit'
-  });
+    minute: '2-digit',
+    hour12: true
+  }).toLowerCase();
+
+  const formatStepTime = (d) => {
+    return d.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    }).toLowerCase();
+  };
+
+  // Determine active timeline step from real order status
+  // 0: Accepted / Placed
+  // 1: Verified & Packed
+  // 2: Out for Delivery
+  // 3: Delivered
+  const getActiveStep = (status) => {
+    const s = (status || '').toUpperCase();
+    if (s === 'DELIVERED') return 3;
+    if (s === 'OUT_FOR_DELIVERY' || s === 'DISPATCHED' || s === 'SHIPPED') return 2;
+    if (s === 'PREPARING' || s === 'PACKED' || s === 'CONFIRMED' || s === 'ACCEPTED') return 1;
+    return 0; // 'PLACED', 'NEW', default
+  };
+
+  const activeStep = getActiveStep(order.order_status);
+
+  // Progressive connecting track percentage (from step 0 center to step 3 center)
+  const fillPercent = activeStep === 0 ? 0 : activeStep === 1 ? 33.33 : activeStep === 2 ? 66.67 : 100;
+
+  // Realistic milestone timestamps based on actual placement time + ETA
+  const etaMins = Number(order.eta_minutes) || 25;
+  const timeAccepted = timeStr;
+  const timeVerified = formatStepTime(new Date(orderDate.getTime() + 4 * 60 * 1000));
+  const timeOutForDelivery = formatStepTime(new Date(orderDate.getTime() + 10 * 60 * 1000));
+  const timeDelivered = formatStepTime(new Date(orderDate.getTime() + etaMins * 60 * 1000));
+
+  const timelineSteps = [
+    {
+      id: 'accepted',
+      title: 'Accepted',
+      icon: 'fa-check',
+      timestamp: timeAccepted
+    },
+    {
+      id: 'verified',
+      title: 'Verified',
+      icon: 'fa-store',
+      timestamp: activeStep >= 1 ? timeVerified : `Est. ${timeVerified}`
+    },
+    {
+      id: 'out_for_delivery',
+      title: 'Out for Delivery',
+      icon: 'fa-motorcycle',
+      timestamp: activeStep >= 2 ? timeOutForDelivery : `Est. ${timeOutForDelivery}`
+    },
+    {
+      id: 'delivered',
+      title: 'Delivered',
+      icon: 'fa-house-chimney',
+      timestamp: activeStep >= 3 ? (order.delivered_at ? formatStepTime(new Date(order.delivered_at)) : timeDelivered) : `Est. ${timeDelivered}`
+    }
+  ];
 
   const orderNum = order.order_number || (order.id ? order.id.slice(0, 8).toUpperCase() : 'ORD-NEW');
   const storeName = order.seller_orders?.[0]?.store_name || order.items?.[0]?.store_name || 'Shabbir Grocery Shop';
@@ -101,57 +162,82 @@ export default function OrderStatusView({
       </div>
 
       {/* 2. Live Order Journey Stepper */}
-      <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-3">
+      <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-4">
         <div className="flex items-center justify-between pb-2 border-b border-gray-100">
           <div className="font-extrabold text-xs text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
             <i className="fa-solid fa-route text-brand-green"></i>
             <span>Order Progress Timeline</span>
           </div>
-          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-            {order.order_status || 'OUT FOR DELIVERY'}
+          <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full ${
+            activeStep === 3
+              ? 'bg-emerald-100 text-emerald-800'
+              : activeStep === 2
+              ? 'bg-blue-100 text-blue-800'
+              : activeStep === 1
+              ? 'bg-amber-100 text-amber-800'
+              : 'bg-emerald-100 text-emerald-800'
+          }`}>
+            {order.order_status || 'PLACED'}
           </span>
         </div>
 
-        <div className="grid grid-cols-4 gap-2 pt-2 text-center relative">
-          {/* Progress bar line */}
-          <div className="absolute top-4 left-6 right-6 h-1 bg-gray-100 -z-0">
-            <div className="h-full bg-brand-green rounded-full" style={{ width: '75%' }}></div>
+        <div className="relative pt-1 pb-1">
+          {/* Centered connecting line:
+              Spans exactly from center of column 1 (12.5%) to center of column 4 (87.5%).
+              Centered vertically inside 32px (w-8 h-8) circle nodes at top-4 (16px).
+          */}
+          <div
+            className="absolute top-4 -translate-y-1/2 left-[12.5%] right-[12.5%] h-1 bg-gray-200 z-0 rounded-full"
+            aria-hidden="true"
+          >
+            {/* Dynamic progress bar reflecting real order status */}
+            <div
+              className="h-full bg-brand-green rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${fillPercent}%` }}
+            ></div>
           </div>
 
-          {/* Step 1: Placed */}
-          <div className="relative z-10 flex flex-col items-center">
-            <div className="w-8 h-8 rounded-full bg-brand-green text-white flex items-center justify-center text-xs shadow-sm">
-              <i className="fa-solid fa-check"></i>
-            </div>
-            <span className="text-[10px] font-extrabold text-gray-900 mt-1.5">Placed</span>
-            <span className="text-[9px] text-gray-400">{timeStr}</span>
-          </div>
+          {/* 4 Steps Grid */}
+          <div className="grid grid-cols-4 text-center relative z-10">
+            {timelineSteps.map((step, idx) => {
+              const isCompleted = idx < activeStep || (idx === 0 && activeStep === 0);
+              const isCurrent = idx === activeStep && activeStep > 0;
 
-          {/* Step 2: Packed */}
-          <div className="relative z-10 flex flex-col items-center">
-            <div className="w-8 h-8 rounded-full bg-brand-green text-white flex items-center justify-center text-xs shadow-sm">
-              <i className="fa-solid fa-store"></i>
-            </div>
-            <span className="text-[10px] font-extrabold text-gray-900 mt-1.5">Packed</span>
-            <span className="text-[9px] text-gray-400">Verified</span>
-          </div>
+              return (
+                <div key={step.id} className="flex flex-col items-center px-0.5">
+                  {/* Step Node Circle with white masking ring */}
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs transition-all duration-300 ring-4 ring-white ${
+                      isCompleted
+                        ? 'bg-brand-green text-white shadow-xs'
+                        : isCurrent
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200 ring-4 ring-emerald-100 animate-pulse'
+                        : 'bg-white border-2 border-gray-300 text-gray-400'
+                    }`}
+                  >
+                    <i className={`fa-solid ${isCompleted ? 'fa-check' : step.icon}`}></i>
+                  </div>
 
-          {/* Step 3: In Transit */}
-          <div className="relative z-10 flex flex-col items-center">
-            <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs shadow-md shadow-emerald-200 animate-pulse">
-              <i className="fa-solid fa-motorcycle"></i>
-            </div>
-            <span className="text-[10px] font-extrabold text-emerald-800 mt-1.5">On The Way</span>
-            <span className="text-[9px] text-emerald-600 font-bold">28 km/h</span>
-          </div>
+                  {/* Stage Title */}
+                  <span
+                    className={`text-[10px] font-extrabold mt-2 leading-tight ${
+                      isCompleted || isCurrent ? 'text-gray-900' : 'text-gray-400'
+                    }`}
+                  >
+                    {step.title}
+                  </span>
 
-          {/* Step 4: Delivered */}
-          <div className="relative z-10 flex flex-col items-center">
-            <div className="w-8 h-8 rounded-full bg-gray-100 border-2 border-gray-300 text-gray-400 flex items-center justify-center text-xs">
-              <i className="fa-solid fa-house-chimney"></i>
-            </div>
-            <span className="text-[10px] font-extrabold text-gray-400 mt-1.5">Delivered</span>
-            <span className="text-[9px] text-gray-400">~{order.eta_minutes || 25}m</span>
+                  {/* Stage Timestamp */}
+                  <span
+                    className={`text-[9px] mt-0.5 font-bold ${
+                      isCompleted || isCurrent ? 'text-emerald-700' : 'text-gray-400'
+                    }`}
+                  >
+                    {step.timestamp}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -160,10 +246,20 @@ export default function OrderStatusView({
       <div className="bg-emerald-950 text-white rounded-3xl p-5 relative overflow-hidden shadow-md">
         <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-300">Live GPS Telemetry</span>
+            <span className={`w-2.5 h-2.5 rounded-full ${activeStep === 2 ? 'bg-emerald-400 animate-pulse' : 'bg-emerald-400'}`}></span>
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+              {activeStep >= 2 ? 'Live GPS Telemetry' : 'Order Journey Telemetry'}
+            </span>
           </div>
-          <span className="text-[11px] text-gray-300 font-semibold">Speed: 28 km/h</span>
+          <span className="text-[11px] text-gray-300 font-semibold">
+            {activeStep === 3
+              ? 'Status: Delivered'
+              : activeStep === 2
+              ? 'Speed: 28 km/h'
+              : activeStep === 1
+              ? 'Status: Packing & QA'
+              : 'Status: Order Accepted'}
+          </span>
         </div>
         <div className="py-4 space-y-3">
           <div className="flex items-start gap-3">
@@ -176,8 +272,22 @@ export default function OrderStatusView({
             </div>
           </div>
           <div className="ml-4 pl-4 border-l-2 border-dashed border-white/20 py-1 text-[11px] text-emerald-300 flex items-center gap-1.5">
-            <i className="fa-solid fa-motorcycle"></i>
-            <span>Rider in transit via Vesu Main Road (1.2 km away)</span>
+            {activeStep >= 2 ? (
+              <>
+                <i className="fa-solid fa-motorcycle"></i>
+                <span>Rider in transit via Vesu Main Road (1.2 km away)</span>
+              </>
+            ) : activeStep === 1 ? (
+              <>
+                <i className="fa-solid fa-box-open text-amber-300"></i>
+                <span className="text-amber-200">Merchant is verifying stock and packaging items for rider handover</span>
+              </>
+            ) : (
+              <>
+                <i className="fa-solid fa-clock text-amber-300"></i>
+                <span className="text-amber-200">Order accepted by {storeName} · Store preparing items for pickup</span>
+              </>
+            )}
           </div>
           <div className="flex items-start gap-3">
             <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-sm shrink-0">
