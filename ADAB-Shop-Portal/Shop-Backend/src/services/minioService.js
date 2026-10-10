@@ -3,11 +3,11 @@ const crypto = require('crypto');
 
 // Initialize the MinIO client
 const minioClient = new Minio.Client({
-  endPoint: 'localhost',
-  port: 9000,
-  useSSL: false,
-  accessKey: 'admin',
-  secretKey: 'password123'
+  endPoint: process.env.MINIO_ENDPOINT || 'localhost',
+  port: parseInt(process.env.MINIO_PORT) || 9000,
+  useSSL: process.env.MINIO_USE_SSL === 'true',
+  accessKey: process.env.MINIO_ACCESS_KEY || 'admin',
+  secretKey: process.env.MINIO_SECRET_KEY || 'password123'
 });
 
 const BUCKET_NAME = 'adab-product-images';
