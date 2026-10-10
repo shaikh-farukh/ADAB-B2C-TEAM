@@ -417,8 +417,19 @@ async function calculateCheckoutPreview(cartId, { deliverySpeed = 'EXPRESS_30M',
   let couponStatus = 'NONE';
   let couponMessage = null;
 
-  if (couponCode) {
-    const couponValidation = await validateCoupon(couponCode, { subtotal, deliveryFee });
+  // Resolve coupon code: use explicit parameter if provided; otherwise check cart in DB
+  let resolvedCoupon = couponCode;
+  if (!resolvedCoupon && cartId) {
+    try {
+      const cRes = await pool.query('SELECT coupon_code FROM carts WHERE id = $1 LIMIT 1', [cartId]);
+      if (cRes.rows.length > 0 && cRes.rows[0].coupon_code) {
+        resolvedCoupon = cRes.rows[0].coupon_code;
+      }
+    } catch (_) {}
+  }
+
+  if (resolvedCoupon) {
+    const couponValidation = await validateCoupon(resolvedCoupon, { subtotal, deliveryFee });
     couponStatus = couponValidation.status;
     couponMessage = couponValidation.message;
     if (couponValidation.isValid) {
@@ -453,7 +464,7 @@ async function calculateCheckoutPreview(cartId, { deliverySpeed = 'EXPRESS_30M',
         is_free: s.store_delivery_fee === 0
       })),
       discount: discount,
-      coupon_code: couponCode,
+      coupon_code: resolvedCoupon,
       coupon_status: couponStatus,
       grand_total: grandTotal,
       total_savings: totalSavings,
@@ -469,6 +480,7 @@ async function calculateCheckoutPreview(cartId, { deliverySpeed = 'EXPRESS_30M',
     delivery_fee: deliveryFee,
     tax_placeholder: taxPlaceholder,
     discount: discount,
+    coupon_code: resolvedCoupon,
     grand_total: grandTotal,
     total_savings: totalSavings,
     reward_points_earned: Math.floor(grandTotal / 100)

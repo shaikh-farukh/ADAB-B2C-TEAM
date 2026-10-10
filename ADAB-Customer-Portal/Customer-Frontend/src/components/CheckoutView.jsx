@@ -224,12 +224,21 @@ export default function CheckoutView({
     return 'UPI';
   };
 
+  // Resolve active coupon code from cart or server preview
+  const appliedCouponCode =
+    cartData.cart?.coupon_code ||
+    cartData.summary?.coupon_code ||
+    cartData.summary?.pricing?.coupon_code ||
+    serverPreview?.pricing?.coupon_code ||
+    serverPreview?.coupon_code ||
+    null;
+
   // Fetch authoritative preview from server when speed or coupon changes
   const fetchServerPreview = async (speedToPreview) => {
     try {
       setLoadingPreview(true);
       const bSpeed = getBackendDeliverySpeed(speedToPreview);
-      const res = await CheckoutAPI.preview(bSpeed, cartData.summary?.coupon_code || null);
+      const res = await CheckoutAPI.preview(bSpeed, appliedCouponCode);
       if (res && res.status === 'success' && res.data) {
         setServerPreview(res.data);
       }
@@ -253,10 +262,10 @@ export default function CheckoutView({
     }
   }, [address.pincode, address.address_line]);
 
-  // Whenever delivery speed changes, refresh authoritative backend preview
+  // Whenever delivery speed or coupon changes, refresh authoritative backend preview
   useEffect(() => {
     fetchServerPreview(deliverySpeed);
-  }, [deliverySpeed, cartData.summary?.coupon_code, cartData.summary?.subtotal]);
+  }, [deliverySpeed, appliedCouponCode, cartData.summary?.subtotal, cartData.summary?.discount]);
 
   // If parent provided a selected delivery address, use it
   useEffect(() => {
@@ -389,11 +398,11 @@ export default function CheckoutView({
 
   const discount = serverPreview?.pricing?.discount !== undefined
     ? Number(serverPreview.pricing.discount)
-    : (summary.discount || 0);
+    : (Number(summary.discount) || Number(summary.pricing?.discount) || 0);
 
   const subtotal = serverPreview?.pricing?.subtotal !== undefined
     ? Number(serverPreview.pricing.subtotal)
-    : (summary.subtotal || 0);
+    : (Number(summary.subtotal) || Number(summary.pricing?.subtotal) || 0);
 
   const rawTotalPayable = serverPreview?.pricing?.grand_total !== undefined
     ? Number(serverPreview.pricing.grand_total)
@@ -492,7 +501,7 @@ export default function CheckoutView({
         currency: 'INR',
         delivery_speed: getBackendDeliverySpeed(),
         payment_method: getBackendPaymentMethod(activeMethod),
-        coupon_code: summary.coupon_code || null,
+        coupon_code: appliedCouponCode || summary.coupon_code || null,
         customer_name: address.full_name,
         customer_phone: address.phone,
         customer_email: 'customer@adab.com',
@@ -566,7 +575,7 @@ export default function CheckoutView({
         delivery_speed: getBackendDeliverySpeed(),
         payment_method: getBackendPaymentMethod(activeMethod),
         payment_intent_id: intentId,
-        coupon_code: summary.coupon_code || null,
+        coupon_code: appliedCouponCode || summary.coupon_code || null,
         idempotency_key: orderIdempotencyKey
       });
 
@@ -666,7 +675,7 @@ export default function CheckoutView({
         delivery_speed: getBackendDeliverySpeed(),
         payment_method: getBackendPaymentMethod(),
         payment_intent_id: currentIntentId || ('retry_' + Date.now()),
-        coupon_code: summary.coupon_code || null,
+        coupon_code: appliedCouponCode || summary.coupon_code || null,
         idempotency_key: orderRetryKey
       });
 
@@ -1961,8 +1970,11 @@ export default function CheckoutView({
             </div>
           )}
           {discount > 0 && (
-            <div className="bill-row text-emerald-700">
-              <span>Coupon Discount</span>
+            <div className="bill-row text-emerald-700 font-medium">
+              <span className="flex items-center gap-1.5">
+                <i className="fa-solid fa-tag text-xs text-emerald-600"></i>
+                <span>Coupon Savings {appliedCouponCode ? `(${appliedCouponCode})` : ''}</span>
+              </span>
               <span className="font-bold">-₹{discount}</span>
             </div>
           )}

@@ -34,7 +34,7 @@ async function previewCheckout(req, res) {
 
     const preview = await checkoutService.calculateCheckoutPreview(targetCartId, {
       deliverySpeed: delivery_speed,
-      couponCode: coupon_code
+      couponCode: coupon_code || undefined
     });
 
     // Guard: Empty cart
@@ -120,7 +120,7 @@ async function placeOrder(req, res) {
       deliveryAddress: delivery_address,
       deliverySpeed: delivery_speed,
       paymentMethod: payment_method,
-      couponCode: coupon_code
+      couponCode: coupon_code || undefined
     });
 
     return res.status(201).json({
