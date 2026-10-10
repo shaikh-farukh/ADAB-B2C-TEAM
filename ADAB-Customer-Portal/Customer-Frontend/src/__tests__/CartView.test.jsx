@@ -187,7 +187,7 @@ describe('Day 2 Frontend Task 2: Coupon Application Flow', () => {
     );
 
     expect(html).toContain('id="couponInput"');
-    expect(html).toContain('placeholder="Enter coupon (e.g. BALAJI15, ADAB100)"');
+    expect(html).toContain('placeholder="Enter coupon (e.g. DIWALI50, NAVRATRI)"');
     expect(html).toContain('Apply');
     expect(html).toContain('fa-ticket');
   });

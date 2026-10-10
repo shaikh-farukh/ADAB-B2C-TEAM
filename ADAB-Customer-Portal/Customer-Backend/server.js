@@ -49,6 +49,7 @@ app.get('/api/data', (req, res) => {
 const cartRoutes = require('./routes/cartRoutes');
 const checkoutRoutes = require('./routes/checkoutRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 app.use('/api/v1/cart', cartRoutes);
 app.use('/api/cart', cartRoutes);
@@ -58,6 +59,9 @@ app.use('/api/checkout', checkoutRoutes);
 
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/orders', orderRoutes);
+
+app.use('/api/v1/payments', paymentRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // 404 Handler for unknown routes
 app.use((req, res) => {

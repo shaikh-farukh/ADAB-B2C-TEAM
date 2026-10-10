@@ -10,7 +10,9 @@ import SearchPage from './pages/SearchPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import ProductPage from './pages/ProductPage';
 import WishlistPage from './pages/WishlistPage';
-import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI } from './services/api';
+import AddressModal from './components/AddressModal';
+import OrderStatusView from './components/OrderStatusView';
+import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI, CustomerAPI } from './services/api';
 import { api } from './api/api';
 
 export default function App() {
@@ -31,6 +33,15 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState(null);
   const [validationIssues, setValidationIssues] = useState([]);
   const [wishlist, setWishlist] = useState([]);
+  const [selectedAddress, setSelectedAddress] = useState(() => {
+    try {
+      const saved = localStorage.getItem('adab_selected_address');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const mockUserId = "11111111-1111-1111-1111-111111111111"; // Using a valid mock UUID since database expects UUID
 
   // Search autocomplete state from Day 1
@@ -104,7 +115,48 @@ export default function App() {
     refreshCart();
     refreshWishlist();
     refreshOrders();
+
+    // Load initial customer address from database if not cached
+    const loadInitialAddress = async () => {
+      try {
+        const res = await CustomerAPI.getAddresses();
+        if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          const defaultAddr = res.data.find((a) => a.is_default) || res.data[0];
+          setSelectedAddress((prev) => {
+            if (!prev) {
+              try { localStorage.setItem('adab_selected_address', JSON.stringify(defaultAddr)); } catch (e) {}
+              return defaultAddr;
+            }
+            return prev;
+          });
+        }
+      } catch (err) {
+        console.warn('Could not load customer address:', err.message);
+      }
+    };
+    loadInitialAddress();
   }, []);
+
+  // Fetch complete order details whenever tracking tab is active
+  useEffect(() => {
+    if (activeTab === 'track' && activeOrder?.id && (!activeOrder.items || activeOrder.items.length === 0)) {
+      OrderAPI.getOrderById(activeOrder.id)
+        .then((res) => {
+          if (res?.data) setActiveOrder(res.data);
+        })
+        .catch((e) => console.warn('Could not fetch active order items:', e));
+    }
+  }, [activeTab, activeOrder?.id]);
+
+  const handleSelectAddress = (addr) => {
+    setSelectedAddress(addr);
+    try {
+      localStorage.setItem('adab_selected_address', JSON.stringify(addr));
+    } catch (e) {
+      console.warn(e);
+    }
+    showToast(`✓ Delivering to ${addr.label || 'Home'} (${addr.address_line ? addr.address_line.split(',')[0] : (addr.city || 'Surat')})`);
+  };
 
   const refreshWishlist = async () => {
     try {
@@ -142,9 +194,13 @@ export default function App() {
 
   // Place Order Handler (Checkout -> Orders transition)
   const handlePlaceOrder = async (orderPayload) => {
+    if (placingOrder) {
+      console.warn('Order submission already in progress. Ignoring duplicate trigger.');
+      return;
+    }
     try {
       setPlacingOrder(true);
-      const res = await CheckoutAPI.placeOrder(orderPayload);
+      const res = await CheckoutAPI.placeOrder(orderPayload, orderPayload?.idempotency_key);
       if (res.status === 'success' && res.data) {
         setActiveOrder(res.data);
         await refreshCart();
@@ -228,10 +284,17 @@ export default function App() {
   // Proceed to Checkout with live cart validation (Day 2 Frontend Task 3)
   const handleProceedToCheckout = async () => {
     try {
-      setLoadingCart(true);
+      const appliedCouponCode =
+        cartData.cart?.coupon_code ||
+        cartData.summary?.coupon_code ||
+        cartData.summary?.pricing?.coupon_code ||
+        null;
+
       const payload = {
-        client_subtotal: Number(cartData.summary?.subtotal || 0),
-        client_total: Number(cartData.summary?.grand_total || 0),
+        cart_id: cartData.cart?.id || undefined,
+        coupon_code: appliedCouponCode || undefined,
+        client_subtotal: Number(cartData.summary?.subtotal || cartData.summary?.pricing?.subtotal || 0),
+        client_total: Number(cartData.summary?.grand_total || cartData.summary?.pricing?.grand_total || 0),
         client_items: (cartData.items || []).map((it) => ({
           listing_id: it.listing_id || it.id,
           name: it.product_name || it.name,
@@ -468,7 +531,7 @@ export default function App() {
             {/* Location Delivery Selector */}
             <button
               type="button"
-              onClick={() => showToast('Delivery zone verified: Surat Ring Road (48 stores connected)')}
+              onClick={() => setIsAddressModalOpen(true)}
               className="flex items-center gap-2 mb-3 text-left w-full group cursor-pointer"
             >
               <i className="fa-solid fa-location-dot text-brand-coral text-base"></i>
@@ -477,7 +540,9 @@ export default function App() {
                   Deliver to
                 </div>
                 <div className="font-extrabold text-sm truncate flex items-center gap-1">
-                  Home · Ring Road, Surat
+                  {selectedAddress
+                    ? `${selectedAddress.label || 'Home'} · ${selectedAddress.address_line ? selectedAddress.address_line.split(',')[0] : 'Ring Road'}, Surat`
+                    : 'Home · Ring Road, Surat'}
                   <i className="fa-solid fa-chevron-down text-[9px] opacity-70 group-hover:translate-y-0.5 transition-transform"></i>
                 </div>
               </div>
@@ -662,6 +727,8 @@ export default function App() {
             onPlaceOrder={handlePlaceOrder}
             onBackToCart={() => setActiveTab('cart')}
             loading={placingOrder}
+            selectedDeliveryAddress={selectedAddress}
+            onSelectDeliveryAddress={handleSelectAddress}
           />
         )}
 
@@ -730,9 +797,15 @@ export default function App() {
                   <div
                     key={order.id || idx}
                     className="border border-gray-100 bg-white rounded-2xl p-4 shadow-sm hover:border-gray-200 transition cursor-pointer"
-                    onClick={() => {
+                    onClick={async () => {
                       setActiveOrder(order);
                       setActiveTab('track');
+                      try {
+                        const full = await OrderAPI.getOrderById(order.id);
+                        if (full?.data) setActiveOrder(full.data);
+                      } catch (err) {
+                        console.warn('Could not fetch full order details:', err);
+                      }
                     }}
                   >
                     <div className="flex justify-between items-start">
@@ -759,91 +832,11 @@ export default function App() {
 
         {/* Track Delivery Screen (sec-track) */}
         {activeTab === 'track' && (
-          <section id="sec-track" className="pt-2 pb-4 space-y-4">
-            <div className="bg-green-50 border border-green-200 rounded-3xl p-5 text-center shadow-sm">
-              <div className="text-3xl font-extrabold text-brand-green">
-                {activeOrder?.eta_minutes || 18} min
-              </div>
-              <div className="text-sm font-bold text-gray-800 mt-1">
-                Ramesh is on the way with your order
-              </div>
-              <div className="text-xs text-gray-500 mt-0.5">
-                Order #{activeOrder?.order_number || (activeOrder?.id && activeOrder.id.slice(0, 8)) || (activeOrder?.order_id && activeOrder.order_id.slice(0, 8)) || 'ORD-9028'} · Dispatched instantly
-              </div>
-            </div>
-
-            {/* Telemetry Tracking Visual */}
-            <div className="bg-emerald-950 text-white rounded-3xl p-5 relative overflow-hidden shadow-md">
-              <div className="flex items-center justify-between pb-3 border-b border-white/10">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-300">Live GPS Telemetry</span>
-                </div>
-                <span className="text-[11px] text-gray-300 font-semibold">Speed: 28 km/h</span>
-              </div>
-              <div className="py-4 space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-sm shrink-0">
-                    <i className="fa-solid fa-store text-emerald-400"></i>
-                  </div>
-                  <div className="text-xs">
-                    <div className="text-gray-400 text-[10px]">PICKUP STORE</div>
-                    <div className="font-bold">{activeOrder?.seller_orders?.[0]?.store_name || activeOrder?.seller_orders?.[0]?.seller_name || 'Shabbir Grocery Shop'}</div>
-                  </div>
-                </div>
-                <div className="ml-4 pl-4 border-l-2 border-dashed border-white/20 py-1 text-[11px] text-emerald-300 flex items-center gap-1.5">
-                  <i className="fa-solid fa-motorcycle"></i>
-                  <span>Rider in transit via Vesu Main Road (1.2 km away)</span>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-sm shrink-0">
-                    <i className="fa-solid fa-location-dot text-brand-coral"></i>
-                  </div>
-                  <div className="text-xs">
-                    <div className="text-gray-400 text-[10px]">DELIVERY DESTINATION</div>
-                    <div className="font-bold">{activeOrder?.shipping_address_line || activeOrder?.delivery_address?.address_line || activeOrder?.delivery_address || 'Vesu, Surat'}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Rider & Store Info */}
-            <div className="grid grid-cols-3 gap-2 text-center text-sm">
-              <div className="border border-gray-100 bg-white rounded-2xl p-3 shadow-sm">
-                <div className="text-[11px] text-gray-500 font-medium">Rider</div>
-                <div className="font-extrabold text-gray-900 mt-0.5">Ramesh</div>
-              </div>
-              <div className="border border-gray-100 bg-white rounded-2xl p-3 shadow-sm">
-                <div className="text-[11px] text-gray-500 font-medium">Store</div>
-                <div className="font-extrabold text-xs text-gray-900 mt-0.5 truncate">
-                  {activeOrder?.seller_orders?.[0]?.store_name || activeOrder?.seller_orders?.[0]?.seller_name || 'Shabbir Grocery Shop'}
-                </div>
-              </div>
-              <div className="border border-gray-100 bg-white rounded-2xl p-3 shadow-sm">
-                <div className="text-[11px] text-gray-500 font-medium">Packages</div>
-                <div className="font-extrabold text-gray-900 mt-0.5">
-                  {activeOrder?.seller_orders?.length || activeOrder?.seller_orders_count || 1} pkg
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => showToast('Calling rider Ramesh (+91 98251 00213)...')}
-              className="green-btn flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <i className="fa-solid fa-phone"></i>
-              <span>Call Rider</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('orders')}
-              className="w-full text-center text-xs font-bold text-gray-500 hover:text-gray-800 py-2 cursor-pointer"
-            >
-              ← Back to Orders
-            </button>
-          </section>
+          <OrderStatusView
+            order={activeOrder}
+            onBackToOrders={() => setActiveTab('orders')}
+            showToast={showToast}
+          />
         )}
 
         {/* Other Tab Placeholders */}
@@ -970,6 +963,14 @@ export default function App() {
           </button>
         </div>
       </nav>
+
+      {/* Global Delivery Address Selector Modal */}
+      <AddressModal
+        isOpen={isAddressModalOpen}
+        onClose={() => setIsAddressModalOpen(false)}
+        selectedAddressId={selectedAddress?.id}
+        onSelectAddress={handleSelectAddress}
+      />
     </div>
   );
 }

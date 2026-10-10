@@ -120,7 +120,23 @@ async function validateCartStock(cartId, {
   }
 
   // 5. Authoritative recalculation of checkout preview & totals
-  const preview = await calculateCheckoutPreview(cartId, { deliverySpeed, couponCode });
+  let effectiveCoupon = couponCode;
+  let effectiveSpeed = deliverySpeed;
+  if (cartId && (!effectiveCoupon || !deliverySpeed)) {
+    try {
+      const cRes = await pool.query('SELECT coupon_code, delivery_speed FROM carts WHERE id = $1 LIMIT 1', [cartId]);
+      if (cRes.rows.length > 0) {
+        if (!effectiveCoupon && cRes.rows[0].coupon_code) {
+          effectiveCoupon = cRes.rows[0].coupon_code;
+        }
+        if (!effectiveSpeed && cRes.rows[0].delivery_speed) {
+          effectiveSpeed = cRes.rows[0].delivery_speed;
+        }
+      }
+    } catch (_) {}
+  }
+
+  const preview = await calculateCheckoutPreview(cartId, { deliverySpeed: effectiveSpeed, couponCode: effectiveCoupon });
 
   // 6. Check for frontend total mismatches (never trust totals sent from frontend)
   if (expectedSubtotal !== null && expectedSubtotal !== undefined) {
@@ -492,9 +508,237 @@ async function getAvailableCoupons({ subtotal = 0 } = {}) {
   });
 }
 
+/**
+ * Helper to ensure standard operational slots exist for a given zone and date in PostgreSQL
+ */
+async function ensureSlotsForDate(zoneId, dateStr) {
+  const existing = await pool.query(
+    `SELECT count(*) FROM delivery_slots WHERE zone_id = $1 AND slot_date = $2`,
+    [zoneId, dateStr]
+  );
+  if (parseInt(existing.rows[0].count, 10) === 0) {
+    const defaultSlots = [
+      { start: '09:00:00', end: '12:00:00', max: 15 },
+      { start: '13:00:00', end: '16:00:00', max: 20 },
+      { start: '17:00:00', end: '20:00:00', max: 25 },
+      { start: '20:00:00', end: '22:30:00', max: 15 }
+    ];
+    for (const s of defaultSlots) {
+      await pool.query(
+        `INSERT INTO delivery_slots (zone_id, slot_date, start_time, end_time, max_deliveries, current_booked, is_active)
+         VALUES ($1, $2, $3, $4, $5, 0, true)
+         ON CONFLICT (zone_id, slot_date, start_time, end_time) DO NOTHING`,
+        [zoneId, dateStr, s.start, s.end, s.max]
+      );
+    }
+  }
+}
+
+function formatSlotTimeLabel(startTime, endTime) {
+  const formatTime = (t) => {
+    if (!t) return '';
+    const parts = t.split(':');
+    let hour = parseInt(parts[0], 10);
+    const min = parts[1] || '00';
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12 || 12;
+    return `${hour}:${min} ${ampm}`;
+  };
+  return `${formatTime(startTime)} – ${formatTime(endTime)}`;
+}
+
+/**
+ * Inspect and fetch delivery slots for a zone or store
+ */
+async function getDeliverySlots({ zoneId = null, storeId = null, date = null } = {}) {
+  let activeZoneId = zoneId;
+  if (!activeZoneId) {
+    let zoneQuery = `SELECT id FROM delivery_zones WHERE is_active = true`;
+    const params = [];
+    if (storeId) {
+      zoneQuery += ` AND store_id = $1`;
+      params.push(storeId);
+    }
+    zoneQuery += ` LIMIT 1`;
+    const zRes = await pool.query(zoneQuery, params);
+    if (zRes.rows.length > 0) {
+      activeZoneId = zRes.rows[0].id;
+    }
+  }
+
+  // Ensure default zones exist if none found
+  if (!activeZoneId) {
+    const storeRes = await pool.query(`SELECT id FROM stores LIMIT 1`);
+    if (storeRes.rows.length > 0) {
+      const sid = storeRes.rows[0].id;
+      const newZone = await pool.query(
+        `INSERT INTO delivery_zones (store_id, zone_name, radius_km, min_order_amount, delivery_fee, estimated_minutes_min, estimated_minutes_max, is_active)
+         VALUES ($1, 'Surat Central & Vesu Zone', 10.00, 0, 29.00, 14, 45, true)
+         RETURNING id`,
+        [sid]
+      );
+      activeZoneId = newZone.rows[0].id;
+    }
+  }
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  const targetDate = date ? date.substring(0, 10) : todayStr;
+
+  if (activeZoneId) {
+    await ensureSlotsForDate(activeZoneId, targetDate);
+    await ensureSlotsForDate(activeZoneId, tomorrowStr);
+  }
+
+  let query;
+  let params;
+  if (activeZoneId) {
+    query = `
+      SELECT ds.*, dz.zone_name, dz.radius_km, dz.delivery_fee, dz.estimated_minutes_min, dz.estimated_minutes_max
+      FROM delivery_slots ds
+      JOIN delivery_zones dz ON ds.zone_id = dz.id
+      WHERE ds.is_active = true
+        AND ds.zone_id = $1
+        AND ds.slot_date IN ($2, $3)
+      ORDER BY ds.slot_date ASC, ds.start_time ASC
+    `;
+    params = [activeZoneId, targetDate, tomorrowStr];
+  } else {
+    query = `
+      SELECT ds.*, dz.zone_name, dz.radius_km, dz.delivery_fee, dz.estimated_minutes_min, dz.estimated_minutes_max
+      FROM delivery_slots ds
+      JOIN delivery_zones dz ON ds.zone_id = dz.id
+      WHERE ds.is_active = true
+        AND ds.slot_date IN ($1, $2)
+      ORDER BY ds.slot_date ASC, ds.start_time ASC
+    `;
+    params = [targetDate, tomorrowStr];
+  }
+
+  const slotsRes = await pool.query(query, params);
+
+  return slotsRes.rows.map((row) => {
+    const max = Number(row.max_deliveries || 20);
+    const booked = Number(row.current_booked || 0);
+    const available = booked < max;
+    const dateFormatted = typeof row.slot_date === 'string'
+      ? row.slot_date.substring(0, 10)
+      : new Date(row.slot_date).toISOString().split('T')[0];
+    const isToday = dateFormatted === todayStr;
+    const isTomorrow = dateFormatted === tomorrowStr;
+
+    return {
+      id: row.id,
+      zone_id: row.zone_id,
+      zone_name: row.zone_name,
+      slot_date: dateFormatted,
+      is_today: isToday,
+      is_tomorrow: isTomorrow,
+      date_label: isToday ? 'Today' : isTomorrow ? 'Tomorrow' : dateFormatted,
+      start_time: row.start_time,
+      end_time: row.end_time,
+      label: formatSlotTimeLabel(row.start_time, row.end_time),
+      max_deliveries: max,
+      current_booked: booked,
+      remaining_capacity: Math.max(0, max - booked),
+      is_available: available,
+      is_filling_fast: booked >= max * 0.7 && available
+    };
+  });
+}
+
+/**
+ * Serviceability check for delivery address / pincode against stores and delivery zones
+ */
+async function checkServiceability({ pincode = null, addressLine = '', storeId = null, cartId = null } = {}) {
+  const cleanPin = (pincode || '').toString().trim();
+
+  const storeQuery = storeId
+    ? `SELECT id, store_name, address_line, city, state, pincode, delivery_radius_km, is_online FROM stores WHERE id = $1 LIMIT 1`
+    : `SELECT id, store_name, address_line, city, state, pincode, delivery_radius_km, is_online FROM stores WHERE is_online = true LIMIT 1`;
+  const storeRes = await pool.query(storeQuery, storeId ? [storeId] : []);
+  const store = storeRes.rows[0] || {
+    id: '00000000-0000-0000-0000-000000000001',
+    store_name: 'Shabbir Grocery Shop',
+    address_line: 'Vesu Main Road',
+    city: 'Surat',
+    pincode: '395007',
+    delivery_radius_km: 10.00
+  };
+
+  // Surat delivery hub pincodes (starts with 395 or Surat address)
+  const isSuratHub = cleanPin.startsWith('395') ||
+    ['395001', '395002', '395003', '395004', '395005', '395006', '395007', '395008', '395009', '395010'].includes(cleanPin) ||
+    (addressLine && addressLine.toLowerCase().includes('surat'));
+
+  const isServiceable = cleanPin ? isSuratHub : true;
+
+  let slots = [];
+  try {
+    slots = await getDeliverySlots({ storeId: store.id });
+  } catch (e) {
+    console.warn('Could not load slots in serviceability check:', e.message);
+  }
+
+  return {
+    is_serviceable: isServiceable,
+    pincode: cleanPin || '395002',
+    address_line: addressLine,
+    store: {
+      id: store.id,
+      name: store.store_name,
+      address: `${store.address_line || ''}, ${store.city || 'Surat'} ${store.pincode || ''}`.trim(),
+      radius_km: Number(store.delivery_radius_km || 10)
+    },
+    zone_name: 'Surat Central & Vesu Zone',
+    estimated_minutes: {
+      express_min: 14,
+      express_max: 30,
+      same_day_max: 240
+    },
+    speeds: {
+      fast: {
+        code: 'EXPRESS_30M',
+        label: 'Express (14–45 min)',
+        fee: 29,
+        eta: '14–30 mins',
+        is_available: isServiceable,
+        description: isServiceable
+          ? 'Dispatched instantly by store rider within 10 km'
+          : 'Unavailable outside Surat delivery radius'
+      },
+      same: {
+        code: 'SAME_DAY',
+        label: 'Same Day (by 8 PM)',
+        fee: 19,
+        eta: 'Flexible batch slot',
+        is_available: isServiceable,
+        description: isServiceable
+          ? 'Scheduled batch dispatch slot'
+          : 'Unavailable outside Surat delivery radius'
+      },
+      pickup: {
+        code: 'STORE_PICKUP',
+        label: 'Self Pickup from Shop',
+        fee: 0,
+        eta: 'Ready in 10 mins',
+        is_available: true,
+        description: 'Ready in 10 mins · Zero queue at counter'
+      }
+    },
+    delivery_slots: slots,
+    message: isServiceable
+      ? `Delivery available for pincode ${cleanPin || '395002'} via ${store.store_name}`
+      : `Pincode ${cleanPin} is outside our 10 km delivery radius. Express/Same-Day delivery is unavailable. Store Pickup is still available.`
+  };
+}
+
 module.exports = {
   validateCoupon,
   getAvailableCoupons,
   validateCartStock,
-  calculateCheckoutPreview
+  calculateCheckoutPreview,
+  getDeliverySlots,
+  checkServiceability
 };
+

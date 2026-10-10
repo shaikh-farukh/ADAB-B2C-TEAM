@@ -340,14 +340,18 @@ async function validateCart(req, res) {
     const body = req.body || {};
     const customerId = body.customer_id || req.query.customer_id || null;
     const sessionToken = body.session_token || req.query.session_token || req.headers['x-session-token'] || 'guest-session';
-    const deliverySpeed = body.delivery_speed || req.query.delivery_speed || 'EXPRESS_30M';
-    const couponCode = body.coupon_code || req.query.coupon_code || null;
-
     let targetCartId = body.cart_id;
+    let targetCart = null;
     if (!targetCartId) {
-      const cart = await cartService.getOrCreateCart({ customerId, sessionToken });
-      targetCartId = cart.id;
+      targetCart = await cartService.getOrCreateCart({ customerId, sessionToken });
+      targetCartId = targetCart.id;
+    } else {
+      const cartRes = await pool.query('SELECT * FROM carts WHERE id = $1 LIMIT 1', [targetCartId]);
+      if (cartRes.rows.length > 0) targetCart = cartRes.rows[0];
     }
+
+    const deliverySpeed = body.delivery_speed || req.query.delivery_speed || targetCart?.delivery_speed || 'EXPRESS_30M';
+    const couponCode = body.coupon_code || req.query.coupon_code || targetCart?.coupon_code || null;
 
     const validationResult = await checkoutService.validateCartStock(targetCartId, {
       deliverySpeed,
