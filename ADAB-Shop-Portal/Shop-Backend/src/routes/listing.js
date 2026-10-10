@@ -19,7 +19,7 @@ router.post('/upload-image', memoryUpload.single('image'), ListingController.upl
 router.post('/', ListingController.createListing);
 router.get('/', ListingController.getListings);
 router.get('/:id', ListingController.getListingById);
-router.put('/:id', ListingController.updateListing);
+router.patch('/:id', ListingController.updateListing);
 router.delete('/:id', ListingController.deleteListing);
 
 // Day 2 Specific: Submit event

@@ -29,6 +29,7 @@ build/
 
 # Testing & Coverage Reports
 coverage/
+
 .nyc_output/
 **/coverage/
 **/.nyc_output/
@@ -100,6 +101,8 @@ alter*.js
 scratch*.js
 test_*.cjs
 test-*.cjs
+test_*.js
+test-*.js
 fix*.js
 fix*.cjs
 patch*.js
