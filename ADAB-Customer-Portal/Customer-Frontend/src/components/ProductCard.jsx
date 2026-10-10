@@ -34,7 +34,17 @@ export default function ProductCard({ product, onAddToCart, onToggleWishlist, wi
         </button>
       </div>
       <div className="p-4">
-        <span className="bg-[#E8F5E9] text-[#18753C] text-[10px] font-extrabold px-2 py-1 rounded mb-2 inline-block uppercase tracking-wider">{product.sellerName || 'SB - Shrl'}</span>
+        <span 
+          onClick={(e) => {
+            e.stopPropagation();
+            if (product.store_id) {
+              navigate(`/stores?store_id=${product.store_id}`);
+            }
+          }}
+          className={`bg-[#E8F5E9] text-[#18753C] text-[10px] font-extrabold px-2 py-1 rounded mb-2 inline-block uppercase tracking-wider ${product.store_id ? 'hover:bg-emerald-200 transition-colors cursor-pointer' : ''}`}
+        >
+          {product.sellerName || 'Verified Shop'}
+        </span>
         <div 
           onClick={() => navigate(`/product/${product.id}`)}
           className="font-bold text-[14px] leading-tight line-clamp-2 min-h-[2.5rem] text-[#111827] cursor-pointer hover:text-[#18753C] mb-1"

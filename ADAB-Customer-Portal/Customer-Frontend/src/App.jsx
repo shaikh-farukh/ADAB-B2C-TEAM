@@ -669,9 +669,15 @@ export default function App() {
             onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
             onToggleWishlist={handleToggleWishlist}
             wishlist={wishlist}
-            onNavigate={(tab) => {
+            onNavigate={(tab, extra) => {
               if (tab === 'track') setActiveTab('track');
-              else if (tab === 'stores') setActiveTab('stores');
+              else if (tab === 'stores' || tab === 'browse') {
+                if (extra?.storeId) {
+                  navigate(`/stores?store_id=${extra.storeId}`);
+                } else {
+                  navigate('/stores');
+                }
+              }
               else if (tab.startsWith('search')) setActiveTab('search');
               else if (tab === 'cart') setActiveTab('cart');
               else if (tab === 'orders') setActiveTab('orders');

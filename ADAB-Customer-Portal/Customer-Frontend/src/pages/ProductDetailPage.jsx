@@ -126,9 +126,11 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
           )}
         </div>
 
-        {/* Product Details */}
         <div className="w-full md:w-1/2 flex flex-col pt-1">
-          <div className="text-xs font-extrabold text-brand-green uppercase tracking-wider mb-2">
+          <div 
+            onClick={() => product.store_id && navigate(`/stores?store_id=${product.store_id}`)}
+            className={`text-xs font-extrabold text-brand-green uppercase tracking-wider mb-2 ${product.store_id ? 'hover:underline cursor-pointer' : ''}`}
+          >
             {product.sellerName}
           </div>
           <h1 className="text-2xl md:text-3xl font-black text-gray-900 leading-tight mb-3">
@@ -264,7 +266,12 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
             {sellers.map((seller) => (
               <div key={seller.id} className="bg-white border border-gray-200 rounded-2xl p-4 flex justify-between items-center shadow-sm">
                 <div>
-                  <h4 className="font-bold text-sm text-gray-900">{seller.store_name}</h4>
+                  <h4 
+                    onClick={() => seller.store_id && navigate(`/stores?store_id=${seller.store_id}`)}
+                    className={`font-bold text-sm text-gray-900 ${seller.store_id ? 'hover:text-brand-green hover:underline cursor-pointer' : ''}`}
+                  >
+                    {seller.store_name}
+                  </h4>
                   <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
                     <Star className="w-3 h-3 text-amber-400 fill-current" />
                     <span>{seller.rating}</span>

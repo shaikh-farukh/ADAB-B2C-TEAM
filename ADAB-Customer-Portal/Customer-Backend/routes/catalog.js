@@ -11,5 +11,7 @@ router.get('/products/:id/related', catalogController.getRelatedProducts);
 router.get('/categories', catalogController.getCategories);
 router.get('/categories/:slug/products', catalogController.getProductsByCategory);
 router.get('/stores', catalogController.getStores);
+router.get('/stores/:id', catalogController.getStoreById);
+router.get('/stores/:id/products', catalogController.getStoreProducts);
 router.get('/promotions', catalogController.getPromotions);
 module.exports = router;

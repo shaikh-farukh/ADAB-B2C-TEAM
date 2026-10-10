@@ -168,6 +168,9 @@ async function addItemToCart(cartId, listingId, quantity = 1) {
   if (listing.is_active === false) {
     throw new Error(`Product "${listing.title}" is currently unavailable`);
   }
+  if (listing.approval_status && listing.approval_status !== 'APPROVED') {
+    throw new Error(`Product "${listing.title}" is not available for purchase`);
+  }
 
   // Determine available stock prioritizing inventory available_quantity, then listing stock_qty
   const availableStock = listing.available_quantity !== null && Number(listing.available_quantity) > 0

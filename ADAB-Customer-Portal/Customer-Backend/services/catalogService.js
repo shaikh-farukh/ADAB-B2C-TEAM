@@ -14,7 +14,7 @@ exports.getRecommendedProducts = async () => {
       sl.is_active as status 
     FROM seller_listings sl
     LEFT JOIN stores st ON sl.store_id = st.id
-    WHERE sl.is_active = true 
+    WHERE sl.is_active = true AND sl.approval_status = 'APPROVED'
     LIMIT 10
   `);
   return res.rows.map(row => ({
@@ -35,6 +35,7 @@ exports.getProductById = async (id) => {
       sl.mrp, 
       sl.rating, 
       sl.review_count as reviews, 
+      sl.store_id,
       COALESCE(st.store_name, 'AgroFoods') as "sellerName", 
       'https://via.placeholder.com/150' as image, 
       sl.is_active as status,
@@ -43,7 +44,7 @@ exports.getProductById = async (id) => {
     FROM seller_listings sl
     LEFT JOIN stores st ON sl.store_id = st.id
     LEFT JOIN categories c ON sl.category_id = c.id
-    WHERE sl.id = $1 AND sl.is_active = true 
+    WHERE sl.id = $1 AND sl.is_active = true AND sl.approval_status = 'APPROVED'
   `, [id]);
 
   if (res.rows.length === 0) return null;
@@ -78,7 +79,7 @@ exports.getProductSellers = async (id) => {
     FROM seller_listings sl
     LEFT JOIN stores st ON sl.store_id = st.id
     WHERE sl.product_id = (SELECT product_id FROM seller_listings WHERE id = $1 LIMIT 1) 
-      AND sl.is_active = true
+      AND sl.is_active = true AND sl.approval_status = 'APPROVED'
   `, [id]);
   
   if (res.rows.length === 0) {
@@ -124,7 +125,7 @@ exports.getRelatedProducts = async (id) => {
 };
 
 exports.searchProducts = async (qOrFilters = {}, pageArg = 1, limitArg = 20, filtersArg = {}, sortByArg = 'relevance') => {
-  let q, page, limit, category, categories, minPrice, maxPrice, brand, minRating, inStockOnly, sortBy, sortOrder;
+  let q, page, limit, category, categories, minPrice, maxPrice, brand, minRating, inStockOnly, sortBy, sortOrder, storeId;
 
   if (typeof qOrFilters === 'object' && qOrFilters !== null) {
     q = qOrFilters.q || '';
@@ -139,6 +140,7 @@ exports.searchProducts = async (qOrFilters = {}, pageArg = 1, limitArg = 20, fil
     inStockOnly = qOrFilters.inStockOnly === true || qOrFilters.inStockOnly === 'true';
     sortBy = qOrFilters.sortBy || null;
     sortOrder = qOrFilters.sortOrder || null;
+    storeId = qOrFilters.store_id || qOrFilters.storeId || null;
   } else {
     q = qOrFilters || '';
     page = parseInt(pageArg) || 1;
@@ -152,12 +154,18 @@ exports.searchProducts = async (qOrFilters = {}, pageArg = 1, limitArg = 20, fil
     inStockOnly = filtersArg.inStockOnly === true || filtersArg.inStockOnly === 'true';
     sortBy = sortByArg || 'relevance';
     sortOrder = filtersArg.sortOrder || null;
+    storeId = filtersArg.store_id || filtersArg.storeId || null;
   }
 
   const offset = (page - 1) * limit;
-  let whereClause = ` WHERE sl.is_active = true`;
+  let whereClause = ` WHERE sl.is_active = true AND sl.approval_status = 'APPROVED'`;
   const params = [];
   let paramIdx = 1;
+
+  if (storeId) {
+    whereClause += ` AND sl.store_id::text = $${paramIdx++}`;
+    params.push(String(storeId));
+  }
 
   if (q) {
     whereClause += ` AND sl.title ILIKE $${paramIdx++}`;
@@ -218,6 +226,7 @@ exports.searchProducts = async (qOrFilters = {}, pageArg = 1, limitArg = 20, fil
       sl.mrp, 
       sl.rating, 
       sl.review_count as reviews, 
+      sl.store_id,
       COALESCE(st.store_name, 'AgroFoods') as "sellerName", 
       'https://via.placeholder.com/150' as image, 
       sl.is_active as status,
@@ -269,7 +278,7 @@ exports.getSearchSuggestions = async (q) => {
   const res = await pool.query(`
     SELECT title as suggestion 
     FROM seller_listings 
-    WHERE is_active = true AND title ILIKE $1 
+    WHERE is_active = true AND approval_status = 'APPROVED' AND title ILIKE $1 
     LIMIT 5
   `, [`%${q || ''}%`]);
   return res.rows.map(r => r.suggestion);
@@ -281,7 +290,7 @@ exports.getCategories = async () => {
 };
 
 exports.getProductsByCategory = async (slug) => {
-  // Ideally joined with categories table, assuming category_id match
+  // Joined with categories table
   const res = await pool.query(`
     SELECT 
       s.id, 
@@ -290,13 +299,14 @@ exports.getProductsByCategory = async (slug) => {
       s.mrp, 
       s.rating, 
       s.review_count as reviews, 
+      s.store_id,
       st.store_name as "sellerName", 
       'https://via.placeholder.com/150' as image, 
       s.is_active as status 
     FROM seller_listings s
     JOIN categories c ON s.category_id = c.id
     LEFT JOIN stores st ON s.store_id = st.id
-    WHERE s.is_active = true AND c.slug = $1
+    WHERE s.is_active = true AND s.approval_status = 'APPROVED' AND c.slug = $1
     LIMIT 20
   `, [slug]);
   
@@ -316,11 +326,16 @@ exports.getStores = async () => {
       store_name as name, 
       category as tags, 
       rating, 
+      phone,
       address_line as area,
+      city,
+      state,
+      pincode,
+      is_online,
       'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80' as image,
       COALESCE(delivery_radius_km || ' km', '1.2 km') as distance
     FROM stores 
-    LIMIT 10
+    LIMIT 50
   `);
   
   return res.rows.map(row => ({
@@ -328,6 +343,38 @@ exports.getStores = async () => {
     tags: row.tags ? [row.tags] : [],
     rating: parseFloat(row.rating || 4.5)
   }));
+};
+
+exports.getStoreById = async (id) => {
+  const res = await pool.query(`
+    SELECT 
+      id, 
+      store_name as name, 
+      category as tags, 
+      rating, 
+      phone,
+      address_line as area,
+      city,
+      state,
+      pincode,
+      is_online,
+      'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80' as image,
+      COALESCE(delivery_radius_km || ' km', '1.2 km') as distance
+    FROM stores 
+    WHERE id::text = $1
+  `, [String(id)]);
+
+  if (res.rows.length === 0) return null;
+  const row = res.rows[0];
+  return {
+    ...row,
+    tags: row.tags ? [row.tags] : [],
+    rating: parseFloat(row.rating || 4.5)
+  };
+};
+
+exports.getStoreProducts = async (storeId, page = 1, limit = 20) => {
+  return exports.searchProducts({ store_id: storeId, page, limit });
 };
 
 exports.getPromotions = async () => {

@@ -53,6 +53,7 @@ exports.searchProducts = async (req, res) => {
       inStockOnly: req.query.inStockOnly === 'true',
       sortOrder: req.query.sortOrder || null,
       sortBy: req.query.sortBy || 'relevance',
+      store_id: req.query.store_id || req.query.storeId || null,
       page,
       limit
     };
@@ -104,6 +105,34 @@ exports.getStores = async (req, res) => {
   try {
     const data = await catalogService.getStores();
     res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.getStoreById = async (req, res) => {
+  try {
+    const data = await catalogService.getStoreById(req.params.id);
+    if (!data) return res.status(404).json({ success: false, message: 'Store not found' });
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.getStoreProducts = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const result = await catalogService.getStoreProducts(req.params.id, page, limit);
+    const data = Array.isArray(result) ? result : (result.data || []);
+    const total = result.total !== undefined ? result.total : data.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    res.json({
+      success: true,
+      data,
+      pagination: { total, page, limit, totalPages }
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

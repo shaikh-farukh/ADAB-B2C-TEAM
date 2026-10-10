@@ -37,11 +37,11 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
       .finally(() => setLoading(false));
   }, []);
 
-  const go = (path) => {
+  const go = (path, extra) => {
     if (onNavigate) {
-      onNavigate(path);
+      onNavigate(path, extra);
     } else {
-      navigate('/' + path);
+      navigate('/' + path + (extra?.storeId ? `?store_id=${extra.storeId}` : ''));
     }
   };
 
@@ -58,13 +58,13 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
             const colors = ['bg-emerald-600', 'bg-blue-600', 'bg-orange-500', 'bg-cyan-600', 'bg-purple-600'];
             const initial = (shop.name || 'Store').substring(0, 2).toUpperCase();
             return (
-              <button key={shop.id} onClick={() => go('stores')} className="flex flex-col items-center gap-1.5 shrink-0 group">
+              <button key={shop.id} onClick={() => go('stores', { storeId: shop.id, store: shop })} className="flex flex-col items-center gap-1.5 shrink-0 group">
                 <div className="story-ring"><div className={`w-14 h-14 rounded-full ${colors[i % 5]} text-white font-extrabold flex items-center justify-center text-sm shadow-md group-hover:scale-105 transition-transform`}>{initial}</div></div>
                 <span className="text-[11px] font-bold text-gray-800 truncate max-w-[64px]">{(shop.name || '').split(' ')[0]}</span>
               </button>
             )
           })}
-          <button onClick={() => go('stores')} className="flex flex-col items-center gap-1.5 shrink-0">
+          <button onClick={() => go('stores', { storeId: null, store: null })} className="flex flex-col items-center gap-1.5 shrink-0">
             <div className="w-14 h-14 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 text-gray-500 font-bold flex items-center justify-center text-xs"><i className="fa-solid fa-plus text-base"></i></div>
             <span className="text-[11px] font-bold text-gray-600">{stores.length > 0 ? `${stores.length} Shops` : 'Shops'}</span>
           </button>
@@ -91,7 +91,7 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
           <span className="px-3 py-1.5 rounded-xl bg-white text-emerald-800 font-extrabold text-xs shrink-0 shadow-sm">Track <i className="fa-solid fa-arrow-right ml-1 text-[10px]"></i></span>
         </div>
       ) : stores.length > 0 ? (
-        <div onClick={() => go('stores')} className="cursor-pointer bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-4 flex items-center gap-3.5 shadow-lg shadow-emerald-700/20 hover:scale-[1.01] transition-all">
+        <div onClick={() => go('stores', { storeId: stores[0].id, store: stores[0] })} className="cursor-pointer bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-4 flex items-center gap-3.5 shadow-lg shadow-emerald-700/20 hover:scale-[1.01] transition-all">
           <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-xl shrink-0"><i className="fa-solid fa-shop"></i></div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
@@ -190,11 +190,11 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
             <h2 className="section-title">Top Verified Stores</h2>
             <p className="text-xs text-gray-500 mt-0.5">Direct from your trusted local merchants</p>
           </div>
-          <button onClick={() => go('stores')} className="text-brand-green text-xs font-extrabold hover:underline">All {stores.length} shops →</button>
+          <button onClick={() => go('stores', { storeId: null, store: null })} className="text-brand-green text-xs font-extrabold hover:underline">All {stores.length} shops →</button>
         </div>
         <div className="space-y-3.5">
           {stores.slice(0, 2).map((shop) => (
-            <div key={shop.id} className="shop-card flex bg-white cursor-pointer" onClick={() => go('stores')}>
+            <div key={shop.id} className="shop-card flex bg-white cursor-pointer" onClick={() => go('stores', { storeId: shop.id, store: shop })}>
                 <div className="w-1/3 bg-gray-200 relative">
                     <img src={shop.image} alt={shop.name} className="w-full h-full object-cover" />
                     <div className="absolute top-2 left-2 bg-white/90 backdrop-blur px-2 py-0.5 rounded text-[10px] font-extrabold text-emerald-700 flex items-center gap-1">
