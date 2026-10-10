@@ -6,16 +6,17 @@ export default function AccountPage({ onNavigate }) {
   const [addresses, setAddresses] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Views: 'dashboard' | 'addresses' | 'placeholder'
+  // Views: 'dashboard' | 'addresses' | 'profile' | 'placeholder'
   const [activeView, setActiveView] = useState('dashboard');
   const [placeholderText, setPlaceholderText] = useState('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
-  };  // Edit forms
+  };
+
+  // Edit forms
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({ name: '', phone: '', email: '' });
 
@@ -38,7 +39,11 @@ export default function AccountPage({ onNavigate }) {
       ]);
       if (profRes.data?.success) {
         setProfile(profRes.data.data);
-        setProfileForm({ name: profRes.data.data.name || '', phone: profRes.data.data.phone || '', email: profRes.data.data.email || '' });
+        setProfileForm({ 
+          name: profRes.data.data.name || '', 
+          phone: profRes.data.data.phone || '', 
+          email: profRes.data.data.email || '' 
+        });
       }
       if (addrRes.data?.success) {
         setAddresses(addrRes.data.data);
@@ -127,7 +132,11 @@ export default function AccountPage({ onNavigate }) {
               </p>
             </div>
           </div>
-          <button onClick={() => { setIsEditingProfile(true); setActiveView('profile'); }} className="bg-[#3D8856] hover:bg-[#4E9765] transition-colors text-white text-xs font-bold py-2 px-4 rounded-full border border-[#5CA072]">
+          <button 
+            type="button"
+            onClick={() => { setIsEditingProfile(true); setActiveView('profile'); }} 
+            className="bg-[#3D8856] hover:bg-[#4E9765] transition-colors text-white text-xs font-bold py-2 px-4 rounded-full border border-[#5CA072] cursor-pointer"
+          >
             Edit Profile
           </button>
         </div>
@@ -149,108 +158,170 @@ export default function AccountPage({ onNavigate }) {
       </div>
 
       {/* Grid of Options */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-12">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* 1. My Orders (with active badge) */}
         <div onClick={() => onNavigate('orders')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
           <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center text-xl shrink-0">
             <i className="fa-solid fa-box"></i>
           </div>
-          <div>
-            <div className="font-bold text-gray-900 text-sm">My Orders</div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-gray-900 text-sm">My Orders</span>
+              <span className="bg-red-100 text-red-600 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">2</span>
+            </div>
             <div className="text-xs text-gray-500 mt-0.5">Track, return, or buy again</div>
           </div>
+          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
         </div>
         
+        {/* 2. Wishlist */}
         <div onClick={() => onNavigate('wishlist')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
           <div className="w-12 h-12 bg-pink-50 text-pink-500 rounded-xl flex items-center justify-center text-xl shrink-0">
             <i className="fa-solid fa-heart"></i>
           </div>
-          <div>
+          <div className="flex-1">
             <div className="font-bold text-gray-900 text-sm">Wishlist</div>
             <div className="text-xs text-gray-500 mt-0.5">Your saved items</div>
           </div>
+          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
         </div>
 
+        {/* 3. Addresses */}
         <div onClick={() => setActiveView('addresses')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
           <div className="w-12 h-12 bg-red-50 text-red-500 rounded-xl flex items-center justify-center text-xl shrink-0">
             <i className="fa-solid fa-location-dot"></i>
           </div>
-          <div>
+          <div className="flex-1">
             <div className="font-bold text-gray-900 text-sm">Addresses</div>
-            <div className="text-xs text-gray-500 mt-0.5">Manage delivery addresses</div>
+            <div className="text-xs text-gray-500 mt-0.5">Manage delivery addresses ({addresses.length})</div>
           </div>
+          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
         </div>
 
+        {/* 4. Payment Methods */}
         <div onClick={() => showPlaceholder('Payment Methods: Saved cards & UPI management coming soon.')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
           <div className="w-12 h-12 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center text-xl shrink-0">
             <i className="fa-solid fa-credit-card"></i>
           </div>
-          <div>
+          <div className="flex-1">
             <div className="font-bold text-gray-900 text-sm">Payment Methods</div>
             <div className="text-xs text-gray-500 mt-0.5">Saved cards & UPI</div>
           </div>
+          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
         </div>
 
+        {/* 5. Pay Later & Credit Line */}
         <div onClick={() => showPlaceholder('Pay Later & Credit Line coming soon.')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
           <div className="w-12 h-12 bg-[#E8F5E9] text-[#18753C] rounded-xl flex items-center justify-center text-xl shrink-0">
-            <i className="fa-solid fa-credit-card"></i>
+            <i className="fa-solid fa-hand-holding-dollar"></i>
           </div>
-          <div>
+          <div className="flex-1">
             <div className="flex items-center gap-2 mb-0.5">
               <span className="font-bold text-gray-900 text-sm">Pay Later & Credit Line</span>
               <span className="bg-[#E8F5E9] border border-[#23B65D] text-[#18753C] text-[8px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">0% Interest</span>
             </div>
             <div className="text-xs text-gray-500">Apply via HDFC, ICICI, SBI Mudra</div>
           </div>
+          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
         </div>
 
+        {/* 6. Coupons */}
         <div onClick={() => showPlaceholder('Coupons: View available offers and discounts coming soon.')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
           <div className="w-12 h-12 bg-green-50 text-green-500 rounded-xl flex items-center justify-center text-xl shrink-0">
             <i className="fa-solid fa-tag"></i>
           </div>
-          <div>
+          <div className="flex-1">
             <div className="font-bold text-gray-900 text-sm">Coupons</div>
-            <div className="text-xs text-gray-500 mt-0.5">Available offers</div>
+            <div className="text-xs text-gray-500 mt-0.5">Available offers & promo codes</div>
           </div>
+          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
         </div>
 
+        {/* 7. ADAB Rewards */}
         <div onClick={() => showPlaceholder('ADAB Rewards: Loyalty program details coming soon.')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
           <div className="w-12 h-12 bg-yellow-50 text-yellow-500 rounded-xl flex items-center justify-center text-xl shrink-0">
             <i className="fa-solid fa-star"></i>
           </div>
-          <div>
+          <div className="flex-1">
             <div className="font-bold text-gray-900 text-sm">ADAB Rewards</div>
             <div className="text-xs text-gray-500 mt-0.5">2,840 points available</div>
           </div>
+          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
         </div>
 
+        {/* 8. My Reviews */}
         <div onClick={() => showPlaceholder('My Reviews: Rate past purchases coming soon.')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
           <div className="w-12 h-12 bg-orange-50 text-orange-500 rounded-xl flex items-center justify-center text-xl shrink-0">
             <i className="fa-regular fa-star-half-stroke"></i>
           </div>
-          <div>
+          <div className="flex-1">
             <div className="font-bold text-gray-900 text-sm">My Reviews</div>
-            <div className="text-xs text-gray-500 mt-0.5">Rate past purchases</div>
+            <div className="text-xs text-gray-500 mt-0.5">Rate past purchases & stores</div>
           </div>
+          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
         </div>
 
+        {/* 9. Notifications */}
         <div onClick={() => showPlaceholder('Notifications: Order & promo alerts coming soon.')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
           <div className="w-12 h-12 bg-purple-50 text-purple-500 rounded-xl flex items-center justify-center text-xl shrink-0">
             <i className="fa-solid fa-bell"></i>
           </div>
-          <div>
+          <div className="flex-1">
             <div className="font-bold text-gray-900 text-sm">Notifications</div>
             <div className="text-xs text-gray-500 mt-0.5">Order & promo alerts</div>
           </div>
+          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
         </div>
 
+        {/* 10. Help & Support */}
         <div onClick={() => showPlaceholder('Help & Support: Customer service portal coming soon.')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
           <div className="w-12 h-12 bg-teal-50 text-teal-500 rounded-xl flex items-center justify-center text-xl shrink-0">
             <i className="fa-solid fa-headset"></i>
           </div>
-          <div>
+          <div className="flex-1">
             <div className="font-bold text-gray-900 text-sm">Help & Support</div>
-            <div className="text-xs text-gray-500 mt-0.5">Get help with orders</div>
+            <div className="text-xs text-gray-500 mt-0.5">Get help with orders & refunds</div>
           </div>
+          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+        </div>
+
+        {/* 11. Settings (Added from sidebar) */}
+        <div onClick={() => setActiveView('profile')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
+          <div className="w-12 h-12 bg-gray-100 text-gray-600 rounded-xl flex items-center justify-center text-xl shrink-0">
+            <i className="fa-solid fa-gear"></i>
+          </div>
+          <div className="flex-1">
+            <div className="font-bold text-gray-900 text-sm">Settings</div>
+            <div className="text-xs text-gray-500 mt-0.5">Profile, security & preferences</div>
+          </div>
+          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+        </div>
+      </div>
+
+      {/* 12. Sell on ADAB Section (Added from sidebar) */}
+      <div 
+        onClick={() => showToast('Redirecting to ADAB Seller Portal...')}
+        className="bg-gradient-to-r from-emerald-50 via-green-50 to-emerald-50/70 border border-emerald-200 p-5 rounded-2xl shadow-xs flex items-center justify-between cursor-pointer hover:border-emerald-400 transition-all group pb-4 mb-8"
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-[#18753C] text-white rounded-xl flex items-center justify-center text-xl shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+            <i className="fa-solid fa-store"></i>
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-gray-900 text-base">Sell on ADAB</span>
+              <span className="bg-[#18753C] text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                Partner With Us
+              </span>
+            </div>
+            <div className="text-xs text-gray-600 mt-1">
+              Register your neighbourhood shop and start selling to customers across Surat.
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs font-bold text-[#18753C] shrink-0 pl-2">
+          <span>Learn More</span>
+          <i className="fa-solid fa-arrow-right text-[11px] group-hover:translate-x-1 transition-transform"></i>
         </div>
       </div>
     </div>
@@ -258,6 +329,14 @@ export default function AccountPage({ onNavigate }) {
 
   const renderAddresses = () => (
     <div className="max-w-4xl mx-auto w-full">
+      <button 
+        type="button"
+        onClick={() => { setActiveView('dashboard'); setIsAddingAddress(false); setEditingAddressId(null); }} 
+        className="mb-4 text-sm font-bold text-gray-600 hover:text-black flex items-center gap-2 cursor-pointer transition-colors"
+      >
+        <i className="fa-solid fa-arrow-left"></i> Back to Account
+      </button>
+
       <h2 className="text-2xl font-black text-[#111827] mb-6">Manage Addresses</h2>
 
       <div className="flex flex-col gap-4 mb-12">
@@ -271,13 +350,13 @@ export default function AccountPage({ onNavigate }) {
               <p className="text-gray-600 text-sm mb-1">{addr.address}, {addr.city} {addr.zip}</p>
               <p className="text-gray-400 text-sm">{addr.recipientName || profile?.name || 'Pooja Sharma'} &bull; {addr.phone || profile?.phone || '+91 98765 12340'}</p>
             </div>
-            <button onClick={() => { setEditingAddressId(addr.id); setAddressForm({ type: addr.type, recipientName: addr.recipientName || '', phone: addr.phone || '', address: addr.address, city: addr.city, state: addr.state, zip: addr.zip, isDefault: addr.isDefault }); setIsAddingAddress(true); }} className="text-sm font-bold text-gray-700 bg-gray-100 px-5 py-2 rounded-xl hover:bg-gray-200 transition-colors">Edit</button>
+            <button onClick={() => { setEditingAddressId(addr.id); setAddressForm({ type: addr.type, recipientName: addr.recipientName || '', phone: addr.phone || '', address: addr.address, city: addr.city, state: addr.state, zip: addr.zip, isDefault: addr.isDefault }); setIsAddingAddress(true); }} className="text-sm font-bold text-gray-700 bg-gray-100 px-5 py-2 rounded-xl hover:bg-gray-200 transition-colors cursor-pointer">Edit</button>
           </div>
         ))}
         
         {/* ADD NEW ADDRESS BUTTON */}
         {!isAddingAddress && (
-          <button onClick={() => { setIsAddingAddress(true); setEditingAddressId(null); setAddressForm({ type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false }); }} className="w-full border-2 border-dashed border-[#18753C]/40 bg-white text-[#18753C] font-bold py-6 rounded-2xl flex items-center justify-center gap-2 hover:bg-green-50 transition-colors text-lg">
+          <button onClick={() => { setIsAddingAddress(true); setEditingAddressId(null); setAddressForm({ type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false }); }} className="w-full border-2 border-dashed border-[#18753C]/40 bg-white text-[#18753C] font-bold py-6 rounded-2xl flex items-center justify-center gap-2 hover:bg-green-50 transition-colors text-lg cursor-pointer">
             <i className="fa-solid fa-plus"></i> Add New Address
           </button>
         )}
@@ -315,8 +394,16 @@ export default function AccountPage({ onNavigate }) {
 
   const renderProfile = () => (
     <div className="max-w-4xl mx-auto w-full">
+      <button 
+        type="button"
+        onClick={() => setActiveView('dashboard')} 
+        className="mb-4 text-sm font-bold text-gray-600 hover:text-black flex items-center gap-2 cursor-pointer transition-colors"
+      >
+        <i className="fa-solid fa-arrow-left"></i> Back to Account
+      </button>
+
       <div className="flex items-center gap-2 mb-6">
-        <h2 className="text-2xl font-black text-[#111827]">Settings</h2>
+        <h2 className="text-2xl font-black text-[#111827]">Settings & Profile</h2>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
@@ -338,6 +425,8 @@ export default function AccountPage({ onNavigate }) {
             <label className="text-sm font-bold text-gray-500">Language</label>
             <select className="border border-gray-200 p-3 rounded-xl bg-gray-100 text-gray-700 outline-none">
               <option>English</option>
+              <option>Gujarati</option>
+              <option>Hindi</option>
             </select>
           </div>
         </div>
@@ -364,27 +453,32 @@ export default function AccountPage({ onNavigate }) {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
         <h3 className="text-lg font-bold text-gray-900 mb-4">Security</h3>
         <div className="flex flex-col gap-3">
-          <button className="flex items-center gap-3 text-sm text-gray-700 bg-gray-50 p-3 rounded-xl hover:bg-gray-100 transition-colors text-left font-bold border-none w-full">
+          <button type="button" onClick={() => showToast('Password reset link sent to your registered email')} className="flex items-center gap-3 text-sm text-gray-700 bg-gray-50 p-3 rounded-xl hover:bg-gray-100 transition-colors text-left font-bold border-none w-full cursor-pointer">
             <i className="fa-solid fa-key w-4 text-center"></i> Change Password
           </button>
-          <button className="flex items-center gap-3 text-sm text-gray-700 bg-gray-50 p-3 rounded-xl hover:bg-gray-100 transition-colors text-left font-bold border-none w-full">
+          <button type="button" onClick={() => showToast('Two-factor authentication is currently enabled via SMS')} className="flex items-center gap-3 text-sm text-gray-700 bg-gray-50 p-3 rounded-xl hover:bg-gray-100 transition-colors text-left font-bold border-none w-full cursor-pointer">
             <i className="fa-solid fa-shield-halved w-4 text-center"></i> Two-Factor Authentication
           </button>
-          <button className="flex items-center gap-3 text-sm text-gray-700 bg-gray-50 p-3 rounded-xl hover:bg-gray-100 transition-colors text-left font-bold border-none w-full">
+          <button type="button" onClick={() => showToast('All active sessions are verified on this device')} className="flex items-center gap-3 text-sm text-gray-700 bg-gray-50 p-3 rounded-xl hover:bg-gray-100 transition-colors text-left font-bold border-none w-full cursor-pointer">
             <i className="fa-solid fa-arrow-right-from-bracket w-4 text-center"></i> Manage Sessions
           </button>
         </div>
       </div>
 
-      <button onClick={(e) => { handleUpdateProfile(e); setActiveView('dashboard'); }} className="bg-[#18753C] hover:bg-[#156030] text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-colors cursor-pointer">
-        Save Changes
-      </button>
+      <div className="flex gap-3">
+        <button type="button" onClick={() => setActiveView('dashboard')} className="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-sm text-gray-700 transition-colors cursor-pointer">
+          Cancel
+        </button>
+        <button onClick={(e) => { handleUpdateProfile(e); setActiveView('dashboard'); }} className="bg-[#18753C] hover:bg-[#156030] text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-colors cursor-pointer">
+          Save Changes
+        </button>
+      </div>
     </div>
   );
 
   const renderPlaceholder = () => (
     <div className="max-w-2xl mx-auto w-full">
-      <button onClick={() => setActiveView('dashboard')} className="mb-4 text-sm font-bold text-gray-600 hover:text-black flex items-center gap-2">
+      <button onClick={() => setActiveView('dashboard')} className="mb-4 text-sm font-bold text-gray-600 hover:text-black flex items-center gap-2 cursor-pointer transition-colors">
         <i className="fa-solid fa-arrow-left"></i> Back to Account
       </button>
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center mb-12">
@@ -393,82 +487,27 @@ export default function AccountPage({ onNavigate }) {
         </div>
         <h2 className="text-lg font-bold text-gray-900 mb-2">Under Construction</h2>
         <p className="text-gray-500 text-sm">{placeholderText}</p>
+        <button 
+          onClick={() => setActiveView('dashboard')}
+          className="mt-6 px-6 py-2.5 bg-[#18753C] text-white text-xs font-bold rounded-xl hover:bg-[#156030] transition-colors cursor-pointer"
+        >
+          Return to Dashboard
+        </button>
       </div>
-    </div>
-  );
-
-  const SidebarItem = ({ icon, label, badge, active, onClick }) => (
-    <div 
-      onClick={() => { onClick(); setIsSidebarOpen(false); }}
-      className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
-        active 
-          ? 'bg-[#E8F5E9] text-brand-green font-bold rounded-xl relative' 
-          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-xl font-medium'
-      }`}
-    >
-      {active && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-green rounded-r-md"></div>}
-      <i className={`fa-solid ${icon} w-5 text-center`}></i>
-      <span className="text-sm flex-1">{label}</span>
-      {badge && (
-        <span className="bg-red-100 text-red-600 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">
-          {badge}
-        </span>
-      )}
     </div>
   );
 
   return (
     <div className="p-4 bg-[#F8F9FA] min-h-screen relative">
-      {/* Header with Hamburger */}
-      <div className="max-w-4xl mx-auto w-full flex items-center mb-4">
-        <button 
-          onClick={() => setIsSidebarOpen(true)}
-          className="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
-        >
-          <i className="fa-solid fa-bars"></i>
-        </button>
-        <span className="ml-3 font-bold text-gray-800 text-lg">My Account Menu</span>
-      </div>
-
-      {/* SIDEBAR OVERLAY */}
-      {isSidebarOpen && (
-        <div className="fixed inset-0 z-50 flex">
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>
-          
-          {/* Drawer */}
-          <div className="relative w-64 h-full bg-white shadow-2xl flex flex-col pt-4 pb-6 overflow-y-auto transform transition-transform duration-300">
-            <div className="flex items-center justify-between px-4 mb-4">
-              <div className="text-xs font-bold text-gray-400 tracking-wider uppercase">My Account</div>
-              <button onClick={() => setIsSidebarOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors">
-                <i className="fa-solid fa-times"></i>
-              </button>
-            </div>
-            
-            <div className="px-2 flex flex-col gap-1">
-              <SidebarItem icon="fa-user" label="Profile" active={activeView === 'dashboard' || activeView === 'profile'} onClick={() => setActiveView('dashboard')} />
-              <SidebarItem icon="fa-box" label="Orders" badge="2" active={false} onClick={() => onNavigate('orders')} />
-              <SidebarItem icon="fa-heart" label="Wishlist" active={false} onClick={() => onNavigate('wishlist')} />
-              <SidebarItem icon="fa-location-dot" label="Addresses" active={activeView === 'addresses'} onClick={() => setActiveView('addresses')} />
-              <SidebarItem icon="fa-credit-card" label="Payments" active={placeholderText.includes('Payment')} onClick={() => showPlaceholder('Payment Methods: Saved cards & UPI management coming soon.')} />
-              <SidebarItem icon="fa-tag" label="Coupons" active={placeholderText.includes('Coupons')} onClick={() => showPlaceholder('Coupons: View available offers and discounts coming soon.')} />
-              <SidebarItem icon="fa-star" label="Rewards" active={placeholderText.includes('Rewards')} onClick={() => showPlaceholder('ADAB Rewards: Loyalty program details coming soon.')} />
-              <SidebarItem icon="fa-star-half-stroke" label="Reviews" active={placeholderText.includes('Reviews')} onClick={() => showPlaceholder('My Reviews: Rate past purchases coming soon.')} />
-              <SidebarItem icon="fa-bell" label="Notifications" active={placeholderText.includes('Notifications')} onClick={() => showPlaceholder('Notifications: Order & promo alerts coming soon.')} />
-              <SidebarItem icon="fa-headset" label="Help" active={placeholderText.includes('Help')} onClick={() => showPlaceholder('Help & Support: Customer service portal coming soon.')} />
-              <SidebarItem icon="fa-gear" label="Settings" active={placeholderText.includes('Settings')} onClick={() => showPlaceholder('Settings coming soon.')} />
-              
-              <div className="h-px bg-gray-100 my-2 mx-2"></div>
-              
-              <div className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors text-brand-green hover:bg-green-50 font-bold mx-2">
-                <i className="fa-solid fa-store w-5 text-center"></i>
-                <span className="text-sm">Sell on ADAB</span>
-              </div>
-            </div>
-          </div>
+      {/* Account Page Title (Clean header without hamburger sidebar) */}
+      {activeView === 'dashboard' && (
+        <div className="max-w-4xl mx-auto w-full mb-4">
+          <h1 className="text-2xl font-black text-gray-900">My Account</h1>
+          <p className="text-xs text-gray-500">Manage your profile, orders, addresses & preferences</p>
         </div>
       )}
 
+      {/* Render Active View */}
       {activeView === 'dashboard' && renderDashboard()}
       {activeView === 'addresses' && renderAddresses()}
       {activeView === 'profile' && renderProfile()}
