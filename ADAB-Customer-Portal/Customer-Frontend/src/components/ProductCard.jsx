@@ -3,20 +3,22 @@ import { useNavigate, Link } from 'react-router-dom';
 
 export default function ProductCard({ product, onAddToCart, onToggleWishlist, wishlist, actionButtonText = 'ADD' }) {
   const navigate = useNavigate();
+  const discount = product.mrp > product.price ? Math.round(((product.mrp - product.price) / product.mrp) * 100) : (product.discount || 0);
+
   return (
-    <div className="prod-card group">
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] overflow-hidden group hover:border-[#18753C]/30 transition-colors">
       <div 
         onClick={() => navigate(`/product/${product.id}`)}
-        className="relative aspect-square bg-gradient-to-br from-gray-50 to-green-50/50 flex items-center justify-center overflow-hidden p-4 cursor-pointer"
+        className="relative aspect-square bg-[#F9FAFB] flex items-center justify-center p-4 cursor-pointer"
       >
         <img 
           src={product.image || 'https://via.placeholder.com/300'} 
           alt={product.name} 
-          className="w-full h-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-500"
+          className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500"
         />
-        {product.discount > 0 && (
-          <div className="absolute top-2 left-2 bg-rose-500 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded shadow-sm">
-            {product.discount}% OFF
+        {discount > 0 && (
+          <div className="absolute top-2 left-2 bg-[#F26E21] text-white text-[10px] font-extrabold px-2 py-1 rounded shadow-sm tracking-wide z-10">
+            {discount}% OFF
           </div>
         )}
         
@@ -26,31 +28,41 @@ export default function ProductCard({ product, onAddToCart, onToggleWishlist, wi
             e.stopPropagation();
             if (onToggleWishlist) onToggleWishlist(product.id);
           }}
-          className="absolute top-2 right-2 w-7 h-7 bg-white/80 backdrop-blur rounded-full flex items-center justify-center text-brand-coral hover:bg-white shadow-sm z-10"
+          className="absolute top-2 right-2 w-8 h-8 bg-white/80 backdrop-blur rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-white shadow-sm z-10 transition-colors cursor-pointer"
         >
-          <i className={`fa-regular fa-heart text-[13px] ${wishlist?.includes(product.id) ? 'fa-solid' : ''}`}></i>
+          <i className={`fa-regular fa-heart text-[14px] ${wishlist?.includes(product.id) ? 'fa-solid text-red-500' : ''}`}></i>
         </button>
       </div>
-      <div className="p-3">
-        <span className="store-chip">{product.sellerName || 'Store'}</span>
+      <div className="p-4">
+        <span className="bg-[#E8F5E9] text-[#18753C] text-[10px] font-extrabold px-2 py-1 rounded mb-2 inline-block uppercase tracking-wider">{product.sellerName || 'SB - Shrl'}</span>
         <div 
           onClick={() => navigate(`/product/${product.id}`)}
-          className="font-bold text-[13px] leading-snug mt-1.5 line-clamp-2 min-h-[2.4rem] text-gray-900 cursor-pointer hover:text-brand-green"
+          className="font-bold text-[14px] leading-tight line-clamp-2 min-h-[2.5rem] text-[#111827] cursor-pointer hover:text-[#18753C] mb-1"
         >
           {product.name}
         </div>
-        <div className="text-[11px] text-gray-400 mt-0.5">
-          {product.unit || '1 unit'}
+        
+        {/* Rating */}
+        <div className="flex items-center gap-1.5 mb-2">
+          <i className="fa-solid fa-star text-[#F26E21] text-[10px]"></i>
+          <span className="font-bold text-sm text-[#111827]">{product.rating ? parseFloat(product.rating).toFixed(1) : '4.5'}</span>
+          <span className="text-gray-400 text-sm">({product.reviews || 82})</span>
         </div>
-        <div className="flex items-center justify-between mt-2.5">
-          <span className="font-extrabold text-base text-brand-dark">₹{product.price}</span>
+
+        <div className="flex items-center justify-between mt-2">
+          <div className="flex items-baseline gap-2">
+            <span className="font-extrabold text-xl text-[#111827]">₹{product.price}</span>
+            {product.mrp > product.price && (
+              <span className="text-sm text-gray-400 line-through">₹{product.mrp}</span>
+            )}
+          </div>
           <button 
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               if (onAddToCart) onAddToCart(product.id, product.name);
             }}
-            className="add-btn hover:bg-brand-green hover:text-white transition-colors cursor-pointer"
+            className="border-2 border-[#18753C] text-[#18753C] bg-white hover:bg-[#18753C] hover:text-white px-4 py-1.5 rounded-xl font-bold text-sm transition-colors cursor-pointer"
           >
             {actionButtonText}
           </button>

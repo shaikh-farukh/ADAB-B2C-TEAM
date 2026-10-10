@@ -19,6 +19,24 @@ exports.getProductById = async (req, res) => {
   }
 };
 
+exports.getProductSellers = async (req, res) => {
+  try {
+    const data = await catalogService.getProductSellers(req.params.id);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.getRelatedProducts = async (req, res) => {
+  try {
+    const data = await catalogService.getRelatedProducts(req.params.id);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 exports.searchProducts = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;

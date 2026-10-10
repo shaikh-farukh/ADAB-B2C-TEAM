@@ -59,8 +59,8 @@ exports.getProfile = async (rawUserId) => {
 
 exports.updateProfile = async (rawUserId, body) => {
   const userId = await resolveCustomerUserId(rawUserId);
-  if (body.name || body.phone) {
-    await pool.query(`UPDATE users SET full_name = COALESCE($1, full_name), phone = COALESCE($2, phone) WHERE id = $3`, [body.name, body.phone, userId]);
+  if (body.name || body.phone || body.email) {
+    await pool.query(`UPDATE users SET full_name = COALESCE($1, full_name), phone = COALESCE($2, phone), email = COALESCE($3, email) WHERE id = $4`, [body.name, body.phone, body.email, userId]);
   }
   return exports.getProfile(userId);
 };
@@ -279,7 +279,8 @@ exports.updateAddress = async (rawUserId, id, body) => {
     address: addressLine,
     zip: pincode,
     type: label,
-    isDefault
+    isDefault,
+    recipientName
   };
 };
 

@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) {
   const [query, setQuery] = useState('');
   const [products, setProducts] = useState([]);
+  const [recommended, setRecommended] = useState([]);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -20,6 +21,20 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
   const [showFilters, setShowFilters] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  useEffect(() => {
+    const fetchRecommended = async () => {
+      try {
+        const res = await api.get('/catalog/recommended');
+        if (res.data?.success) {
+          setRecommended(res.data.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch recommended:", err);
+      }
+    };
+    fetchRecommended();
+  }, []);
 
   useEffect(() => {
     const fetchSuggestions = async () => {
@@ -188,8 +203,28 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
           <p className="text-sm">Try searching for something else.</p>
         </div>
       ) : (
-        <div className="text-center py-20 text-gray-500">
-          <p className="font-semibold text-lg">Start typing to search!</p>
+        <div className="mt-6">
+          <div className="mb-4">
+            <h2 className="text-lg font-black text-gray-900">Recommended for you</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Top picks based on your recent activity</p>
+          </div>
+          {recommended.length > 0 ? (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {recommended.map(product => (
+                <ProductCard 
+                  key={product.id} 
+                  product={product} 
+                  onAddToCart={onAddToCart} 
+                  onToggleWishlist={onToggleWishlist}
+                  wishlist={wishlist}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-10 text-gray-500">
+              <p className="font-semibold text-lg">Start typing to search!</p>
+            </div>
+          )}
         </div>
       )}
     </div>
