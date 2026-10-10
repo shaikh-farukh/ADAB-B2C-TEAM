@@ -90,6 +90,14 @@ export const useListings = () => {
     return await listingApi.checkUploadStatus(jobId);
   };
 
+  const bulkExport = async () => {
+    return await listingApi.bulkExport();
+  };
+
+  const checkExportStatus = async (jobId) => {
+    return await listingApi.checkExportStatus(jobId);
+  };
+
   return {
     listings,
     loading,
@@ -112,6 +120,8 @@ export const useListings = () => {
     submitListing,
     bulkUpload,
     checkUploadStatus,
+    bulkExport,
+    checkExportStatus,
     uploadImage: listingApi.uploadImage,
     refresh: fetchListings
   };

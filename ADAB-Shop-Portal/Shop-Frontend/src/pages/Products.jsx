@@ -16,6 +16,8 @@ const Products = () => {
     submitListing,
     bulkUpload,
     checkUploadStatus,
+    bulkExport,
+    checkExportStatus,
     uploadImage,
     refresh
   } = useListings();
@@ -82,18 +84,22 @@ const Products = () => {
     }
   };
 
-  const handleExportCSV = () => {
-    const headers = ['title', 'sku', 'barcode', 'mrp', 'sell_price', 'stock_qty'];
-    const csvContent = "data:text/csv;charset=utf-8," 
-        + headers.join(",") + "\n" 
-        + listings.map(l => headers.map(h => l[h] || '').join(",")).join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "listings_export.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleExportCSV = async () => {
+    try {
+      // Direct stream download, bypass widget
+      const response = await bulkExport();
+      
+      const url = window.URL.createObjectURL(new Blob([response]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'listings_export.csv');
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Export failed: ' + (err.response?.data?.error || err.message));
+    }
   };
 
   const [formData, setFormData] = useState({

@@ -33,9 +33,10 @@ router.get('/points', sellerController.getPoints);
 router.get('/analytics', sellerController.getAnalytics);
 router.get('/nearby-catalog', sellerController.getNearbyCatalog);
 router.get('/recommendations', sellerController.getRecommendations);
-router.get('/messages', sellerController.getMessages);
-router.post('/messages', sellerController.sendMessage);
-router.post('/messages/:id/read', sellerController.markMessageRead);
+router.get('/messages/threads', sellerController.getThreads);
+router.get('/messages/threads/:threadId', sellerController.getThreadMessages);
+router.post('/messages/threads/:threadId/messages', sellerController.sendThreadMessage);
+router.post('/messages/threads/:threadId/read', sellerController.markThreadRead);
 router.get('/finance/summary', sellerController.getFinanceSummary);
 router.get('/finance/khata', sellerController.getKhataLedger);
 

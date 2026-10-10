@@ -2,91 +2,85 @@ import React, { useState, useEffect, useRef } from 'react';
 import { sellerApi } from '../api/sellerApi';
 
 const Messages = () => {
-  const [messages, setMessages] = useState([]);
+  const [threads, setThreads] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+  const [selectedThreadId, setSelectedThreadId] = useState(null);
+  const [activeChatMessages, setActiveChatMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   
   const chatEndRef = useRef(null);
 
   useEffect(() => {
-    fetchMessages();
+    fetchThreads();
   }, []);
 
-  const fetchMessages = async () => {
+  const fetchThreads = async () => {
     try {
-      const res = await sellerApi.getMessages();
-      setMessages(res.data.data || []);
+      const res = await sellerApi.getThreads();
+      setThreads(res.data.data || []);
     } catch (err) {
-      console.error('Failed to load messages', err);
+      console.error('Failed to load threads', err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Group messages by customer_id
-  const chatGroups = messages.reduce((acc, msg) => {
-    if (!acc[msg.customer_id]) {
-      acc[msg.customer_id] = {
-        customerId: msg.customer_id,
-        customerName: msg.customer_name,
-        messages: [],
-        lastMessage: null,
-        unreadCount: 0
-      };
+  useEffect(() => {
+    if (selectedThreadId) {
+      fetchThreadMessages(selectedThreadId);
     }
-    acc[msg.customer_id].messages.push(msg);
-    acc[msg.customer_id].lastMessage = msg;
-    if (msg.direction === 'INBOUND' && !msg.is_read) {
-      acc[msg.customer_id].unreadCount += 1;
+  }, [selectedThreadId]);
+
+  const fetchThreadMessages = async (threadId) => {
+    try {
+      const res = await sellerApi.getThreadMessages(threadId);
+      setActiveChatMessages(res.data.data || []);
+      
+      const thread = threads.find(t => t.thread_id === threadId);
+      if (thread && thread.unread_count > 0) {
+        await sellerApi.markThreadRead(threadId);
+        setThreads(prev => prev.map(t => t.thread_id === threadId ? { ...t, unread_count: 0 } : t));
+      }
+    } catch (err) {
+      console.error('Failed to load messages for thread', err);
     }
-    return acc;
-  }, {});
-
-  // Sort customers by last message time
-  const customers = Object.values(chatGroups).sort((a, b) => {
-    return new Date(b.lastMessage.created_at) - new Date(a.lastMessage.created_at);
-  });
-
-  const activeChat = selectedCustomerId ? chatGroups[selectedCustomerId] : null;
+  };
 
   useEffect(() => {
-    // Scroll to bottom when active chat changes or new messages arrive
     if (chatEndRef.current) {
       chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-    
-    // Mark messages as read if we open a chat
-    if (activeChat && activeChat.unreadCount > 0) {
-      const unreadMsgs = activeChat.messages.filter(m => m.direction === 'INBOUND' && !m.is_read);
-      unreadMsgs.forEach(m => {
-        sellerApi.markMessageRead(m.id).catch(console.error);
-        m.is_read = true; // Optimistic update
-      });
-      // Trigger a re-render to clear the badge
-      setMessages([...messages]);
-    }
-  }, [activeChat, messages]);
+  }, [activeChatMessages]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedCustomerId) return;
+    if (!newMessage.trim() || !selectedThreadId) return;
     
     setIsSending(true);
     try {
-      const res = await sellerApi.sendMessage(selectedCustomerId, newMessage.trim());
-      // Optimistically add to local state
-      setMessages([...messages, res.data.data]);
+      const res = await sellerApi.sendThreadMessage(selectedThreadId, newMessage.trim());
+      const sentMsg = res.data.data;
+      
+      // Optimistically update
+      setActiveChatMessages(prev => [...prev, sentMsg]);
+      setThreads(prev => prev.map(t => {
+        if (t.thread_id === selectedThreadId) {
+          return { ...t, last_message_body: sentMsg.content, last_message_date: sentMsg.created_at };
+        }
+        return t;
+      }));
       setNewMessage('');
     } catch (err) {
-      alert('Failed to send message: ' + err.message);
+      alert('Failed to send message: ' + (err.response?.data?.error || err.message));
     } finally {
       setIsSending(false);
     }
   };
 
   if (loading) return <div className="p-6">Loading Messages...</div>;
+
+  const activeThreadInfo = threads.find(t => t.thread_id === selectedThreadId);
 
   return (
     <div className="fade-in p-2 sm:p-6 h-[calc(100vh-80px)] flex flex-col">
@@ -110,33 +104,32 @@ const Messages = () => {
           </div>
           
           <div className="flex-1 overflow-y-auto">
-            {customers.length === 0 ? (
+            {threads.length === 0 ? (
               <div className="p-6 text-center text-sm text-gray-500">No conversations yet.</div>
             ) : (
-              customers.map(chat => (
+              threads.map(thread => (
                 <button
-                  key={chat.customerId}
-                  onClick={() => setSelectedCustomerId(chat.customerId)}
-                  className={`w-full p-4 text-left border-b border-gray-50 hover:bg-gray-50 transition flex gap-3 ${selectedCustomerId === chat.customerId ? 'bg-brand-dark/5' : ''}`}
+                  key={thread.thread_id}
+                  onClick={() => setSelectedThreadId(thread.thread_id)}
+                  className={`w-full p-4 text-left border-b border-gray-50 hover:bg-gray-50 transition flex gap-3 ${selectedThreadId === thread.thread_id ? 'bg-brand-dark/5' : ''}`}
                 >
                   <div className="w-10 h-10 rounded-full bg-brand-dark/10 text-brand-dark flex flex-shrink-0 items-center justify-center font-bold text-lg">
-                    {chat.customerName.charAt(0).toUpperCase()}
+                    {thread.customer_name.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 overflow-hidden">
                     <div className="flex justify-between items-center mb-1">
-                      <div className="font-bold text-gray-900 truncate">{chat.customerName}</div>
+                      <div className="font-bold text-gray-900 truncate">{thread.customer_name}</div>
                       <div className="text-[10px] text-gray-400 font-semibold whitespace-nowrap ml-2">
-                        {new Date(chat.lastMessage.created_at).toLocaleDateString()}
+                        {thread.last_message_date ? new Date(thread.last_message_date).toLocaleDateString() : ''}
                       </div>
                     </div>
                     <div className="text-xs text-gray-500 truncate pr-2">
-                      {chat.lastMessage.direction === 'OUTBOUND' && <i className="fa-solid fa-reply mr-1 text-gray-400"></i>}
-                      {chat.lastMessage.content}
+                      {thread.last_message_body || 'Started a conversation'}
                     </div>
                   </div>
-                  {chat.unreadCount > 0 && (
+                  {Number(thread.unread_count) > 0 && (
                     <div className="w-5 h-5 bg-red-500 rounded-full flex flex-shrink-0 items-center justify-center text-[10px] text-white font-bold">
-                      {chat.unreadCount}
+                      {thread.unread_count}
                     </div>
                   )}
                 </button>
@@ -147,16 +140,16 @@ const Messages = () => {
 
         {/* Right Side - Chat Window */}
         <div className="flex-1 flex flex-col bg-gray-50/50">
-          {activeChat ? (
+          {activeThreadInfo ? (
             <>
               {/* Chat Header */}
               <div className="p-4 border-b border-gray-100 bg-white flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-brand-dark/10 text-brand-dark flex items-center justify-center font-bold text-lg">
-                    {activeChat.customerName.charAt(0).toUpperCase()}
+                    {activeThreadInfo.customer_name.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <div className="font-extrabold text-gray-900">{activeChat.customerName}</div>
+                    <div className="font-extrabold text-gray-900">{activeThreadInfo.customer_name}</div>
                     <div className="text-xs text-green-600 font-bold flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full bg-green-500"></span> Online (Customer App)
                     </div>
@@ -169,7 +162,7 @@ const Messages = () => {
 
               {/* Chat Messages */}
               <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-4">
-                {activeChat.messages.map((msg, idx) => {
+                {activeChatMessages.map((msg, idx) => {
                   const isMe = msg.direction === 'OUTBOUND';
                   return (
                     <div key={msg.id || idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>

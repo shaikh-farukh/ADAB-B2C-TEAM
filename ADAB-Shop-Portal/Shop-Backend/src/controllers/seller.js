@@ -172,33 +172,44 @@ class SellerController {
     }
   }
 
-  async getMessages(req, res) {
+  async getThreads(req, res) {
     try {
       const { userId } = getAuthenticatedSellerContext(req);
       if (!userId) return res.status(401).json({ error: 'Missing user context' });
-      const messages = await sellerService.getMessages(userId);
+      const threads = await sellerService.getThreads(userId);
+      res.json({ success: true, data: threads });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async getThreadMessages(req, res) {
+    try {
+      const { userId } = getAuthenticatedSellerContext(req);
+      if (!userId) return res.status(401).json({ error: 'Missing user context' });
+      const messages = await sellerService.getThreadMessages(userId, req.params.threadId);
       res.json({ success: true, data: messages });
     } catch (error) {
       res.status(400).json({ success: false, error: error.message });
     }
   }
 
-  async sendMessage(req, res) {
+  async sendThreadMessage(req, res) {
     try {
       const { userId } = getAuthenticatedSellerContext(req);
       if (!userId) return res.status(401).json({ error: 'Missing user context' });
-      const message = await sellerService.sendMessage(userId, req.body);
+      const message = await sellerService.sendThreadMessage(userId, req.params.threadId, req.body);
       res.json({ success: true, data: message });
     } catch (error) {
       res.status(400).json({ success: false, error: error.message });
     }
   }
 
-  async markMessageRead(req, res) {
+  async markThreadRead(req, res) {
     try {
       const { userId } = getAuthenticatedSellerContext(req);
       if (!userId) return res.status(401).json({ error: 'Missing user context' });
-      const result = await sellerService.markMessageRead(userId, req.params.id);
+      const result = await sellerService.markThreadRead(userId, req.params.threadId);
       res.json({ success: true, data: result });
     } catch (error) {
       res.status(400).json({ success: false, error: error.message });

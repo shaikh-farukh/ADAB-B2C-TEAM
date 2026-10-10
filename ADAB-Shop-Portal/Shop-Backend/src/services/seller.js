@@ -81,18 +81,22 @@ class SellerService {
     return await sellerRepository.getRecommendations();
   }
 
-  async getMessages(userId) {
-    return await sellerRepository.getMessages(userId);
+  async getThreads(userId) {
+    return await sellerRepository.getThreads(userId);
   }
 
-  async sendMessage(userId, data) {
-    if (!data.customer_id || !data.content) throw new Error("customer_id and content are required");
+  async getThreadMessages(userId, threadId) {
+    return await sellerRepository.getThreadMessages(userId, threadId);
+  }
+
+  async sendThreadMessage(userId, threadId, data) {
+    if (!data.content) throw new Error("content is required");
     data.direction = 'OUTBOUND';
-    return await sellerRepository.sendMessage(userId, data);
+    return await sellerRepository.sendThreadMessage(userId, threadId, data);
   }
 
-  async markMessageRead(userId, messageId) {
-    return await sellerRepository.markMessageRead(userId, messageId);
+  async markThreadRead(userId, threadId) {
+    return await sellerRepository.markThreadRead(userId, threadId);
   }
 
   async getFinanceSummary() {

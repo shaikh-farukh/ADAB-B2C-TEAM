@@ -240,6 +240,68 @@ class ListingController {
       res.status(500).json({ success: false, error: err.message });
     }
   }
+
+  async bulkExport(req, res) {
+    try {
+      const { storeId, userId } = getAuthenticatedSellerContext(req);
+      if (!storeId) return res.status(401).json({ success: false, error: 'Missing store context' });
+
+      const pool = require('../../db');
+      const query = `
+        SELECT title, sku, barcode, mrp, sell_price, stock_qty 
+        FROM seller_listings 
+        WHERE store_id = $1
+      `;
+      const dbRes = await pool.query(query, [storeId]);
+      
+      const headers = ['title', 'sku', 'barcode', 'mrp', 'sell_price', 'stock_qty'];
+      let csvContent = headers.join(",") + "\n";
+      dbRes.rows.forEach(row => {
+        csvContent += headers.map(h => {
+          let val = row[h] === null || row[h] === undefined ? '' : String(row[h]);
+          val = val.replace(/"/g, '""');
+          return `"${val}"`;
+        }).join(",") + "\n";
+      });
+
+      // Send the WebSocket Notification
+      try {
+        const notificationService = require('../services/notification');
+        await notificationService.createNotification(
+          userId,
+          'Listing Export Completed',
+          `Successfully exported ${dbRes.rows.length} listings to CSV.`,
+          'GENERAL'
+        );
+      } catch (notifErr) {
+        console.error('Failed to send export notification:', notifErr);
+      }
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="listings_export.csv"');
+      res.status(200).send(csvContent);
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
+  async getBulkExportStatus(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      if (!storeId) return res.status(401).json({ success: false, error: 'Missing store context' });
+
+      const { getBulkExportJobStatus } = require('../jobs/bulkExportJob');
+      const status = await getBulkExportJobStatus(req.params.jobId);
+      
+      if (!status) {
+        return res.status(404).json({ success: false, error: 'Job not found' });
+      }
+
+      res.json({ success: true, data: status });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  }
 }
 
 module.exports = new ListingController();

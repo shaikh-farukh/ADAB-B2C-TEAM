@@ -82,5 +82,18 @@ export const listingApi = {
         'Content-Type': 'multipart/form-data'
       }
     });
+  },
+
+  bulkExport: () => {
+    return client.post('/listings/bulk-export', {}, {
+      headers: getHeaders(),
+      responseType: 'blob'
+    });
+  },
+
+  checkExportStatus: (jobId) => {
+    return client.get(`/listings/bulk-export/${jobId}/status`, {
+      headers: getHeaders()
+    });
   }
 };

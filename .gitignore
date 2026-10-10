@@ -163,3 +163,6 @@ ADAB-Shop-Portal/Shop-Backend/zero-inventory.js
 ADAB-Shop-Portal/Shop-Backend/create-notification.js
 ADAB-Shop-Portal/Shop-Backend/query-tables.js
 ADAB-Shop-Portal/Shop-Backend/test-day4.js
+ADAB-Shop-Portal/Shop-Backend/setup-trigger.js
+ADAB-Shop-Portal/Shop-Backend/docs/shabbir_final_audit.md
+ADAB-Shop-Portal/Shop-Backend/src/jobs/bulkExportJob.js

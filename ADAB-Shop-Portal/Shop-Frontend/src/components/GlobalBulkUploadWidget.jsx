@@ -15,6 +15,7 @@ const GlobalBulkUploadWidget = () => {
       for (const job of activeJobs) {
         try {
           const res = await listingApi.checkUploadStatus(job.id);
+          
           if (res.success) {
             setUploadJobs(prev => prev.map(p => p.id === job.id ? {
               ...p,
@@ -74,10 +75,9 @@ const GlobalBulkUploadWidget = () => {
                   </div>
                 )}
                 
-                {/* Status Text */}
                 {job.state === 'completed' && job.result && (
                   <div className="text-[10px] text-gray-500 font-medium">
-                    <span className="text-green-600 font-bold">{job.result.successCount || job.result.total} saved</span> 
+                    <span className="text-green-600 font-bold">{job.result.successCount || job.result.total || 0} saved</span> 
                     {job.result.failCount > 0 && <span className="text-red-500 ml-2">({job.result.failCount} failed)</span>}
                   </div>
                 )}

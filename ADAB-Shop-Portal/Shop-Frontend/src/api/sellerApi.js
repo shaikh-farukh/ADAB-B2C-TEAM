@@ -35,9 +35,10 @@ export const sellerApi = {
   // Dynamic Catalog, Recommendations, Messages
   getNearbyCatalog: () => apiClient.get('/nearby-catalog'),
   getRecommendations: () => apiClient.get('/recommendations'),
-  getMessages: () => apiClient.get('/messages'),
-  sendMessage: (customer_id, content) => apiClient.post('/messages', { customer_id, content }),
-  markMessageRead: (messageId) => apiClient.post(`/messages/${messageId}/read`, {}),
+  getThreads: () => apiClient.get('/messages/threads'),
+  getThreadMessages: (threadId) => apiClient.get(`/messages/threads/${threadId}`),
+  sendThreadMessage: (threadId, content) => apiClient.post(`/messages/threads/${threadId}/messages`, { content }),
+  markThreadRead: (threadId) => apiClient.post(`/messages/threads/${threadId}/read`, {}),
 
   // Finance (Credit Apply & Khata)
   getFinanceSummary: () => apiClient.get('/finance/summary'),

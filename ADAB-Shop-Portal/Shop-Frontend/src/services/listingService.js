@@ -62,6 +62,18 @@ const listingService = {
     return api.get(`/seller/listings/${id}/issues`, {
       headers: { 'x-store-id': storeId }
     });
+  },
+
+  bulkExport: () => {
+    return api.post('/seller/listings/bulk-export', {}, {
+      headers: { 'x-store-id': storeId }
+    });
+  },
+  
+  getBulkExportStatus: (jobId) => {
+    return api.get(`/seller/listings/bulk-export/${jobId}/status`, {
+      headers: { 'x-store-id': storeId }
+    });
   }
 };
 

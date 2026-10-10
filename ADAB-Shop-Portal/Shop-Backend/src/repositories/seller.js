@@ -411,22 +411,20 @@ class SellerRepository {
     }
   }
 
-  async getMessages(userId) {
+  async getThreads(userId) {
     const query = `
       SELECT 
-        m.id,
         t.id as thread_id,
         CASE WHEN t.participant_a = $1 THEN t.participant_b ELSE t.participant_a END as customer_id,
         COALESCE(u.full_name, 'Customer') as customer_name,
-        CASE WHEN m.sender_id = $1 THEN 'OUTBOUND' ELSE 'INBOUND' END as direction,
-        m.body as content,
-        m.is_read,
-        m.created_at
+        t.subject,
+        (SELECT COUNT(*) FROM messages m WHERE m.thread_id = t.id AND m.sender_id != $1 AND m.is_read = false) as unread_count,
+        (SELECT m.body FROM messages m WHERE m.thread_id = t.id ORDER BY m.created_at DESC LIMIT 1) as last_message_body,
+        (SELECT m.created_at FROM messages m WHERE m.thread_id = t.id ORDER BY m.created_at DESC LIMIT 1) as last_message_date
       FROM message_threads t
-      JOIN messages m ON m.thread_id = t.id
       LEFT JOIN users u ON u.id = CASE WHEN t.participant_a = $1 THEN t.participant_b ELSE t.participant_a END
       WHERE t.participant_a = $1 OR t.participant_b = $1
-      ORDER BY m.created_at ASC
+      ORDER BY last_message_date DESC NULLS LAST
     `;
     try {
       const res = await pool.query(query, [userId]);
@@ -437,25 +435,42 @@ class SellerRepository {
     }
   }
 
-  async sendMessage(userId, data) {
-    let threadId = null;
-    
-    // Check if thread exists
-    const threadCheck = await pool.query(
-      `SELECT id FROM message_threads WHERE (participant_a = $1 AND participant_b = $2) OR (participant_a = $2 AND participant_b = $1) LIMIT 1`,
-      [userId, data.customer_id]
-    );
-    
-    if (threadCheck.rows.length > 0) {
-      threadId = threadCheck.rows[0].id;
-    } else {
-      // Create thread
-      const threadCreate = await pool.query(
-        `INSERT INTO message_threads (participant_a, participant_b, subject) VALUES ($1, $2, 'Store Chat') RETURNING id`,
-        [userId, data.customer_id]
-      );
-      threadId = threadCreate.rows[0].id;
+  async getThreadMessages(userId, threadId) {
+    const query = `
+      SELECT 
+        m.id,
+        t.id as thread_id,
+        CASE WHEN t.participant_a = $1 THEN t.participant_b ELSE t.participant_a END as customer_id,
+        COALESCE(u.full_name, 'Customer') as customer_name,
+        CASE WHEN m.sender_id = $1 THEN 'OUTBOUND' ELSE 'INBOUND' END as direction,
+        m.body as content,
+        m.is_read,
+        m.created_at
+      FROM messages m
+      JOIN message_threads t ON m.thread_id = t.id
+      LEFT JOIN users u ON u.id = CASE WHEN t.participant_a = $1 THEN t.participant_b ELSE t.participant_a END
+      WHERE t.id = $2 AND (t.participant_a = $1 OR t.participant_b = $1)
+      ORDER BY m.created_at ASC
+    `;
+    try {
+      const res = await pool.query(query, [userId, threadId]);
+      return res.rows;
+    } catch (e) {
+      console.error(e);
+      return [];
     }
+  }
+
+  async sendThreadMessage(userId, threadId, data) {
+    // Verify thread ownership
+    const threadCheck = await pool.query(
+      `SELECT id, participant_a, participant_b FROM message_threads WHERE id = $1 AND (participant_a = $2 OR participant_b = $2)`,
+      [threadId, userId]
+    );
+    if (threadCheck.rows.length === 0) throw new Error("Thread not found or unauthorized");
+
+    const t = threadCheck.rows[0];
+    const customer_id = t.participant_a === userId ? t.participant_b : t.participant_a;
 
     // Insert message
     const msgQuery = `
@@ -470,7 +485,7 @@ class SellerRepository {
     return {
       id: inserted.id,
       thread_id: threadId,
-      customer_id: data.customer_id,
+      customer_id: customer_id,
       customer_name: data.customer_name || 'Customer',
       direction: 'OUTBOUND',
       content: inserted.content,
@@ -479,15 +494,15 @@ class SellerRepository {
     };
   }
 
-  async markMessageRead(userId, messageId) {
+  async markThreadRead(userId, threadId) {
     const query = `
       UPDATE messages
       SET is_read = true
-      WHERE id = $1
+      WHERE thread_id = $1 AND sender_id != $2 AND is_read = false
       RETURNING *;
     `;
-    const res = await pool.query(query, [messageId]);
-    return res.rows[0];
+    const res = await pool.query(query, [threadId, userId]);
+    return { updated_count: res.rowCount };
   }
 
   async getFinanceSummary() {
