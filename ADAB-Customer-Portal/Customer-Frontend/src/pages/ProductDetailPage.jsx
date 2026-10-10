@@ -3,6 +3,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api/api';
 import { ShoppingCart, Star, ChevronRight, ArrowLeft } from 'lucide-react';
 
+let productDataPromise = null;
+let currentProductId = null;
+
 export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishlist }) {
   const location = useLocation();
   const id = location.pathname.split('/')[2];
@@ -18,11 +21,17 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
     const fetchProductDetails = async () => {
       try {
         setLoading(true);
-        const [productRes, sellersRes, relatedRes] = await Promise.all([
-          api.get(`/catalog/products/${id}`),
-          api.get(`/catalog/products/${id}/sellers`).catch(() => ({ data: { data: [] } })),
-          api.get(`/catalog/products/${id}/related`).catch(() => ({ data: { data: [] } }))
-        ]);
+        if (currentProductId !== id || !productDataPromise) {
+          currentProductId = id;
+          productDataPromise = Promise.all([
+            api.get(`/catalog/products/${id}`),
+            api.get(`/catalog/products/${id}/sellers`).catch(() => ({ data: { data: [] } })),
+            api.get(`/catalog/products/${id}/related`).catch(() => ({ data: { data: [] } }))
+          ]);
+        }
+
+        const [productRes, sellersRes, relatedRes] = await productDataPromise;
+
 
         if (productRes.data.success && productRes.data.data) {
           const fetchedProduct = productRes.data.data;

@@ -1,10 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api/api';
 
+let accountDataCache = null;
+
 export default function AccountPage({ onNavigate }) {
-  const [profile, setProfile] = useState(null);
-  const [addresses, setAddresses] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState(accountDataCache?.profile || null);
+  const [addresses, setAddresses] = useState(accountDataCache?.addresses || []);
+  const [loading, setLoading] = useState(!accountDataCache);
+  const [notificationPrefs, setNotificationPrefs] = useState(accountDataCache?.notifications || {
+    order_updates_sms: true,
+    order_updates_email: true,
+    promotional_sms: false,
+    soundbox_alerts: true
+  });
   
   // Views: 'dashboard' | 'addresses' | 'placeholder'
   const [activeView, setActiveView] = useState('dashboard');
@@ -17,7 +25,7 @@ export default function AccountPage({ onNavigate }) {
     setTimeout(() => setToast(null), 3000);
   };  // Edit forms
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [profileForm, setProfileForm] = useState({ name: '', phone: '', email: '' });
+  const [profileForm, setProfileForm] = useState({ name: accountDataCache?.profile?.name || '', phone: accountDataCache?.profile?.phone || '', email: accountDataCache?.profile?.email || '' });
 
   const [isAddingAddress, setIsAddingAddress] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState(null);
@@ -29,20 +37,39 @@ export default function AccountPage({ onNavigate }) {
     fetchData();
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = async (force = false) => {
+    if (accountDataCache && !force) {
+      setProfile(accountDataCache.profile);
+      setAddresses(accountDataCache.addresses);
+      setNotificationPrefs(accountDataCache.notifications);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const [profRes, addrRes] = await Promise.all([
+      const [profRes, addrRes, notifRes] = await Promise.all([
         api.get('/customers/me'),
-        api.get('/customers/me/addresses')
+        api.get('/customers/me/addresses'),
+        api.get('/customers/me/notifications')
       ]);
+      
+      const newCache = { profile: null, addresses: [], notifications: notificationPrefs };
+
       if (profRes.data?.success) {
+        newCache.profile = profRes.data.data;
         setProfile(profRes.data.data);
         setProfileForm({ name: profRes.data.data.name || '', phone: profRes.data.data.phone || '', email: profRes.data.data.email || '' });
       }
       if (addrRes.data?.success) {
+        newCache.addresses = addrRes.data.data;
         setAddresses(addrRes.data.data);
       }
+      if (notifRes.data?.success && notifRes.data?.data) {
+        newCache.notifications = notifRes.data.data;
+        setNotificationPrefs(notifRes.data.data);
+      }
+      
+      accountDataCache = newCache;
     } catch (error) {
       console.error("Failed to fetch account data", error);
     } finally {
@@ -54,12 +81,17 @@ export default function AccountPage({ onNavigate }) {
     e.preventDefault();
     try {
       const res = await api.patch('/customers/me', profileForm);
-      if (res.data?.success) {
+      const notifRes = await api.patch('/customers/me/notifications', notificationPrefs);
+      if (res.data?.success && notifRes.data?.success) {
         setProfile(res.data.data);
+        if (accountDataCache) {
+          accountDataCache.profile = res.data.data;
+          accountDataCache.notifications = notificationPrefs;
+        }
         setIsEditingProfile(false);
-        showToast('Profile updated successfully!', 'success');
+        showToast('Profile and preferences updated successfully!', 'success');
       } else {
-        showToast(res.data?.message || 'Failed to update profile', 'error');
+        showToast('Failed to update profile or preferences', 'error');
       }
     } catch (err) {
       console.error(err);
@@ -81,7 +113,7 @@ export default function AccountPage({ onNavigate }) {
         setIsAddingAddress(false);
         setEditingAddressId(null);
         setAddressForm({ type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false });
-        fetchData();
+        fetchData(true);
         showToast('Address saved successfully!', 'success');
       } else {
         showToast(res.data?.message || 'Failed to save address', 'error');
@@ -96,7 +128,7 @@ export default function AccountPage({ onNavigate }) {
     if (!window.confirm('Are you sure you want to delete this address?')) return;
     try {
       await api.delete(`/customers/me/addresses/${id}`);
-      fetchData();
+      fetchData(true);
       showToast('Address deleted successfully!', 'success');
     } catch (err) {
       console.error(err);
@@ -233,7 +265,7 @@ export default function AccountPage({ onNavigate }) {
           </div>
         </div>
 
-        <div onClick={() => showPlaceholder('Notifications: Order & promo alerts coming soon.')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
+        <div onClick={() => setActiveView('profile')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
           <div className="w-12 h-12 bg-purple-50 text-purple-500 rounded-xl flex items-center justify-center text-xl shrink-0">
             <i className="fa-solid fa-bell"></i>
           </div>
@@ -347,16 +379,24 @@ export default function AccountPage({ onNavigate }) {
         <h3 className="text-lg font-bold text-gray-900 mb-4">Notification Preferences</h3>
         <div className="flex flex-col gap-4">
           <label className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
-            <div className="w-5 h-5 rounded-full bg-[#F26E21] text-white flex items-center justify-center text-[10px]"><i className="fa-solid fa-check"></i></div> Order status updates (SMS & Push)
+            <div onClick={() => setNotificationPrefs(p => ({ ...p, order_updates_sms: !p.order_updates_sms }))} className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${notificationPrefs.order_updates_sms ? 'bg-[#F26E21] text-white' : 'border border-gray-300'}`}>
+              {notificationPrefs.order_updates_sms && <i className="fa-solid fa-check"></i>}
+            </div> Order status updates (SMS & Push)
           </label>
           <label className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
-            <div className="w-5 h-5 rounded-full bg-[#F26E21] text-white flex items-center justify-center text-[10px]"><i className="fa-solid fa-check"></i></div> Promotional offers
+            <div onClick={() => setNotificationPrefs(p => ({ ...p, promotional_sms: !p.promotional_sms }))} className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${notificationPrefs.promotional_sms ? 'bg-[#F26E21] text-white' : 'border border-gray-300'}`}>
+              {notificationPrefs.promotional_sms && <i className="fa-solid fa-check"></i>}
+            </div> Promotional offers
           </label>
           <label className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
-            <div className="w-5 h-5 rounded-full bg-[#F26E21] text-white flex items-center justify-center text-[10px]"><i className="fa-solid fa-check"></i></div> Price drop alerts for wishlist
+            <div onClick={() => setNotificationPrefs(p => ({ ...p, soundbox_alerts: !p.soundbox_alerts }))} className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${notificationPrefs.soundbox_alerts ? 'bg-[#F26E21] text-white' : 'border border-gray-300'}`}>
+              {notificationPrefs.soundbox_alerts && <i className="fa-solid fa-check"></i>}
+            </div> Soundbox / In-app alerts
           </label>
           <label className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
-            <div className="w-5 h-5 rounded border border-gray-300"></div> Newsletter
+            <div onClick={() => setNotificationPrefs(p => ({ ...p, order_updates_email: !p.order_updates_email }))} className={`w-5 h-5 rounded flex items-center justify-center text-[10px] ${notificationPrefs.order_updates_email ? 'bg-[#F26E21] text-white' : 'border border-gray-300'}`}>
+              {notificationPrefs.order_updates_email && <i className="fa-solid fa-check"></i>}
+            </div> Email Newsletter
           </label>
         </div>
       </div>
@@ -454,9 +494,9 @@ export default function AccountPage({ onNavigate }) {
               <SidebarItem icon="fa-tag" label="Coupons" active={placeholderText.includes('Coupons')} onClick={() => showPlaceholder('Coupons: View available offers and discounts coming soon.')} />
               <SidebarItem icon="fa-star" label="Rewards" active={placeholderText.includes('Rewards')} onClick={() => showPlaceholder('ADAB Rewards: Loyalty program details coming soon.')} />
               <SidebarItem icon="fa-star-half-stroke" label="Reviews" active={placeholderText.includes('Reviews')} onClick={() => showPlaceholder('My Reviews: Rate past purchases coming soon.')} />
-              <SidebarItem icon="fa-bell" label="Notifications" active={placeholderText.includes('Notifications')} onClick={() => showPlaceholder('Notifications: Order & promo alerts coming soon.')} />
+              <SidebarItem icon="fa-bell" label="Notifications" active={activeView === 'profile'} onClick={() => setActiveView('profile')} />
               <SidebarItem icon="fa-headset" label="Help" active={placeholderText.includes('Help')} onClick={() => showPlaceholder('Help & Support: Customer service portal coming soon.')} />
-              <SidebarItem icon="fa-gear" label="Settings" active={placeholderText.includes('Settings')} onClick={() => showPlaceholder('Settings coming soon.')} />
+              <SidebarItem icon="fa-gear" label="Settings" active={activeView === 'profile'} onClick={() => setActiveView('profile')} />
               
               <div className="h-px bg-gray-100 my-2 mx-2"></div>
               

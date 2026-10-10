@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { api } from '../api/api';
 import { ShoppingCart, Star, ChevronRight, ArrowLeft } from 'lucide-react';
+
+let currentProductId = null;
+let productDataPromise = null;
 
 export default function ProductPage({ onAddToCart, onToggleWishlist, wishlist }) {
   const { id } = useParams();
@@ -16,7 +19,11 @@ export default function ProductPage({ onAddToCart, onToggleWishlist, wishlist })
     const fetchProduct = async () => {
       try {
         setLoading(true);
-        const res = await axios.get(`/api/catalog/products/${id}`);
+        if (currentProductId !== id || !productDataPromise) {
+          currentProductId = id;
+          productDataPromise = api.get(`/catalog/products/${id}`);
+        }
+        const res = await productDataPromise;
         setProduct(res.data.data);
       } catch (err) {
         setError(err.response?.data?.message || err.message);
@@ -106,7 +113,23 @@ export default function ProductPage({ onAddToCart, onToggleWishlist, wishlist })
                   <span className="text-lg text-gray-400 line-through font-medium mb-1">${product.mrp}</span>
                 )}
               </div>
-              <p className="text-sm text-gray-500">Inclusive of all taxes</p>
+              <p className="text-sm text-gray-500 mb-4">Inclusive of all taxes</p>
+
+              {/* Pre-Purchase Transparency */}
+              <div className="flex flex-col gap-2 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                {product.deliveryEstimate && (
+                  <div className="flex items-center text-sm font-medium text-gray-800">
+                    <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                    Delivery: <span className="font-bold ml-1">{product.deliveryEstimate}</span>
+                  </div>
+                )}
+                {product.returnPolicy && (
+                  <div className="flex items-center text-sm font-medium text-gray-800">
+                    <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z" /></svg>
+                    Return Policy: <span className="font-bold ml-1">{product.returnPolicy}</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Variants */}

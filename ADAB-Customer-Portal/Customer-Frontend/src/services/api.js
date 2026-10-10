@@ -3,6 +3,8 @@
  * Connects to Customer-Backend on port 5002
  */
 
+import axios from 'axios';
+
 const API_BASE_URL = 'http://localhost:5002/api/v1';
 
 // Get or initialize persistent session token for guest/logged-in cart
@@ -15,6 +17,8 @@ export function getSessionToken() {
   return token;
 }
 
+const pendingRequests = new Map();
+
 export async function apiRequest(endpoint, options = {}) {
   const sessionToken = getSessionToken();
   const headers = {
@@ -23,20 +27,41 @@ export async function apiRequest(endpoint, options = {}) {
     ...(options.headers || {})
   };
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers
-  });
+  const isGet = !options.method || options.method.toUpperCase() === 'GET';
+  const requestKey = isGet ? endpoint : null;
 
-  const data = await response.json();
-  if (!response.ok) {
-    const error = new Error(data.message || 'API request failed');
-    error.status = response.status;
-    error.code = data.code || (data.data && data.data.coupon_status);
-    error.details = data.data;
-    throw error;
+  if (isGet && pendingRequests.has(requestKey)) {
+    return pendingRequests.get(requestKey);
   }
-  return data;
+
+  const promise = axios({
+    url: `${API_BASE_URL}${endpoint}`,
+    method: options.method || 'GET',
+    headers: headers,
+    data: options.body ? (typeof options.body === 'string' ? JSON.parse(options.body) : options.body) : undefined,
+  })
+    .then((response) => {
+      return response.data; // axios already parses JSON, and our backend returns { success: true, data: ... } 
+    })
+    .catch((error) => {
+      // Re-throw in the format the app expects
+      const err = new Error(error.response?.data?.message || error.message || 'API request failed');
+      err.status = error.response?.status;
+      err.code = error.response?.data?.code || (error.response?.data?.data && error.response?.data?.data.coupon_status);
+      err.details = error.response?.data?.data;
+      throw err;
+    })
+    .finally(() => {
+      if (isGet) {
+        pendingRequests.delete(requestKey);
+      }
+    });
+
+  if (isGet) {
+    pendingRequests.set(requestKey, promise);
+  }
+
+  return promise;
 }
 
 // Cart APIs
@@ -94,7 +119,7 @@ export const CheckoutAPI = {
 };
 
 export const OrderAPI = {
-  getOrders: () => apiRequest('/orders'),
+  getOrders: (userId) => apiRequest(`/orders?customer_id=${userId}`),
   getOrderById: (orderId) => apiRequest(`/orders/${orderId}`)
 };
 
@@ -110,5 +135,9 @@ export const WishlistAPI = {
     apiRequest('/wishlist', {
       method: 'DELETE',
       body: JSON.stringify({ userId, listingId })
+    }),
+  moveToCart: (userId, listingId) => 
+    apiRequest(`/wishlist/items/${listingId}/move-to-cart/${userId}`, {
+      method: 'POST'
     })
 };

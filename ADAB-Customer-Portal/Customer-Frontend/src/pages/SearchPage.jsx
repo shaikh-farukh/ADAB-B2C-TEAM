@@ -4,6 +4,8 @@ import ProductCard from '../components/ProductCard';
 import { Search, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+let searchRecommendedCache = null;
+
 export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) {
   const [query, setQuery] = useState('');
   const [products, setProducts] = useState([]);
@@ -24,9 +26,14 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
 
   useEffect(() => {
     const fetchRecommended = async () => {
+      if (searchRecommendedCache) {
+        setRecommended(searchRecommendedCache);
+        return;
+      }
       try {
         const res = await api.get('/catalog/recommended');
         if (res.data?.success) {
+          searchRecommendedCache = res.data.data;
           setRecommended(res.data.data);
         }
       } catch (err) {

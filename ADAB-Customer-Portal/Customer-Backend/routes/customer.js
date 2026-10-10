@@ -4,6 +4,8 @@ const router = express.Router();
 
 router.get('/me', customerController.getProfile);
 router.patch('/me', customerController.updateProfile);
+router.get('/me/notifications', customerController.getNotificationPreferences);
+router.patch('/me/notifications', customerController.updateNotificationPreferences);
 router.get('/me/addresses', customerController.getAddresses);
 router.post('/me/addresses', customerController.addAddress);
 router.patch('/me/addresses/:id', customerController.updateAddress);
