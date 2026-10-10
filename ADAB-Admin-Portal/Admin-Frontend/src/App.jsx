@@ -11,10 +11,10 @@ import Sellers from './pages/Sellers';
 import Customers from './pages/Customers';
 import Orders from './pages/Orders';
 import Returns from './pages/Returns';
-import Reports from './pages/Reports';
-import Audit from './pages/Audit';
-import Settings from './pages/Settings';
 import Offers from './pages/Offers';
+import Reports from './pages/Reports';
+import AuditLog from './pages/AuditLog';
+import Settings from './pages/Settings';
 import ProductCatalog from './pages/ProductCatalog';
 
 export default function App() {
@@ -51,7 +51,7 @@ export default function App() {
           <Route path="sellers" element={<Sellers />} />
           <Route path="customers" element={<Customers />} />
           <Route path="reports" element={<Reports />} />
-          <Route path="audit" element={<Audit />} />
+          <Route path="audit" element={<AuditLog />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>

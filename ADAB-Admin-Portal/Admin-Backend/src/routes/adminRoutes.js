@@ -8,6 +8,9 @@ const sellerController = require('../controllers/adminSellerController');
 const customerController = require('../controllers/adminCustomerController');
 const approvalController = require('../controllers/adminApprovalController');
 const productController = require('../controllers/adminProductController');
+const orderController = require('../controllers/adminOrderController');
+const returnController = require('../controllers/adminReturnController');
+const day5Controller = require('../controllers/adminDay5Controller');
 
 // Dev login to get a token easily
 router.post('/dev-login', (req, res) => {
@@ -53,5 +56,22 @@ router.post('/products/:id/approve', productController.approveProduct);
 router.post('/products/:id/reject', productController.rejectProduct);
 router.post('/products/:id/request-changes', productController.requestChangesProduct);
 router.post('/products/:id/suspend', productController.suspendProduct);
+
+// Orders (Day-4)
+router.get('/orders', orderController.getOrders);
+router.get('/orders/:id', orderController.getOrderDetails);
+router.patch('/orders/:id/status', orderController.updateOrderStatus);
+
+// Returns (Day-4)
+router.get('/returns', returnController.getReturns);
+router.get('/returns/:id', returnController.getReturnDetails);
+router.post('/returns/:id/resolve', returnController.resolveReturn);
+
+// Day-5 (Offers, Reports, Audit, Settings)
+router.get('/offers', day5Controller.getOffers);
+router.get('/reports/summary', day5Controller.getReportsSummary);
+router.get('/audit', day5Controller.getAuditLogs);
+router.get('/settings', day5Controller.getSettings);
+router.patch('/settings', day5Controller.updateSettings);
 
 module.exports = router;

@@ -28,7 +28,7 @@ export default function ProductCatalog() {
     setLoading(true);
     setError('');
     try {
-      const res = await apiClient.get('/products', {
+      const res = await apiClient.get('/approvals/queue', {
         params: {
           page,
           limit: 10,
@@ -39,8 +39,17 @@ export default function ProductCatalog() {
         }
       });
       if (res.data.success) {
-        setProducts(res.data.data.products);
-        setTotalPages(res.data.data.totalPages);
+        const mappedProducts = res.data.data.map(item => ({
+          id: item.listing_id || item.id,
+          name: item.title,
+          seller: item.seller_id || 'Unknown',
+          price: item.price || 0,
+          submittedTime: item.created_at,
+          status: item.current_status,
+          moderationReason: item.rejection_reason || ''
+        }));
+        setProducts(mappedProducts);
+        setTotalPages(res.data.pagination?.totalPages || 1);
       }
     } catch (err) {
       setError('Failed to load products');
@@ -67,10 +76,10 @@ export default function ProductCatalog() {
 
     try {
       let endpoint = '';
-      if (modalAction === 'APPROVE') endpoint = `/admin/products/${selectedProduct.id}/approve`;
-      if (modalAction === 'REJECT') endpoint = `/admin/products/${selectedProduct.id}/reject`;
-      if (modalAction === 'REQUEST_CHANGES') endpoint = `/admin/products/${selectedProduct.id}/request-changes`;
-      if (modalAction === 'SUSPEND') endpoint = `/admin/products/${selectedProduct.id}/suspend`;
+      if (modalAction === 'APPROVE') endpoint = `/approvals/${selectedProduct.id}/approve`;
+      if (modalAction === 'REJECT') endpoint = `/approvals/${selectedProduct.id}/reject`;
+      if (modalAction === 'REQUEST_CHANGES') endpoint = `/approvals/${selectedProduct.id}/request-changes`;
+      if (modalAction === 'SUSPEND') endpoint = `/approvals/${selectedProduct.id}/suspend`;
 
       const res = await apiClient.post(endpoint, { reason: moderationReason });
       

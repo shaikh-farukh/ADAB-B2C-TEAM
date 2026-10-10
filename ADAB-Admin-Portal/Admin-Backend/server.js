@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const rateLimit = require('express-rate-limit');
 dotenv.config();
 
 const pool = require('./db');
@@ -9,6 +10,39 @@ const legacyAdminRoutes = require('./src/routes/adminRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5005;
+
+// Trust Proxy (Configure for typical 1-level load balancers like Render/Heroku)
+// Document assumption: If using multiple proxies/WAF, this needs adjusting.
+app.set('trust proxy', 1);
+
+// Structured Logging Middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      method: req.method,
+      path: req.path, // Use req.path instead of originalUrl to avoid raw query strings / PII leakage
+      status: res.statusCode,
+      durationMs: duration,
+      ip: req.ip // Safe due to trust proxy
+    }));
+  });
+  next();
+});
+
+// Rate Limiting Middleware
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests from this IP, please try again after 15 minutes' }
+});
+
+// Apply rate limiter to all API routes
+app.use('/api/', limiter);
 
 // Middleware
 app.use(cors());
