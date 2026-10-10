@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api/api';
+import { lookupPincode, getOfflinePincodeHint } from '../utils/pincode';
 
 export default function AccountPage({ onNavigate }) {
   const [profile, setProfile] = useState(null);
@@ -22,9 +23,49 @@ export default function AccountPage({ onNavigate }) {
 
   const [isAddingAddress, setIsAddingAddress] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState(null);
+  const [isDetectingPin, setIsDetectingPin] = useState(false);
+  const [pinHint, setPinHint] = useState('');
   const [addressForm, setAddressForm] = useState({
     type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false
   });
+
+  const handleAddressPincodeChange = async (rawVal) => {
+    const val = rawVal.replace(/\D/g, '').slice(0, 6);
+    setAddressForm(prev => ({ ...prev, zip: val }));
+
+    if (val.length === 6) {
+      const offline = getOfflinePincodeHint(val);
+      if (offline) {
+        setAddressForm(prev => ({
+          ...prev,
+          city: offline.city,
+          state: offline.state
+        }));
+        setPinHint(`✓ Detected ${offline.city}, ${offline.state}`);
+      }
+
+      setIsDetectingPin(true);
+      try {
+        const detected = await lookupPincode(val);
+        if (detected) {
+          setAddressForm(prev => ({
+            ...prev,
+            city: detected.city || prev.city,
+            state: detected.state || prev.state
+          }));
+          setPinHint(`✓ Auto-detected: ${detected.city}, ${detected.state}`);
+        } else if (!offline) {
+          setPinHint('Pincode set. Confirm city & state below.');
+        }
+      } catch (e) {
+        console.debug('Pin lookup error:', e);
+      } finally {
+        setIsDetectingPin(false);
+      }
+    } else {
+      setPinHint('');
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -85,7 +126,8 @@ export default function AccountPage({ onNavigate }) {
       if (res.data?.success || res.status === 200 || res.status === 201) {
         setIsAddingAddress(false);
         setEditingAddressId(null);
-        setAddressForm({ type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false });
+        setPinHint('');
+        setAddressForm({ type: 'Home', recipientName: '', phone: '', address: '', city: '', state: 'Gujarat', zip: '', isDefault: false });
         fetchData();
         showToast('Address saved successfully!', 'success');
       } else {
@@ -356,7 +398,7 @@ export default function AccountPage({ onNavigate }) {
         
         {/* ADD NEW ADDRESS BUTTON */}
         {!isAddingAddress && (
-          <button onClick={() => { setIsAddingAddress(true); setEditingAddressId(null); setAddressForm({ type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false }); }} className="w-full border-2 border-dashed border-[#18753C]/40 bg-white text-[#18753C] font-bold py-6 rounded-2xl flex items-center justify-center gap-2 hover:bg-green-50 transition-colors text-lg cursor-pointer">
+          <button onClick={() => { setIsAddingAddress(true); setEditingAddressId(null); setPinHint(''); setAddressForm({ type: 'Home', recipientName: '', phone: '', address: '', city: '', state: 'Gujarat', zip: '', isDefault: false }); }} className="w-full border-2 border-dashed border-[#18753C]/40 bg-white text-[#18753C] font-bold py-6 rounded-2xl flex items-center justify-center gap-2 hover:bg-green-50 transition-colors text-lg cursor-pointer">
             <i className="fa-solid fa-plus"></i> Add New Address
           </button>
         )}
@@ -374,9 +416,57 @@ export default function AccountPage({ onNavigate }) {
               <input type="tel" value={addressForm.phone} onChange={e => setAddressForm({...addressForm, phone: e.target.value})} className="border border-gray-200 p-3 rounded-xl text-sm w-1/2 focus:border-brand-green outline-none" placeholder="Phone Number" required />
             </div>
             <textarea value={addressForm.address} onChange={e => setAddressForm({...addressForm, address: e.target.value})} className="border border-gray-200 p-3 rounded-xl text-sm focus:border-brand-green outline-none" placeholder="Street Address / Area" required rows="3" />
+            
+            {/* Pincode with Auto-detect */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold text-gray-500">Pincode *</label>
+                {isDetectingPin && (
+                  <span className="text-xs text-[#18753C] font-semibold flex items-center gap-1">
+                    <i className="fa-solid fa-spinner fa-spin text-[10px]"></i> Detecting City & State...
+                  </span>
+                )}
+              </div>
+              <input
+                type="text"
+                maxLength={6}
+                value={addressForm.zip}
+                onChange={e => handleAddressPincodeChange(e.target.value)}
+                className="border border-gray-200 p-3 rounded-xl text-sm w-full focus:border-brand-green outline-none font-mono"
+                placeholder="6-Digit Pincode (e.g. 380051 or 395002)"
+                required
+              />
+              {pinHint && (
+                <p className="text-xs text-[#18753C] font-semibold mt-1 flex items-center gap-1">
+                  <i className="fa-solid fa-location-dot"></i> {pinHint}
+                </p>
+              )}
+            </div>
+
+            {/* City & State (Auto-populated) */}
             <div className="flex gap-4">
-              <input type="text" value={addressForm.city} onChange={e => setAddressForm({...addressForm, city: e.target.value})} className="border border-gray-200 p-3 rounded-xl text-sm w-1/2 focus:border-brand-green outline-none" placeholder="City" required />
-              <input type="text" value={addressForm.zip} onChange={e => setAddressForm({...addressForm, zip: e.target.value})} className="border border-gray-200 p-3 rounded-xl text-sm w-1/2 focus:border-brand-green outline-none" placeholder="Pincode" required />
+              <div className="w-1/2">
+                <label className="text-xs font-bold text-gray-500 block mb-1">City *</label>
+                <input
+                  type="text"
+                  value={addressForm.city}
+                  onChange={e => setAddressForm({...addressForm, city: e.target.value})}
+                  className="border border-gray-200 p-3 rounded-xl text-sm w-full focus:border-brand-green outline-none"
+                  placeholder="City (e.g. Ahmedabad)"
+                  required
+                />
+              </div>
+              <div className="w-1/2">
+                <label className="text-xs font-bold text-gray-500 block mb-1">State *</label>
+                <input
+                  type="text"
+                  value={addressForm.state}
+                  onChange={e => setAddressForm({...addressForm, state: e.target.value})}
+                  className="border border-gray-200 p-3 rounded-xl text-sm w-full focus:border-brand-green outline-none"
+                  placeholder="State (e.g. Gujarat)"
+                  required
+                />
+              </div>
             </div>
             <label className="flex items-center gap-2 text-sm mt-2 cursor-pointer font-medium text-gray-700">
               <input type="checkbox" checked={addressForm.isDefault} onChange={e => setAddressForm({...addressForm, isDefault: e.target.checked})} className="w-4 h-4 accent-[#18753C] rounded" />

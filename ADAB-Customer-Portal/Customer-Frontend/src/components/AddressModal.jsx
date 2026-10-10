@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { CustomerAPI } from '../services/api';
+import { lookupPincode, getOfflinePincodeHint } from '../utils/pincode';
 
 const COUNTRY_CODES = [
   { code: '+91', country: 'India', flag: '🇮🇳' },
@@ -48,6 +49,10 @@ export default function AddressModal({
   const [savingAddress, setSavingAddress] = useState(false);
   const [addressModalError, setAddressModalError] = useState(null);
 
+  // Pincode auto-detection state
+  const [isDetectingPin, setIsDetectingPin] = useState(false);
+  const [pinHint, setPinHint] = useState('');
+
   // Phone number state with country code and 10-digit constraint
   const [countryCode, setCountryCode] = useState('+91');
   const [phoneDigits, setPhoneDigits] = useState('9876512340');
@@ -70,6 +75,7 @@ export default function AddressModal({
       loadAddresses();
       setModalView(initialView || 'list');
       setAddressModalError(null);
+      setPinHint('');
     }
   }, [isOpen, initialView]);
 
@@ -90,6 +96,46 @@ export default function AddressModal({
     }
   };
 
+  const handlePincodeChange = async (rawVal) => {
+    const val = rawVal.replace(/\D/g, '').slice(0, 6);
+    setAddressForm((prev) => ({ ...prev, pincode: val }));
+    setAddressModalError(null);
+
+    if (val.length === 6) {
+      // Instant offline hint for immediate UI responsiveness
+      const offline = getOfflinePincodeHint(val);
+      if (offline) {
+        setAddressForm((prev) => ({
+          ...prev,
+          city: offline.city,
+          state: offline.state
+        }));
+        setPinHint(`✓ Detected ${offline.city}, ${offline.state}`);
+      }
+
+      setIsDetectingPin(true);
+      try {
+        const detected = await lookupPincode(val);
+        if (detected) {
+          setAddressForm((prev) => ({
+            ...prev,
+            city: detected.city || prev.city,
+            state: detected.state || prev.state
+          }));
+          setPinHint(`✓ Auto-detected: ${detected.city}, ${detected.state}`);
+        } else if (!offline) {
+          setPinHint('Pincode saved. Please confirm city & state below.');
+        }
+      } catch (err) {
+        console.debug('Pincode detection error:', err);
+      } finally {
+        setIsDetectingPin(false);
+      }
+    } else {
+      setPinHint('');
+    }
+  };
+
   if (!isOpen) return null;
 
   const handleOpenAdd = () => {
@@ -101,11 +147,12 @@ export default function AddressModal({
       recipient_name: 'Pooja Sharma',
       address_line: '',
       landmark: '',
-      city: 'Surat',
+      city: '',
       state: 'Gujarat',
-      pincode: '395002',
+      pincode: '',
       is_default: savedAddresses.length === 0
     });
+    setPinHint('');
     setAddressModalError(null);
     setModalView('add');
   };
@@ -116,7 +163,7 @@ export default function AddressModal({
     setPhoneDigits(parsed.phoneDigits);
     setAddressForm({
       id: addrToEdit.id,
-      label: addrToEdit.label || 'Home',
+      label: addrToEdit.label || addrToEdit.type || 'Home',
       recipient_name: addrToEdit.recipient_name || addrToEdit.full_name || '',
       address_line: addrToEdit.address_line || addrToEdit.address || '',
       landmark: addrToEdit.landmark || '',
@@ -125,6 +172,7 @@ export default function AddressModal({
       pincode: addrToEdit.pincode || addrToEdit.zip || '395002',
       is_default: !!addrToEdit.is_default
     });
+    setPinHint('');
     setAddressModalError(null);
     setModalView('edit');
   };
@@ -258,7 +306,7 @@ export default function AddressModal({
               <p className="text-[11px] text-gray-500 font-medium">
                 {modalView === 'list'
                   ? 'Choose an address for your order & fast delivery'
-                  : 'Enter accurate destination details in Surat'}
+                  : 'Enter accurate destination details for fast delivery'}
               </p>
             </div>
           </div>
@@ -511,35 +559,67 @@ export default function AddressModal({
                 />
               </div>
 
-              {/* City & Pincode */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                    City
-                  </label>
-                  <input
-                    type="text"
-                    value={addressForm.city}
-                    onChange={(e) =>
-                      setAddressForm({ ...addressForm, city: e.target.value })
-                    }
-                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:border-emerald-600 focus:outline-none bg-gray-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                    Pincode *
-                  </label>
+              {/* Pincode with Auto-detection */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1 flex items-center justify-between">
+                  <span>Pincode *</span>
+                  {isDetectingPin && (
+                    <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                      <i className="fa-solid fa-spinner fa-spin text-[9px]"></i> Detecting City & State...
+                    </span>
+                  )}
+                </label>
+                <div className="relative">
                   <input
                     type="text"
                     required
                     maxLength={6}
                     value={addressForm.pincode}
-                    onChange={(e) =>
-                      setAddressForm({ ...addressForm, pincode: e.target.value.replace(/\D/g, '') })
-                    }
-                    placeholder="395002"
+                    onChange={(e) => handlePincodeChange(e.target.value)}
+                    placeholder="e.g. 380051 or 395002"
                     className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:border-emerald-600 focus:outline-none font-mono"
+                  />
+                  {addressForm.pincode.length === 6 && !isDetectingPin && (
+                    <i className="fa-solid fa-circle-check text-emerald-600 absolute right-3 top-2.5 text-xs"></i>
+                  )}
+                </div>
+                {pinHint && (
+                  <p className="text-[10px] text-emerald-700 font-semibold mt-1 flex items-center gap-1">
+                    <i className="fa-solid fa-location-dot text-[9px]"></i> {pinHint}
+                  </p>
+                )}
+              </div>
+
+              {/* City & State (Auto-populated from Pincode) */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                    City *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={addressForm.city}
+                    onChange={(e) =>
+                      setAddressForm({ ...addressForm, city: e.target.value })
+                    }
+                    placeholder="e.g. Ahmedabad / Surat"
+                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:border-emerald-600 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                    State *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={addressForm.state}
+                    onChange={(e) =>
+                      setAddressForm({ ...addressForm, state: e.target.value })
+                    }
+                    placeholder="e.g. Gujarat"
+                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:border-emerald-600 focus:outline-none"
                   />
                 </div>
               </div>

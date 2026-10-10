@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CartAPI } from '../services/api';
+import { CartAPI, CustomerAPI } from '../services/api';
 
 /**
  * Shopping Cart Screen (sec-cart) Component
@@ -14,6 +14,8 @@ export default function CartView({
   onStartShopping,
   onProceedToCheckout,
   onChangeAddress,
+  selectedDeliveryAddress,
+  onSelectAddress,
   validationIssues = [],
   onClearValidationIssues,
   loading = false
@@ -29,14 +31,54 @@ export default function CartView({
   // Available coupons fetched live from backend
   const [availableCoupons, setAvailableCoupons] = useState([]);
 
-  // Address selection state
+  // Address selection state - loaded live from database with reliable default
   const [addressList, setAddressList] = useState([
-    { id: 'addr_1', type: 'Home', full_address: 'Flat 402, Green Valley Apt, Ring Road, Surat', is_verified: true },
-    { id: 'addr_2', type: 'Work', full_address: 'Cabin 14, Tech Park, Majura Gate, Surat', is_verified: true },
-    { id: 'addr_3', type: 'Other', full_address: 'Plot 88, VIP Circle, Uttran, Surat', is_verified: true }
+    { id: 'addr_default', type: 'Home', full_address: 'Flat 402, Green Valley Apt, Ring Road, Surat', is_verified: true }
   ]);
-  const [selectedAddressId, setSelectedAddressId] = useState('addr_1');
+  const [selectedAddressId, setSelectedAddressId] = useState(selectedDeliveryAddress?.id || 'addr_default');
   const [showAddressPicker, setShowAddressPicker] = useState(false);
+
+  // Keep selected ID in sync if parent passes or updates selectedDeliveryAddress
+  useEffect(() => {
+    if (selectedDeliveryAddress?.id) {
+      setSelectedAddressId(selectedDeliveryAddress.id);
+    }
+  }, [selectedDeliveryAddress?.id]);
+
+  // Load real customer addresses from database
+  useEffect(() => {
+    let isMounted = true;
+    CustomerAPI.getAddresses()
+      .then((res) => {
+        if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          const formatted = res.data.map((a) => ({
+            id: a.id,
+            type: a.label || a.type || 'Home',
+            full_address: [
+              a.address_line || a.address,
+              a.landmark,
+              a.city || 'Surat',
+              a.pincode || a.zip
+            ].filter(Boolean).join(', '),
+            city: a.city || 'Surat',
+            state: a.state || 'Gujarat',
+            pincode: a.pincode || a.zip || '',
+            is_verified: true,
+            raw: a
+          }));
+          setAddressList(formatted);
+          if (!selectedDeliveryAddress && formatted.length > 0) {
+            setSelectedAddressId(formatted[0].id);
+          }
+        }
+      })
+      .catch((err) => {
+        console.debug('Using fallback addresses list in CartView:', err.message);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const items = cartData.items || [];
   const summary = cartData.summary || {};
@@ -248,7 +290,36 @@ export default function CartView({
   const grandTotal = Number(summary.grand_total !== undefined ? summary.grand_total : Math.max(0, subtotal + deliveryFee - discountAmount));
   const freeDeliveryShortfall = Math.max(0, 499 - subtotal);
 
-  const selectedAddress = addressList.find((a) => a.id === selectedAddressId) || addressList[0];
+  const selectedAddress = (() => {
+    if (selectedDeliveryAddress) {
+      return {
+        id: selectedDeliveryAddress.id || selectedAddressId,
+        type: selectedDeliveryAddress.label || selectedDeliveryAddress.type || 'Home',
+        full_address: selectedDeliveryAddress.full_address || [
+          selectedDeliveryAddress.address_line || selectedDeliveryAddress.address,
+          selectedDeliveryAddress.landmark,
+          selectedDeliveryAddress.city || 'Surat',
+          selectedDeliveryAddress.pincode || selectedDeliveryAddress.zip
+        ].filter(Boolean).join(', '),
+        city: selectedDeliveryAddress.city || 'Surat',
+        state: selectedDeliveryAddress.state || 'Gujarat',
+        pincode: selectedDeliveryAddress.pincode || selectedDeliveryAddress.zip || '',
+        is_verified: true,
+        raw: selectedDeliveryAddress
+      };
+    }
+    const found = addressList.find((a) => a.id === selectedAddressId);
+    if (found) return found;
+    if (addressList.length > 0) return addressList[0];
+    return {
+      id: 'addr_default',
+      type: 'Home',
+      full_address: 'Flat 402, Green Valley Apt, Ring Road, Surat',
+      city: 'Surat',
+      pincode: '395002',
+      is_verified: true
+    };
+  })();
 
   // 1. EMPTY CART STATE
   if (isCartEmpty) {
@@ -947,20 +1018,34 @@ export default function CartView({
       {/* Inline Address Switcher Dropdown (when Change is clicked) */}
       {showAddressPicker && (
         <div className="bg-white rounded-2xl p-3 border border-emerald-200 shadow-md space-y-2 -mt-2">
-          <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider px-1">
-            Choose Delivery Location
+          <div className="flex items-center justify-between px-1">
+            <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+              Choose Delivery Location
+            </div>
+            {onChangeAddress && (
+              <button
+                type="button"
+                onClick={onChangeAddress}
+                className="text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer"
+              >
+                + Add / Manage
+              </button>
+            )}
           </div>
           <div className="space-y-1.5">
-            {addressList.map((addr) => (
+            {(addressList.length > 0 ? addressList : [selectedAddress]).map((addr) => (
               <button
                 key={addr.id}
                 type="button"
                 onClick={() => {
                   setSelectedAddressId(addr.id);
+                  if (onSelectAddress && addr.raw) {
+                    onSelectAddress(addr.raw);
+                  }
                   setShowAddressPicker(false);
                 }}
                 className={`w-full text-left p-2.5 rounded-xl border flex items-center justify-between transition cursor-pointer ${
-                  selectedAddressId === addr.id
+                  selectedAddress.id === addr.id
                     ? 'border-brand-green bg-emerald-50/60'
                     : 'border-gray-100 hover:bg-gray-50'
                 }`}
@@ -974,7 +1059,7 @@ export default function CartView({
                   </div>
                   <div className="text-[11px] text-gray-500 truncate">{addr.full_address}</div>
                 </div>
-                {selectedAddressId === addr.id && (
+                {selectedAddress.id === addr.id && (
                   <i className="fa-solid fa-circle-check text-emerald-600 text-sm"></i>
                 )}
               </button>

@@ -166,7 +166,7 @@ export default function App() {
     } catch (e) {
       console.warn(e);
     }
-    showToast(`✓ Delivering to ${addr.label || 'Home'} (${addr.address_line ? addr.address_line.split(',')[0] : (addr.city || 'Surat')})`);
+    showToast(`✓ Delivering to ${addr.label || addr.type || 'Home'} (${addr.address_line ? addr.address_line.split(',')[0] : (addr.address ? addr.address.split(',')[0] : (addr.city || 'Surat'))})`);
   };
 
   const refreshWishlist = async () => {
@@ -488,7 +488,7 @@ export default function App() {
                 </div>
                 <div>
                   <div className="font-extrabold text-sm tracking-tight">ADAB</div>
-                  <div className="text-[10px] text-green-100 font-semibold">{storeCount} local stores · Surat</div>
+                  <div className="text-[10px] text-green-100 font-semibold">{storeCount} local stores · {selectedAddress?.city || 'Surat'}</div>
                 </div>
               </div>
 
@@ -552,7 +552,7 @@ export default function App() {
                 </div>
                 <div className="font-extrabold text-sm truncate flex items-center gap-1">
                   {selectedAddress
-                    ? `${selectedAddress.label || 'Home'} · ${selectedAddress.address_line ? selectedAddress.address_line.split(',')[0] : 'Ring Road'}, Surat`
+                    ? `${selectedAddress.label || selectedAddress.type || 'Home'} · ${selectedAddress.address_line ? selectedAddress.address_line.split(',')[0] : (selectedAddress.address ? selectedAddress.address.split(',')[0] : 'Ring Road')}, ${selectedAddress.city || 'Surat'}`
                     : 'Home · Ring Road, Surat'}
                   <i className="fa-solid fa-chevron-down text-[9px] opacity-70 group-hover:translate-y-0.5 transition-transform"></i>
                 </div>
@@ -568,7 +568,7 @@ export default function App() {
                 Your neighbourhood shops,<br className="hidden md:block" /> delivered in minutes.
               </h1>
               <p>
-                Groceries, dairy, fashion and more from {storeCount} trusted local stores in Surat — one cart, one delivery.
+                Groceries, dairy, fashion and more from {storeCount} trusted local stores in {selectedAddress?.city || 'Surat'} — one cart, one delivery.
               </p>
             </div>
 
@@ -730,6 +730,9 @@ export default function App() {
             onRemoveCoupon={handleRemoveCoupon}
             onStartShopping={() => setActiveTab('home')}
             onProceedToCheckout={handleProceedToCheckout}
+            selectedDeliveryAddress={selectedAddress}
+            onChangeAddress={() => setIsAddressModalOpen(true)}
+            onSelectAddress={handleSelectAddress}
             validationIssues={validationIssues}
             onClearValidationIssues={() => setValidationIssues([])}
             loading={loadingCart}
