@@ -9,7 +9,10 @@ module.exports = {
     if (!data.title || !data.start_date || !data.end_date) {
       throw new Error('Missing required promotion fields');
     }
-    return await marketingRepo.createPromotion(storeId, data);
+    const result = await marketingRepo.createPromotion(storeId, data);
+    const notificationProducer = require('./notificationProducer');
+    await notificationProducer.promotionCreated(storeId, data.title);
+    return result;
   },
 
   editPromotion: async (storeId, id, data) => {
@@ -30,7 +33,10 @@ module.exports = {
     }
     data.code = data.code.toUpperCase();
     if (data.discount_type) data.discount_type = data.discount_type.toUpperCase();
-    return await marketingRepo.createCoupon(storeId, data);
+    const result = await marketingRepo.createCoupon(storeId, data);
+    const notificationProducer = require('./notificationProducer');
+    await notificationProducer.couponCreated(storeId, data.code);
+    return result;
   },
 
   editCoupon: async (storeId, id, data) => {

@@ -57,8 +57,20 @@ const sellerService = {
     });
   },
 
+  getNotificationsSince: (timestamp) => {
+    return api.get(`/seller/notifications/since?since=${encodeURIComponent(timestamp)}`, {
+      headers: { 'x-user-id': userId }
+    });
+  },
+
   markNotificationRead: (id) => {
     return api.post(`/seller/notifications/${id}/read`, {}, {
+      headers: { 'x-user-id': userId }
+    });
+  },
+
+  markAllNotificationsRead: () => {
+    return api.post('/seller/notifications/read-all', {}, {
       headers: { 'x-user-id': userId }
     });
   }

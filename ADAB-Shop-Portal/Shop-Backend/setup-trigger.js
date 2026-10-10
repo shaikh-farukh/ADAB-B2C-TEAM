@@ -128,7 +128,30 @@ async function setupTrigger() {
       EXECUTE FUNCTION notify_payout_change();
     `);
 
-    console.log("Postgres NOTIFY triggers successfully created for listings, orders, stores, and payouts!");
+    // ==========================================
+    // CRITICAL NOTIFICATION TRIGGER
+    // Ensures real-time Socket.IO delivery for any notification inserted,
+    // regardless of whether it came from Seller Portal, Admin Portal, or Jobs.
+    // ==========================================
+    await pool.query(`
+      CREATE OR REPLACE FUNCTION notify_new_notification()
+      RETURNS trigger AS $$
+      BEGIN
+        PERFORM pg_notify('new_notification', row_to_json(NEW)::text);
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+
+    await pool.query(`
+      DROP TRIGGER IF EXISTS trg_new_notification ON notifications;
+      CREATE TRIGGER trg_new_notification
+      AFTER INSERT ON notifications
+      FOR EACH ROW
+      EXECUTE FUNCTION notify_new_notification();
+    `);
+
+    console.log("Postgres NOTIFY triggers successfully created for listings, orders, stores, payouts, and notifications!");
   } catch (err) {
     console.error("Error setting up trigger:", err);
   } finally {

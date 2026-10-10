@@ -9,7 +9,10 @@ module.exports = {
     if (!Array.isArray(updates) || updates.length === 0) {
       throw new Error('Updates must be an array');
     }
-    return await pricingRepo.updateBulkPricing(storeId, updates);
+    const results = await pricingRepo.updateBulkPricing(storeId, updates);
+    const notificationProducer = require('./notificationProducer');
+    await notificationProducer.bulkPriceUpdated(storeId, results.length);
+    return results;
   },
 
   updateBasePricing: async (storeId, listingId, data) => {
@@ -28,7 +31,10 @@ module.exports = {
   },
   
   schedulePricing: async (storeId, listingId, data) => {
-    return await pricingRepo.schedulePricing(storeId, listingId, data);
+    const result = await pricingRepo.schedulePricing(storeId, listingId, data);
+    const notificationProducer = require('./notificationProducer');
+    await notificationProducer.priceScheduled(storeId, 'Listing ID ' + listingId, data.start_date);
+    return result;
   },
   
   deleteSchedule: async (storeId, listingId) => {

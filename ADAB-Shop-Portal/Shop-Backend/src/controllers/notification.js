@@ -9,8 +9,8 @@ class NotificationController {
       const limit = parseInt(req.query.limit) || 50;
       const offset = parseInt(req.query.offset) || 0;
       
-      const notifications = await notificationService.getNotifications(userId, limit, offset);
-      res.json({ success: true, data: notifications });
+      const result = await notificationService.getNotifications(userId, limit, offset);
+      res.json({ success: true, data: result.notifications, total: result.total });
     } catch (error) {
       res.status(400).json({ success: false, error: error.message });
     }
@@ -39,23 +39,40 @@ class NotificationController {
     }
   }
 
-  async createTestNotification(req, res) {
+  /**
+   * Bulk mark all unread notifications as read.
+   * Replaces the N+1 sequential markAsRead calls.
+   */
+  async markAllAsRead(req, res) {
     try {
       const { userId } = getAuthenticatedSellerContext(req);
-      const { title, message, type } = req.body;
       
-      const notification = await notificationService.createNotification(
-        userId, 
-        title || 'Test Notification', 
-        message || 'This is a test live push notification.', 
-        type || 'GENERAL'
-      );
-      
-      res.json({ success: true, data: notification });
+      const data = await notificationService.markAllAsRead(userId);
+      res.json({ success: true, data });
     } catch (error) {
       res.status(400).json({ success: false, error: error.message });
     }
   }
+
+  /**
+   * Get notifications since a timestamp (for reconnection recovery).
+   */
+  async getNotificationsSince(req, res) {
+    try {
+      const { userId } = getAuthenticatedSellerContext(req);
+      const since = req.query.since;
+      
+      if (!since) {
+        return res.status(400).json({ success: false, error: 'Missing "since" query parameter (ISO timestamp)' });
+      }
+      
+      const data = await notificationService.getNotificationsSince(userId, since);
+      res.json({ success: true, data });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
 }
 
 module.exports = new NotificationController();

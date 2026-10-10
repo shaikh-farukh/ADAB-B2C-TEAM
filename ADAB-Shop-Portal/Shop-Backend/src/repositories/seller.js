@@ -52,6 +52,8 @@ class SellerRepository {
       RETURNING *;
     `;
     await pool.query(query, values);
+    const notificationProducer = require('../services/notificationProducer');
+    await notificationProducer.profileUpdated(userId);
     return this.getProfile(userId);
   }
 
@@ -81,6 +83,8 @@ class SellerRepository {
       RETURNING *;
     `;
     await pool.query(query, values);
+    const notificationProducer = require('../services/notificationProducer');
+    await notificationProducer.storeUpdated(userId);
     return this.getStore(userId);
   }
 
@@ -119,6 +123,8 @@ class SellerRepository {
       WHERE id = $${idx}
     `;
     await pool.query(query, values);
+    const notificationProducer = require('../services/notificationProducer');
+    await notificationProducer.settingsChanged(userId);
     return this.getSettings(userId);
   }
 

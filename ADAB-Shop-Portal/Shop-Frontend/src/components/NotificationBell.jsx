@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import sellerService, { userId } from '../services/sellerService';
-import { io } from 'socket.io-client';
+import React, { useState, useEffect, useRef } from 'react';
+import sellerService from '../services/sellerService';
+import { useSocket } from '../context/SocketProvider';
 
 const NotificationBell = () => {
   const [unreadCount, setUnreadCount] = useState(0);
@@ -8,50 +8,65 @@ const NotificationBell = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const lastSeenRef = useRef(new Date().toISOString());
   
+  const { isConnected, subscribe } = useSocket();
+
   // Real-time toast state
   const [liveToast, setLiveToast] = useState(null);
 
   useEffect(() => {
     fetchUnreadCount();
     
-    // Connect to backend WebSocket
-    const socket = io('http://localhost:5003', {
-      reconnectionDelayMax: 10000,
-    });
-    
-    socket.on('connect', () => {
-      console.log('Connected to notification WebSocket');
-      socket.emit('join_seller_room', userId);
-      // Fetch latest count on reconnect to ensure sync
-      fetchUnreadCount();
-    });
-
-    const handleNewNotification = (newNotification) => {
+    // Subscribe to shared socket notifications
+    const unsubscribe = subscribe('notification', (newNotification) => {
       console.log('Received live notification!', newNotification);
       
       setUnreadCount(prev => prev + 1);
       
       setNotifications(prevList => {
-        // Prevent duplicates in strict mode
+        // Prevent duplicates
         if (prevList.some(n => n.id === newNotification.id)) return prevList;
         return [newNotification, ...prevList];
       });
       
       setLiveToast(newNotification);
+      lastSeenRef.current = new Date().toISOString();
       
       setTimeout(() => {
         setLiveToast(null);
       }, 5000);
-    };
-
-    socket.on('notification', handleNewNotification);
+    });
 
     return () => {
-      socket.off('notification', handleNewNotification);
-      socket.disconnect();
+      unsubscribe();
     };
-  }, []);
+  }, [subscribe]);
+
+  // Handle reconnection recovery
+  useEffect(() => {
+    if (isConnected) {
+      // We just reconnected. Fetch any missed notifications
+      recoverMissedNotifications();
+      fetchUnreadCount();
+    }
+  }, [isConnected]);
+
+  const recoverMissedNotifications = async () => {
+    try {
+      const res = await sellerService.getNotificationsSince(lastSeenRef.current);
+      if (res.success && res.data.length > 0) {
+        setNotifications(prev => {
+          const newMap = new Map();
+          [...res.data, ...prev].forEach(n => newMap.set(n.id, n));
+          return Array.from(newMap.values()).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        });
+        lastSeenRef.current = new Date().toISOString();
+      }
+    } catch (err) {
+      console.error("Failed to recover notifications:", err);
+    }
+  };
 
   const fetchUnreadCount = async () => {
     try {
@@ -70,14 +85,12 @@ const NotificationBell = () => {
       const res = await sellerService.getNotifications();
       if (res.success) {
         setNotifications(res.data);
+        lastSeenRef.current = new Date().toISOString();
         
-        // Auto-mark all as read when opened
-        const unreadIds = res.data.filter(n => !n.is_read).map(n => n.id);
-        for (const id of unreadIds) {
-          await sellerService.markNotificationRead(id).catch(console.error);
-        }
-        
-        if (unreadIds.length > 0) {
+        // Use bulk mark all as read API instead of N+1 requests
+        const hasUnread = res.data.some(n => !n.is_read);
+        if (hasUnread) {
+          await sellerService.markAllNotificationsRead();
           setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
           setUnreadCount(0);
         }

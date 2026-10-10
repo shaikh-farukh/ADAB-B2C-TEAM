@@ -19,8 +19,9 @@ router.get('/dashboard', sellerController.getDashboardMetrics);
 // Shared Platform Notification Endpoints (Consumed by Seller UI)
 router.get('/notifications', notificationController.getNotifications);
 router.get('/notifications/unread-count', notificationController.getUnreadCount);
+router.get('/notifications/since', notificationController.getNotificationsSince);
+router.post('/notifications/read-all', notificationController.markAllAsRead);
 router.post('/notifications/:id/read', notificationController.markAsRead);
-router.post('/notifications/test', notificationController.createTestNotification);
 
 // Dynamic Operations: Orders, Returns, B2B, Coupons, Points, Analytics, Catalog, Recommendations, Messages, Finance
 router.get('/orders', sellerController.getOrders);

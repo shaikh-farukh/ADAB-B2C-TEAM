@@ -47,7 +47,10 @@ class ListingService {
       [id, listing.approval_status, 'SUBMITTED', 'Seller submitted for review']
     );
 
-    return await ListingRepository.updateListing(storeId, id, { approval_status: 'SUBMITTED' });
+    const updated = await ListingRepository.updateListing(storeId, id, { approval_status: 'SUBMITTED' });
+    const notificationProducer = require('./notificationProducer');
+    await notificationProducer.listingSubmitted(storeId, listing.title);
+    return updated;
   }
 
   // Admin endpoint: start review
@@ -86,7 +89,18 @@ class ListingService {
       [id, listing.approval_status, status, reason || 'Admin review decision']
     );
 
-    return await ListingRepository.updateListing(storeId, id, data);
+    const updated = await ListingRepository.updateListing(storeId, id, data);
+    
+    const notificationProducer = require('./notificationProducer');
+    if (status === 'APPROVED') {
+      await notificationProducer.listingApproved(storeId, listing.title);
+    } else if (status === 'REJECTED') {
+      await notificationProducer.listingRejected(storeId, listing.title, reason);
+    } else if (status === 'CHANGES_REQUIRED') {
+      await notificationProducer.listingChangesRequired(storeId, listing.title, reason);
+    }
+
+    return updated;
   }
 
   async publishListing(storeId, id) {
@@ -101,7 +115,10 @@ class ListingService {
       [id, listing.approval_status, 'PUBLISHED', 'Seller or System published listing']
     );
 
-    return await ListingRepository.updateListing(storeId, id, { approval_status: 'PUBLISHED' });
+    const updated = await ListingRepository.updateListing(storeId, id, { approval_status: 'PUBLISHED' });
+    const notificationProducer = require('./notificationProducer');
+    await notificationProducer.listingPublished(storeId, listing.title);
+    return updated;
   }
   async getApprovalHistory(storeId, id) {
     // Basic authorization check - is this listing owned by this store?
