@@ -142,9 +142,9 @@ describe('User Feedback Fixes Validation', () => {
     expect(html).toContain('Order Progress Timeline');
     expect(html).toContain('PLACED');
 
-    // Centered timeline track (12.5% - 87.5% across 4 grid columns)
-    expect(html).toContain('left-[12.5%]');
-    expect(html).toContain('right-[12.5%]');
+    // Centered per-column timeline track
+    expect(html).toContain('right-1/2');
+    expect(html).toContain('w-full');
 
     // Stage milestones
     expect(html).toContain('Accepted');

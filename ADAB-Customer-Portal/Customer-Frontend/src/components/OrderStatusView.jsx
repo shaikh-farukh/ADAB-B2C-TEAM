@@ -181,64 +181,58 @@ export default function OrderStatusView({
           </span>
         </div>
 
-        <div className="relative pt-1 pb-1">
-          {/* Centered connecting line:
-              Spans exactly from center of column 1 (12.5%) to center of column 4 (87.5%).
-              Centered vertically inside 32px (w-8 h-8) circle nodes at top-4 (16px).
-          */}
-          <div
-            className="absolute top-4 -translate-y-1/2 left-[12.5%] right-[12.5%] h-1 bg-gray-200 z-0 rounded-full"
-            aria-hidden="true"
-          >
-            {/* Dynamic progress bar reflecting real order status */}
-            <div
-              className="h-full bg-brand-green rounded-full transition-all duration-500 ease-out"
-              style={{ width: `${fillPercent}%` }}
-            ></div>
-          </div>
+        <div className="grid grid-cols-4 gap-0 text-center relative pt-2 pb-1">
+          {timelineSteps.map((step, idx) => {
+            const isCompleted = idx < activeStep || (idx === 0 && activeStep === 0) || (activeStep === 3 && idx === 3);
+            const isCurrent = idx === activeStep && activeStep > 0 && activeStep < 3;
 
-          {/* 4 Steps Grid */}
-          <div className="grid grid-cols-4 text-center relative z-10">
-            {timelineSteps.map((step, idx) => {
-              const isCompleted = idx < activeStep || (idx === 0 && activeStep === 0);
-              const isCurrent = idx === activeStep && activeStep > 0;
-
-              return (
-                <div key={step.id} className="flex flex-col items-center px-0.5">
-                  {/* Step Node Circle with white masking ring */}
+            return (
+              <div key={step.id} className="relative flex flex-col items-center">
+                {/* Connecting track to previous step:
+                    Starts at the exact center of step (idx - 1) and ends at the exact center of step idx.
+                    Centered vertically at top-4 (16px) matching the exact center of the 32px (w-8 h-8) circle.
+                */}
+                {idx > 0 && (
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs transition-all duration-300 ring-4 ring-white ${
-                      isCompleted
-                        ? 'bg-brand-green text-white shadow-xs'
-                        : isCurrent
-                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200 ring-4 ring-emerald-100 animate-pulse'
-                        : 'bg-white border-2 border-gray-300 text-gray-400'
+                    className={`absolute top-4 -translate-y-1/2 right-1/2 w-full h-[3px] z-0 ${
+                      idx <= activeStep ? 'bg-brand-green' : 'bg-gray-200'
                     }`}
-                  >
-                    <i className={`fa-solid ${isCompleted ? 'fa-check' : step.icon}`}></i>
-                  </div>
+                  />
+                )}
 
-                  {/* Stage Title */}
-                  <span
-                    className={`text-[10px] font-extrabold mt-2 leading-tight ${
-                      isCompleted || isCurrent ? 'text-gray-900' : 'text-gray-400'
-                    }`}
-                  >
-                    {step.title}
-                  </span>
-
-                  {/* Stage Timestamp */}
-                  <span
-                    className={`text-[9px] mt-0.5 font-bold ${
-                      isCompleted || isCurrent ? 'text-emerald-700' : 'text-gray-400'
-                    }`}
-                  >
-                    {step.timestamp}
-                  </span>
+                {/* Step Node Circle with white masking ring */}
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs relative z-10 transition-all duration-300 ring-4 ring-white ${
+                    isCompleted
+                      ? 'bg-brand-green text-white shadow-xs'
+                      : isCurrent
+                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200 ring-4 ring-emerald-100 animate-pulse'
+                      : 'bg-white border-2 border-gray-300 text-gray-400'
+                  }`}
+                >
+                  <i className={`fa-solid ${isCompleted && idx < 3 ? 'fa-check' : step.icon}`}></i>
                 </div>
-              );
-            })}
-          </div>
+
+                {/* Stage Title */}
+                <span
+                  className={`text-[10px] font-extrabold mt-2 leading-tight ${
+                    isCompleted || isCurrent ? 'text-gray-900' : 'text-gray-400'
+                  }`}
+                >
+                  {step.title}
+                </span>
+
+                {/* Stage Timestamp */}
+                <span
+                  className={`text-[9px] mt-0.5 font-bold ${
+                    isCompleted || isCurrent ? 'text-emerald-700' : 'text-gray-400'
+                  }`}
+                >
+                  {step.timestamp}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
