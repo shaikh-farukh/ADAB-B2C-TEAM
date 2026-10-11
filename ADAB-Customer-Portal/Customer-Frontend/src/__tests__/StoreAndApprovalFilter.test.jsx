@@ -24,7 +24,7 @@ describe('Store and Approval Filter Tests', () => {
 
     expect(html).toContain('Shabbir Grocery Shop');
     expect(html).toContain('OPEN NOW');
-    expect(html).toContain('View All Shops');
+    expect(html).toContain('All Shops');
     expect(html).toContain('Showing approved items from Shabbir Grocery Shop');
   });
 

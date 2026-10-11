@@ -345,20 +345,6 @@ export default function BrowsePage({
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={clearStoreFilter}
-                className="self-start sm:self-center px-4 py-2 rounded-xl text-white font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95 shrink-0"
-                style={{ 
-                  background: 'rgba(255, 255, 255, 0.22)', 
-                  border: '1px solid rgba(255, 255, 255, 0.4)',
-                  backdropFilter: 'blur(6px)',
-                  WebkitBackdropFilter: 'blur(6px)'
-                }}
-              >
-                <span>View All Shops</span>
-                <i className="fa-solid fa-xmark text-xs ml-0.5"></i>
-              </button>
             </div>
           </div>
         )}
