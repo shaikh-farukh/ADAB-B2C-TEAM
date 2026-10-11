@@ -4,8 +4,16 @@ const sellerController = require('../controllers/seller');
 const notificationController = require('../controllers/notification');
 const { requireSellerAuth } = require('../middlewares/auth');
 
-// Apply temporary development authentication
+// Public Auth Endpoints (Phone + 6-digit PIN)
+router.post('/auth/login', sellerController.login);
+router.post('/auth/signup', sellerController.signup);
+
+// Apply Seller Auth Middleware
 router.use(requireSellerAuth);
+
+// 7-Step Incremental KYC Onboarding APIs
+router.get('/onboarding', sellerController.getOnboarding);
+router.post('/onboarding/step/:stepNum', sellerController.saveOnboardingStep);
 
 // Core Read APIs for Day 1
 router.get('/profile', sellerController.getProfile);

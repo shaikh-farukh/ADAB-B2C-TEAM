@@ -1,21 +1,500 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSeller } from '../context/SellerContext';
+
+const STEP_TITLES = [
+  'Store & Owner Profile',
+  'KYC & GST Compliance',
+  'Bank Account Details',
+  'Store Operations & Delivery',
+  'B2B Wholesale & Credit'
+];
 
 export default function OnboardingPage() {
-  const [currentStep, setCurrentStep] = useState(1);
-  const stepTitles = [
-    'Store & Owner Profile',
-    'KYC & GST Compliance',
-    'Bank Account Details',
-    'Store Operations & Delivery',
-    'B2B Wholesale & Credit',
-    'Starter Products',
-    'Review & Submit'
-  ];
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const {
+    profile,
+    store,
+    onboardingData,
+    kycSteps,
+    isCriticalSetupDone,
+    isApplicationSubmitted = false,
+    isKycApproved = false,
+    isKycRejected = false,
+    refreshSellerData,
+    saveOnboardingStep
+  } = useSeller();
+
+  useEffect(() => {
+    if (refreshSellerData) {
+      refreshSellerData(true);
+    }
+  }, [refreshSellerData]);
+
+  const rawParamStep = Number(searchParams.get('step')) || 1;
+  const paramStep = Math.min(5, Math.max(1, rawParamStep));
+  const fromPath = searchParams.get('from') || '';
+  const featureName = searchParams.get('feature') || '';
+
+  const [currentStep, setCurrentStep] = useState(paramStep);
+  const [saving, setSaving] = useState(false);
+  const [toastMsg, setToastMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+
+  // Step 1 State: Store & Owner Profile (Critical) — initialized directly if step1 already saved
+  const [shopName, setShopName] = useState(() => (kycSteps?.step1 ? store?.store_name || '' : ''));
+  const [legalName, setLegalName] = useState(() => (kycSteps?.step1 ? profile?.legal_name || '' : ''));
+  const [entityType, setEntityType] = useState(() => (kycSteps?.step1 ? profile?.entity_type || 'Sole Proprietorship' : 'Sole Proprietorship'));
+  const [category, setCategory] = useState(() => (kycSteps?.step1 ? store?.category || 'Grocery & Supermarket' : 'Grocery & Supermarket'));
+  const [ownerName, setOwnerName] = useState(() => (kycSteps?.step1 ? profile?.full_name || '' : ''));
+  const [phone, setPhone] = useState(() => profile?.phone || store?.phone || '');
+  const [email, setEmail] = useState(() => (kycSteps?.step1 ? profile?.email || '' : ''));
+  const [address, setAddress] = useState(() => (kycSteps?.step1 ? store?.address_line || '' : ''));
+  const [city, setCity] = useState(() => (kycSteps?.step1 ? store?.city || '' : ''));
+  const [stateName, setStateName] = useState(() => (kycSteps?.step1 ? onboardingData?.profileData?.state || store?.state || '' : ''));
+  const [pincode, setPincode] = useState(() => (kycSteps?.step1 ? onboardingData?.profileData?.pincode || store?.pincode || '' : ''));
+
+  // Step 2 State: KYC & GST Compliance (Critical)
+  const [gstin, setGstin] = useState(() => (kycSteps?.step2 ? profile?.gstin || '' : ''));
+  const [pan, setPan] = useState(() => (kycSteps?.step2 && profile?.pan && profile.pan !== 'PENDING00P' ? profile.pan : ''));
+  const [fssai, setFssai] = useState(() => (kycSteps?.step2 ? profile?.fssai_license || '' : ''));
+  const [udhyam, setUdhyam] = useState(() => (kycSteps?.step2 ? profile?.udhyam_msme || '' : ''));
+
+  // Step 3 State: Bank Account Details
+  const [bankName, setBankName] = useState('HDFC Bank');
+  const [accHolder, setAccHolder] = useState('');
+  const [accNum, setAccNum] = useState('');
+  const [accNumConfirm, setAccNumConfirm] = useState('');
+  const [ifsc, setIfsc] = useState('');
+  const [accType, setAccType] = useState('CURRENT');
+
+  // Step 4 State: Store Operations & Delivery
+  const [openTime, setOpenTime] = useState('08:00');
+  const [closeTime, setCloseTime] = useState('22:00');
+  const [zoneRadius, setZoneRadius] = useState('10');
+  const [delivFast, setDelivFast] = useState(true);
+  const [delivSame, setDelivSame] = useState(true);
+  const [delivScheduled, setDelivScheduled] = useState(true);
+  const [delivPickup, setDelivPickup] = useState(true);
+  const [fleet, setFleet] = useState('SELF');
+
+  // Step 5 State: B2B Wholesale & Credit
+  const [enableCredit, setEnableCredit] = useState(true);
+  const [creditDays, setCreditDays] = useState('14');
+  const [creditLimit, setCreditLimit] = useState('');
+  const [creditMinOrder, setCreditMinOrder] = useState('');
+
+  // Track optimistic step completion locally to avoid any render-cycle desync when advancing steps
+  const [localDoneSteps, setLocalDoneSteps] = useState({});
+  const effectiveKycSteps = { ...(kycSteps || {}), ...localDoneSteps };
+  const effectiveCriticalDone = Boolean(
+    (effectiveKycSteps.step1 && effectiveKycSteps.step2) || isCriticalSetupDone
+  );
+
+  useEffect(() => {
+    const rawS = Number(searchParams.get('step'));
+    if (!rawS) return;
+    if (rawS >= 6 && effectiveCriticalDone) {
+      navigate('/regstatus', { replace: true });
+      return;
+    }
+    const s = Math.min(5, Math.max(1, rawS));
+    if (!effectiveCriticalDone) {
+      if (!effectiveKycSteps.step1 && s > 1) {
+        setCurrentStep(1);
+        return;
+      }
+      if (effectiveKycSteps.step1 && !effectiveKycSteps.step2 && s > 2) {
+        setCurrentStep(2);
+        return;
+      }
+    }
+    setCurrentStep(s);
+    // Only re-run when URL searchParams change so saving a step never resets currentStep from stale query params
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // Populate ONLY the verified phone number by default; other step fields only populate if that step was already saved
+  useEffect(() => {
+    if (profile?.phone || store?.phone) {
+      setPhone(profile?.phone || store?.phone || '');
+    }
+
+    if (kycSteps?.step1) {
+      if (store) {
+        setShopName(store.store_name || '');
+        setCategory(store.category || 'Grocery & Supermarket');
+        setAddress(store.address_line || '');
+        setCity(store.city || '');
+        if (store.state) setStateName(store.state);
+        if (store.pincode) setPincode(store.pincode);
+      }
+      if (profile) {
+        setOwnerName(profile.full_name || '');
+        setEmail(profile.email || '');
+        setLegalName(profile.legal_name || '');
+        setEntityType(profile.entity_type || 'Sole Proprietorship');
+      }
+      if (onboardingData?.profileData) {
+        if (onboardingData.profileData.state) setStateName(onboardingData.profileData.state);
+        if (onboardingData.profileData.pincode) setPincode(onboardingData.profileData.pincode);
+      }
+    }
+
+    if (kycSteps?.step2 && profile) {
+      setGstin(profile.gstin || '');
+      setPan(profile.pan && profile.pan !== 'PENDING00P' ? profile.pan : '');
+      setFssai(profile.fssai_license || '');
+      setUdhyam(profile.udhyam_msme || '');
+    }
+
+    if (kycSteps?.step3 && onboardingData?.bankAccount) {
+      const b = onboardingData.bankAccount;
+      setBankName(b.bank_name || 'HDFC Bank');
+      setAccHolder(b.account_holder_name || '');
+      setAccNum(b.account_number || '');
+      setAccNumConfirm(b.account_number || '');
+      setIfsc(b.ifsc_code || '');
+      setAccType(b.account_type || 'CURRENT');
+    }
+
+    if (kycSteps?.step4) {
+      if (store) {
+        if (store.open_time) setOpenTime(String(store.open_time).slice(0, 5));
+        if (store.close_time) setCloseTime(String(store.close_time).slice(0, 5));
+        if (store.delivery_radius_km !== undefined && store.delivery_radius_km !== null) {
+          setZoneRadius(String(Math.min(20, Math.max(0, Math.round(Number(store.delivery_radius_km))))));
+        }
+      }
+      if (onboardingData?.deliveryConfig && Object.keys(onboardingData.deliveryConfig).length > 0) {
+        const d = onboardingData.deliveryConfig;
+        if (d.delivery_radius_km !== undefined && d.delivery_radius_km !== null) {
+          setZoneRadius(String(Math.min(20, Math.max(0, Math.round(Number(d.delivery_radius_km))))));
+        }
+        if (d.delivFast !== undefined) setDelivFast(Boolean(d.delivFast));
+        if (d.delivSame !== undefined) setDelivSame(Boolean(d.delivSame));
+        if (d.delivScheduled !== undefined) setDelivScheduled(Boolean(d.delivScheduled));
+        if (d.delivPickup !== undefined) setDelivPickup(Boolean(d.delivPickup));
+        if (d.fleet) setFleet(d.fleet);
+      }
+    }
+
+    if (kycSteps?.step5 && onboardingData?.creditConfig && Object.keys(onboardingData.creditConfig).length > 0) {
+      const c = onboardingData.creditConfig;
+      if (c.enableCredit !== undefined) setEnableCredit(Boolean(c.enableCredit));
+      if (c.creditDays) setCreditDays(String(c.creditDays));
+      if (c.creditLimit) setCreditLimit(String(c.creditLimit));
+      if (c.creditMinOrder) setCreditMinOrder(String(c.creditMinOrder));
+    }
+  }, [profile, store, onboardingData, kycSteps]);
+
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 3500);
+  };
+
+  const isStepLocked = (stepNum, stepsOverride = effectiveKycSteps) => {
+    const steps = stepsOverride || effectiveKycSteps;
+    if ((steps?.step1 && steps?.step2) || effectiveCriticalDone) return false;
+    if (stepNum === 1) return false;
+    if (stepNum === 2) return !steps?.step1;
+    return true;
+  };
+
+  const goToStep = (stepNum, stepsOverride = effectiveKycSteps) => {
+    if (isStepLocked(stepNum, stepsOverride)) {
+      setErrorMsg('Please complete & save Critical Steps 1 and 2 first to unlock further steps and portal navigation.');
+      return;
+    }
+    const next = Math.min(5, Math.max(1, stepNum));
+    setCurrentStep(next);
+    setErrorMsg('');
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('step', String(next));
+    setSearchParams(nextParams, { replace: true });
+  };
+
+  // Skip ONLY the current step (never allowed on critical steps 1 & 2)
+  const handleSkipStep = () => {
+    if (currentStep <= 2) {
+      setErrorMsg('Steps 1 and 2 contain critical store & tax info and cannot be skipped.');
+      return;
+    }
+    setErrorMsg('');
+    if (currentStep < 5) {
+      showToast(`Skipped Step ${currentStep}. You can complete it anytime later.`);
+      goToStep(currentStep + 1);
+    } else {
+      navigate('/regstatus');
+    }
+  };
+
+  const phoneLast4 = (String(phone || store?.phone || '7890').replace(/\D/g, '').slice(-4)) || '7890';
+
+  const getDemoStepSummary = (step) => {
+    if (step === 1) {
+      return `Store: Mahadev Supermart ${phoneLast4} • Owner: Rajesh Patel • Surat, Gujarat - 395007`;
+    }
+    if (step === 2) {
+      return `GSTIN: 24AAACP${phoneLast4}A1Z5 • PAN: AAACP${phoneLast4}A • FSSAI: 1072302600${phoneLast4}`;
+    }
+    if (step === 3) {
+      return `Bank: HDFC Bank • A/C: 5020004829${phoneLast4} • IFSC: HDFC0001234 (Current)`;
+    }
+    if (step === 4) {
+      return `Hours: 08:00–22:00 • Radius: 10 km • Express + Same-Day + Scheduled + Pickup • Self Fleet`;
+    }
+    return `B2B Credit: Enabled • 14 Days Interest-Free • Limit: ₹50,000 • Min Order: ₹5,000`;
+  };
+
+  const handleDemoFillCurrentStep = () => {
+    setErrorMsg('');
+    if (currentStep === 1) {
+      setShopName(`Mahadev Supermart ${phoneLast4}`);
+      setLegalName(`Mahadev Supermart Enterprises ${phoneLast4}`);
+      setEntityType('Sole Proprietorship');
+      setCategory('Grocery & Supermarket');
+      setOwnerName('Rajesh Patel');
+      setEmail(`mahadev.${phoneLast4}@adab.in`);
+      setAddress('Shop 14, Ground Floor, Sardar Market, Ring Road, Surat');
+      setCity('Surat');
+      setStateName('Gujarat');
+      setPincode('395007');
+      showToast('Demo data filled for Step 1 (Store & Owner Profile)!');
+    } else if (currentStep === 2) {
+      setGstin(`24AAACP${phoneLast4}A1Z5`);
+      setPan(`AAACP${phoneLast4}A`);
+      setFssai(`1072302600${phoneLast4}`);
+      setUdhyam(`UDYAM-GJ-22-001${phoneLast4}`);
+      showToast('Demo data filled for Step 2 (KYC & GST Compliance)!');
+    } else if (currentStep === 3) {
+      setBankName('HDFC Bank');
+      setAccHolder(legalName || shopName || `Mahadev Supermart Enterprises ${phoneLast4}`);
+      setAccNum(`5020004829${phoneLast4}`);
+      setAccNumConfirm(`5020004829${phoneLast4}`);
+      setIfsc('HDFC0001234');
+      setAccType('CURRENT');
+      showToast('Demo data filled for Step 3 (Bank Account Details)!');
+    } else if (currentStep === 4) {
+      setOpenTime('08:00');
+      setCloseTime('22:00');
+      setZoneRadius('10');
+      setDelivFast(true);
+      setDelivSame(true);
+      setDelivScheduled(true);
+      setDelivPickup(true);
+      setFleet('SELF');
+      showToast('Demo data filled for Step 4 (Store Operations & Delivery)!');
+    } else if (currentStep === 5) {
+      setEnableCredit(true);
+      setCreditDays('14');
+      setCreditLimit('50000');
+      setCreditMinOrder('5000');
+      showToast('Demo data filled for Step 5 (B2B Wholesale & Credit)!');
+    }
+  };
+
+  const handleSaveCurrentStep = async () => {
+    setErrorMsg('');
+    try {
+      setSaving(true);
+      let payload = {};
+
+      if (currentStep === 1) {
+        if (!shopName.trim() || !ownerName.trim() || !address.trim()) {
+          setErrorMsg('Please fill Store Name, Owner Name, and Complete Store Address (or use Demo Fill Up below).');
+          setSaving(false);
+          return;
+        }
+        payload = {
+          store_name: shopName,
+          legal_name: legalName || shopName,
+          entity_type: entityType,
+          category,
+          owner_name: ownerName,
+          email,
+          address_line: address,
+          city,
+          state: stateName,
+          pincode
+        };
+      } else if (currentStep === 2) {
+        if (!gstin.trim() || !pan.trim()) {
+          setErrorMsg('Please enter both GSTIN and PAN Card number (or use Demo Fill Up below).');
+          setSaving(false);
+          return;
+        }
+        payload = {
+          gstin,
+          pan,
+          fssai_license: fssai,
+          udhyam_msme: udhyam
+        };
+      } else if (currentStep === 3) {
+        if (!bankName.trim() || !accHolder.trim() || !accNum.trim() || !ifsc.trim()) {
+          setErrorMsg('Please fill Bank Name, Account Holder, Account Number, and IFSC Code (or click Skip).');
+          setSaving(false);
+          return;
+        }
+        if (accNumConfirm && accNum !== accNumConfirm) {
+          setErrorMsg('Account Number and Confirm Account Number do not match.');
+          setSaving(false);
+          return;
+        }
+        payload = {
+          bank_name: bankName,
+          account_holder_name: accHolder,
+          account_number: accNum,
+          ifsc_code: ifsc,
+          account_type: accType
+        };
+      } else if (currentStep === 4) {
+        if (!delivFast && !delivSame && !delivScheduled && !delivPickup) {
+          setErrorMsg('Please select at least one Delivery Channel to save this step.');
+          setSaving(false);
+          return;
+        }
+        const parsedRadius = Number(zoneRadius);
+        payload = {
+          open_time: openTime,
+          close_time: closeTime,
+          delivery_radius_km: Number.isFinite(parsedRadius) ? Math.min(20, Math.max(0, parsedRadius)) : 10,
+          delivFast,
+          delivSame,
+          delivScheduled,
+          delivPickup,
+          fleet
+        };
+      } else if (currentStep === 5) {
+        payload = {
+          enableCredit,
+          creditDays: Number(creditDays) || 14,
+          creditLimit: Number(creditLimit) || 50000,
+          creditMinOrder: Number(creditMinOrder) || 5000
+        };
+      }
+
+      const wasPreviouslySubmitted = Boolean(effectiveKycSteps?.step7 || profile?.submitted_at);
+      const isComplianceStep = [1, 2, 3, 5].includes(Number(currentStep));
+
+      const updated = await saveOnboardingStep(currentStep, payload);
+      const nextSteps = {
+        ...effectiveKycSteps,
+        ...(updated?.kycSteps || {}),
+        [`step${currentStep}`]: true,
+        ...(isComplianceStep ? { step7: false } : {})
+      };
+      setLocalDoneSteps((prev) => ({
+        ...prev,
+        [`step${currentStep}`]: true,
+        ...(isComplianceStep && !isKycApproved ? { step7: false } : {})
+      }));
+
+      if (isComplianceStep && wasPreviouslySubmitted && !isKycApproved) {
+        showToast(`Step ${currentStep} (${STEP_TITLES[currentStep - 1]}) saved! Compliance details changed — please Resubmit Application.`);
+      } else {
+        showToast(`Step ${currentStep} (${STEP_TITLES[currentStep - 1]}) saved!`);
+      }
+
+      // If redirected from a specific gated page (e.g. /orders, /delivery, /credit-apply, or /finance) and approved, return there once unlocked!
+      if (fromPath && isKycApproved) {
+        if (
+          (fromPath === '/finance' && nextSteps?.step3) ||
+          ((fromPath === '/delivery' || fromPath === '/zones' || fromPath === '/orders' || fromPath === '/partner') && nextSteps?.step4) ||
+          ((fromPath === '/credit-apply' || fromPath === '/creditterms') && nextSteps?.step5) ||
+          (fromPath === '/create' && nextSteps?.step1 && nextSteps?.step2)
+        ) {
+          navigate(fromPath, { replace: true });
+          return;
+        }
+      }
+
+      if (currentStep < 5) {
+        goToStep(currentStep + 1, nextSteps);
+      } else {
+        navigate('/regstatus');
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.error || err?.message || 'Failed to save step';
+      setErrorMsg(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const completedCount = [1, 2, 3, 4, 5].filter((s) => Boolean(effectiveKycSteps?.[`step${s}`])).length;
+  const completedPct = Math.round((completedCount / 5) * 100);
+  const canAccessTracker = Boolean(effectiveCriticalDone || isKycApproved || isKycRejected || isApplicationSubmitted || effectiveKycSteps?.step7);
+  const needsResubmission = Boolean(
+    effectiveCriticalDone && !effectiveKycSteps?.step7 && profile?.submitted_at && !isKycApproved && !isKycRejected
+  );
+
   return (
-<>
     <section id="sec-onboarding" className="space-y-5">
-      {/*  Header Banner  */}
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div className="fixed bottom-5 right-5 z-50 bg-gray-900 text-white px-4 py-3 rounded-xl shadow-lg text-xs font-bold flex items-center gap-2">
+          <i className="fa-solid fa-circle-check text-emerald-400"></i>
+          <span>{toastMsg}</span>
+        </div>
+      )}
+
+      {/* Admin Rejection Banner */}
+      {isKycRejected && (
+        <div className="p-4 rounded-2xl bg-rose-50 border-2 border-rose-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 font-bold">
+              <i className="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <div>
+              <div className="font-extrabold text-sm text-rose-950">
+                Verification Rejected by Admin
+              </div>
+              <p className="text-xs text-rose-800 mt-0.5">
+                Reason: <b>{profile?.rejection_reason || 'Compliance details require correction. Please review your KYC steps and resubmit.'}</b>
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/regstatus')}
+            className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shrink-0 self-start sm:self-center"
+          >
+            Go to Application &amp; Resubmit →
+          </button>
+        </div>
+      )}
+
+      {/* Feature Redirect Banner when redirected by KycGate */}
+      {fromPath && (
+        <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 font-bold">
+              <i className="fa-solid fa-lock-open"></i>
+            </div>
+            <div>
+              <div className="font-extrabold text-sm text-amber-950">
+                Complete Step {currentStep} ({STEP_TITLES[currentStep - 1]}) to unlock {featureName || fromPath}
+              </div>
+              <p className="text-xs text-amber-800 mt-0.5">
+                You skipped this KYC section earlier. Fill and save this step below to immediately access <b>{featureName || fromPath}</b>.
+              </p>
+            </div>
+          </div>
+          {isKycApproved && (
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="btn-soft !text-xs !py-1.5 !px-3 self-start sm:self-center shrink-0"
+            >
+              Back to Dashboard
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Header Banner */}
       <div className="card p-6 bg-gradient-to-br from-brand-dark via-green-700 to-emerald-900 text-white shadow-lg">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -23,473 +502,775 @@ export default function OnboardingPage() {
               <i className="fa-solid fa-shield-halved text-green-300"></i> ADAB Verified Merchant Onboarding
             </div>
             <h1 className="text-2xl font-extrabold">Store Registration &amp; KYC Verification</h1>
-            <p className="text-green-100 text-sm mt-1 max-w-xl">Complete your 6-step business onboarding to start selling to app customers &amp; trading with other stores on credit.</p>
+            <p className="text-green-100 text-sm mt-1 max-w-xl">
+              Complete critical steps (1 &amp; 2) for Admin Verification. Updating compliance steps (1, 2, 3, or 5) requires resubmission.
+            </p>
           </div>
-          <button onClick={() => {}} className="btn-soft !text-xs !bg-white/20 !text-white hover:!bg-white/30 border border-white/20 self-start sm:self-center">
-            <i className="fa-solid fa-clock-rotate-left mr-1"></i> View Existing Application
-          </button>
+          <div className="flex flex-col gap-2 self-start sm:self-center shrink-0">
+            <button
+              type="button"
+              disabled={!canAccessTracker}
+              onClick={() => canAccessTracker && navigate('/regstatus')}
+              className={`btn-soft !text-xs border w-full justify-center ${
+                canAccessTracker
+                  ? '!bg-white/20 !text-white hover:!bg-white/30 border-white/20'
+                  : '!bg-white/10 !text-white/50 border-white/10 cursor-not-allowed'
+              }`}
+            >
+              <i className={`fa-solid ${canAccessTracker ? 'fa-clock-rotate-left' : 'fa-lock'} mr-1`}></i>
+              {canAccessTracker ? 'View Application Status' : 'Locked until Critical KYC (1 & 2)'}
+            </button>
+
+            <button
+              type="button"
+              disabled={!effectiveCriticalDone}
+              onClick={() => effectiveCriticalDone && navigate('/regstatus')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-extrabold border transition flex items-center justify-center gap-1.5 w-full ${
+                !effectiveCriticalDone
+                  ? 'bg-white/10 text-white/40 border-white/10 cursor-not-allowed'
+                  : isKycRejected
+                  ? 'bg-rose-500 hover:bg-rose-600 text-white border-rose-300 shadow-sm'
+                  : isKycApproved || effectiveKycSteps?.step7
+                  ? 'bg-emerald-500/40 text-white border-emerald-300/60 hover:bg-emerald-500/50'
+                  : 'bg-amber-400 hover:bg-amber-300 text-green-950 border-amber-300 shadow-sm'
+              }`}
+            >
+              {isKycApproved ? (
+                <>
+                  <i className="fa-solid fa-circle-check"></i> Verified &amp; Approved
+                </>
+              ) : isKycRejected ? (
+                <>
+                  <i className="fa-solid fa-circle-xmark"></i> Rejected — Resubmit
+                </>
+              ) : effectiveKycSteps?.step7 ? (
+                <>
+                  <i className="fa-solid fa-circle-check"></i> Submitted (Review)
+                </>
+              ) : needsResubmission ? (
+                <>
+                  <i className="fa-solid fa-rotate-right"></i> Resubmit Application
+                </>
+              ) : (
+                <>
+                  <i className={`fa-solid ${effectiveCriticalDone ? 'fa-paper-plane' : 'fa-lock'}`}></i> Submit Application
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
-        {/*  Stepper Indicator  */}
+        {/* Stepper Indicator (5 Steps) */}
         <div className="mt-6 pt-4 border-t border-white/20">
           <div className="flex justify-between text-xs font-bold text-green-100 mb-2">
-            <span>Step <span id="onboardingStepNum" className="text-white font-extrabold">{currentStep}</span> of 7: <span id="onboardingStepTitle" className="text-white">{stepTitles[currentStep - 1]}</span></span>
-            <span id="onboardingStepPct" className="text-white">{Math.round((currentStep / 7) * 100)}% Completed</span>
+            <span>
+              Step <span id="onboardingStepNum" className="text-white font-extrabold">{currentStep}</span> of 5:{' '}
+              <span id="onboardingStepTitle" className="text-white">{STEP_TITLES[currentStep - 1]}</span>
+            </span>
+            <span id="onboardingStepPct" className="text-white">{completedPct}% KYC Completed ({completedCount}/5)</span>
           </div>
           <div className="w-full h-2 rounded-full bg-white/20 overflow-hidden">
-            <div id="onboardingProgressBar" className="h-full bg-green-400 transition-all duration-300 rounded-full" style={{ width: `${Math.round((currentStep / 7) * 100)}%` }}></div>
+            <div
+              id="onboardingProgressBar"
+              className="h-full bg-green-400 transition-all duration-300 rounded-full"
+              style={{ width: `${completedPct}%` }}
+            ></div>
           </div>
-          <div className="grid grid-cols-7 gap-1 mt-3 text-[10px] sm:text-xs text-center font-bold">
-            <button onClick={() => {}} id="stepTab1" className="py-1 px-1 rounded-lg bg-white text-green-900 shadow-sm truncate">1. Profile</button>
-            <button onClick={() => {}} id="stepTab2" className="py-1 px-1 rounded-lg bg-white/10 text-white/70 hover:bg-white/20 truncate">2. KYC &amp; GST</button>
-            <button onClick={() => {}} id="stepTab3" className="py-1 px-1 rounded-lg bg-white/10 text-white/70 hover:bg-white/20 truncate">3. Bank A/C</button>
-            <button onClick={() => {}} id="stepTab4" className="py-1 px-1 rounded-lg bg-white/10 text-white/70 hover:bg-white/20 truncate">4. Delivery</button>
-            <button onClick={() => {}} id="stepTab5" className="py-1 px-1 rounded-lg bg-white/10 text-white/70 hover:bg-white/20 truncate">5. Credit</button>
-            <button onClick={() => {}} id="stepTab6" className="py-1 px-1 rounded-lg bg-white/10 text-white/70 hover:bg-white/20 truncate">6. Products</button>
-            <button onClick={() => {}} id="stepTab7" className="py-1 px-1 rounded-lg bg-white/10 text-white/70 hover:bg-white/20 truncate">7. Submit</button>
+          <div className="grid grid-cols-5 gap-1.5 mt-3 text-[10px] sm:text-xs text-center font-bold">
+            {[
+              { num: 1, label: '1. Profile' },
+              { num: 2, label: '2. KYC & GST' },
+              { num: 3, label: '3. Bank A/C' },
+              { num: 4, label: '4. Delivery' },
+              { num: 5, label: '5. Credit' }
+            ].map((tab) => {
+              const isDone = Boolean(effectiveKycSteps?.[`step${tab.num}`]);
+              const isActive = currentStep === tab.num;
+              const locked = isStepLocked(tab.num);
+              return (
+                <button
+                  key={tab.num}
+                  type="button"
+                  disabled={locked}
+                  onClick={() => goToStep(tab.num)}
+                  className={`py-1.5 px-1 rounded-lg truncate transition flex items-center justify-center gap-1 ${
+                    isActive
+                      ? 'bg-white text-green-900 shadow-sm font-extrabold'
+                      : isDone
+                      ? 'bg-emerald-500/30 text-white border border-emerald-300/40'
+                      : locked
+                      ? 'bg-black/20 text-white/40 cursor-not-allowed'
+                      : 'bg-white/10 text-white/70 hover:bg-white/20'
+                  }`}
+                >
+                  {isDone && <i className="fa-solid fa-check text-[9px] text-emerald-300"></i>}
+                  {!isDone && locked && <i className="fa-solid fa-lock text-[9px] text-white/40"></i>}
+                  <span className="truncate">{tab.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {/*  Step Containers  */}
+      {errorMsg && (
+        <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-700 flex items-center gap-2">
+          <i className="fa-solid fa-triangle-exclamation text-rose-600"></i>
+          <span>{errorMsg}</span>
+        </div>
+      )}
+
+      {/* Step Containers */}
       <div className="card p-6 bg-white shadow-sm border border-gray-200">
-        
-        {/*  STEP 1: Basic Profile  */}
-        <div id="obStep1" className={`space-y-4 ${currentStep === 1 ? 'block' : 'hidden'}`}>
-          <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
-            <div className="w-8 h-8 rounded-lg bg-green-100 text-green-800 flex items-center justify-center font-bold">1</div>
-            <div>
-              <h2 className="font-extrabold text-base text-gray-900">Store &amp; Owner Profile</h2>
-              <p className="text-xs text-gray-400">Tell us about your registered business entity and store location</p>
-            </div>
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Store / Trade Display Name *</label>
-              <input type="text" id="obShopName" value="Shri Balaji Superstore" className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 font-bold" placeholder="e.g. Mahadev Kirana & General" />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Legal Registered Entity Name *</label>
-              <input type="text" id="obLegalName" value="Shri Balaji Retail Ventures LLP" className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600" placeholder="As per PAN / GSTIN" />
-            </div>
-          </div>
-
-          <div className="grid sm:grid-cols-3 gap-4">
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Business Constitution *</label>
-              <select id="obEntityType" className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white">
-                <option value="Sole Proprietorship" selected>Sole Proprietorship</option>
-                <option value="Partnership Firm">Partnership Firm</option>
-                <option value="LLP">Limited Liability Partnership (LLP)</option>
-                <option value="Private Limited">Private Limited Company</option>
-                <option value="Individual">Individual Trader</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Primary Category *</label>
-              <select id="obCategory" className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white">
-                <option value="Grocery & Supermarket" selected>Grocery &amp; Supermarket</option>
-                <option value="Clothing & Textiles">Clothing, Kurtis &amp; Fashion</option>
-                <option value="Food & Restaurant">Food, Sweets &amp; Bakery</option>
-                <option value="FMCG & Wholesale">FMCG &amp; General Goods</option>
-                <option value="Pharmacy & Wellness">Pharmacy &amp; Health</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Owner / Director Name *</label>
-              <input type="text" id="obOwnerName" value="Rajeshbhai Patel" className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600" />
-            </div>
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Registered Mobile Number *</label>
-              <div className="flex gap-2">
-                <input type="tel" id="obPhone" value="+91 98765 43210" className="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 font-mono" />
-                <button type="button" onClick={() => {}} className="px-3 py-2 bg-green-100 text-green-800 text-xs font-extrabold rounded-xl shrink-0"><i className="fa-solid fa-circle-check text-green-600 mr-1"></i> Verified</button>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Official Business Email</label>
-              <input type="email" id="obEmail" value="rajesh@balajistore.in" className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600" />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-bold text-gray-700 block mb-1">Complete Physical Store Address *</label>
-            <input type="text" id="obAddress" value="Shop 14-16, Ground Floor, Royal Arcade, VIP Road, Vesu" className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 mb-2" placeholder="Shop/Building No, Street, Landmark" />
-            <div className="grid grid-cols-3 gap-2">
-              <input type="text" id="obCity" value="Surat" className="px-3 py-2 rounded-xl border border-gray-200 text-sm" placeholder="City" />
-              <input type="text" id="obState" value="Gujarat" className="px-3 py-2 rounded-xl border border-gray-200 text-sm" placeholder="State" />
-              <input type="text" id="obPincode" value="395007" className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-mono" placeholder="PIN Code" />
-            </div>
-          </div>
-        </div>
-
-        {/*  STEP 2: KYC & GST Compliance  */}
-        <div id="obStep2" className={`space-y-4 ${currentStep === 2 ? 'block' : 'hidden'}`}>
-          <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
-            <div className="w-8 h-8 rounded-lg bg-green-100 text-green-800 flex items-center justify-center font-bold">2</div>
-            <div>
-              <h2 className="font-extrabold text-base text-gray-900">Business KYC &amp; Tax Compliance</h2>
-              <p className="text-xs text-gray-400">Mandatory tax credentials for invoicing and customer credit eligibility</p>
-            </div>
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">GSTIN (Goods &amp; Services Tax ID) *</label>
-              <div className="flex gap-2">
-                <input type="text" id="obGstin" value="24AAAAA0000A1Z5" className="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono uppercase outline-none focus:border-green-600 bg-green-50/50 text-green-900 font-bold" />
-                <button type="button" onClick={() => {}} className="px-3.5 py-2 btn-soft !text-xs font-bold shrink-0"><i className="fa-solid fa-arrows-rotate mr-1"></i> Verify</button>
-              </div>
-              <div id="gstinBadge" className="mt-1.5 flex items-center gap-1.5 text-xs text-green-700 font-bold">
-                <i className="fa-solid fa-circle-check text-green-600"></i> Active Taxpayer • Regular GSTIN
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Proprietor / Company PAN Card *</label>
-              <input type="text" id="obPan" value="AAAAA0000A" className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono uppercase outline-none focus:border-green-600" />
-            </div>
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">FSSAI Food License (For Food/Kirana)</label>
-              <input type="text" id="obFssai" value="10020021000492" className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono outline-none focus:border-green-600" placeholder="14-digit FSSAI License Number" />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Udhyam MSME Registration (Optional)</label>
-              <input type="text" id="obUdhyam" value="UDYAM-GJ-01-0082910" className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono outline-none focus:border-green-600" placeholder="UDYAM-XX-00-0000000" />
-            </div>
-          </div>
-
-          <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-2">
-            <div className="font-bold text-xs text-gray-800"><i className="fa-solid fa-cloud-arrow-up mr-1 text-green-700"></i> Document Upload Simulator</div>
-            <div className="grid sm:grid-cols-3 gap-2 text-xs">
-              <div className="p-2.5 bg-white rounded-lg border border-gray-200 flex items-center justify-between">
-                <span><i className="fa-solid fa-file-pdf text-red-500 mr-1"></i> GST_Cert.pdf</span>
-                <span className="text-green-700 font-bold">Uploaded</span>
-              </div>
-              <div className="p-2.5 bg-white rounded-lg border border-gray-200 flex items-center justify-between">
-                <span><i className="fa-solid fa-image text-blue-500 mr-1"></i> Shop_Front.jpg</span>
-                <span className="text-green-700 font-bold">Uploaded</span>
-              </div>
-              <div className="p-2.5 bg-white rounded-lg border border-gray-200 flex items-center justify-between">
-                <span><i className="fa-solid fa-file-lines text-amber-500 mr-1"></i> FSSAI_Doc.pdf</span>
-                <span className="text-green-700 font-bold">Uploaded</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/*  STEP 3: Bank Account & Payouts  */}
-        <div id="obStep3" className={`space-y-4 ${currentStep === 3 ? 'block' : 'hidden'}`}>
-          <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
-            <div className="w-8 h-8 rounded-lg bg-green-100 text-green-800 flex items-center justify-center font-bold">3</div>
-            <div>
-              <h2 className="font-extrabold text-base text-gray-900">Bank Account &amp; Settlement Setup</h2>
-              <p className="text-xs text-gray-400">All customer app payments and B2B orders settle automatically to this bank account</p>
-            </div>
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Beneficiary Bank Name *</label>
-              <select id="obBankName" className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white font-bold">
-                <option value="HDFC Bank" selected>HDFC Bank</option>
-                <option value="State Bank of India">State Bank of India (SBI)</option>
-                <option value="ICICI Bank">ICICI Bank</option>
-                <option value="Axis Bank">Axis Bank</option>
-                <option value="Bank of Baroda">Bank of Baroda</option>
-                <option value="Kotak Mahindra Bank">Kotak Mahindra Bank</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Account Holder Name *</label>
-              <input type="text" id="obAccHolder" value="Shri Balaji Retail Ventures LLP" className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600" />
-            </div>
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Bank Account Number *</label>
-              <input type="text" id="obAccNum" value="50200049281094" className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono outline-none focus:border-green-600" />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Confirm Account Number *</label>
-              <input type="text" id="obAccNumConfirm" value="50200049281094" className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono outline-none focus:border-green-600" />
-            </div>
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">IFSC Code *</label>
-              <input type="text" id="obIfsc" value="HDFC0001024" className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono uppercase outline-none focus:border-green-600" />
-              <span className="text-[11px] text-gray-400 mt-1 block">HDFC Bank • Vesu Branch, Surat</span>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Account Type</label>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="flex items-center gap-2 p-2.5 rounded-xl border-2 border-green-500 bg-green-50 text-xs font-bold cursor-pointer"><input type="radio" name="obAccType" defaultChecked /> Current A/C</label>
-                <label className="flex items-center gap-2 p-2.5 rounded-xl border border-gray-200 text-xs font-bold cursor-pointer"><input type="radio" name="obAccType" /> Savings A/C</label>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-center gap-2">
-            <i className="fa-solid fa-bolt text-emerald-600 text-lg"></i>
-            <div><strong>T+1 Automated Daily Payouts:</strong> Daily sales settle automatically by 11:30 PM with zero transfer deductions.</div>
-          </div>
-        </div>
-
-        {/*  STEP 4: Store Operations & Delivery Radius  */}
-        <div id="obStep4" className={`space-y-4 ${currentStep === 4 ? 'block' : 'hidden'}`}>
-          <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
-            <div className="w-8 h-8 rounded-lg bg-green-100 text-green-800 flex items-center justify-center font-bold">4</div>
-            <div>
-              <h2 className="font-extrabold text-base text-gray-900">Store Hours &amp; Delivery Logistics</h2>
-              <p className="text-xs text-gray-400">Configure customer delivery zones and fulfillment options</p>
-            </div>
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Operating Hours</label>
-              <div className="grid grid-cols-2 gap-2">
-                <div><span className="text-[10px] text-gray-400 block mb-0.5">Opening</span><input type="time" id="obOpenTime" value="08:00" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm" /></div>
-                <div><span className="text-[10px] text-gray-400 block mb-0.5">Closing</span><input type="time" id="obCloseTime" value="22:00" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm" /></div>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">App Customer Delivery Radius</label>
-              <select id="obZoneRadius" className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 font-bold bg-white">
-                <option value="5">5 km (Immediate neighbourhood)</option>
-                <option value="10" selected>10 km (Standard town radius - Recommended)</option>
-                <option value="15">15 km (Wide city coverage)</option>
-                <option value="25">25 km (Metropolitan zone)</option>
-              </select>
-              <p className="text-[11px] text-gray-400 mt-1">App customers inside this circle will see your products with live delivery times.</p>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-bold text-gray-700 block mb-2">Delivery Channels Enabled</label>
-            <div className="grid sm:grid-cols-3 gap-3">
-              <label className="p-3 rounded-xl border-2 border-green-500 bg-green-50 flex items-start gap-2.5 cursor-pointer">
-                <input type="checkbox" id="obDelivFast" checked className="mt-0.5" />
-                <div><div className="font-bold text-xs text-green-900">âš¡ Express (Under 1h)</div><div className="text-[10px] text-gray-500">Bike dispatch for immediate essentials</div></div>
-              </label>
-              <label className="p-3 rounded-xl border-2 border-green-500 bg-green-50 flex items-start gap-2.5 cursor-pointer">
-                <input type="checkbox" id="obDelivSame" checked className="mt-0.5" />
-                <div><div className="font-bold text-xs text-green-900">ðŸšš Same-Day Van</div><div className="text-[10px] text-gray-500">Standard scheduled slot delivery</div></div>
-              </label>
-              <label className="p-3 rounded-xl border-2 border-green-500 bg-green-50 flex items-start gap-2.5 cursor-pointer">
-                <input type="checkbox" id="obDelivPickup" checked className="mt-0.5" />
-                <div><div className="font-bold text-xs text-green-900">ðŸª Store Pickup</div><div className="text-[10px] text-gray-500">Customer collects from counter</div></div>
-              </label>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-bold text-gray-700 block mb-2">Logistics Fleet Preference</label>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <label className="p-3 rounded-xl border border-gray-200 flex items-center gap-2.5 cursor-pointer">
-                <input type="radio" name="obFleet" checked />
-                <div><div className="font-bold text-xs">Self Riders &amp; Vehicles</div><div className="text-[10px] text-gray-500">You use your own staff for deliveries</div></div>
-              </label>
-              <label className="p-3 rounded-xl border border-gray-200 flex items-center gap-2.5 cursor-pointer">
-                <input type="radio" name="obFleet" />
-                <div><div className="font-bold text-xs">ADAB Integrated Porter Fleet</div><div className="text-[10px] text-gray-500">On-demand partner delivery drivers</div></div>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        {/*  STEP 5: B2B Credit & Trade Terms  */}
-        <div id="obStep5" className={`space-y-4 ${currentStep === 5 ? 'block' : 'hidden'}`}>
-          <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
-            <div className="w-8 h-8 rounded-lg bg-green-100 text-green-800 flex items-center justify-center font-bold">5</div>
-            <div>
-              <h2 className="font-extrabold text-base text-gray-900">B2B Wholesale &amp; Store Credit Terms</h2>
-              <p className="text-xs text-gray-400">Configure parameters when other verified shops order wholesale from you</p>
-            </div>
-          </div>
-
-          <label className="p-3.5 rounded-xl border-2 border-orange-400 bg-orange-50 flex items-center gap-3 cursor-pointer">
-            <input type="checkbox" id="obEnableCredit" checked className="w-4 h-4" />
-            <div>
-              <div className="font-extrabold text-sm text-orange-950">Enable B2B Store-to-Store Credit Selling</div>
-              <div className="text-xs text-orange-800">Allow nearby &amp; nationwide shops to place bulk orders on credit (ADAB guaranteed)</div>
-            </div>
-          </label>
-
-          <div className="grid sm:grid-cols-3 gap-4">
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Credit Payment Tenure</label>
-              <select id="obCreditDays" className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-bold bg-white">
-                <option value="7">7 Days</option>
-                <option value="14" selected>14 Days (Standard)</option>
-                <option value="21">21 Days</option>
-                <option value="30">30 Days</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Max Credit per Shop (₹)</label>
-              <input type="number" id="obCreditLimit" value="50000" className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-bold" />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">Minimum Order for Credit (₹)</label>
-              <input type="number" id="obCreditMinOrder" value="5000" className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-bold" />
-            </div>
-          </div>
-
-          <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-900">
-            <i className="fa-solid fa-hand-holding-dollar mr-1 text-purple-700"></i>
-            <strong>ADAB Buyer Credit Line:</strong> Once onboarded, your shop will also receive an initial <strong>₹2,50,000 credit line</strong> to purchase stock from national distributors at 0% interest for 14 days.
-          </div>
-        </div>
-
-        {/*  STEP 6: Add Initial Products / Starter Inventory  */}
-        <div id="obStep6" className={`space-y-4 ${currentStep === 6 ? 'block' : 'hidden'}`}>
-          <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">6</div>
-            <div className="flex-1">
-              <h2 className="font-extrabold text-base text-gray-900">Add Initial Products to Your Shelf</h2>
-              <p className="text-xs text-gray-400">Select standard fast-selling items from FMCG catalog or quick-type your signature items so your store goes live with ready stock.</p>
-            </div>
-            <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">Fast Setup</span>
-          </div>
-
-          {/*  1-Click Starter Bundles & Checklist  */}
-          <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200">
-            <div className="text-xs font-extrabold text-emerald-950 mb-2 flex items-center gap-1.5">
-              <i className="fa-solid fa-wand-magic-sparkles text-emerald-600"></i>
-              <span>1-Click Popular FMCG Inventory (Auto-add to Store):</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5" id="obStarterPackGrid">
-              <label className="p-3 bg-white rounded-xl border border-emerald-200 flex items-start gap-2.5 cursor-pointer hover:shadow-sm transition">
-                <input type="checkbox" checked className="mt-0.5 accent-emerald-600 rounded ob-starter-prod" data-name="Tata Salt 1kg" data-price="28" data-mrp="30" data-stock="40" data-cat="Groceries & Essentials" data-type="Packed" />
-                <div className="min-w-0 flex-1">
-                  <div className="font-bold text-xs text-gray-900 truncate">ðŸ§‚ Tata Salt 1kg</div>
-                  <div className="text-[11px] text-gray-500">Sell: <b className="text-emerald-700">₹28</b> (MRP ₹30)</div>
+        {/* STEP 1: Basic Profile (Critical) */}
+        {currentStep === 1 && (
+          <div id="obStep1" className="space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-green-100 text-green-800 flex items-center justify-center font-bold">1</div>
+                <div>
+                  <h2 className="font-extrabold text-base text-gray-900">Store &amp; Owner Profile</h2>
+                  <p className="text-xs text-gray-400">Critical info required for store activation</p>
                 </div>
-              </label>
-
-              <label className="p-3 bg-white rounded-xl border border-emerald-200 flex items-start gap-2.5 cursor-pointer hover:shadow-sm transition">
-                <input type="checkbox" checked className="mt-0.5 accent-emerald-600 rounded ob-starter-prod" data-name="Amul Butter 500g" data-price="275" data-mrp="285" data-stock="25" data-cat="Dairy & Bakery" data-type="Packed" />
-                <div className="min-w-0 flex-1">
-                  <div className="font-bold text-xs text-gray-900 truncate">ðŸ§ˆ Amul Butter 500g</div>
-                  <div className="text-[11px] text-gray-500">Sell: <b className="text-emerald-700">₹275</b> (MRP ₹285)</div>
-                </div>
-              </label>
-
-              <label className="p-3 bg-white rounded-xl border border-emerald-200 flex items-start gap-2.5 cursor-pointer hover:shadow-sm transition">
-                <input type="checkbox" checked className="mt-0.5 accent-emerald-600 rounded ob-starter-prod" data-name="Aashirvaad Atta 5kg" data-price="295" data-mrp="310" data-stock="30" data-cat="Groceries & Essentials" data-type="Packed" />
-                <div className="min-w-0 flex-1">
-                  <div className="font-bold text-xs text-gray-900 truncate">ðŸŒ¾ Aashirvaad Atta 5kg</div>
-                  <div className="text-[11px] text-gray-500">Sell: <b className="text-emerald-700">₹295</b> (MRP ₹310)</div>
-                </div>
-              </label>
-
-              <label className="p-3 bg-white rounded-xl border border-emerald-200 flex items-start gap-2.5 cursor-pointer hover:shadow-sm transition">
-                <input type="checkbox" checked className="mt-0.5 accent-emerald-600 rounded ob-starter-prod" data-name="Fortune Sunflower Oil 1L" data-price="155" data-mrp="165" data-stock="35" data-cat="Groceries & Essentials" data-type="Packed" />
-                <div className="min-w-0 flex-1">
-                  <div className="font-bold text-xs text-gray-900 truncate">ðŸŒ» Fortune Oil 1L</div>
-                  <div className="text-[11px] text-gray-500">Sell: <b className="text-emerald-700">₹155</b> (MRP ₹165)</div>
-                </div>
-              </label>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800">Critical Step</span>
             </div>
-          </div>
 
-          {/*  Quick Custom Product Line  */}
-          <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-2.5">
-            <div className="text-xs font-bold text-gray-800 flex items-center justify-between">
-              <span>Add Your Own Signature Item / Custom Product:</span>
-              <span className="text-[11px] text-gray-500">Optional • You can also add later</span>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <div
+                  data-title="Store / Trade Display Name"
+                  className="text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] after:content-['_*'] after:text-rose-600 after:font-extrabold"
+                />
+                <input
+                  type="text"
+                  name="ob_custom_s1"
+                  autoComplete="one-time-code"
+                  value={shopName}
+                  onChange={(e) => setShopName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 font-bold"
+                  placeholder="e.g. Mahadev Kirana & General"
+                />
+              </div>
+              <div>
+                <div
+                  data-title="Legal Registered Entity Name"
+                  className="text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] after:content-['_*'] after:text-rose-600 after:font-extrabold"
+                />
+                <input
+                  type="text"
+                  name="ob_custom_s2"
+                  autoComplete="one-time-code"
+                  value={legalName}
+                  onChange={(e) => setLegalName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600"
+                  placeholder="As per PAN / GSTIN"
+                />
+              </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-              <input type="text" id="obCustomProdName" placeholder="Product Name (e.g. Special Khakhra 500g)" className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs outline-none" />
-              <input type="number" id="obCustomProdPrice" placeholder="Sell Price ₹" className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs outline-none font-bold" />
-              <input type="number" id="obCustomProdStock" placeholder="Stock Qty (e.g. 50)" className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs outline-none" />
-              <button type="button" onClick={() => {}} className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm">
-                <i className="fa-solid fa-plus"></i> Add Item
-              </button>
-            </div>
-            <div id="obCustomProdList" className="flex flex-wrap gap-2 pt-1 text-xs"></div>
-          </div>
-        </div>
 
-        {/*  STEP 7: Review, Agreement & Final Submission  */}
-        <div id="obStep7" className={`space-y-4 ${currentStep === 7 ? 'block' : 'hidden'}`}>
-          <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
-            <div className="w-8 h-8 rounded-lg bg-green-100 text-green-800 flex items-center justify-center font-bold">7</div>
+            <div className="grid sm:grid-cols-3 gap-4">
+              <div>
+                <div
+                  data-title="Business Constitution"
+                  className="text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] after:content-['_*'] after:text-rose-600 after:font-extrabold"
+                />
+                <select
+                  name="ob_custom_s3"
+                  autoComplete="one-time-code"
+                  value={entityType}
+                  onChange={(e) => setEntityType(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white"
+                >
+                  <option value="Sole Proprietorship">Sole Proprietorship</option>
+                  <option value="Partnership Firm">Partnership Firm</option>
+                  <option value="LLP">Limited Liability Partnership (LLP)</option>
+                  <option value="Private Limited">Private Limited Company</option>
+                  <option value="Individual Trader">Individual Trader</option>
+                </select>
+              </div>
+              <div>
+                <div
+                  data-title="Primary Category"
+                  className="text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] after:content-['_*'] after:text-rose-600 after:font-extrabold"
+                />
+                <select
+                  name="ob_custom_s4"
+                  autoComplete="one-time-code"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white"
+                >
+                  <option value="Grocery & Supermarket">Grocery &amp; Supermarket</option>
+                  <option value="Clothing & Textiles">Clothing, Kurtis &amp; Fashion</option>
+                  <option value="Food & Restaurant">Food, Sweets &amp; Bakery</option>
+                  <option value="FMCG & Wholesale">FMCG &amp; General Goods</option>
+                  <option value="Pharmacy & Wellness">Pharmacy &amp; Health</option>
+                </select>
+              </div>
+              <div>
+                <div
+                  data-title="Owner / Director Name"
+                  className="text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] after:content-['_*'] after:text-rose-600 after:font-extrabold"
+                />
+                <input
+                  type="text"
+                  name="ob_custom_s5"
+                  autoComplete="one-time-code"
+                  value={ownerName}
+                  onChange={(e) => setOwnerName(e.target.value)}
+                  placeholder="e.g. Rajesh Patel"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600"
+                />
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <div
+                  data-title="Registered Mobile Number"
+                  className="text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] after:content-['_*'] after:text-rose-600 after:font-extrabold"
+                />
+                <div className="flex gap-2">
+                  <div className="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm font-mono flex items-center text-gray-800 select-all">
+                    {phone || '—'}
+                  </div>
+                  <span className="px-3 py-2 bg-green-100 text-green-800 text-xs font-extrabold rounded-xl shrink-0 flex items-center">
+                    <i className="fa-solid fa-circle-check text-green-600 mr-1"></i> OTP Verified
+                  </span>
+                </div>
+              </div>
+              <div>
+                <div
+                  data-title="Official Business Email"
+                  className="text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)]"
+                />
+                <input
+                  type="text"
+                  name="ob_custom_s6"
+                  autoComplete="one-time-code"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="e.g. store@adab.in"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600"
+                />
+              </div>
+            </div>
+
             <div>
-              <h2 className="font-extrabold text-base text-gray-900">Review Application &amp; Confirm Submission</h2>
-              <p className="text-xs text-gray-400">Please review all submitted details before sending to Admin for verification</p>
+              <div
+                data-title="Complete Store Address"
+                className="text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] after:content-['_*'] after:text-rose-600 after:font-extrabold"
+              />
+              <input
+                type="text"
+                name="ob_custom_s7"
+                autoComplete="one-time-code"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 mb-2"
+                placeholder="e.g. Shop 14, Sardar Market"
+              />
+              <div className="grid grid-cols-3 gap-2">
+                <input
+                  type="text"
+                  name="ob_custom_s8"
+                  autoComplete="one-time-code"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-gray-200 text-sm"
+                  placeholder="e.g. Surat"
+                />
+                <input
+                  type="text"
+                  name="ob_custom_s9"
+                  autoComplete="one-time-code"
+                  value={stateName}
+                  onChange={(e) => setStateName(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-gray-200 text-sm"
+                  placeholder="e.g. Gujarat"
+                />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  name="ob_custom_s10"
+                  autoComplete="one-time-code"
+                  value={pincode}
+                  onChange={(e) => setPincode(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-mono"
+                  placeholder="e.g. 395007"
+                />
+              </div>
             </div>
           </div>
+        )}
 
-          {/*  Summary Grid  */}
-          <div className="grid sm:grid-cols-2 gap-4 text-xs">
-            <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-2">
-              <div className="font-extrabold text-sm text-gray-900 flex justify-between">
-                <span>Store Profile</span>
-                <button onClick={() => {}} className="text-green-700 font-bold hover:underline">Edit</button>
+        {/* STEP 2: KYC & GST Compliance (Critical) */}
+        {currentStep === 2 && (
+          <div id="obStep2" className="space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-green-100 text-green-800 flex items-center justify-center font-bold">2</div>
+                <div>
+                  <h2 className="font-extrabold text-base text-gray-900">Business KYC &amp; Tax Compliance</h2>
+                  <p className="text-xs text-gray-400">Mandatory tax credentials for invoicing and product publishing</p>
+                </div>
               </div>
-              <div><span className="text-gray-500">Store Name:</span> <b id="rvShopName">Shri Balaji Superstore</b></div>
-              <div><span className="text-gray-500">Legal Entity:</span> <b id="rvLegalName">Shri Balaji Retail Ventures LLP</b></div>
-              <div><span className="text-gray-500">Category:</span> <b id="rvCategory">Grocery & Supermarket</b></div>
-              <div><span className="text-gray-500">Owner:</span> <b id="rvOwner">Rajeshbhai Patel</b></div>
-              <div><span className="text-gray-500">Phone:</span> <b id="rvPhone">+91 98765 43210</b></div>
-              <div><span className="text-gray-500">Address:</span> <span id="rvAddress" className="text-gray-700">VIP Road, Vesu, Surat</span></div>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800">Critical Step</span>
             </div>
 
-            <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-2">
-              <div className="font-extrabold text-sm text-gray-900 flex justify-between">
-                <span>KYC, Banking &amp; Stock</span>
-                <button onClick={() => {}} className="text-green-700 font-bold hover:underline">Edit</button>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">
+                  GSTIN (Goods &amp; Services Tax ID) <span className="text-rose-600 font-extrabold">*</span>
+                </label>
+                <input
+                  type="text"
+                  autoComplete="off"
+                  value={gstin}
+                  onChange={(e) => setGstin(e.target.value.toUpperCase())}
+                  placeholder="e.g. 24AAAAA0000A1Z5"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono uppercase outline-none focus:border-green-600 bg-green-50/50 text-green-900 font-bold"
+                />
+                {gstin && (
+                  <div className="mt-1.5 flex items-center gap-1.5 text-xs text-green-700 font-bold">
+                    <i className="fa-solid fa-circle-check text-green-600"></i> Active Taxpayer Format
+                  </div>
+                )}
               </div>
-              <div><span className="text-gray-500">GSTIN:</span> <b id="rvGstin" className="font-mono text-green-800">24AAAAA0000A1Z5</b></div>
-              <div><span className="text-gray-500">PAN:</span> <b id="rvPan" className="font-mono">AAAAA0000A</b></div>
-              <div><span className="text-gray-500">Bank:</span> <b id="rvBank">HDFC Bank (A/C: ...1094)</b></div>
-              <div><span className="text-gray-500">Delivery Zone:</span> <b id="rvRadius">10 km radius</b></div>
-              <div><span className="text-gray-500">Initial Products:</span> <b id="rvProdCount" className="text-emerald-700">4 items selected</b></div>
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">
+                  Proprietor / Company PAN Card <span className="text-rose-600 font-extrabold">*</span>
+                </label>
+                <input
+                  type="text"
+                  autoComplete="off"
+                  value={pan}
+                  onChange={(e) => setPan(e.target.value.toUpperCase())}
+                  placeholder="e.g. ABCDE1234F"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono uppercase outline-none focus:border-green-600"
+                />
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">FSSAI Food License (For Food/Kirana)</label>
+                <input
+                  type="text"
+                  autoComplete="off"
+                  value={fssai}
+                  onChange={(e) => setFssai(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono outline-none focus:border-green-600"
+                  placeholder="14-digit FSSAI License Number"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">Udhyam MSME Registration (Optional)</label>
+                <input
+                  type="text"
+                  autoComplete="off"
+                  value={udhyam}
+                  onChange={(e) => setUdhyam(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono outline-none focus:border-green-600"
+                  placeholder="UDYAM-GJ-01-0082910"
+                />
+              </div>
             </div>
           </div>
+        )}
 
-          <div className="p-4 rounded-xl bg-green-50 border border-green-200 text-xs text-green-900 space-y-2">
-            <label className="flex items-start gap-2.5 cursor-pointer">
-              <input type="checkbox" id="obAgreeTerms" checked className="mt-0.5" />
-              <span>I hereby certify that all provided GSTIN, PAN, and banking information are authentic. I agree to ADAB platform merchant terms, SLA fulfillment criteria, and settlement guidelines.</span>
+        {/* STEP 3: Bank Account & Payouts */}
+        {currentStep === 3 && (
+          <div id="obStep3" className="space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-green-100 text-green-800 flex items-center justify-center font-bold">3</div>
+                <div>
+                  <h2 className="font-extrabold text-base text-gray-900">Bank Account &amp; Settlement Setup</h2>
+                  <p className="text-xs text-gray-400">Unlocks Bank Payouts &amp; Money page (/finance)</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800">Unlocks Payouts</span>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">
+                  Beneficiary Bank Name <span className="text-rose-600 font-extrabold">*</span>
+                </label>
+                <select
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white font-bold"
+                >
+                  <option value="HDFC Bank">HDFC Bank</option>
+                  <option value="State Bank of India">State Bank of India (SBI)</option>
+                  <option value="ICICI Bank">ICICI Bank</option>
+                  <option value="Axis Bank">Axis Bank</option>
+                  <option value="Bank of Baroda">Bank of Baroda</option>
+                  <option value="Kotak Mahindra Bank">Kotak Mahindra Bank</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">
+                  Account Holder Name <span className="text-rose-600 font-extrabold">*</span>
+                </label>
+                <input
+                  type="text"
+                  autoComplete="off"
+                  value={accHolder}
+                  onChange={(e) => setAccHolder(e.target.value)}
+                  placeholder="Beneficiary Name"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600"
+                />
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">
+                  Bank Account Number <span className="text-rose-600 font-extrabold">*</span>
+                </label>
+                <input
+                  type="text"
+                  autoComplete="off"
+                  value={accNum}
+                  onChange={(e) => setAccNum(e.target.value)}
+                  placeholder="e.g. 50200049281094"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono outline-none focus:border-green-600"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">
+                  Confirm Account Number <span className="text-rose-600 font-extrabold">*</span>
+                </label>
+                <input
+                  type="text"
+                  autoComplete="off"
+                  value={accNumConfirm}
+                  onChange={(e) => setAccNumConfirm(e.target.value)}
+                  placeholder="Re-enter Account Number"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono outline-none focus:border-green-600"
+                />
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">
+                  IFSC Code <span className="text-rose-600 font-extrabold">*</span>
+                </label>
+                <input
+                  type="text"
+                  autoComplete="off"
+                  value={ifsc}
+                  onChange={(e) => setIfsc(e.target.value.toUpperCase())}
+                  placeholder="e.g. HDFC0001024"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono uppercase outline-none focus:border-green-600"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">Account Type</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className={`flex items-center gap-2 p-2.5 rounded-xl border-2 text-xs font-bold cursor-pointer ${accType === 'CURRENT' ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
+                    <input type="radio" name="obAccType" checked={accType === 'CURRENT'} onChange={() => setAccType('CURRENT')} /> Current A/C
+                  </label>
+                  <label className={`flex items-center gap-2 p-2.5 rounded-xl border-2 text-xs font-bold cursor-pointer ${accType === 'SAVINGS' ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
+                    <input type="radio" name="obAccType" checked={accType === 'SAVINGS'} onChange={() => setAccType('SAVINGS')} /> Savings A/C
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 4: Store Operations & Delivery Radius */}
+        {currentStep === 4 && (
+          <div id="obStep4" className="space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-green-100 text-green-800 flex items-center justify-center font-bold">4</div>
+                <div>
+                  <h2 className="font-extrabold text-base text-gray-900">Store Hours &amp; Delivery Logistics</h2>
+                  <p className="text-xs text-gray-400">Unlocks Delivery (/delivery)</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-teal-100 text-teal-800">Unlocks Logistics</span>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">Operating Hours</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <input type="time" value={openTime} onChange={(e) => setOpenTime(e.target.value)} className="w-full h-10 px-3 py-2 rounded-xl border border-gray-200 text-sm" />
+                    <span className="text-[10px] font-bold text-gray-400 block mt-1 px-0.5">Opening</span>
+                  </div>
+                  <div>
+                    <input type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} className="w-full h-10 px-3 py-2 rounded-xl border border-gray-200 text-sm" />
+                    <span className="text-[10px] font-bold text-gray-400 block mt-1 px-0.5">Closing</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-gray-700">App Customer Delivery Radius</label>
+                  <span className="text-[10px] font-bold text-orange-600">
+                    {Number(zoneRadius) === 0
+                      ? 'Pickup Only (0km)'
+                      : Number(zoneRadius) <= 5
+                      ? 'Immediate Neighbourhood'
+                      : Number(zoneRadius) <= 12
+                      ? 'Standard Town Radius'
+                      : 'Wide City Coverage'}
+                  </span>
+                </div>
+                {(() => {
+                  const parsed = Number(zoneRadius);
+                  const radiusVal = Number.isFinite(parsed) ? Math.min(20, Math.max(0, Math.round(parsed))) : 10;
+                  return (
+                    <div>
+                      <div
+                        onWheel={(e) => {
+                          e.preventDefault();
+                          const delta = e.deltaY < 0 ? 1 : -1;
+                          const next = Math.min(20, Math.max(0, radiusVal + delta));
+                          setZoneRadius(String(next));
+                        }}
+                        title="Drag or scroll to adjust delivery radius (0km – 20km)"
+                        className="relative w-full h-10 rounded-xl bg-gray-100 border border-gray-200 overflow-hidden select-none shadow-inner"
+                      >
+                        {/* Orange Fill Bar with White Text */}
+                        <div
+                          className={`h-full bg-gradient-to-r from-orange-500 to-orange-600 text-white font-extrabold text-xs rounded-xl flex items-center transition-all duration-150 shadow-sm ${
+                            radiusVal === 0 ? 'justify-center' : 'justify-end pr-3'
+                          }`}
+                          style={{
+                            width: `calc(3.25rem + ${(radiusVal / 20).toFixed(4)} * (100% - 3.25rem))`
+                          }}
+                        >
+                          <span className="drop-shadow-sm whitespace-nowrap">{radiusVal}km</span>
+                        </div>
+
+                        {/* Interactive Range Slider Overlay */}
+                        <input
+                          type="range"
+                          min="0"
+                          max="20"
+                          step="1"
+                          value={radiusVal}
+                          onChange={(e) => setZoneRadius(e.target.value)}
+                          aria-label="App Customer Delivery Radius in kilometers"
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-10 m-0"
+                        />
+                      </div>
+
+                      {/* Quick-select scale ticks (0km to 20km) */}
+                      <div className="flex justify-between text-[10px] font-bold text-gray-400 mt-1 px-0.5 select-none">
+                        {[0, 5, 10, 15, 20].map((mark) => (
+                          <button
+                            key={mark}
+                            type="button"
+                            onClick={() => setZoneRadius(String(mark))}
+                            className={`hover:text-orange-600 transition ${
+                              radiusVal === mark ? 'text-orange-600 font-extrabold' : ''
+                            }`}
+                          >
+                            {mark}km
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-bold text-gray-700">
+                  Delivery Channels <span className="text-rose-600 font-extrabold">*</span>
+                </label>
+                {!delivFast && !delivSame && !delivScheduled && !delivPickup && (
+                  <span className="text-[10px] font-extrabold text-rose-600">
+                    Select at least 1 channel
+                  </span>
+                )}
+              </div>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <label className={`p-3 rounded-xl border-2 flex items-start gap-2.5 cursor-pointer ${delivFast ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
+                  <input type="checkbox" checked={delivFast} onChange={(e) => setDelivFast(e.target.checked)} className="mt-0.5" />
+                  <div><div className="font-bold text-xs text-green-900">Express (Under 1h)</div><div className="text-[10px] text-gray-500">Bike dispatch for immediate essentials</div></div>
+                </label>
+                <label className={`p-3 rounded-xl border-2 flex items-start gap-2.5 cursor-pointer ${delivSame ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
+                  <input type="checkbox" checked={delivSame} onChange={(e) => setDelivSame(e.target.checked)} className="mt-0.5" />
+                  <div><div className="font-bold text-xs text-green-900">Same-Day</div><div className="text-[10px] text-gray-500">Same-day city delivery</div></div>
+                </label>
+                <label className={`p-3 rounded-xl border-2 flex items-start gap-2.5 cursor-pointer ${delivScheduled ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
+                  <input type="checkbox" checked={delivScheduled} onChange={(e) => setDelivScheduled(e.target.checked)} className="mt-0.5" />
+                  <div><div className="font-bold text-xs text-green-900">Scheduled Hours</div><div className="text-[10px] text-gray-500">Morning / Evening slot delivery</div></div>
+                </label>
+                <label className={`p-3 rounded-xl border-2 flex items-start gap-2.5 cursor-pointer ${delivPickup ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
+                  <input type="checkbox" checked={delivPickup} onChange={(e) => setDelivPickup(e.target.checked)} className="mt-0.5" />
+                  <div><div className="font-bold text-xs text-green-900">Store Pickup</div><div className="text-[10px] text-gray-500">Customer collects from counter</div></div>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-gray-700 block mb-2">Logistics Fleet Preference</label>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <label className={`p-3 rounded-xl border flex items-center gap-2.5 cursor-pointer ${fleet === 'SELF' ? 'border-2 border-green-500 bg-green-50' : 'border-gray-200'}`}>
+                  <input type="radio" name="obFleet" checked={fleet === 'SELF'} onChange={() => setFleet('SELF')} />
+                  <div><div className="font-bold text-xs">Self Riders &amp; Vehicles</div><div className="text-[10px] text-gray-500">You use your own staff for deliveries</div></div>
+                </label>
+                <label className="p-3 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-between gap-2.5 opacity-60 cursor-not-allowed select-none">
+                  <div className="flex items-center gap-2.5">
+                    <input type="radio" name="obFleet" checked={false} disabled />
+                    <div>
+                      <div className="font-bold text-xs text-gray-500">ADAB Integrated Porter Fleet</div>
+                      <div className="text-[10px] text-gray-400">On-demand partner delivery drivers</div>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-gray-200 text-gray-600 shrink-0">
+                    Unavailable
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 5: B2B Credit & Trade Terms */}
+        {currentStep === 5 && (
+          <div id="obStep5" className="space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-green-100 text-green-800 flex items-center justify-center font-bold">5</div>
+                <div>
+                  <h2 className="font-extrabold text-base text-gray-900">B2B Wholesale &amp; Store Credit Terms</h2>
+                  <p className="text-xs text-gray-400">Unlocks Bank Credit Lines (/credit-apply) &amp; Store Credit Rules (/creditterms)</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800">Unlocks Credit</span>
+            </div>
+
+            <label className="p-3.5 rounded-xl border-2 border-orange-400 bg-orange-50 flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" checked={enableCredit} onChange={(e) => setEnableCredit(e.target.checked)} className="w-4 h-4" />
+              <div>
+                <div className="font-extrabold text-sm text-orange-950">Enable B2B Store-to-Store Credit Selling</div>
+                <div className="text-xs text-orange-800">Allow nearby &amp; nationwide shops to place bulk orders on credit (ADAB guaranteed)</div>
+              </div>
             </label>
+
+            <div className="grid sm:grid-cols-3 gap-4">
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">Credit Payment Tenure</label>
+                <select
+                  value={creditDays}
+                  onChange={(e) => setCreditDays(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-bold bg-white"
+                >
+                  <option value="7">7 Days</option>
+                  <option value="14">14 Days (Standard)</option>
+                  <option value="21">21 Days</option>
+                  <option value="30">30 Days</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">Max Credit per Shop (₹)</label>
+                <input
+                  type="number"
+                  value={creditLimit}
+                  onChange={(e) => setCreditLimit(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-bold"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">Minimum Order for Credit (₹)</label>
+                <input
+                  type="number"
+                  value={creditMinOrder}
+                  onChange={(e) => setCreditMinOrder(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-bold"
+                />
+              </div>
+            </div>
+
+            <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-900">
+              <i className="fa-solid fa-hand-holding-dollar mr-1 text-purple-700"></i>
+              <strong>ADAB Buyer Credit Line:</strong> Completing this step unlocks your <strong>₹2,50,000 credit line</strong> to purchase stock from distributors at 0% interest for 14 days.
+            </div>
           </div>
+        )}
 
-          <button onClick={() => {}} className="btn-primary w-full py-3.5 text-base font-extrabold shadow-lg flex items-center justify-center gap-2">
-            <i className="fa-solid fa-paper-plane"></i> Submit Store for Admin Verification
-          </button>
-        </div>
-
-        {/*  Wizard Navigation Footer  */}
+        {/* Wizard Navigation Footer */}
         <div className="flex justify-between items-center pt-5 mt-4 border-t border-gray-100">
-          <button type="button" onClick={() => setCurrentStep(prev => Math.max(1, prev - 1))} id="obBtnBack" className="btn-soft !text-xs !py-2 !px-4" disabled={currentStep === 1}>
+          <button
+            type="button"
+            onClick={() => goToStep(currentStep - 1)}
+            id="obBtnBack"
+            className="btn-soft !text-xs !py-2 !px-4"
+            disabled={currentStep === 1}
+          >
             <i className="fa-solid fa-arrow-left mr-1"></i> Back
           </button>
-          <div className="text-xs text-gray-400 font-bold">Step <span id="obFooterStep">{currentStep}</span> of 7</div>
-          <button type="button" onClick={() => setCurrentStep(prev => Math.min(7, prev + 1))} id="obBtnNext" className="btn-primary !text-xs !py-2 !px-5 font-bold">
-            Continue <i className="fa-solid fa-arrow-right ml-1"></i>
-          </button>
+
+          <div className="text-xs text-gray-400 font-bold">
+            Step <span id="obFooterStep">{currentStep}</span> of 5
+          </div>
+
+          <div className="flex items-center gap-2">
+            {currentStep > 2 && currentStep <= 5 && (
+              <button
+                type="button"
+                onClick={handleSkipStep}
+                id="obBtnSkip"
+                className="btn-soft !text-xs !py-2 !px-4 font-bold text-gray-600 hover:text-gray-900"
+              >
+                Skip
+              </button>
+            )}
+            {currentStep <= 2 && !effectiveCriticalDone && (
+              <span className="text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2.5 py-1.5 rounded-lg hidden sm:inline-flex items-center gap-1">
+                <i className="fa-solid fa-lock text-[10px]"></i> Critical Step Required
+              </span>
+            )}
+            <button
+              type="button"
+              disabled={saving || (currentStep === 4 && !delivFast && !delivSame && !delivScheduled && !delivPickup)}
+              onClick={handleSaveCurrentStep}
+              id="obBtnNext"
+              className="btn-primary !text-xs !py-2 !px-5 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? 'Saving...' : 'Save & Continue'} <i className="fa-solid fa-arrow-right ml-1"></i>
+            </button>
+          </div>
         </div>
 
+        {/* DEMO FILL UP SECTION (Pre-states step info and fills current step inputs) */}
+        <div className="mt-4 pt-3.5 border-t border-gray-100">
+          <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-extrabold text-amber-950 flex items-center gap-1.5">
+                <i className="fa-solid fa-wand-magic-sparkles text-amber-600"></i>
+                Demo Fill Up — Step {currentStep} ({STEP_TITLES[currentStep - 1]})
+              </div>
+              <div className="text-[11px] font-mono font-bold text-amber-800 mt-0.5">
+                {getDemoStepSummary(currentStep)}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleDemoFillCurrentStep}
+              className="px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-extrabold shrink-0 transition shadow-sm flex items-center gap-1.5 self-start sm:self-center"
+            >
+              <i className="fa-solid fa-bolt"></i> Demo Fill Up
+            </button>
+          </div>
+        </div>
       </div>
     </section>
-
-
-    {/*  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•  */}
-    {/*  SECTION: APPLICATION STATUS & LIVE VERIFICATION TRACKER  */}
-    {/*  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•  */}
-
-</>
   );
 }

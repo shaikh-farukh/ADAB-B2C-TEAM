@@ -25,7 +25,9 @@ export default function HomePage() {
 
   const ownerName = profile?.full_name || 'Seller';
   const storeName = store?.store_name || 'My Store';
-  const radius = store?.delivery_radius_km ? `${parseInt(store.delivery_radius_km, 10)} km` : '10 km';
+  const radius = store?.delivery_radius_km !== undefined && store?.delivery_radius_km !== null
+    ? `${Math.round(Number(store.delivery_radius_km))} km`
+    : '10 km';
 
   const pendingCount = parseInt(dashboardMetrics?.pending_orders) || orders.filter(o => (o.status || '').toLowerCase() === 'new' || (o.status || '').toLowerCase() === 'pending').length;
   const totalOrdersCount = analyticsSummary?.total_orders || parseInt(dashboardMetrics?.total_orders) || orders.length || 0;
@@ -280,7 +282,7 @@ export default function HomePage() {
               <Link to="/credit-apply" className="card p-4 text-left hover:border-purple-300 hover:shadow-md transition-all border-purple-100 block"><i className="fa-solid fa-hand-holding-dollar text-purple-600 text-lg mb-2"></i><div className="font-bold text-sm">Apply for Credit</div><div className="text-xs text-gray-500">ADAB line or shop credit</div></Link>
               <Link to="/finance" className="card p-4 text-left hover:border-green-300 hover:shadow-md transition-all block"><i className="fa-solid fa-money-bill-transfer text-green-600 text-lg mb-2"></i><div className="font-bold text-sm">Withdraw Money</div><div className="text-xs text-gray-500">View payout settlements</div></Link>
               <Link to="/returns" className="card p-4 text-left hover:border-rose-300 hover:shadow-md transition-all block"><i className="fa-solid fa-rotate-left text-rose-600 text-lg mb-2"></i><div className="font-bold text-sm">Returns &amp; Refunds</div><div className="text-xs text-gray-500">Customer return requests</div></Link>
-              <Link to="/zones" className="card p-4 text-left hover:border-emerald-300 hover:shadow-md transition-all block"><i className="fa-solid fa-map-location-dot text-emerald-600 text-lg mb-2"></i><div className="font-bold text-sm">Delivery Zones</div><div className="text-xs text-gray-500">Configure radius &amp; logistics</div></Link>
+              <Link to="/delivery" className="card p-4 text-left hover:border-emerald-300 hover:shadow-md transition-all block"><i className="fa-solid fa-motorcycle text-emerald-600 text-lg mb-2"></i><div className="font-bold text-sm">Delivery</div><div className="text-xs text-gray-500">Zones, radius &amp; fleet channels</div></Link>
             </div>
           </div>
 

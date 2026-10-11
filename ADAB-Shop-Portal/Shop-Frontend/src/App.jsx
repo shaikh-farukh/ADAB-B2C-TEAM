@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
+import React from 'react';
+import { BrowserRouter, Routes, Route, Link, Navigate, useInRouterContext } from 'react-router-dom';
 import Products from './pages/Products';
 import Marketing from './pages/Marketing';
 import Pricing from './pages/Pricing';
-import sellerService from './services/sellerService';
 import Settings from './pages/Settings';
 import HomePage from './pages/HomePage';
+import AuthPage from './pages/AuthPage';
 import NotificationBell from './components/NotificationBell';
 import PlaceholderPage from './components/common/PlaceholderPage';
-import { SellerProvider } from './context/SellerContext';
+import KycGate from './components/common/KycGate';
+import { SellerProvider, useSeller } from './context/SellerContext';
 import { SocketProvider } from './context/SocketProvider';
 import GlobalBulkUploadWidget from './components/GlobalBulkUploadWidget';
 
@@ -34,13 +35,12 @@ import RecommendationsPage from './pages/RecommendationsPage';
 import ReportsPage from './pages/ReportsPage';
 import Sidebar from './components/layout/Sidebar';
 
-const MainLayout = ({ children, store, profile }) => {
+const MainLayout = ({ children, store, profile, isPortalUnlocked = true }) => {
   const storeName = store?.store_name || 'Shri Balaji Store';
-  const initial = store?.store_name ? store.store_name.substring(0, 2).toUpperCase() : 'SB';
+  const headerLockedClass = !isPortalUnlocked ? 'pointer-events-none opacity-40 cursor-not-allowed select-none' : '';
 
   return (
     <div className="bg-gray-50 text-gray-800 min-h-screen">
-      
       {/* Mobile Drawer Overlay */}
       <div 
         id="drawerOverlaySeller" 
@@ -76,11 +76,11 @@ const MainLayout = ({ children, store, profile }) => {
             </div>
           </div>
           
-          <div className="flex-1 min-w-[130px] max-w-lg mx-1">
+          <div className={`flex-1 min-w-[130px] max-w-lg mx-1 ${headerLockedClass}`}>
             <div className="relative">
               <i className="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-blue-600 text-xs sm:text-sm"></i>
-              <input type="search" placeholder="Search anything to buy from stores..." className="w-full pl-8 sm:pl-9 pr-14 sm:pr-20 py-2 sm:py-2.5 rounded-xl border-2 border-blue-100 text-xs sm:text-sm outline-none focus:border-blue-500 bg-blue-50/50" />
-              <button className="absolute right-1 top-1/2 -translate-y-1/2 btn-primary !text-[10px] sm:!text-xs !py-1 sm:!py-1.5 !px-2 sm:!px-3 bg-brand-dark text-white rounded-lg font-bold">Search</button>
+              <input type="search" disabled={!isPortalUnlocked} placeholder="Search anything to buy from stores..." className="w-full pl-8 sm:pl-9 pr-14 sm:pr-20 py-2 sm:py-2.5 rounded-xl border-2 border-blue-100 text-xs sm:text-sm outline-none focus:border-blue-500 bg-blue-50/50" />
+              <button disabled={!isPortalUnlocked} className="absolute right-1 top-1/2 -translate-y-1/2 btn-primary !text-[10px] sm:!text-xs !py-1 sm:!py-1.5 !px-2 sm:!px-3 bg-brand-dark text-white rounded-lg font-bold">Search</button>
             </div>
           </div>
 
@@ -92,14 +92,14 @@ const MainLayout = ({ children, store, profile }) => {
             <button className="hidden lg:flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl border border-gray-200 bg-white text-xs sm:text-sm font-bold text-gray-700">
               <i className="fa-solid fa-globe text-green-700"></i> EN <i className="fa-solid fa-chevron-down text-[9px] text-gray-400"></i>
             </button>
-            <Link to="/buycart" className="relative hidden xl:flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-full bg-blue-50 text-blue-800 text-xs sm:text-sm font-bold border border-blue-200">
+            <Link to="/buycart" className={`relative hidden xl:flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-full bg-blue-50 text-blue-800 text-xs sm:text-sm font-bold border border-blue-200 ${headerLockedClass}`}>
               <i className="fa-solid fa-cart-shopping"></i> <span className="hidden md:inline">Buy Cart</span>
             </Link>
             <button className="hidden lg:flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-full bg-green-50 text-green-800 text-xs sm:text-sm font-bold border border-green-200">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Open
             </button>
             <NotificationBell />
-            <Link to="/settings" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+            <Link to="/settings" className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors ${headerLockedClass}`}>
               <i className="fa-solid fa-store text-green-700"></i> <span className="hidden sm:inline">Store Account</span>
             </Link>
           </div>
@@ -108,7 +108,6 @@ const MainLayout = ({ children, store, profile }) => {
 
       {/* Main Layout Area */}
       <div className="w-full px-4 lg:px-6 py-4 sm:py-5 flex flex-col lg:flex-row gap-6">
-        
         {/* Sidebar */}
         <Sidebar />
         
@@ -123,107 +122,187 @@ const MainLayout = ({ children, store, profile }) => {
   );
 };
 
-// --- APP ENTRY ---
-function App() {
-  const [profile, setProfile] = useState(null);
-  const [store, setStore] = useState(null);
-  const [loading, setLoading] = useState(true);
+function PortalContent() {
+  const {
+    isAuthenticated,
+    profile,
+    store,
+    kycSteps,
+    isCriticalSetupDone,
+    isApplicationSubmitted = false,
+    isKycApproved = false,
+    loading
+  } = useSeller();
 
-  useEffect(() => {
-    const fetchSellerData = async () => {
-      try {
-        const [profileRes, storeRes] = await Promise.all([
-          sellerService.getProfile().catch(() => ({ data: null })),
-          sellerService.getStore().catch(() => ({ data: null }))
-        ]);
-        setProfile(profileRes.data);
-        setStore(storeRes.data);
-      } catch (err) {
-        console.error('Error fetching seller data', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchSellerData();
-  }, []);
+  if (!isAuthenticated) {
+    return (
+      <Routes>
+        <Route path="*" element={<AuthPage />} />
+      </Routes>
+    );
+  }
 
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen">Loading Store Portal...</div>;
   }
 
+  // Tier 1 & Tier 2: Until Admin approves the store KYC, lock the portal to Store KYC (and Application Tracker once submitted)
+  if (!isKycApproved) {
+    const requiredCriticalStep = !kycSteps?.step1 ? 1 : 2;
+    const defaultOnboardingTarget = !isCriticalSetupDone
+      ? `/onboarding?step=${requiredCriticalStep}`
+      : '/onboarding';
+
+    return (
+      <MainLayout profile={profile} store={store} isPortalUnlocked={false}>
+        <Routes>
+          <Route path="/onboarding" element={<OnboardingPage />} />
+          {(isCriticalSetupDone || isApplicationSubmitted) && (
+            <Route path="/regstatus" element={<RegStatusPage />} />
+          )}
+          <Route
+            path="*"
+            element={
+              <Navigate
+                to={isApplicationSubmitted ? '/regstatus' : defaultOnboardingTarget}
+                replace
+              />
+            }
+          />
+        </Routes>
+      </MainLayout>
+    );
+  }
+
   return (
-    <BrowserRouter>
+    <MainLayout profile={profile} store={store} isPortalUnlocked={true}>
+      <Routes>
+        <Route path="/login" element={<Navigate to="/" replace />} />
+        <Route path="/" element={<HomePage />} />
+        <Route path="/products" element={<Products />} />
+        <Route path="/pricing" element={<Pricing />} />
+        <Route path="/marketing" element={<Marketing />} />
+        <Route path="/offers" element={<Marketing />} />
+        <Route path="/settings" element={<Settings />} />
+
+        {/* Mayank's Routes (with feature-specific KYC step gates) */}
+        <Route
+          path="/orders"
+          element={
+            <KycGate requiredSteps={[4]} featureName="App Orders">
+              <OrdersPage />
+            </KycGate>
+          }
+        />
+        <Route path="/pos" element={<POSPage />} />
+        <Route
+          path="/partner"
+          element={
+            <KycGate requiredSteps={[1, 2, 4]} featureName="B2B Store Orders">
+              <PartnerPage />
+            </KycGate>
+          }
+        />
+        <Route
+          path="/delivery"
+          element={
+            <KycGate requiredSteps={[4]} featureName="Delivery">
+              <DeliveryPage />
+            </KycGate>
+          }
+        />
+        <Route path="/zones" element={<Navigate to="/delivery" replace />} />
+        <Route
+          path="/finance"
+          element={
+            <KycGate requiredSteps={[3]} featureName="Bank Payouts & Money">
+              <FinancePage />
+            </KycGate>
+          }
+        />
+        <Route
+          path="/credit-apply"
+          element={
+            <KycGate requiredSteps={[5]} featureName="Bank Credit Lines">
+              <CreditApplyPage />
+            </KycGate>
+          }
+        />
+        <Route
+          path="/creditterms"
+          element={
+            <KycGate requiredSteps={[5]} featureName="Store Credit Rules">
+              <CreditTermsPage />
+            </KycGate>
+          }
+        />
+        <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="/regstatus" element={<RegStatusPage />} />
+        <Route path="/returns" element={<ReturnsPage />} />
+        <Route path="/mastersearch" element={<MasterSearchPage />} />
+        <Route path="/buy" element={<BuyNearbyPage />} />
+        <Route path="/buycart" element={<BuyCartPage />} />
+        <Route path="/points" element={<PointsPage />} />
+        <Route path="/freight" element={<FreightPage />} />
+        <Route path="/messages" element={<MessagesPage />} />
+        <Route path="/recommendations" element={<RecommendationsPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+
+        {/* Catalog & Brand expansions */}
+        <Route 
+          path="/create" 
+          element={
+            <KycGate requiredSteps={[1, 2]} featureName="Add New Product">
+              <PlaceholderPage 
+                title="Add New Product (Studio)" 
+                fileName="CreateProductPage.jsx" 
+                description="Fast product creation with barcode scanner, photo upload, category, price, and GST slab." 
+              />
+            </KycGate>
+          } 
+        />
+        <Route 
+          path="/catalog" 
+          element={
+            <PlaceholderPage 
+              title="National FMCG Catalog" 
+              fileName="CatalogPage.jsx" 
+              description="5,000+ FMCG national master catalog with 1-click addition to seller inventory." 
+            />
+          } 
+        />
+        <Route 
+          path="/partnerbrands" 
+          element={
+            <PlaceholderPage 
+              title="Partner Brands & Packs" 
+              fileName="PartnerBrandsPage.jsx" 
+              description="White-label and manufacturer packs from other registered merchant brands." 
+            />
+          } 
+        />
+
+        {/* Catch-all fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </MainLayout>
+  );
+}
+
+function OptionalRouter({ children }) {
+  const inRouter = useInRouterContext();
+  return inRouter ? children : <BrowserRouter>{children}</BrowserRouter>;
+}
+
+function App() {
+  return (
+    <OptionalRouter>
       <SocketProvider>
         <SellerProvider>
-          <MainLayout profile={profile} store={store}>
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/products" element={<Products />} />
-              <Route path="/pricing" element={<Pricing />} />
-              <Route path="/marketing" element={<Marketing />} />
-              <Route path="/offers" element={<Marketing />} />
-              <Route path="/settings" element={<Settings />} />
-
-              {/* Mayank's Routes */}
-              <Route path="/orders" element={<OrdersPage />} />
-              <Route path="/pos" element={<POSPage />} />
-              <Route path="/partner" element={<PartnerPage />} />
-              <Route path="/delivery" element={<DeliveryPage />} />
-              <Route path="/zones" element={<ZonesPage />} />
-              <Route path="/finance" element={<FinancePage />} />
-              <Route path="/credit-apply" element={<CreditApplyPage />} />
-              <Route path="/onboarding" element={<OnboardingPage />} />
-              <Route path="/regstatus" element={<RegStatusPage />} />
-              <Route path="/returns" element={<ReturnsPage />} />
-              <Route path="/mastersearch" element={<MasterSearchPage />} />
-              <Route path="/buy" element={<BuyNearbyPage />} />
-              <Route path="/buycart" element={<BuyCartPage />} />
-              <Route path="/creditterms" element={<CreditTermsPage />} />
-              <Route path="/points" element={<PointsPage />} />
-              <Route path="/freight" element={<FreightPage />} />
-              <Route path="/messages" element={<MessagesPage />} />
-              <Route path="/recommendations" element={<RecommendationsPage />} />
-              <Route path="/reports" element={<ReportsPage />} />
-
-              {/* Catalog & Brand expansions */}
-              <Route 
-                path="/create" 
-                element={
-                  <PlaceholderPage 
-                    title="Add New Product (Studio)" 
-                    fileName="CreateProductPage.jsx" 
-                    description="Fast product creation with barcode scanner, photo upload, category, price, and GST slab." 
-                  />
-                } 
-              />
-              <Route 
-                path="/catalog" 
-                element={
-                  <PlaceholderPage 
-                    title="National FMCG Catalog" 
-                    fileName="CatalogPage.jsx" 
-                    description="5,000+ FMCG national master catalog with 1-click addition to seller inventory." 
-                  />
-                } 
-              />
-              <Route 
-                path="/partnerbrands" 
-                element={
-                  <PlaceholderPage 
-                    title="Partner Brands & Packs" 
-                    fileName="PartnerBrandsPage.jsx" 
-                    description="White-label and manufacturer packs from other registered merchant brands." 
-                  />
-                } 
-              />
-
-              {/* Catch-all fallback */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </MainLayout>
+          <PortalContent />
         </SellerProvider>
       </SocketProvider>
-    </BrowserRouter>
+    </OptionalRouter>
   );
 }
 

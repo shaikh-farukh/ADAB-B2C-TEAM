@@ -14,16 +14,40 @@ const pool = new Pool({
     servername: process.env.DB_HOST
   },
   max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
+  idleTimeoutMillis: 300000,
+  connectionTimeoutMillis: 25000
 });
 
-pool.connect((err, client, release) => {
+pool.connect(async (err, client, release) => {
   if (err) {
     console.error('❌ Error connecting to Shop Portal database:', err.message);
   } else {
     console.log('✅ Shop Portal database connected successfully');
-    release();
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS seller_onboarding_steps (
+          user_id UUID PRIMARY KEY,
+          step1 BOOLEAN DEFAULT false,
+          step2 BOOLEAN DEFAULT false,
+          step3 BOOLEAN DEFAULT false,
+          step4 BOOLEAN DEFAULT false,
+          step5 BOOLEAN DEFAULT false,
+          step6 BOOLEAN DEFAULT false,
+          step7 BOOLEAN DEFAULT false,
+          profile_data JSONB DEFAULT '{}'::jsonb,
+          delivery_config JSONB DEFAULT '{}'::jsonb,
+          credit_config JSONB DEFAULT '{}'::jsonb,
+          starter_products JSONB DEFAULT '[]'::jsonb,
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+      `);
+    } catch (tableErr) {
+      console.error('⚠️ Warning ensuring seller_onboarding_steps table:', tableErr.message);
+    } finally {
+      release();
+    }
   }
 });
 

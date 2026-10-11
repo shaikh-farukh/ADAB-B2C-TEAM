@@ -5,16 +5,25 @@
  * This middleware acts as a temporary abstraction for the identity layer.
  * Final Seller Login/Auth integration is pending.
  */
+const { verifyToken } = require('../utils/jwt');
+
 function requireSellerAuth(req, res, next) {
   let sellerId = req.headers['x-user-id'];
   let storeId = req.headers['x-store-id'];
 
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7).trim();
+    const decoded = verifyToken(token);
+    if (decoded && decoded.userId) {
+      sellerId = decoded.userId;
+      if (decoded.storeId) storeId = decoded.storeId;
+    }
+  }
+
   if (!sellerId) sellerId = '00000000-0000-0000-0000-000000000001';
   if (!storeId) storeId = '00000000-0000-0000-0000-000000000001';
 
-  // Set the authenticated context on the request object.
-  // When real auth is integrated, ONLY this file needs to change 
-  // (e.g. decoding a JWT to set req.sellerContext).
   req.sellerContext = {
     userId: sellerId,
     storeId: storeId

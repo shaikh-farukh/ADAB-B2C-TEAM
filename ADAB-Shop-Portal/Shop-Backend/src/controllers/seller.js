@@ -234,6 +234,49 @@ class SellerController {
     }
   }
 
+  // === Auth & 7-Step Incremental KYC Onboarding ===
+
+  async login(req, res) {
+    try {
+      const { phone, pin } = req.body;
+      const result = await sellerService.loginWithPin(phone, pin);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async signup(req, res) {
+    try {
+      const { phone, pin, full_name, store_name } = req.body;
+      const result = await sellerService.signupWithPin(phone, pin, { full_name, store_name });
+      res.status(201).json({ success: true, data: result });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async getOnboarding(req, res) {
+    try {
+      const { userId } = getAuthenticatedSellerContext(req);
+      const data = await sellerService.getOnboardingData(userId);
+      res.json({ success: true, data });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async saveOnboardingStep(req, res) {
+    try {
+      const { userId } = getAuthenticatedSellerContext(req);
+      const { stepNum } = req.params;
+      const data = await sellerService.saveOnboardingStep(userId, stepNum, req.body);
+      res.json({ success: true, data });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
 }
 
 module.exports = new SellerController();

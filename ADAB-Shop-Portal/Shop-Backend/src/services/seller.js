@@ -106,6 +106,24 @@ class SellerService {
   async getKhataLedger() {
     return await sellerRepository.getKhataLedger();
   }
+
+  async loginWithPin(phone, pin) {
+    return await sellerRepository.loginWithPin(phone, pin);
+  }
+
+  async signupWithPin(phone, pin, extra) {
+    return await sellerRepository.signupWithPin(phone, pin, extra);
+  }
+
+  async getOnboardingData(userId) {
+    if (!userId) throw new Error('Seller ID is required');
+    return await sellerRepository.getOnboardingData(userId);
+  }
+
+  async saveOnboardingStep(userId, stepNum, data) {
+    if (!userId) throw new Error('Seller ID is required');
+    return await sellerRepository.saveOnboardingStep(userId, stepNum, data);
+  }
 }
 
 module.exports = new SellerService();
