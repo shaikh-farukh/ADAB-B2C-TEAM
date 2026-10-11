@@ -287,32 +287,74 @@ export default function BrowsePage({
 
         {/* Selected Shop Hero Banner */}
         {currentStore && (
-          <div className="mb-6 rounded-2xl bg-gradient-to-r from-emerald-800 to-teal-900 text-white p-5 shadow-lg relative overflow-hidden">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div 
+            className="mb-6 rounded-2xl shop-hero text-white p-5 shadow-lg relative overflow-hidden"
+            style={{ 
+              background: 'linear-gradient(135deg, #064E3B 0%, #047857 50%, #059669 100%)', 
+              color: '#ffffff',
+              boxShadow: '0 10px 25px -5px rgba(6, 78, 59, 0.35)'
+            }}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur border border-white/25 flex items-center justify-center font-black text-xl text-white shadow-inner shrink-0">
+                <div 
+                  className="w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl text-white shadow-md shrink-0"
+                  style={{ 
+                    background: 'rgba(255, 255, 255, 0.22)', 
+                    border: '1.5px solid rgba(255, 255, 255, 0.4)',
+                    backdropFilter: 'blur(8px)',
+                    WebkitBackdropFilter: 'blur(8px)'
+                  }}
+                >
                   {(currentStore.name || 'Store').substring(0, 2).toUpperCase()}
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-400/30 text-emerald-100 border border-emerald-300/40">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span 
+                      className="text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm"
+                      style={{ 
+                        background: '#10B981', 
+                        color: '#ffffff', 
+                        border: '1px solid #34D399', 
+                        letterSpacing: '0.02em' 
+                      }}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
                       OPEN NOW
                     </span>
-                    <span className="text-xs text-emerald-200 font-bold flex items-center gap-1">
-                      <i className="fa-solid fa-star text-amber-300"></i>
-                      {currentStore.rating || '4.8'} Verified Shop
+                    <span 
+                      className="text-[11px] font-bold flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                      style={{ 
+                        background: 'rgba(255, 255, 255, 0.18)', 
+                        color: '#F0FDF4', 
+                        border: '1px solid rgba(255, 255, 255, 0.3)',
+                        backdropFilter: 'blur(4px)',
+                        WebkitBackdropFilter: 'blur(4px)'
+                      }}
+                    >
+                      <i className="fa-solid fa-star text-amber-300 text-xs"></i>
+                      <span>{currentStore.rating || '4.8'} Verified Shop</span>
                     </span>
                   </div>
-                  <h2 className="text-xl sm:text-2xl font-black mt-1 tracking-tight text-white">{currentStore.name}</h2>
-                  <p className="text-xs text-emerald-100/90 mt-0.5">
-                    {currentStore.area || currentStore.address_line || 'Local Merchant'} · {currentStore.distance || '1.2 km'} delivery
+                  <h2 className="text-xl sm:text-2xl font-black mt-1.5 tracking-tight text-white drop-shadow-xs">
+                    {currentStore.name}
+                  </h2>
+                  <p className="text-xs mt-1 font-medium flex items-center gap-1.5" style={{ color: '#D1FAE5' }}>
+                    <i className="fa-solid fa-location-dot text-emerald-300 text-[11px]"></i>
+                    <span>{currentStore.area || currentStore.address_line || 'Local Merchant'} · {currentStore.distance || '1.2 km'} delivery</span>
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={clearStoreFilter}
-                className="self-start sm:self-center px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="self-start sm:self-center px-4 py-2 rounded-xl text-white font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95 shrink-0"
+                style={{ 
+                  background: 'rgba(255, 255, 255, 0.22)', 
+                  border: '1px solid rgba(255, 255, 255, 0.4)',
+                  backdropFilter: 'blur(6px)',
+                  WebkitBackdropFilter: 'blur(6px)'
+                }}
               >
                 <span>View All Shops</span>
                 <i className="fa-solid fa-xmark text-xs ml-0.5"></i>

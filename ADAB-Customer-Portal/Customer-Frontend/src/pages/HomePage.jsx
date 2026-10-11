@@ -73,32 +73,46 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
 
       {/* Active Live Order Strip from DB */}
       {latestOrder ? (
-        <div onClick={() => go('track')} className="cursor-pointer bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-4 flex items-center gap-3.5 shadow-lg shadow-emerald-700/20 hover:scale-[1.01] transition-all">
+        <div 
+          onClick={() => go('track')} 
+          className="cursor-pointer text-white rounded-2xl p-4 flex items-center gap-3.5 shadow-lg shadow-emerald-700/20 hover:scale-[1.01] transition-all"
+          style={{ background: 'linear-gradient(135deg, #064E3B 0%, #047857 50%, #059669 100%)', color: '#ffffff' }}
+        >
           <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-xl shrink-0"><i className="fa-solid fa-motorcycle animate-bounce"></i></div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white/25">
+              <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full" style={{ background: '#10B981', color: '#ffffff', border: '1px solid #34D399' }}>
                 {latestOrder.order_status === 'PLACED' ? 'ON THE WAY' : latestOrder.order_status}
               </span>
               <span className="text-xs text-emerald-100">
                 Order #{latestOrder.order_number || (latestOrder.id && latestOrder.id.slice(0, 8))}
               </span>
             </div>
-            <div className="font-extrabold text-sm mt-0.5 truncate">
+            <div className="font-extrabold text-sm mt-0.5 truncate text-white">
               Arriving in ~{latestOrder.eta_minutes || 18} min · {latestOrder.seller_orders?.[0]?.store_name || stores[0]?.name || 'Shabbir Grocery Shop'}
             </div>
           </div>
           <span className="px-3 py-1.5 rounded-xl bg-white text-emerald-800 font-extrabold text-xs shrink-0 shadow-sm">Track <i className="fa-solid fa-arrow-right ml-1 text-[10px]"></i></span>
         </div>
       ) : stores.length > 0 ? (
-        <div onClick={() => go('stores', { storeId: stores[0].id, store: stores[0] })} className="cursor-pointer bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-4 flex items-center gap-3.5 shadow-lg shadow-emerald-700/20 hover:scale-[1.01] transition-all">
+        <div 
+          onClick={() => go('stores', { storeId: stores[0].id, store: stores[0] })} 
+          className="cursor-pointer text-white rounded-2xl p-4 flex items-center gap-3.5 shadow-lg shadow-emerald-700/20 hover:scale-[1.01] transition-all"
+          style={{ background: 'linear-gradient(135deg, #064E3B 0%, #047857 50%, #059669 100%)', color: '#ffffff' }}
+        >
           <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-xl shrink-0"><i className="fa-solid fa-shop"></i></div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white/25">OPEN NOW</span>
-              <span className="text-xs text-emerald-100">{stores[0].area}</span>
+              <span 
+                className="text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm"
+                style={{ background: '#10B981', color: '#ffffff', border: '1px solid #34D399' }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                OPEN NOW
+              </span>
+              <span className="text-xs text-emerald-100 font-semibold">{stores[0].area}</span>
             </div>
-            <div className="font-extrabold text-sm mt-0.5 truncate">
+            <div className="font-extrabold text-sm mt-0.5 truncate text-white">
               Order fresh daily essentials from {stores[0].name}
             </div>
           </div>
