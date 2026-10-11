@@ -767,6 +767,35 @@
 
 ---
 
+### 🎨 Frontend Task 8: Shop Hero Banner Aesthetic Repair & Tag Contrast Enhancement
+- **Status:** [x] Completed on 2026-10-11
+- **What was asked to do:**
+  Fix the washed-out shop banner and "OPEN NOW" tag across all shop views, and remove the redundant "View All Shops" button from the Selected Shop Hero Banner.
+- **What we have done:**
+  - Resolved Tailwind v4 compilation incompatibility by adding explicit `.shop-hero` background gradient styling (`linear-gradient(135deg, #064E3B 0%, #047857 50%, #059669 100%)`) with elevated drop shadow to guarantee deep ADAB green theme across all browsers.
+  - Upgraded the "OPEN NOW" tag to a high-contrast `#10B981` emerald pill with an active pulsing white dot.
+  - Enhanced the verified shop star badge, store initials avatar, and location metadata contrast.
+  - Removed the "View All Shops" button from the banner per user request so the hero header displays a clean, elegant layout.
+  - Enhanced the global `.open-badge` class in `index.css` and updated `HomePage.jsx` order and store preview strips.
+  - Updated automated test suite in `Customer-Frontend/src/__tests__/StoreAndApprovalFilter.test.jsx`.
+- **APIs generated:**
+  - N/A — Frontend UI design system & component refinement.
+- **What changes we have done:**
+  - Modified `Customer-Frontend/src/pages/BrowsePage.jsx`.
+  - Modified `Customer-Frontend/src/pages/HomePage.jsx`.
+  - Modified `Customer-Frontend/src/index.css`.
+  - Modified `Customer-Frontend/src/__tests__/StoreAndApprovalFilter.test.jsx`.
+- **How to test it:**
+  Run `npm test` in `Customer-Frontend` (39/39 tests pass). Open `http://localhost:5173/stores?store_id=00000000-0000-0000-0000-000000000001` and verify the shop banner is deep forest green with vibrant OPEN NOW tag and no "View All Shops" button.
+- **How to run it:**
+  ```powershell
+  cd ADAB-Customer-Portal/Customer-Frontend
+  npm test
+  npm run dev
+  ```
+
+---
+
 ## 📅 Day 4: Order Tracking, Timeline & Real-time Alerts (Future)
 - [ ] Build "My Orders" customer order list page.
 - [ ] Build "Order Detail" page with seller-order breakdown and invoice retrieval.
