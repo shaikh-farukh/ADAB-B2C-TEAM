@@ -13,10 +13,10 @@ const pool = new Pool({
     rejectUnauthorized: false,
     servername: process.env.DB_HOST
   },
-  max: 10,
+  max: 4,
   keepAlive: true,
   keepAliveInitialDelayMillis: 10000,
-  idleTimeoutMillis: 300000,
+  idleTimeoutMillis: 60000,
   connectionTimeoutMillis: 25000
 });
 

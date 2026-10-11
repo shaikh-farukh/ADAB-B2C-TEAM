@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useSeller } from '../../context/SellerContext';
 
@@ -14,6 +15,7 @@ export default function Sidebar() {
     logout
   } = useSeller();
   const navigate = useNavigate();
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
   const storeName = store?.store_name || 'My Store';
   const initial = (storeName || 'S').substring(0, 2).toUpperCase();
 
@@ -296,10 +298,9 @@ export default function Sidebar() {
           type="button"
           onClick={() => {
             closeDrawer();
-            if (logout) logout();
-            navigate('/login', { replace: true });
+            setShowSignOutModal(true);
           }}
-          className="text-rose-600 hover:bg-rose-50 w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition font-bold"
+          className="text-rose-600 hover:bg-rose-50 w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition font-bold cursor-pointer"
         >
           <i className="fa-solid fa-right-from-bracket w-4 text-rose-500"></i> <span>Sign Out</span>
         </button>
@@ -322,6 +323,58 @@ export default function Sidebar() {
           </div>
         </details>
       </nav>
+
+      {/* SIGN OUT CONFIRMATION MODAL */}
+      {showSignOutModal &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center p-4"
+            onClick={() => setShowSignOutModal(false)}
+          >
+            <div
+              className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-sm w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 text-lg">
+                  <i className="fa-solid fa-right-from-bracket"></i>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-extrabold text-gray-900">
+                    Sign Out of Store Portal?
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                    Are you sure you want to sign out of <b className="text-gray-800">{storeName}</b>? You can sign back in anytime with your mobile number and PIN.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowSignOutModal(false)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-extrabold border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSignOutModal(false);
+                    if (logout) logout();
+                    navigate('/login', { replace: true });
+                  }}
+                  className="px-4 py-2.5 rounded-xl text-xs font-extrabold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <i className="fa-solid fa-right-from-bracket"></i>
+                  <span>Yes, Sign Out</span>
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </aside>
   );
 }

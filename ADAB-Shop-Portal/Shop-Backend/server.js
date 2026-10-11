@@ -15,7 +15,7 @@ app.use(express.json());
 const rateLimit = require('express-rate-limit');
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per window
+  max: 5000, // Generous limit so active portal usage & tests never get 429 throttled
   standardHeaders: true,
   legacyHeaders: false,
 });

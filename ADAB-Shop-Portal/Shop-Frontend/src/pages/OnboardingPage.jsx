@@ -115,13 +115,14 @@ export default function OnboardingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  // Populate ONLY the verified phone number by default; other step fields only populate if that step was already saved
+  // Populate ONLY the verified phone number by default; other step fields populate if that step was saved or has DB data
   useEffect(() => {
     if (profile?.phone || store?.phone) {
       setPhone(profile?.phone || store?.phone || '');
     }
 
-    if (kycSteps?.step1) {
+    const hasStep1 = Boolean(kycSteps?.step1 || (store?.address_line && String(store.address_line).trim()));
+    if (hasStep1) {
       if (store) {
         setShopName(store.store_name || '');
         setCategory(store.category || 'Grocery & Supermarket');
@@ -142,14 +143,16 @@ export default function OnboardingPage() {
       }
     }
 
-    if (kycSteps?.step2 && profile) {
+    const hasStep2 = Boolean(kycSteps?.step2 || (profile?.gstin && profile?.pan && profile.pan !== 'PENDING00P'));
+    if (hasStep2 && profile) {
       setGstin(profile.gstin || '');
       setPan(profile.pan && profile.pan !== 'PENDING00P' ? profile.pan : '');
       setFssai(profile.fssai_license || '');
       setUdhyam(profile.udhyam_msme || '');
     }
 
-    if (kycSteps?.step3 && onboardingData?.bankAccount) {
+    const hasStep3 = Boolean(kycSteps?.step3 || onboardingData?.bankAccount?.account_number);
+    if (hasStep3 && onboardingData?.bankAccount) {
       const b = onboardingData.bankAccount;
       setBankName(b.bank_name || 'HDFC Bank');
       setAccHolder(b.account_holder_name || '');
@@ -159,7 +162,11 @@ export default function OnboardingPage() {
       setAccType(b.account_type || 'CURRENT');
     }
 
-    if (kycSteps?.step4) {
+    const hasStep4 = Boolean(
+      kycSteps?.step4 ||
+      (onboardingData?.deliveryConfig && Object.keys(onboardingData.deliveryConfig).length > 0)
+    );
+    if (hasStep4) {
       if (store) {
         if (store.open_time) setOpenTime(String(store.open_time).slice(0, 5));
         if (store.close_time) setCloseTime(String(store.close_time).slice(0, 5));
@@ -180,7 +187,11 @@ export default function OnboardingPage() {
       }
     }
 
-    if (kycSteps?.step5 && onboardingData?.creditConfig && Object.keys(onboardingData.creditConfig).length > 0) {
+    const hasStep5 = Boolean(
+      kycSteps?.step5 ||
+      (onboardingData?.creditConfig && Object.keys(onboardingData.creditConfig).length > 0)
+    );
+    if (hasStep5 && onboardingData?.creditConfig && Object.keys(onboardingData.creditConfig).length > 0) {
       const c = onboardingData.creditConfig;
       if (c.enableCredit !== undefined) setEnableCredit(Boolean(c.enableCredit));
       if (c.creditDays) setCreditDays(String(c.creditDays));

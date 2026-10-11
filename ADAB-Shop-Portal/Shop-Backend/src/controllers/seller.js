@@ -238,8 +238,13 @@ class SellerController {
 
   async login(req, res) {
     try {
-      const { phone, pin } = req.body;
-      const result = await sellerService.loginWithPin(phone, pin);
+      const { phone, pin, email, password, idMode, secretMode } = req.body;
+      const result = await sellerService.loginWithPin(phone, pin, {
+        email,
+        password,
+        idMode,
+        secretMode
+      });
       res.json({ success: true, data: result });
     } catch (error) {
       res.status(400).json({ success: false, error: error.message });

@@ -107,8 +107,8 @@ class SellerService {
     return await sellerRepository.getKhataLedger();
   }
 
-  async loginWithPin(phone, pin) {
-    return await sellerRepository.loginWithPin(phone, pin);
+  async loginWithPin(phone, pin, extra = {}) {
+    return await sellerRepository.loginWithPin(phone, pin, extra);
   }
 
   async signupWithPin(phone, pin, extra) {

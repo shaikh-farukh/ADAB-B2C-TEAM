@@ -4,8 +4,8 @@ export const userId = '00000000-0000-0000-0000-000000000001';
 const getActiveUserId = () => localStorage.getItem('seller_user_id') || userId;
 
 const sellerService = {
-  login: (phone, pin) => {
-    return api.post('/seller/auth/login', { phone, pin });
+  login: (phone, pin, extra = {}) => {
+    return api.post('/seller/auth/login', { phone, pin, ...extra });
   },
 
   signup: (phone, pin, extra = {}) => {

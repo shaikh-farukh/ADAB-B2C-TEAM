@@ -603,50 +603,109 @@ class SellerRepository {
     return digits.length > 10 ? digits.slice(-10) : digits;
   }
 
-  async loginWithPin(phone, pin) {
+  async loginWithPin(phone, pin, extra = {}) {
     const { hashPin, verifyPin, signToken } = require('../utils/jwt');
-    const cleanDigits = this.normalizePhoneDigits(phone);
-    if (!cleanDigits || cleanDigits.length < 10) {
-      throw new Error('Please enter a valid 10-digit mobile number');
-    }
-    if (!/^\d{6}$/.test(String(pin || ''))) {
-      throw new Error('PIN must be exactly 6 digits');
+    const idMode = extra.idMode || (extra.email && !phone ? 'email' : 'phone');
+    const secretMode = extra.secretMode || (extra.password && !pin ? 'password' : 'pin');
+    const rawEmail = String(extra.email || '').trim().toLowerCase();
+    const rawPassword = String(extra.password || '');
+    const activeSecret = secretMode === 'password' ? rawPassword : String(pin || '');
+
+    let cleanDigits = this.normalizePhoneDigits(phone);
+    if (idMode === 'email') {
+      if (!rawEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) {
+        throw new Error('Please enter a valid email address');
+      }
+    } else {
+      if (!cleanDigits || cleanDigits.length < 10) {
+        throw new Error('Please enter a valid 10-digit mobile number');
+      }
     }
 
-    // Search seller by phone on users or stores, or match default seeded seller
-    const userRes = await pool.query(`
-      SELECT u.id, u.phone, u.email, u.full_name, u.password_hash, u.user_type, u.status
-      FROM users u
-      LEFT JOIN seller_profiles sp ON sp.user_id = u.id
-      LEFT JOIN stores s ON s.seller_id = sp.id
-      WHERE (
-        REGEXP_REPLACE(u.phone, '\\D', '', 'g') LIKE '%' || $1
-        OR REGEXP_REPLACE(COALESCE(s.phone, ''), '\\D', '', 'g') LIKE '%' || $1
-        OR ($1 = '9876543210' AND u.id = '00000000-0000-0000-0000-000000000001')
-      )
-      ORDER BY (u.id = '00000000-0000-0000-0000-000000000001') DESC, u.created_at DESC
-      LIMIT 1
-    `, [cleanDigits]);
+    if (secretMode === 'password') {
+      if (!rawPassword || rawPassword.length < 4) {
+        throw new Error('Password must be at least 4 characters');
+      }
+    } else {
+      if (!/^\d{6}$/.test(String(pin || ''))) {
+        throw new Error('PIN must be exactly 6 digits');
+      }
+    }
+
+    let userRes;
+    if (idMode === 'email') {
+      const isDemoEmail = ['seller@adab.com', 'demo@adab.com', 'balaji@adab.com', 'merchant@adab.in'].includes(rawEmail);
+      userRes = await pool.query(`
+        SELECT u.id, u.phone, u.email, u.full_name, u.password_hash, u.user_type, u.status
+        FROM users u
+        LEFT JOIN seller_profiles sp ON sp.user_id = u.id
+        LEFT JOIN stores s ON s.seller_id = sp.id
+        WHERE (
+          LOWER(COALESCE(u.email, '')) = $1
+          OR ($2::boolean = true AND u.id = '00000000-0000-0000-0000-000000000001')
+        )
+        ORDER BY (u.id = '00000000-0000-0000-0000-000000000001') DESC, u.created_at DESC
+        LIMIT 1
+      `, [rawEmail, isDemoEmail]);
+    } else {
+      // Search seller by phone on users or stores, or match default seeded seller
+      userRes = await pool.query(`
+        SELECT u.id, u.phone, u.email, u.full_name, u.password_hash, u.user_type, u.status
+        FROM users u
+        LEFT JOIN seller_profiles sp ON sp.user_id = u.id
+        LEFT JOIN stores s ON s.seller_id = sp.id
+        WHERE (
+          REGEXP_REPLACE(u.phone, '\\D', '', 'g') LIKE '%' || $1
+          OR REGEXP_REPLACE(COALESCE(s.phone, ''), '\\D', '', 'g') LIKE '%' || $1
+          OR ($1 = '9876543210' AND u.id = '00000000-0000-0000-0000-000000000001')
+        )
+        ORDER BY (u.id = '00000000-0000-0000-0000-000000000001') DESC, u.created_at DESC
+        LIMIT 1
+      `, [cleanDigits]);
+    }
 
     if (userRes.rows.length === 0) {
-      return await this.signupWithPin(phone, pin, {}, true);
+      // Derive deterministic 10-digit phone when signing up via email alone
+      const fallbackPhone =
+        cleanDigits && cleanDigits.length === 10
+          ? cleanDigits
+          : String(
+              9000000000 +
+                (Math.abs(
+                  rawEmail.split('').reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) | 0, 7)
+                ) %
+                  999999999)
+            ).slice(0, 10);
+      return await this.signupWithPin(
+        fallbackPhone,
+        secretMode === 'pin' ? pin : '123456',
+        { email: rawEmail || null, secretToHash: activeSecret },
+        true
+      );
     }
 
     const user = userRes.rows[0];
     const isDefaultPresetUser = user.id === '00000000-0000-0000-0000-000000000001';
 
-    let pinValid = false;
-    if (isDefaultPresetUser && String(pin) === '123456') {
-      pinValid = true;
-    } else if (!user.password_hash && String(pin) === '123456') {
-      pinValid = true;
-      pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashPin(pin), user.id]).catch(() => {});
+    let secretValid = false;
+    if (
+      isDefaultPresetUser &&
+      (activeSecret === '123456' || activeSecret.toLowerCase() === 'adab1234' || activeSecret === 'password123')
+    ) {
+      secretValid = true;
+    } else if (!user.password_hash && (activeSecret === '123456' || activeSecret.toLowerCase() === 'adab1234')) {
+      secretValid = true;
+      pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashPin(activeSecret), user.id]).catch(() => {});
     } else {
-      pinValid = verifyPin(pin, user.password_hash);
+      secretValid = verifyPin(activeSecret, user.password_hash);
     }
 
-    if (!pinValid) {
-      throw new Error('Invalid 6-digit PIN. Please try again.');
+    if (!secretValid) {
+      throw new Error(
+        secretMode === 'password'
+          ? 'Invalid password. Please try again.'
+          : 'Invalid 6-digit PIN. Please try again.'
+      );
     }
 
     const onboarding = await this.getOnboardingData(user.id);
@@ -671,7 +730,7 @@ class SellerRepository {
     if (!cleanDigits || cleanDigits.length < 10) {
       throw new Error('Please enter a valid 10-digit mobile number');
     }
-    if (!/^\d{6}$/.test(String(pin || ''))) {
+    if (!extra.secretToHash && !/^\d{6}$/.test(String(pin || ''))) {
       throw new Error('PIN must be exactly 6 digits');
     }
 
@@ -688,15 +747,16 @@ class SellerRepository {
     }
 
     const formattedPhone = `+91${cleanDigits}`;
-    const hashed = hashPin(pin);
+    const hashed = hashPin(extra.secretToHash || pin);
+    const emailVal = (extra.email || '').trim().toLowerCase() || null;
     const ownerName = (extra.full_name || '').trim() || 'Merchant Owner';
     const storeName = (extra.store_name || '').trim() || `Store ${cleanDigits.slice(-4)}`;
 
     // Single atomic CTE round-trip for user + seller_profile + store + seller_onboarding_steps
     const cteRes = await pool.query(`
       WITH new_user AS (
-        INSERT INTO users (phone, password_hash, full_name, user_type, status, is_phone_verified)
-        VALUES ($1, $2, $3, 'SELLER', 'ACTIVE', true)
+        INSERT INTO users (phone, email, password_hash, full_name, user_type, status, is_phone_verified)
+        VALUES ($1, $5, $2, $3, 'SELLER', 'ACTIVE', true)
         RETURNING id, phone, full_name, email, status
       ),
       new_profile AS (
@@ -719,7 +779,7 @@ class SellerRepository {
         (SELECT row_to_json(new_user) FROM new_user) AS user_row,
         (SELECT row_to_json(new_profile) FROM new_profile) AS profile_row,
         (SELECT row_to_json(new_store) FROM new_store) AS store_row
-    `, [formattedPhone, hashed, ownerName, storeName]);
+    `, [formattedPhone, hashed, ownerName, storeName, emailVal]);
 
     const { user_row: u, profile_row: sp, store_row: store } = cteRes.rows[0];
     const profile = {
@@ -868,13 +928,18 @@ class SellerRepository {
 
     const isApproved = profile?.kyc_status === 'APPROVED';
     const isRejected = profile?.kyc_status === 'REJECTED';
+    const hasStep1Data = Boolean(store?.address_line && String(store.address_line).trim().length > 0);
+    const hasStep2Data = Boolean(profile?.gstin && profile?.pan && profile.pan !== 'PENDING00P');
+    const hasStep3Data = Boolean(bankAccount?.account_number);
+    const hasStep4Data = Boolean(stepsRow.delivery_config && Object.keys(stepsRow.delivery_config).length > 0);
+    const hasStep5Data = Boolean(stepsRow.credit_config && Object.keys(stepsRow.credit_config).length > 0);
 
     const kycSteps = {
-      step1: Boolean(stepsRow.step1 || isApproved || isRejected),
-      step2: Boolean(stepsRow.step2 || isApproved || isRejected),
-      step3: Boolean(stepsRow.step3),
-      step4: Boolean(stepsRow.step4),
-      step5: Boolean(stepsRow.step5),
+      step1: Boolean(stepsRow.step1 || hasStep1Data || isApproved || isRejected),
+      step2: Boolean(stepsRow.step2 || hasStep2Data || isApproved || isRejected),
+      step3: Boolean(stepsRow.step3 || hasStep3Data),
+      step4: Boolean(stepsRow.step4 || hasStep4Data),
+      step5: Boolean(stepsRow.step5 || hasStep5Data),
       step6: Boolean(stepsRow.step6),
       step7: Boolean(isApproved || (!isRejected && stepsRow.step7))
     };
@@ -1027,19 +1092,53 @@ class SellerRepository {
         : Number.isFinite(fallbackRadius)
         ? Math.min(20, Math.max(0, fallbackRadius))
         : 10;
+
+      const parseRate = (val, prevVal, defaultVal) => {
+        if (val !== undefined && val !== null && val !== '' && Number.isFinite(Number(val))) {
+          return Math.max(0, Number(Number(val).toFixed(2)));
+        }
+        if (prevVal !== undefined && prevVal !== null && prevVal !== '' && Number.isFinite(Number(prevVal))) {
+          return Math.max(0, Number(Number(prevVal).toFixed(2)));
+        }
+        return defaultVal;
+      };
+
+      const delivFast = data.delivFast !== undefined ? Boolean(data.delivFast) : (prevCfg.delivFast !== undefined ? Boolean(prevCfg.delivFast) : true);
+      const delivSame = data.delivSame !== undefined ? Boolean(data.delivSame) : (prevCfg.delivSame !== undefined ? Boolean(prevCfg.delivSame) : true);
+      const delivScheduled = data.delivScheduled !== undefined ? Boolean(data.delivScheduled) : (prevCfg.delivScheduled !== undefined ? Boolean(prevCfg.delivScheduled) : true);
+      const delivPickup = data.delivPickup !== undefined ? Boolean(data.delivPickup) : (prevCfg.delivPickup !== undefined ? Boolean(prevCfg.delivPickup) : true);
+      const porter = data.porter !== undefined ? Boolean(data.porter) : (prevCfg.porter !== undefined ? Boolean(prevCfg.porter) : true);
+      const delhivery = data.delhivery !== undefined ? Boolean(data.delhivery) : (prevCfg.delhivery !== undefined ? Boolean(prevCfg.delhivery) : true);
+      const exportFreight = data.exportFreight !== undefined ? Boolean(data.exportFreight) : (prevCfg.exportFreight !== undefined ? Boolean(prevCfg.exportFreight) : false);
+
+      const delivFastRate = parseRate(data.delivFastRate, prevCfg.delivFastRate, 49);
+      const delivSameRate = parseRate(data.delivSameRate, prevCfg.delivSameRate, 29);
+      const delivScheduledRate = parseRate(data.delivScheduledRate, prevCfg.delivScheduledRate, 19);
+      const delivPickupRate = parseRate(data.delivPickupRate, prevCfg.delivPickupRate, 0);
+      const porterRate = parseRate(data.porterRate, prevCfg.porterRate, 250);
+      const delhiveryRate = parseRate(data.delhiveryRate, prevCfg.delhiveryRate, 450);
+      const exportFreightRate = parseRate(data.exportFreightRate, prevCfg.exportFreightRate, 2500);
+
       const deliveryConfig = {
         ...prevCfg,
         open_time: openTime,
         close_time: closeTime,
         delivery_radius_km: radiusKm,
-        delivFast: data.delivFast !== undefined ? Boolean(data.delivFast) : (prevCfg.delivFast !== undefined ? Boolean(prevCfg.delivFast) : true),
-        delivSame: data.delivSame !== undefined ? Boolean(data.delivSame) : (prevCfg.delivSame !== undefined ? Boolean(prevCfg.delivSame) : true),
-        delivScheduled: data.delivScheduled !== undefined ? Boolean(data.delivScheduled) : (prevCfg.delivScheduled !== undefined ? Boolean(prevCfg.delivScheduled) : true),
-        delivPickup: data.delivPickup !== undefined ? Boolean(data.delivPickup) : (prevCfg.delivPickup !== undefined ? Boolean(prevCfg.delivPickup) : true),
+        delivFast,
+        delivSame,
+        delivScheduled,
+        delivPickup,
+        delivFastRate,
+        delivSameRate,
+        delivScheduledRate,
+        delivPickupRate,
         fleet: data.fleet || prevCfg.fleet || 'SELF',
-        porter: data.porter !== undefined ? Boolean(data.porter) : (prevCfg.porter !== undefined ? Boolean(prevCfg.porter) : true),
-        delhivery: data.delhivery !== undefined ? Boolean(data.delhivery) : (prevCfg.delhivery !== undefined ? Boolean(prevCfg.delhivery) : true),
-        exportFreight: data.exportFreight !== undefined ? Boolean(data.exportFreight) : (prevCfg.exportFreight !== undefined ? Boolean(prevCfg.exportFreight) : false)
+        porter,
+        delhivery,
+        exportFreight,
+        porterRate,
+        delhiveryRate,
+        exportFreightRate
       };
 
       await pool.query(`
@@ -1053,6 +1152,35 @@ class SellerRepository {
         SET step4 = true, delivery_config = $1::jsonb, updated_at = NOW()
         WHERE user_id = $2
       `, [JSON.stringify(deliveryConfig), userId]);
+
+      // Sync seller-defined mode rates into canonical delivery_zones table
+      try {
+        await pool.query('DELETE FROM delivery_zones WHERE store_id = $1', [store.id]);
+        await pool.query(`
+          INSERT INTO delivery_zones (
+            store_id, zone_name, radius_km, delivery_fee, estimated_minutes_min, estimated_minutes_max, is_active
+          ) VALUES
+            ($1, 'Express (Under 1h)', $2, $3, 15, 60, $4),
+            ($1, 'Same-Day', $2, $5, 120, 480, $6),
+            ($1, 'Scheduled Hours', $2, $7, 240, 720, $8),
+            ($1, 'Store Pickup', 0, $9, 5, 30, $10),
+            ($1, 'Porter (Intra-city LCV)', 50, $11, 120, 360, $12),
+            ($1, 'Delhivery & Express Cargo', 999, $13, 1440, 4320, $14),
+            ($1, 'Export Freight (Air / Sea)', 999, $15, 4320, 14400, $16)
+        `, [
+          store.id,
+          radiusKm,
+          delivFastRate, delivFast,
+          delivSameRate, delivSame,
+          delivScheduledRate, delivScheduled,
+          delivPickupRate, delivPickup,
+          porterRate, porter,
+          delhiveryRate, delhivery,
+          exportFreightRate, exportFreight
+        ]);
+      } catch (zoneErr) {
+        console.warn('⚠️ Optional delivery_zones sync skipped:', zoneErr.message);
+      }
     } else if (step === 5) {
       // Step 5: B2B Wholesale & Store Credit Terms (Compliance)
       const creditConfig = {

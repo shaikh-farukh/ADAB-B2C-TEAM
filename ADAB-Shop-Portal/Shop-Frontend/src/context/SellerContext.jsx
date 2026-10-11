@@ -20,10 +20,28 @@ export function SellerProvider({ children }) {
     if (isTestEnv) return true;
     return Boolean(localStorage.getItem('seller_token'));
   });
-  const [profile, setProfile] = useState(null);
-  const [store, setStore] = useState(null);
+  const [profile, setProfile] = useState(() => {
+    const saved = localStorage.getItem('seller_profile_cache');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return null;
+  });
+  const [store, setStore] = useState(() => {
+    const saved = localStorage.getItem('seller_store_cache');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return null;
+  });
   const [dashboardMetrics, setDashboardMetrics] = useState(null);
-  const [onboardingData, setOnboardingData] = useState(null);
+  const [onboardingData, setOnboardingData] = useState(() => {
+    const saved = localStorage.getItem('seller_onboarding_cache');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return null;
+  });
   const [kycSteps, setKycSteps] = useState(() => {
     const saved = localStorage.getItem('seller_kyc_steps');
     if (saved) {
@@ -31,7 +49,14 @@ export function SellerProvider({ children }) {
     }
     return DEFAULT_APPROVED_STEPS;
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    if (isTestEnv) return false;
+    if (!localStorage.getItem('seller_token')) return false;
+    return !localStorage.getItem('seller_profile_cache');
+  });
+
+  const inFlightRef = React.useRef(null);
+  const lastFetchTimeRef = React.useRef(0);
 
   // Global Bulk Upload Jobs State
   const [uploadJobs, setUploadJobs] = useState(() => {
@@ -50,35 +75,83 @@ export function SellerProvider({ children }) {
     localStorage.setItem('seller_kyc_steps', JSON.stringify(kycSteps));
   }, [kycSteps]);
 
+  useEffect(() => {
+    if (profile) {
+      localStorage.setItem('seller_profile_cache', JSON.stringify(profile));
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    if (store) {
+      localStorage.setItem('seller_store_cache', JSON.stringify(store));
+    }
+  }, [store]);
+
+  useEffect(() => {
+    if (onboardingData) {
+      localStorage.setItem('seller_onboarding_cache', JSON.stringify(onboardingData));
+    }
+  }, [onboardingData]);
+
   const fetchSellerData = useCallback(async (backgroundOnly = false) => {
     if (!isTestEnv && !localStorage.getItem('seller_token')) {
       setLoading(false);
       return;
     }
-    try {
-      if (!backgroundOnly) setLoading(true);
-      const [profileRes, storeRes, metricsRes, onboardingRes] = await Promise.all([
-        sellerService.getProfile().catch(() => ({ data: null })),
-        sellerService.getStore().catch(() => ({ data: null })),
-        sellerService.getDashboardMetrics().catch(() => ({ data: null })),
-        sellerService.getOnboarding ? sellerService.getOnboarding().catch(() => ({ data: null })) : Promise.resolve({ data: null })
-      ]);
 
-      const ob = onboardingRes?.data || null;
-      setProfile(ob?.profile || profileRes?.data || null);
-      setStore(ob?.store || storeRes?.data || null);
-      setDashboardMetrics(metricsRes?.data || null);
-      if (ob) {
-        setOnboardingData(ob);
-        if (ob.kycSteps) {
-          setKycSteps(ob.kycSteps);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load seller context:', err);
-    } finally {
-      setLoading(false);
+    const now = Date.now();
+    if (inFlightRef.current) {
+      return inFlightRef.current;
     }
+    if (backgroundOnly && now - lastFetchTimeRef.current < 2000) {
+      return;
+    }
+
+    const runFetch = async () => {
+      try {
+        if (!backgroundOnly && !localStorage.getItem('seller_profile_cache')) {
+          setLoading(true);
+        }
+
+        // Primary 1-query fetch for onboarding + profile + store + bank + kycSteps
+        const onboardingRes = sellerService.getOnboarding
+          ? await sellerService.getOnboarding().catch(() => ({ data: null }))
+          : { data: null };
+
+        const ob = onboardingRes?.data || null;
+
+        if (ob) {
+          lastFetchTimeRef.current = Date.now();
+          setOnboardingData(ob);
+          if (ob.profile) setProfile(ob.profile);
+          if (ob.store) setStore(ob.store);
+          if (ob.kycSteps) setKycSteps(ob.kycSteps);
+        } else {
+          // Fallback to individual endpoints (also required by unit tests mocking getProfile/getStore)
+          const [profileRes, storeRes] = await Promise.all([
+            sellerService.getProfile().catch(() => ({ data: null })),
+            sellerService.getStore().catch(() => ({ data: null }))
+          ]);
+          if (profileRes?.data) setProfile(profileRes.data);
+          if (storeRes?.data) setStore(storeRes.data);
+        }
+
+        // Load dashboard metrics without blocking onboarding/profile state
+        sellerService.getDashboardMetrics()
+          .then((metricsRes) => {
+            if (metricsRes?.data) setDashboardMetrics(metricsRes.data);
+          })
+          .catch(() => {});
+      } catch (err) {
+        console.error('Failed to load seller context:', err);
+      } finally {
+        setLoading(false);
+        inFlightRef.current = null;
+      }
+    };
+
+    inFlightRef.current = runFetch();
+    return inFlightRef.current;
   }, [isTestEnv]);
 
   useEffect(() => {
@@ -114,9 +187,19 @@ export function SellerProvider({ children }) {
       localStorage.setItem('seller_kyc_steps', JSON.stringify(steps));
       setKycSteps(steps);
     }
-    if (prof) setProfile(prof);
-    if (st) setStore(st);
-    if (onboarding) setOnboardingData(onboarding);
+    if (prof) {
+      localStorage.setItem('seller_profile_cache', JSON.stringify(prof));
+      setProfile(prof);
+    }
+    if (st) {
+      localStorage.setItem('seller_store_cache', JSON.stringify(st));
+      setStore(st);
+    }
+    if (onboarding) {
+      localStorage.setItem('seller_onboarding_cache', JSON.stringify(onboarding));
+      setOnboardingData(onboarding);
+    }
+    lastFetchTimeRef.current = Date.now();
     setLoading(false);
     setIsAuthenticated(true);
     // Load dashboard metrics in background without blocking Verify redirect
@@ -127,8 +210,8 @@ export function SellerProvider({ children }) {
       .catch(() => {});
   };
 
-  const login = async (phone, pin) => {
-    const res = await sellerService.login(phone, pin);
+  const login = async (phone, pin, extra = {}) => {
+    const res = await sellerService.login(phone, pin, extra);
     const data = res?.data || res;
     handleAuthSuccess(data);
     return data;
@@ -146,6 +229,9 @@ export function SellerProvider({ children }) {
     localStorage.removeItem('seller_user_id');
     localStorage.removeItem('seller_store_id');
     localStorage.removeItem('seller_kyc_steps');
+    localStorage.removeItem('seller_profile_cache');
+    localStorage.removeItem('seller_store_cache');
+    localStorage.removeItem('seller_onboarding_cache');
     setIsAuthenticated(false);
     setProfile(null);
     setStore(null);
@@ -185,8 +271,15 @@ export function SellerProvider({ children }) {
     localStorage.setItem('seller_kyc_steps', JSON.stringify(mergedSteps));
     if (updatedOb) {
       setOnboardingData(updatedOb);
-      if (updatedOb.profile) setProfile(updatedOb.profile);
-      if (updatedOb.store) setStore(updatedOb.store);
+      localStorage.setItem('seller_onboarding_cache', JSON.stringify(updatedOb));
+      if (updatedOb.profile) {
+        setProfile(updatedOb.profile);
+        localStorage.setItem('seller_profile_cache', JSON.stringify(updatedOb.profile));
+      }
+      if (updatedOb.store) {
+        setStore(updatedOb.store);
+        localStorage.setItem('seller_store_cache', JSON.stringify(updatedOb.store));
+      }
     }
     return { ...(updatedOb || {}), kycSteps: mergedSteps };
   };
