@@ -8,6 +8,11 @@ router.use(requireSellerAuth);
 
 router.post('/', ListingController.createListing);
 router.get('/', ListingController.getListings);
+
+// Manufacturer Catalog Sync Endpoints (Manufacturer -> Seller Master Catalog)
+router.get('/manufacturer-products', ListingController.getManufacturerProducts);
+router.post('/adopt-manufacturer-product', ListingController.adoptManufacturerProduct);
+
 router.get('/:id', ListingController.getListingById);
 router.put('/:id', ListingController.updateListing);
 router.delete('/:id', ListingController.deleteListing);

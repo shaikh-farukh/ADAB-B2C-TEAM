@@ -19,6 +19,7 @@ const createListingSchema = z.object({
   is_active: z.boolean().optional().default(true),
   image_url: z.string().url().optional().or(z.literal('')), // allow empty string if deleted
   stock_qty: z.coerce.number().int().nonnegative().optional().default(0),
+  manufacturer_product_id: z.coerce.number().int().positive().nullable().optional(),
 });
 
 const updateListingSchema = createListingSchema.partial();

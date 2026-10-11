@@ -68,11 +68,20 @@ async function getBrandByIdBoundary(id) {
 async function listProductsMasterBoundary(queryParams = {}) {
   try {
     if (pool && typeof pool.query === 'function') {
-      const res = await pool.query('SELECT id, name, sku, category_id, brand_id, status FROM products LIMIT $1 OFFSET $2', [
-        queryParams.limit || 50,
-        queryParams.offset || 0
-      ]);
-      return { success: true, count: res.rowCount, data: res.rows };
+      const res = await pool.query(
+        `SELECT id, product_name as name, sku, category_id, manufacturer_id, mrp, price, status, image_url, created_at 
+         FROM manage_manufacturer_products 
+         WHERE deleted_at IS NULL 
+         ORDER BY created_at DESC 
+         LIMIT $1 OFFSET $2`, 
+        [
+          queryParams.limit || 50,
+          queryParams.offset || 0
+        ]
+      );
+      if (res.rowCount > 0) {
+        return { success: true, count: res.rowCount, data: res.rows };
+      }
     }
   } catch (err) {}
   return {
@@ -86,6 +95,19 @@ async function listProductsMasterBoundary(queryParams = {}) {
 }
 
 async function getProductMasterByIdBoundary(id) {
+  try {
+    if (pool && typeof pool.query === 'function' && !isNaN(Number(id))) {
+      const res = await pool.query(
+        `SELECT id, product_name as name, sku, category_id, manufacturer_id, mrp, price, status, image_url, created_at 
+         FROM manage_manufacturer_products 
+         WHERE id = $1 AND deleted_at IS NULL`,
+        [Number(id)]
+      );
+      if (res.rows[0]) {
+        return { success: true, data: res.rows[0] };
+      }
+    }
+  } catch (err) {}
   return {
     success: true,
     boundaryOnly: true,

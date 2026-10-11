@@ -125,6 +125,37 @@ class ListingService {
     if (!issues) throw new Error('Listing not found');
     return issues;
   }
+
+  async getManufacturerProducts(filters) {
+    return await ListingRepository.getManufacturerProducts(filters);
+  }
+
+  async adoptManufacturerProduct(storeId, manufacturerProductId, customData = {}) {
+    const pool = require('../../db');
+    const mRes = await pool.query('SELECT * FROM manage_manufacturer_products WHERE id = $1 AND deleted_at IS NULL', [manufacturerProductId]);
+    if (!mRes.rows[0]) throw new Error('Manufacturer product not found');
+
+    const mProd = mRes.rows[0];
+    const listingPayload = {
+      title: customData.title || mProd.product_name,
+      sku: customData.sku || mProd.sku || `MP-${mProd.id}`,
+      barcode: customData.barcode || null,
+      brand_tag: customData.brand_tag || mProd.category || 'Manufacturer Master',
+      product_type: 'PACKED_ITEM',
+      unit: mProd.unit || 'pcs',
+      mrp: customData.mrp || Number(mProd.mrp) || Number(mProd.price) || 0,
+      sell_price: customData.sell_price || Number(mProd.retail_price) || Number(mProd.distributor_price) || Number(mProd.price) || 0,
+      min_order_qty: customData.min_order_qty || 1,
+      allowed_buyers: customData.allowed_buyers || 'ALL',
+      approval_status: 'DRAFT',
+      is_active: true,
+      stock_qty: customData.stock_qty || 0,
+      image_url: mProd.image_url || mProd.image || mProd.product_image || '',
+      manufacturer_product_id: mProd.id
+    };
+
+    return await this.createListing(storeId, listingPayload);
+  }
 }
 
 module.exports = new ListingService();

@@ -5,14 +5,15 @@ class ListingRepository {
     const query = `
       INSERT INTO seller_listings (
         store_id, title, sku, barcode, brand_tag, product_type, unit, 
-        mrp, sell_price, min_order_qty, allowed_buyers, approval_status, is_active, stock_qty
+        mrp, sell_price, min_order_qty, allowed_buyers, approval_status, is_active, stock_qty, manufacturer_product_id
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
       ) RETURNING *;
     `;
     const values = [
       storeId, data.title, data.sku, data.barcode, data.brand_tag, data.product_type, data.unit,
-      data.mrp, data.sell_price, data.min_order_qty, data.allowed_buyers, data.approval_status, data.is_active, data.stock_qty || 0
+      data.mrp, data.sell_price, data.min_order_qty, data.allowed_buyers, data.approval_status, data.is_active, data.stock_qty || 0,
+      data.manufacturer_product_id || null
     ];
     
     const result = await pool.query(query, values);
@@ -238,6 +239,49 @@ class ListingRepository {
     }
 
     return issues;
+  }
+
+  async getManufacturerProducts(filters = {}) {
+    const conditions = ['deleted_at IS NULL', "status = 'active'"];
+    const values = [];
+
+    if (filters.search) {
+      values.push(`%${filters.search}%`);
+      conditions.push(`(product_name ILIKE $${values.length} OR sku ILIKE $${values.length})`);
+    }
+
+    if (filters.category) {
+      values.push(filters.category);
+      conditions.push(`category = $${values.length}`);
+    }
+
+    const whereClause = conditions.join(' AND ');
+    let query = `
+      SELECT id, manufacturer_id, product_name, sku, category, sub_category, unit,
+             price, mrp, manufacturer_price, distributor_price, retail_price, moq,
+             total_stock, stock_quantity, image_url, image, product_image, status, created_at
+      FROM manage_manufacturer_products
+      WHERE ${whereClause}
+      ORDER BY created_at DESC
+    `;
+
+    const dataValues = [...values];
+    if (filters.limit) {
+      dataValues.push(filters.limit);
+      query += ` LIMIT $${dataValues.length}`;
+    }
+    if (filters.offset) {
+      dataValues.push(filters.offset);
+      query += ` OFFSET $${dataValues.length}`;
+    }
+
+    const result = await pool.query(query, dataValues);
+    const countResult = await pool.query(`SELECT COUNT(*) FROM manage_manufacturer_products WHERE ${whereClause}`, values);
+
+    return {
+      data: result.rows,
+      total: parseInt(countResult.rows[0].count, 10)
+    };
   }
 }
 

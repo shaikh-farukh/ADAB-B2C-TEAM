@@ -65,6 +65,19 @@ const listingService = {
       const { mockListingIssues } = await import('./day4Mocks');
       return new Promise(resolve => setTimeout(() => resolve(mockListingIssues), 500));
     });
+  },
+
+  getManufacturerProducts: (params = {}) => {
+    return api.get('/seller/listings/manufacturer-products', {
+      params,
+      headers: { 'x-store-id': storeId }
+    });
+  },
+
+  adoptManufacturerProduct: (data) => {
+    return api.post('/seller/listings/adopt-manufacturer-product', data, {
+      headers: { 'x-store-id': storeId }
+    });
   }
 };
 

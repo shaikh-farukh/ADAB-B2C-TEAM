@@ -19,6 +19,21 @@ const Products = () => {
   const [editingListing, setEditingListing] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [listingIssues, setListingIssues] = useState({});
+  const [manufacturerProducts, setManufacturerProducts] = useState([]);
+  const [loadingManufacturerProducts, setLoadingManufacturerProducts] = useState(false);
+
+  useEffect(() => {
+    // Fetch live manufacturer products when modal opens
+    if (showModal) {
+      setLoadingManufacturerProducts(true);
+      listingService.getManufacturerProducts({ limit: 100 })
+        .then(res => {
+          if (res.data) setManufacturerProducts(res.data);
+        })
+        .catch(err => console.error('Failed to load manufacturer products:', err))
+        .finally(() => setLoadingManufacturerProducts(false));
+    }
+  }, [showModal]);
 
   useEffect(() => {
     // Fetch issues for currently visible listings
@@ -450,12 +465,34 @@ const Products = () => {
                   </div>
                   <p className="text-xs text-blue-700 mb-3 leading-relaxed">Select from standard national FMCG catalog to auto-fill name, MRP, barcode & image, or enter manually.</p>
                   <div className="mb-3">
-                    <label className="block text-xs font-bold text-blue-900 mb-1">Pick from 5,000+ FMCG Master Catalog:</label>
-                    <select className="w-full px-3 py-2 rounded-xl border border-blue-200 bg-white text-sm outline-none focus:border-blue-500 font-semibold text-blue-900">
-                      <option>-- Choose popular packed item --</option>
-                      <option>Tata Salt 1kg</option>
-                      <option>Amul Butter 500g</option>
-                      <option>Maggi Noodles 140g</option>
+                    <label className="block text-xs font-bold text-blue-900 mb-1">
+                      Pick from Manufacturer Master Products {loadingManufacturerProducts ? '(Loading...)' : `(${manufacturerProducts.length} available)`}:
+                    </label>
+                    <select 
+                      onChange={(e) => {
+                        const selectedId = Number(e.target.value);
+                        const selected = manufacturerProducts.find(m => m.id === selectedId);
+                        if (selected) {
+                          setFormData({
+                            ...formData,
+                            title: selected.product_name,
+                            sku: selected.sku || `MP-${selected.id}`,
+                            mrp: selected.mrp || selected.price || '',
+                            sell_price: selected.retail_price || selected.distributor_price || selected.price || '',
+                            unit: selected.unit || 'pcs',
+                            image_url: selected.image_url || selected.image || selected.product_image || '',
+                            manufacturer_product_id: selected.id
+                          });
+                        }
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-blue-200 bg-white text-sm outline-none focus:border-blue-500 font-semibold text-blue-900"
+                    >
+                      <option value="">-- Choose Manufacturer Product --</option>
+                      {manufacturerProducts.map(m => (
+                        <option key={m.id} value={m.id}>
+                          {m.product_name} {m.sku ? `(${m.sku})` : ''} - ₹{m.price}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div className="flex gap-2">

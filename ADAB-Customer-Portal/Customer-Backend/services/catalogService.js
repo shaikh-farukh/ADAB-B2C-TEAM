@@ -2,9 +2,15 @@ const pool = require('../db');
 
 exports.getRecommendedProducts = async () => {
   const res = await pool.query(`
-    SELECT id, title as name, sell_price as price, mrp, rating, review_count as reviews, 'FreshBakes' as "sellerName", 'https://via.placeholder.com/150' as image, is_active as status 
-    FROM seller_listings 
-    WHERE is_active = true 
+    SELECT sl.id, sl.title as name, sl.sell_price as price, sl.mrp, sl.rating, sl.review_count as reviews, 
+           'FreshBakes' as "sellerName", 
+           COALESCE(pi.image_url, mp.image_url, mp.product_image, 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=300&q=80') as image, 
+           sl.is_active as status 
+    FROM seller_listings sl
+    LEFT JOIN product_images pi ON sl.id = pi.product_id AND pi.is_primary = true
+    LEFT JOIN manage_manufacturer_products mp ON sl.manufacturer_product_id = mp.id
+    WHERE sl.is_active = true 
+      AND (sl.allowed_buyers IS NULL OR sl.allowed_buyers IN ('ALL', 'CUSTOMERS_ONLY'))
     LIMIT 10
   `);
   return res.rows.map(row => ({
@@ -18,10 +24,16 @@ exports.getRecommendedProducts = async () => {
 
 exports.searchProducts = async (q) => {
   const res = await pool.query(`
-    SELECT id, title as name, sell_price as price, mrp, rating, review_count as reviews, 'AgroFoods' as "sellerName", 'https://via.placeholder.com/150' as image, is_active as status 
-    FROM seller_listings 
-    WHERE is_active = true 
-    AND title ILIKE $1
+    SELECT sl.id, sl.title as name, sl.sell_price as price, sl.mrp, sl.rating, sl.review_count as reviews, 
+           'AgroFoods' as "sellerName", 
+           COALESCE(pi.image_url, mp.image_url, mp.product_image, 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=300&q=80') as image, 
+           sl.is_active as status 
+    FROM seller_listings sl
+    LEFT JOIN product_images pi ON sl.id = pi.product_id AND pi.is_primary = true
+    LEFT JOIN manage_manufacturer_products mp ON sl.manufacturer_product_id = mp.id
+    WHERE sl.is_active = true 
+      AND (sl.allowed_buyers IS NULL OR sl.allowed_buyers IN ('ALL', 'CUSTOMERS_ONLY'))
+      AND sl.title ILIKE $1
     LIMIT 20
   `, [`%${q || ''}%`]);
   

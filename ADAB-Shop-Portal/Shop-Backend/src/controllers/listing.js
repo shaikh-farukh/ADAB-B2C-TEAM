@@ -164,6 +164,36 @@ class ListingController {
       res.status(400).json({ success: false, error: err.message });
     }
   }
+
+  async getManufacturerProducts(req, res) {
+    try {
+      const filters = {
+        search: req.query.search,
+        category: req.query.category,
+        limit: req.query.limit ? parseInt(req.query.limit) : 50,
+        offset: req.query.offset ? parseInt(req.query.offset) : 0
+      };
+      const result = await ListingService.getManufacturerProducts(filters);
+      res.json({ success: true, ...result });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
+  async adoptManufacturerProduct(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      if (!storeId) return res.status(401).json({ success: false, error: 'Missing store context' });
+      const { manufacturerProductId, ...customData } = req.body;
+      if (!manufacturerProductId) {
+        return res.status(400).json({ success: false, error: 'manufacturerProductId is required' });
+      }
+      const listing = await ListingService.adoptManufacturerProduct(storeId, manufacturerProductId, customData);
+      res.status(201).json({ success: true, data: listing });
+    } catch (err) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  }
 }
 
 module.exports = new ListingController();
