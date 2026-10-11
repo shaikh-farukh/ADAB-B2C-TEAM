@@ -433,7 +433,11 @@ export default function OrderStatusView({
                 {paymentMethod.replace(/_/g, ' ')}
               </div>
               <div className="text-[10px] text-gray-500">
-                {isPaid ? 'Payment Authorized & Captured' : 'Cash / UPI upon delivery'}
+                {isPaid
+                  ? 'Payment Authorized & Captured (Razorpay)'
+                  : paymentMethod.includes('COD') || paymentMethod.includes('CASH')
+                  ? 'Cash / UPI upon delivery'
+                  : 'Payment Pending Verification'}
               </div>
             </div>
           </div>

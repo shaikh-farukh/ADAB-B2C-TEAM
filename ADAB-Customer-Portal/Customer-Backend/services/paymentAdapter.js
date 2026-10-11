@@ -5,7 +5,7 @@ const RazorpayAdapter = require('./razorpayAdapter');
  * PaymentAdapter
  * Clean Payment Provider Abstraction Layer.
  * Decouples controllers and services from specific payment providers.
- * Any gateway (Razorpay, Stripe, Mock, Cashfree, Paytm) can be plugged in seamlessly.
+ * Any gateway (Razorpay, Stripe, etc.) can be plugged in seamlessly.
  */
 class PaymentAdapter {
   constructor() {
@@ -18,13 +18,13 @@ class PaymentAdapter {
     // Auto-detect or read preferred gateway from environment
     this.defaultProvider = (
       process.env.PAYMENT_GATEWAY_PROVIDER ||
-      (process.env.RAZORPAY_KEY_ID ? 'razorpay' : 'mock')
+      (process.env.RAZORPAY_KEY_ID ? 'razorpay' : 'razorpay')
     ).toLowerCase();
   }
 
   /**
    * Register a new or custom payment gateway provider
-   * @param {string} name - Unique identifier for the provider (e.g. 'stripe', 'cashfree')
+   * @param {string} name - Unique identifier for the provider (e.g. 'stripe', 'razorpay')
    * @param {Object} providerInstance - Instance implementing createPaymentIntent, verifyPayment, refundPayment
    */
   registerProvider(name, providerInstance) {
@@ -94,6 +94,19 @@ class PaymentAdapter {
   async verifyPayment(params, providerName = null) {
     const provider = this.getProvider(providerName);
     return await provider.verifyPayment(params);
+  }
+
+  /**
+   * Verify Webhook Signature
+   * @param {Object} params
+   * @param {string} [providerName]
+   */
+  verifyWebhookSignature(params, providerName = null) {
+    const provider = this.getProvider(providerName);
+    if (typeof provider.verifyWebhookSignature !== 'function') {
+      throw new Error(`Provider "${provider.name || providerName}" does not implement webhook verification.`);
+    }
+    return provider.verifyWebhookSignature(params);
   }
 
   /**

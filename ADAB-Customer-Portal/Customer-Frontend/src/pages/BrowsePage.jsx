@@ -114,30 +114,48 @@ export default function BrowsePage({
 
   // Handlers for Filter changes
   const updateFilter = (key, value) => {
-    const newParams = new URLSearchParams(searchParams);
-    if (value !== undefined && value !== null && value !== '') {
-      newParams.set(key, value);
-    } else {
-      newParams.delete(key);
-    }
-    // Only reset page to 1 when a filter other than 'page' changes!
-    if (key !== 'page') {
-      newParams.set('page', 1);
-    }
-    setSearchParams(newParams);
+    setSearchParams((prevParams) => {
+      const newParams = new URLSearchParams(prevParams);
+      if (value !== undefined && value !== null && value !== '') {
+        newParams.set(key, value);
+      } else {
+        newParams.delete(key);
+      }
+      // Only reset page to 1 when a filter other than 'page' changes!
+      if (key !== 'page') {
+        newParams.set('page', '1');
+      }
+      return newParams;
+    });
   };
 
   const clearStoreFilter = () => {
     if (onClearStore) onClearStore();
     setCurrentStore(null);
-    updateFilter('store_id', '');
-    updateFilter('storeId', '');
+    setSearchParams((prevParams) => {
+      const newParams = new URLSearchParams(prevParams);
+      newParams.delete('store_id');
+      newParams.delete('storeId');
+      newParams.delete('store');
+      newParams.set('page', '1');
+      return newParams;
+    });
   };
 
   const handleSelectStore = (store) => {
+    if (String(store.id) === String(storeId)) {
+      clearStoreFilter();
+      return;
+    }
     if (onSelectStore) onSelectStore(store);
     setCurrentStore(store);
-    updateFilter('store_id', store.id);
+    setSearchParams((prevParams) => {
+      const newParams = new URLSearchParams(prevParams);
+      newParams.delete('storeId');
+      newParams.set('store_id', store.id);
+      newParams.set('page', '1');
+      return newParams;
+    });
   };
 
   const toggleCategoryName = (catName) => {
@@ -373,11 +391,11 @@ export default function BrowsePage({
             </div>
             <h3 className="text-lg font-bold text-gray-900 mb-1">No approved products found</h3>
             <p className="text-gray-500 text-sm max-w-sm mx-auto">
-              {currentStore 
-                ? `There are currently no approved products listed from ${currentStore.name}.` 
+              {currentStore || storeId
+                ? `There are currently no approved products listed from ${currentStore?.name || 'this shop'}.` 
                 : 'Try adjusting your filters or search criteria.'}
             </p>
-            {currentStore && (
+            {(currentStore || storeId) && (
               <button
                 type="button"
                 onClick={clearStoreFilter}

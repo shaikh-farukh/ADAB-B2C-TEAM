@@ -11,6 +11,7 @@ function normalizePaymentMethod(method) {
   if (m.includes('CARD')) return 'CARD';
   if (m.includes('WALLET')) return 'WALLET';
   if (m.includes('NET') || m.includes('BANK')) return 'NET_BANKING';
+  if (m.includes('ONLINE')) return 'CARD';
   if (m.includes('BNPL') || m.includes('LATER')) return 'ADAB_PAY_LATER';
   if (m.includes('14D')) return 'CREDIT_14D';
   return 'UPI';
@@ -191,7 +192,7 @@ async function createOrderFromCart({
       preview.pricing.delivery_fee,
       preview.pricing.grand_total,
       dbPaymentMethod,
-      isCod ? 'PENDING' : 'PAID',
+      'PENDING',
       'PLACED',
       etaMinutes
     ];
@@ -331,7 +332,7 @@ async function createOrderFromCart({
     }
 
     // 7. Payment record generation in payments
-    const initialPaymentStatus = isCod ? 'PENDING' : 'SUCCESS';
+    const initialPaymentStatus = 'PENDING';
 
     const payRes = await client.query(
       `INSERT INTO payments (
@@ -359,6 +360,8 @@ async function createOrderFromCart({
     // Audit record in payment_transactions
     const txRef = 'TXN-' + Date.now() + '-' + Math.floor(1000 + Math.random() * 9000);
     const paymentMode = isCod ? 'COD' : (dbPaymentMethod === 'ADAB_PAY_LATER' ? 'ADAB_PAY_LATER' : dbPaymentMethod);
+    const gatewayName = isCod ? 'COD' : (process.env.PAYMENT_GATEWAY_PROVIDER || 'razorpay').toLowerCase();
+    const initialTxStatus = isCod ? 'PENDING' : 'INITIATED';
 
     await client.query(
       `INSERT INTO payment_transactions (
@@ -380,21 +383,29 @@ async function createOrderFromCart({
         customerUser.id,
         preview.pricing.grand_total,
         paymentMode,
-        isCod ? 'CASH_ON_DELIVERY' : 'MOCK_GATEWAY',
+        gatewayName,
         txRef,
-        initialPaymentStatus,
+        initialTxStatus,
         JSON.stringify({
           order_number: order.order_number,
-          customer_id: customerUser.id,
           payment_method: dbPaymentMethod,
-          auto_captured: !isCod
+          cart_id: cartId,
+          note: isCod ? 'Cash on Delivery order created' : 'Order placed; awaiting gateway verification'
         })
       ]
     );
 
-    // 8. Clear the cart atomically only after successful order and payment creation
-    await client.query(`DELETE FROM cart_items WHERE cart_id = $1`, [cartId]);
-    await client.query(`UPDATE carts SET updated_at = NOW() WHERE id = $1`, [cartId]);
+    // 8. For COD orders, clear the cart immediately since no gateway callback is needed.
+    // For Online Payments, retain the cart until payment is verified and confirmed so customer does not lose their basket if payment fails or is cancelled.
+    if (isCod) {
+      await client.query(`DELETE FROM cart_items WHERE cart_id = $1`, [cartId]);
+      await client.query(`UPDATE carts SET updated_at = NOW() WHERE id = $1`, [cartId]);
+    } else {
+      await client.query(
+        `UPDATE carts SET customer_id = COALESCE(customer_id, $1), updated_at = NOW() WHERE id = $2`,
+        [customerUser.id, cartId]
+      );
+    }
 
     // Commit all changes atomically
     await client.query('COMMIT');

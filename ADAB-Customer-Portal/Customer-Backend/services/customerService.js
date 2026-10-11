@@ -339,51 +339,6 @@ exports.getPaymentMethods = async (rawUserId) => {
     [userId]
   );
 
-  // If user has no saved cards in DB, seed standard demo cards for convenient testing
-  if (res.rows.length === 0) {
-    const defaultCards = [
-      {
-        provider: 'HDFC Bank Visa',
-        last4: '4242',
-        expiry_month: 12,
-        expiry_year: 2028,
-        is_default: true
-      },
-      {
-        provider: 'ICICI Bank Mastercard',
-        last4: '8819',
-        expiry_month: 8,
-        expiry_year: 2027,
-        is_default: false
-      }
-    ];
-
-    for (const card of defaultCards) {
-      await pool.query(
-        `INSERT INTO payment_methods (user_id, method_type, provider, token_reference, last4, expiry_month, expiry_year, is_default, created_at)
-         VALUES ($1, 'CARD', $2, $3, $4, $5, $6, $7, NOW())`,
-        [
-          userId,
-          card.provider,
-          'tok_' + Math.random().toString(36).substring(2, 10),
-          card.last4,
-          card.expiry_month,
-          card.expiry_year,
-          card.is_default
-        ]
-      );
-    }
-
-    const seededRes = await pool.query(
-      `SELECT id, user_id, method_type, provider, token_reference, last4, expiry_month, expiry_year, is_default, created_at
-       FROM payment_methods
-       WHERE user_id = $1
-       ORDER BY is_default DESC, created_at DESC`,
-      [userId]
-    );
-    return seededRes.rows;
-  }
-
   return res.rows;
 };
 

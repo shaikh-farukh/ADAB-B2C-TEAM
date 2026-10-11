@@ -123,12 +123,43 @@ async function placeOrder(req, res) {
       couponCode: coupon_code || undefined
     });
 
+    // 4. Initialize Razorpay order intent for online digital payments
+    let paymentIntent = null;
+    const isOnlinePayment = order.payment_method !== 'CASH_ON_DELIVERY';
+    if (isOnlinePayment) {
+      try {
+        paymentIntent = await paymentAdapter.createPaymentIntent({
+          amount: Number(order.grand_total),
+          currency: 'INR',
+          receipt: order.order_number,
+          paymentMethod: order.payment_method,
+          customer: {
+            id: customer_id || order.customer_id,
+            name: customer_name,
+            phone: customer_phone,
+            email: customer_email
+          },
+          metadata: {
+            order_id: order.id,
+            order_number: order.order_number
+          }
+        });
+      } catch (intentErr) {
+        console.error('Could not create payment intent for order:', intentErr.message);
+        paymentIntent = {
+          error: intentErr.message,
+          requires_retry: true
+        };
+      }
+    }
+
     return res.status(201).json({
       status: 'success',
       message: 'Order placed successfully',
       data: {
         order_id: order.id,
         order_number: order.order_number,
+        customer_id: order.customer_id,
         payment_id: order.payment ? order.payment.id : null,
         order_status: order.order_status,
         payment_status: order.payment_status,
@@ -141,7 +172,10 @@ async function placeOrder(req, res) {
         delivery_address: order.delivery_address,
         seller_orders_count: order.seller_orders ? order.seller_orders.length : 0,
         seller_orders: order.seller_orders,
-        created_at: order.created_at
+        created_at: order.created_at,
+        payment_intent: paymentIntent,
+        razorpay_order_id: paymentIntent?.order_id || null,
+        razorpay_key_id: paymentIntent?.key_id || null
       }
     });
   } catch (error) {

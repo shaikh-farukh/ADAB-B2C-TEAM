@@ -10,7 +10,11 @@ const PORT = process.env.PORT || 5002;
 
 // Middleware
 app.use(cors()); 
-app.use(express.json()); 
+app.use(express.json({
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+})); 
 
 // Route imports
 const catalogRoutes = require('./routes/catalog');

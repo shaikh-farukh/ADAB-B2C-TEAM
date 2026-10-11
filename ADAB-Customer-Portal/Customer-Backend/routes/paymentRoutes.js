@@ -3,6 +3,9 @@ const router = express.Router();
 const paymentController = require('../controllers/paymentController');
 const { idempotencyMiddleware } = require('../middleware/idempotency');
 
+// Webhook endpoint (must be declared before /:id routes so "webhook" isn't matched as an ID)
+router.post('/webhook', paymentController.handleWebhook);
+
 // GET /api/v1/payments/:id
 router.get('/:id', paymentController.getPayment);
 

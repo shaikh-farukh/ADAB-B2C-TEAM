@@ -204,20 +204,31 @@ export default function App() {
   };
 
   // Place Order Handler (Checkout -> Orders transition)
-  const handlePlaceOrder = async (orderPayload) => {
+  const handlePlaceOrder = async (orderPayloadOrResult) => {
     if (placingOrder) {
       console.warn('Order submission already in progress. Ignoring duplicate trigger.');
       return;
     }
     try {
       setPlacingOrder(true);
-      const res = await CheckoutAPI.placeOrder(orderPayload, orderPayload?.idempotency_key);
+      // If already an existing placed or verified order object from Razorpay flow
+      if (orderPayloadOrResult && (orderPayloadOrResult.id || orderPayloadOrResult.order_id) && orderPayloadOrResult.order_number) {
+        setActiveOrder(orderPayloadOrResult);
+        await refreshCart();
+        await refreshOrders();
+        showToast('🎉 Order placed & verified! Tracking live dispatch...');
+        setActiveTab('orders');
+        return orderPayloadOrResult;
+      }
+
+      const res = await CheckoutAPI.placeOrder(orderPayloadOrResult, orderPayloadOrResult?.idempotency_key);
       if (res.status === 'success' && res.data) {
         setActiveOrder(res.data);
         await refreshCart();
         await refreshOrders();
         showToast('🎉 Order placed successfully! Tracking live dispatch...');
         setActiveTab('orders');
+        return res.data;
       } else {
         throw new Error(res.message || 'Failed to place order');
       }
@@ -750,7 +761,10 @@ export default function App() {
           <CheckoutView
             cartData={cartData}
             onPlaceOrder={handlePlaceOrder}
-            onBackToCart={() => setActiveTab('cart')}
+            onBackToCart={async () => {
+              await refreshCart();
+              setActiveTab('cart');
+            }}
             loading={placingOrder}
             selectedDeliveryAddress={selectedAddress}
             onSelectDeliveryAddress={handleSelectAddress}
