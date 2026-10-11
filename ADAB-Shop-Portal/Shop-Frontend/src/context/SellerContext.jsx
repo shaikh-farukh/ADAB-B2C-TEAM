@@ -123,8 +123,14 @@ export function SellerProvider({ children }) {
         if (ob) {
           lastFetchTimeRef.current = Date.now();
           setOnboardingData(ob);
-          if (ob.profile) setProfile(ob.profile);
-          if (ob.store) setStore(ob.store);
+          if (ob.profile) {
+            setProfile(ob.profile);
+            if (ob.profile.id) localStorage.setItem('seller_user_id', ob.profile.id);
+          }
+          if (ob.store) {
+            setStore(ob.store);
+            if (ob.store.id) localStorage.setItem('seller_store_id', ob.store.id);
+          }
           if (ob.kycSteps) setKycSteps(ob.kycSteps);
         } else {
           // Fallback to individual endpoints (also required by unit tests mocking getProfile/getStore)
@@ -132,8 +138,14 @@ export function SellerProvider({ children }) {
             sellerService.getProfile().catch(() => ({ data: null })),
             sellerService.getStore().catch(() => ({ data: null }))
           ]);
-          if (profileRes?.data) setProfile(profileRes.data);
-          if (storeRes?.data) setStore(storeRes.data);
+          if (profileRes?.data) {
+            setProfile(profileRes.data);
+            if (profileRes.data.id) localStorage.setItem('seller_user_id', profileRes.data.id);
+          }
+          if (storeRes?.data) {
+            setStore(storeRes.data);
+            if (storeRes.data.id) localStorage.setItem('seller_store_id', storeRes.data.id);
+          }
         }
 
         // Load dashboard metrics without blocking onboarding/profile state
@@ -210,15 +222,15 @@ export function SellerProvider({ children }) {
       .catch(() => {});
   };
 
-  const login = async (phone, pin, extra = {}) => {
-    const res = await sellerService.login(phone, pin, extra);
+  const login = async (phone, password, extra = {}) => {
+    const res = await sellerService.login(phone, password, extra);
     const data = res?.data || res;
     handleAuthSuccess(data);
     return data;
   };
 
-  const signup = async (phone, pin, extra = {}) => {
-    const res = await sellerService.signup(phone, pin, extra);
+  const signup = async (phone, password, extra = {}) => {
+    const res = await sellerService.signup(phone, password, extra);
     const data = res?.data || res;
     handleAuthSuccess(data);
     return data;

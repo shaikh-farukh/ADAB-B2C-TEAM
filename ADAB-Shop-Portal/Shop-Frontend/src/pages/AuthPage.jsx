@@ -118,8 +118,7 @@ export default function AuthPage() {
       const data = await login(phone, password, {
         email: email.trim(),
         password,
-        idMode,
-        secretMode: 'password'
+        idMode
       });
       const steps = data?.kycSteps;
       const prof = data?.profile;
@@ -160,8 +159,7 @@ export default function AuthPage() {
       const data = await login('', 'adab1234', {
         email: targetEmail,
         password: 'adab1234',
-        idMode: 'email',
-        secretMode: 'password'
+        idMode: 'email'
       });
       const steps = data?.kycSteps;
       const prof = data?.profile;
@@ -394,7 +392,7 @@ export default function AuthPage() {
                       portalStarted ? 'text-gray-500' : 'text-white'
                     }`}
                   >
-                    Password/PIN{' '}
+                    Password{' '}
                     <span className={portalStarted ? 'text-gray-500' : 'text-amber-200 font-extrabold'}>*</span>
                   </label>
                   <button
@@ -515,7 +513,7 @@ export default function AuthPage() {
 
             <div>
               <label className={`text-xs font-bold block mb-1 ${portalStarted ? 'text-gray-700' : 'text-gray-400'}`}>
-                Confirm Password/PIN <span className="text-rose-600 font-extrabold">*</span>
+                Confirm Password <span className="text-rose-600 font-extrabold">*</span>
               </label>
               <input
                 type="text"

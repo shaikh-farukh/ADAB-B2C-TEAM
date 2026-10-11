@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { sellerApi } from '../api/sellerApi';
 
 export function useOrders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [updatingIds, setUpdatingIds] = useState({});
+  const inFlightRef = useRef(new Set());
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -25,10 +27,17 @@ export function useOrders() {
   }, []);
 
   const updateStatus = async (orderId, newStatus) => {
+    const cleanId = orderId ? orderId.toString().replace(/^#/, '') : orderId;
+    if (!cleanId || inFlightRef.current.has(cleanId)) {
+      return false;
+    }
+
+    inFlightRef.current.add(cleanId);
+    setUpdatingIds(prev => ({ ...prev, [cleanId]: true, [orderId]: true }));
+
     try {
-      const cleanId = orderId ? orderId.toString().replace(/^#/, '') : orderId;
       await sellerApi.updateOrderStatus(cleanId, newStatus);
-      // Optimistically update local state immediately
+      // Update state only after DB has confirmed the change
       setOrders(prev => prev.map(o => {
         const oClean = o.id ? o.id.toString().replace(/^#/, '') : o.id;
         const matches = oClean === cleanId || o.id === orderId || o.real_id === orderId || o.real_id === cleanId;
@@ -38,6 +47,14 @@ export function useOrders() {
     } catch (err) {
       console.error('Failed to update order status:', err);
       return false;
+    } finally {
+      inFlightRef.current.delete(cleanId);
+      setUpdatingIds(prev => {
+        const next = { ...prev };
+        delete next[cleanId];
+        delete next[orderId];
+        return next;
+      });
     }
   };
 
@@ -49,7 +66,9 @@ export function useOrders() {
     orders,
     loading,
     error,
+    updatingIds,
     refreshOrders: fetchOrders,
     updateStatus
   };
 }
+

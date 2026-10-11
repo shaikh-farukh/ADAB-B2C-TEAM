@@ -1,6 +1,256 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useOrders } from '../hooks/useOrders';
 import { sellerApi } from '../api/sellerApi';
+
+function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
+  const [rejectNote, setRejectNote] = useState(item?.rejectionReason || '');
+
+  if (!item) return null;
+
+  const addr = item.deliveryAddress || {};
+  const addressString =
+    [addr.address_line, addr.city, addr.state, addr.pincode].filter(Boolean).join(', ') ||
+    'No address recorded on order';
+
+  const formatDate = (iso) => {
+    if (!iso) return '—';
+    try {
+      return new Date(iso).toLocaleString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return String(iso);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-200">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-emerald-50 to-teal-50">
+          <div>
+            <div className="flex items-center gap-2">
+              <i className="fa-solid fa-rotate-left text-emerald-700 text-sm"></i>
+              <h3 className="font-extrabold text-base text-gray-900">
+                Return Detail • {item.id}
+              </h3>
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Order <span className="font-bold text-gray-800">{item.orderId}</span> • Requested {formatDate(item.requested_at)}
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center text-base font-bold shadow-2xs cursor-pointer disabled:opacity-50"
+          >
+            &times;
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto text-xs">
+          {/* Customer & Pickup Address */}
+          <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-1">
+            <div className="text-[10px] font-bold uppercase text-gray-400">Customer &amp; Pickup Details</div>
+            <div className="font-bold text-gray-900 text-sm">
+              {item.customer}
+              {item.customerPhone && (
+                <span className="ml-2 font-mono text-xs font-normal text-gray-600">({item.customerPhone})</span>
+              )}
+            </div>
+            <div className="text-gray-600 flex items-start gap-1.5 mt-1">
+              <i className="fa-solid fa-location-dot text-emerald-600 mt-0.5"></i>
+              <span>{addressString}</span>
+            </div>
+          </div>
+
+          {/* Returned Products Breakdown (Supports 1 or multiple products) */}
+          <div className="p-3.5 rounded-xl bg-white border border-gray-200 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase text-gray-400">
+                Returned Products ({Array.isArray(item.items) && item.items.length > 0 ? item.items.length : 1})
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700">
+                Condition: {item.itemCondition || 'UNOPENED'}
+              </span>
+            </div>
+
+            <div className="divide-y divide-gray-100">
+              {(Array.isArray(item.items) && item.items.length > 0
+                ? item.items
+                : [
+                    {
+                      product_name: item.productName || item.product,
+                      quantity: item.quantity || 1,
+                      unit_price: item.unitPrice,
+                      reason: item.reason,
+                      item_condition: item.itemCondition,
+                      current_listing_stock: item.currentListingStock
+                    }
+                  ]
+              ).map((prod, idx) => (
+                <div key={prod.return_item_id || prod.order_item_id || idx} className="py-2 first:pt-1 last:pb-0 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-extrabold text-sm text-gray-900">
+                      {prod.product_name || 'Order Item'}
+                    </div>
+                    <div className="text-gray-500 mt-0.5">
+                      Qty: <span className="font-bold text-gray-800">{prod.quantity || 1} unit(s)</span>
+                      {prod.unit_price != null && (
+                        <span className="ml-2">• Unit Price: ₹{Number(prod.unit_price).toLocaleString('en-IN')}</span>
+                      )}
+                      {prod.item_condition && (
+                        <span className="ml-2 text-[10px] font-semibold text-gray-600">• {prod.item_condition}</span>
+                      )}
+                    </div>
+                    {prod.reason && (
+                      <div className="text-[11px] text-gray-600 mt-0.5">
+                        Reason: <span className="font-semibold text-gray-800">{prod.reason}</span>
+                      </div>
+                    )}
+                  </div>
+                  {prod.current_listing_stock != null && (
+                    <div className="text-right shrink-0">
+                      <div className="text-[10px] text-gray-400 font-bold uppercase">Catalog Stock</div>
+                      <div className="text-sm font-extrabold text-emerald-700">{prod.current_listing_stock} units</div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Payment Domain Integration */}
+          <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase text-emerald-800">
+                <i className="fa-solid fa-building-columns mr-1"></i>
+                Payment Domain Record
+              </span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                (item.paymentRecordStatus || item.paymentStatus) === 'REFUNDED'
+                  ? 'bg-emerald-200 text-emerald-900'
+                  : 'bg-amber-100 text-amber-800'
+              }`}>
+                {item.paymentRecordStatus || item.paymentStatus || 'RECORDED'}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 pt-1">
+              <div>
+                <div className="text-[10px] text-gray-500">Payment Method</div>
+                <div className="font-bold text-gray-900 uppercase">{item.paymentMethod || 'N/A'}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-500">Paid Amount</div>
+                <div className="font-bold text-gray-900">
+                  ₹{Number(item.paymentAmount ?? item.amount ?? 0).toLocaleString('en-IN')}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-500">Refund Amount</div>
+                <div className="font-extrabold text-emerald-800 text-sm">
+                  ₹{Number(item.amount || 0).toLocaleString('en-IN')}
+                </div>
+              </div>
+            </div>
+            {item.resolved_at && (
+              <div className="text-[11px] text-gray-500 pt-1 border-t border-emerald-200/60">
+                Resolved at: <span className="font-semibold text-gray-700">{formatDate(item.resolved_at)}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Rejection Reason Input (when pending) or Display (when rejected) */}
+          {item.status === 'pending' && (
+            <div>
+              <label className="block text-[11px] font-bold text-gray-600 mb-1">
+                Rejection Note (used if rejecting):
+              </label>
+              <input
+                type="text"
+                value={rejectNote}
+                onChange={(e) => setRejectNote(e.target.value)}
+                placeholder="Optional reason if declining return request..."
+                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:border-emerald-600 outline-none"
+              />
+            </div>
+          )}
+
+          {item.status === 'rejected' && item.rejectionReason && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800">
+              <span className="font-bold block text-[10px] uppercase">Rejection Reason</span>
+              <span>{item.rejectionReason}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Footer Actions */}
+        <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2">
+          <div className="text-xs text-gray-500">
+            Status: <span className="font-bold text-gray-800 uppercase">{item.rawStatus || item.status}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {item.status === 'pending' && (
+              <>
+                <button
+                  type="button"
+                  disabled={isBusy}
+                  onClick={() => onAction(item, 'approved')}
+                  className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
+                >
+                  {isBusy ? 'Saving...' : 'Approve Return'}
+                </button>
+                <button
+                  type="button"
+                  disabled={isBusy}
+                  onClick={() => onAction(item, 'rejected', rejectNote)}
+                  className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
+                >
+                  Reject
+                </button>
+              </>
+            )}
+            {item.status === 'approved' && (
+              <>
+                <button
+                  type="button"
+                  disabled={isBusy}
+                  onClick={() => onAction(item, 'restocked')}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                >
+                  <i className="fa-solid fa-plus text-[10px]"></i>
+                  <span>{isBusy ? 'Saving...' : `Add Back (+${item.quantity || 1})`}</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isBusy}
+                  onClick={() => onAction(item, 'discarded')}
+                  className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
+                >
+                  Discard Item
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={onClose}
+              className="btn-soft !py-1.5 !px-3 !text-xs font-bold cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ReturnsPage() {
   const { orders } = useOrders();
@@ -8,12 +258,17 @@ export default function ReturnsPage() {
   const [reasonFilter, setReasonFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [returnsList, setReturnsList] = useState([]);
+  const [selectedReturn, setSelectedReturn] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchReturns = async () => {
+  const [processingIds, setProcessingIds] = useState({});
+  const inFlightRef = useRef(new Set());
+  const [toastMessage, setToastMessage] = useState(null);
+
+  const fetchReturns = async (showLoader = false) => {
     try {
-      setLoading(true);
+      if (showLoader) setLoading(true);
       setError(null);
       const res = await sellerApi.getReturns();
       const raw = res?.data !== undefined ? res.data : res;
@@ -21,77 +276,207 @@ export default function ReturnsPage() {
       setReturnsList(list);
     } catch (err) {
       setError(err.message || 'Failed to load return requests');
-      setReturnsList([]);
     } finally {
-      setLoading(false);
+      if (showLoader) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchReturns();
+    fetchReturns(true);
   }, []);
 
-  const handleAction = async (id, newStatus) => {
-    // Local optimistic update
-    setReturnsList(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
+  const handleAction = async (item, nextStatus, customRejectionNote = null) => {
+    const targetId = item.returnUuid || item.id;
+    if (!targetId || inFlightRef.current.has(targetId)) return;
+
+    inFlightRef.current.add(targetId);
+    setProcessingIds(prev => ({ ...prev, [item.id]: true, [targetId]: true }));
+
+    try {
+      const rejectionReason =
+        nextStatus === 'rejected'
+          ? (customRejectionNote && customRejectionNote.trim()
+              ? customRejectionNote.trim()
+              : 'Return declined after seller review')
+          : null;
+
+      const res = await sellerApi.updateReturnStatus(targetId, nextStatus, rejectionReason);
+      const payload = res?.data || res || {};
+
+      const applyRowUpdate = (r) => ({
+        ...r,
+        status: payload.status || nextStatus,
+        rawStatus: payload.rawStatus || r.rawStatus,
+        itemCondition: payload.itemCondition || r.itemCondition,
+        paymentStatus: payload.paymentStatus || r.paymentStatus,
+        paymentRecordStatus: payload.paymentRecordStatus || r.paymentRecordStatus,
+        rejectionReason: payload.rejectionReason !== undefined ? payload.rejectionReason : r.rejectionReason,
+        resolved_at: payload.resolved_at || r.resolved_at,
+        items: Array.isArray(payload.items) && payload.items.length > 0 ? payload.items : r.items,
+        currentListingStock:
+          payload.currentListingStock !== undefined && payload.currentListingStock !== null
+            ? Number(payload.currentListingStock)
+            : r.currentListingStock
+      });
+
+      // Smooth in-place update of ONLY the target row after DB confirms (no table blink!)
+      setReturnsList(prev =>
+        prev.map(r => {
+          if (r.id !== item.id && r.returnUuid !== item.returnUuid) return r;
+          return applyRowUpdate(r);
+        })
+      );
+
+      setSelectedReturn(prev => {
+        if (!prev || (prev.id !== item.id && prev.returnUuid !== item.returnUuid)) return prev;
+        return applyRowUpdate(prev);
+      });
+
+      if (nextStatus === 'approved') {
+        setToastMessage(
+          `Return ${item.id} approved • ₹${item.amount} refund recorded in payments. Awaiting item at store to Add Back or Discard.`
+        );
+      } else if (nextStatus === 'restocked') {
+        const restocked = payload.restockedQty ?? (item.quantity || 1);
+        setToastMessage(
+          `Item ${item.id} reached store • +${restocked} unit(s) added back to product catalog`
+        );
+      } else if (nextStatus === 'discarded') {
+        setToastMessage(
+          `Item ${item.id} reached store • Ditched from relisting (stock unchanged)`
+        );
+      } else {
+        setToastMessage(`Return ${item.id} rejected • No stock or refund changes applied`);
+      }
+      setTimeout(() => setToastMessage(null), 4000);
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Failed to update return status');
+    } finally {
+      inFlightRef.current.delete(targetId);
+      setProcessingIds(prev => {
+        const next = { ...prev };
+        delete next[item.id];
+        delete next[targetId];
+        return next;
+      });
+    }
   };
 
-
   const filteredReturns = returnsList.filter(item => {
-    const matchesStatus = statusFilter === 'all' ? true : item.status === statusFilter;
+    const matchesStatus =
+      statusFilter === 'all'
+        ? true
+        : statusFilter === 'approved'
+        ? ['approved', 'restocked', 'discarded'].includes(item.status)
+        : item.status === statusFilter;
     const matchesReason = reasonFilter === 'all' ? true : item.reasonKey === reasonFilter;
     const q = searchQuery.toLowerCase();
     const matchesSearch = !q ? true : (
-      item.id.toLowerCase().includes(q) ||
-      item.orderId.toLowerCase().includes(q) ||
-      item.customer.toLowerCase().includes(q) ||
-      item.product.toLowerCase().includes(q)
+      (item.id || '').toLowerCase().includes(q) ||
+      (item.orderId || '').toLowerCase().includes(q) ||
+      (item.customer || '').toLowerCase().includes(q) ||
+      (item.product || '').toLowerCase().includes(q)
     );
     return matchesStatus && matchesReason && matchesSearch;
   });
 
   const pendingCount = returnsList.filter(r => r.status === 'pending').length;
-  const approvedCount = returnsList.filter(r => r.status === 'approved').length;
-  const totalRefundAmount = returnsList.filter(r => r.status === 'approved').reduce((sum, r) => sum + r.amount, 0);
+  const awaitingStoreCount = returnsList.filter(r => r.status === 'approved').length;
+  const approvedTotalCount = returnsList.filter(r => ['approved', 'restocked', 'discarded'].includes(r.status)).length;
+  const totalRefundAmount = returnsList
+    .filter(r => ['approved', 'restocked', 'discarded'].includes(r.status))
+    .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+
+  const returnRatePct = orders.length > 0
+    ? `${((returnsList.length / orders.length) * 100).toFixed(1)}%`
+    : '0.0%';
+
+  const renderStatusBadge = (status) => {
+    if (status === 'pending') {
+      return (
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 whitespace-nowrap">
+          PENDING REVIEW
+        </span>
+      );
+    }
+    if (status === 'approved') {
+      return (
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 whitespace-nowrap">
+          AWAITING ITEM
+        </span>
+      );
+    }
+    if (status === 'restocked') {
+      return (
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800 whitespace-nowrap">
+          RESTOCKED
+        </span>
+      );
+    }
+    if (status === 'discarded') {
+      return (
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-200 text-gray-700 whitespace-nowrap">
+          DISCARDED
+        </span>
+      );
+    }
+    return (
+      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 whitespace-nowrap">
+        REJECTED
+      </span>
+    );
+  };
 
   return (
     <section id="sec-returns" className="space-y-4">
-      <div>
-        <h1 className="text-xl font-extrabold text-gray-900">Returns &amp; Refunds</h1>
-        <p className="text-sm text-gray-500">Manage customer return requests, inspection decisions, and refund approvals</p>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h1 className="text-xl font-extrabold text-gray-900">Returns &amp; Refunds</h1>
+          <p className="text-sm text-gray-500">1. Approve or reject return requests • 2. Once item reaches store, Add Back to catalog or Discard</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => fetchReturns(false)}
+          className="btn-soft !text-xs flex items-center gap-1.5 cursor-pointer"
+        >
+          <i className="fa-solid fa-rotate-right"></i>
+          <span>Sync</span>
+        </button>
       </div>
       
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="card p-4">
-          <div className="text-xs text-gray-500">Pending Action</div>
+          <div className="text-xs text-gray-500">Pending Review</div>
           <div className="text-2xl font-extrabold text-red-600 mt-1">
             {pendingCount}
           </div>
-          <div className="text-[10px] text-gray-400 mt-0.5">Need merchant review</div>
+          <div className="text-[10px] text-gray-400 mt-0.5">Need merchant approval</div>
         </div>
         <div className="card p-4">
-          <div className="text-xs text-gray-500">Approved Returns</div>
-          <div className="text-2xl font-extrabold text-gray-900 mt-1">{approvedCount}</div>
-          <div className="text-[10px] text-green-600 font-bold mt-0.5">Processed successfully</div>
+          <div className="text-xs text-gray-500">In Transit to Store</div>
+          <div className="text-2xl font-extrabold text-blue-600 mt-1">{awaitingStoreCount}</div>
+          <div className="text-[10px] text-blue-600 font-bold mt-0.5">Ready for Add Back / Discard</div>
         </div>
         <div className="card p-4">
-          <div className="text-xs text-gray-500">Total Refunded</div>
-          <div className="text-2xl font-extrabold text-gray-900 mt-1">₹{totalRefundAmount}</div>
-          <div className="text-[10px] text-gray-400 mt-0.5">Credited to customers</div>
+          <div className="text-xs text-gray-500">Total Refunded ({approvedTotalCount})</div>
+          <div className="text-2xl font-extrabold text-gray-900 mt-1">₹{totalRefundAmount.toLocaleString('en-IN')}</div>
+          <div className="text-[10px] text-gray-400 mt-0.5">Consumed from payment domain</div>
         </div>
         <div className="card p-4">
           <div className="text-xs text-gray-500">Return Rate</div>
           <div className="text-2xl font-extrabold text-green-700 mt-1">
-            {orders.length > 0 ? `${((returnsList.length / orders.length) * 10).toFixed(1)}%` : '0.8%'}
+            {returnRatePct}
           </div>
-          <div className="text-[10px] text-green-600 font-bold mt-0.5">Healthy threshold</div>
+          <div className="text-[10px] text-green-600 font-bold mt-0.5">
+            {returnsList.length} of {orders.length} store orders
+          </div>
         </div>
       </div>
 
       <div className="card p-3 flex flex-col sm:flex-row gap-2 flex-wrap">
         <input 
           type="search" 
-          placeholder="Search by ID, customer, product..." 
+          placeholder="Search by Return ID, Order #, Customer..." 
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="flex-1 min-w-[180px] px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600" 
@@ -102,85 +487,168 @@ export default function ReturnsPage() {
           className="px-3 py-2 rounded-xl border border-gray-200 text-sm"
         >
           <option value="all">All Status</option>
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
+          <option value="pending">Pending Review</option>
+          <option value="approved">Approved / Completed</option>
+          <option value="restocked">Restocked to Catalog</option>
+          <option value="discarded">Discarded</option>
           <option value="rejected">Rejected</option>
-        </select>
-        <select 
-          value={reasonFilter} 
-          onChange={(e) => setReasonFilter(e.target.value)} 
-          className="px-3 py-2 rounded-xl border border-gray-200 text-sm"
-        >
-          <option value="all">All Reasons</option>
-          <option value="size">Wrong Size</option>
-          <option value="damage">Damaged in transit</option>
-          <option value="mind">Changed mind</option>
         </select>
       </div>
 
+      {error && (
+        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center justify-between">
+          <span><i className="fa-solid fa-triangle-exclamation mr-1.5"></i>{error}</span>
+          <button type="button" onClick={() => setError(null)} className="font-bold cursor-pointer">✕</button>
+        </div>
+      )}
+
       <div className="card overflow-x-auto shadow-sm">
-        <table className="w-full text-sm text-left min-w-[640px]">
+        <table className="w-full text-sm text-left min-w-[600px]">
           <thead className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
             <tr>
-              <th className="px-3 py-3">Return ID</th>
-              <th className="px-3 py-3">Order</th>
-              <th className="px-3 py-3">Customer</th>
-              <th className="px-3 py-3">Item</th>
-              <th className="px-3 py-3">Reason</th>
-              <th className="px-3 py-3">Refund</th>
-              <th className="px-3 py-3">Status</th>
-              <th className="px-3 py-3">Action</th>
+              <th className="px-4 py-3">Return ID</th>
+              <th className="px-4 py-3">Order</th>
+              <th className="px-4 py-3">Customer</th>
+              <th className="px-4 py-3">Refund &amp; Payment</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filteredReturns.length === 0 ? (
+            {loading ? (
               <tr>
-                <td colSpan="8" className="px-3 py-6 text-center text-gray-500">No returns match the selected filter.</td>
+                <td colSpan="6" className="px-4 py-6 text-center text-gray-500">
+                  <i className="fa-solid fa-spinner fa-spin mr-2"></i> Loading return requests from database...
+                </td>
+              </tr>
+            ) : filteredReturns.length === 0 ? (
+              <tr>
+                <td colSpan="6" className="px-4 py-6 text-center text-gray-500">No returns found in database for the selected filter.</td>
               </tr>
             ) : (
-              filteredReturns.map(item => (
-                <tr key={item.id} className="hover:bg-gray-50 transition">
-                  <td className="px-3 py-3 font-bold text-gray-900">{item.id}</td>
-                  <td className="px-3 py-3 font-medium text-gray-700">{item.orderId}</td>
-                  <td className="px-3 py-3">{item.customer}</td>
-                  <td className="px-3 py-3 font-medium text-gray-800">{item.product}</td>
-                  <td className="px-3 py-3 text-xs text-gray-600">{item.reason}</td>
-                  <td className="px-3 py-3 font-bold text-gray-900">₹{item.amount}</td>
-                  <td className="px-3 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      item.status === 'pending' ? 'bg-amber-100 text-amber-800' :
-                      item.status === 'approved' ? 'bg-green-100 text-green-800' :
-                      'bg-rose-100 text-rose-800'
-                    }`}>
-                      {item.status.toUpperCase()}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3">
-                    {item.status === 'pending' ? (
-                      <div className="flex gap-1.5">
-                        <button 
-                          onClick={() => handleAction(item.id, 'approved')} 
-                          className="px-2.5 py-1 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700"
-                        >
-                          Approve
-                        </button>
-                        <button 
-                          onClick={() => handleAction(item.id, 'rejected')} 
-                          className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-200"
-                        >
-                          Reject
-                        </button>
+              filteredReturns.map(item => {
+                const isBusy = Boolean(processingIds[item.id] || processingIds[item.returnUuid]);
+                return (
+                  <tr
+                    key={item.returnUuid || item.id}
+                    onClick={() => setSelectedReturn(item)}
+                    className="hover:bg-gray-50 transition cursor-pointer"
+                  >
+                    <td className="px-4 py-3 font-bold text-gray-900">
+                      {item.id}
+                    </td>
+                    <td className="px-4 py-3 font-medium text-gray-700">{item.orderId}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-gray-800">{item.customer}</div>
+                      {item.customerPhone && (
+                        <div className="text-[10px] font-mono text-gray-400">{item.customerPhone}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-bold text-gray-900">₹{Number(item.amount || 0).toLocaleString('en-IN')}</div>
+                      {item.paymentMethod && (
+                        <span className="text-[10px] font-semibold text-gray-500 uppercase">
+                          {item.paymentMethod} • {item.paymentRecordStatus || item.paymentStatus || 'PAID'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {renderStatusBadge(item.status)}
+                    </td>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-1.5">
+                        {isBusy ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-gray-500 bg-gray-100 border border-gray-200 whitespace-nowrap select-none">
+                            <i className="fa-solid fa-spinner fa-spin text-[10px]"></i> Saving...
+                          </span>
+                        ) : item.status === 'pending' ? (
+                          <>
+                            <button 
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => handleAction(item, 'approved')} 
+                              className="px-2.5 py-1 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                            >
+                              Approve
+                            </button>
+                            <button 
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => handleAction(item, 'rejected')} 
+                              className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-200 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        ) : item.status === 'approved' ? (
+                          <>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => handleAction(item, 'restocked')}
+                              title="Product reached store in sellable condition — add back to catalog stock"
+                              className="px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 disabled:opacity-50 cursor-pointer whitespace-nowrap flex items-center gap-1"
+                            >
+                              <i className="fa-solid fa-plus text-[10px]"></i>
+                              <span>Add Back (+{item.quantity || 1})</span>
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => handleAction(item, 'discarded')}
+                              title="Product reached store damaged/unsellable — ditch from relisting"
+                              className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold hover:bg-amber-100 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                            >
+                              Discard
+                            </button>
+                          </>
+                        ) : item.status === 'restocked' ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-bold whitespace-nowrap">
+                            <i className="fa-solid fa-circle-check text-[11px]"></i>
+                            Added to Catalog (+{item.quantity || 1})
+                          </span>
+                        ) : item.status === 'discarded' ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-gray-500 font-semibold whitespace-nowrap">
+                            <i className="fa-solid fa-box-archive text-[11px]"></i>
+                            Ditched from Relisting
+                          </span>
+                        ) : (
+                          <span className="text-xs text-rose-600 font-semibold italic whitespace-nowrap">
+                            Request Declined
+                          </span>
+                        )}
                       </div>
-                    ) : (
-                      <span className="text-xs text-gray-400 italic">Resolved</span>
-                    )}
-                  </td>
-                </tr>
-              ))
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
+
+      {selectedReturn && (
+        <ReturnDetailModal
+          item={selectedReturn}
+          onClose={() => setSelectedReturn(null)}
+          onAction={handleAction}
+          isBusy={Boolean(processingIds[selectedReturn.id] || processingIds[selectedReturn.returnUuid])}
+        />
+      )}
+
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-gray-900/95 backdrop-blur-md text-white px-4 py-3 rounded-xl shadow-xl text-xs font-semibold flex items-center gap-2.5 transition-all border border-gray-700">
+          <i className="fa-solid fa-circle-check text-emerald-400 text-sm"></i>
+          <span>{toastMessage}</span>
+          <button 
+            type="button"
+            onClick={() => setToastMessage(null)} 
+            className="ml-2 text-gray-400 hover:text-white cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </section>
   );
 }

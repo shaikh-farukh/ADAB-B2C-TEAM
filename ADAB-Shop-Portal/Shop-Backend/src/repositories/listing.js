@@ -43,9 +43,9 @@ class ListingRepository {
       conditions.push(`sl.product_type = $${values.length}`);
     }
     if (filters.stock === 'in_stock') {
-      conditions.push(`COALESCE(i.available_quantity::integer, sl.stock_qty) > 0`);
+      conditions.push(`COALESCE(sl.stock_qty, i.available_quantity::integer, 0) > 0`);
     } else if (filters.stock === 'out_of_stock') {
-      conditions.push(`COALESCE(i.available_quantity::integer, sl.stock_qty) <= 0`);
+      conditions.push(`COALESCE(sl.stock_qty, i.available_quantity::integer, 0) <= 0`);
     }
     if (filters.buyer && filters.buyer !== 'all' && filters.buyer !== 'ALL') {
       // buyer maps to allowed_buyers
@@ -68,7 +68,7 @@ class ListingRepository {
     const whereClause = conditions.join(' AND ');
 
     let query = `
-      SELECT sl.*, pi.image_url, COALESCE(i.available_quantity::integer, sl.stock_qty) as stock_qty
+      SELECT sl.*, pi.image_url, COALESCE(sl.stock_qty, i.available_quantity::integer, 0) as stock_qty
       FROM seller_listings sl
       LEFT JOIN product_images pi ON sl.id = pi.product_id AND pi.is_primary = true
       LEFT JOIN inventory i ON sl.id = i.listing_id

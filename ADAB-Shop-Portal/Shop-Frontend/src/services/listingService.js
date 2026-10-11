@@ -1,78 +1,81 @@
 import api from './api';
 
-const storeId = '00000000-0000-0000-0000-000000000001'; // Mock store ID for testing
+const getStoreHeaders = () => {
+  const storeId = localStorage.getItem('seller_store_id');
+  return storeId ? { 'x-store-id': storeId } : {};
+};
 
 const listingService = {
   getListings: (filters) => {
     return api.get('/seller/listings', {
       params: filters,
-      headers: { 'x-store-id': storeId }
+      headers: getStoreHeaders()
     });
   },
   
   getListingById: (id) => {
     return api.get(`/seller/listings/${id}`, {
-      headers: { 'x-store-id': storeId }
+      headers: getStoreHeaders()
     });
   },
 
   createListing: (data) => {
     return api.post('/seller/listings', data, {
-      headers: { 'x-store-id': storeId }
+      headers: getStoreHeaders()
     });
   },
 
   updateListing: (id, data) => {
     return api.put(`/seller/listings/${id}`, data, {
-      headers: { 'x-store-id': storeId }
+      headers: getStoreHeaders()
     });
   },
 
   deleteListing: (id) => {
     return api.delete(`/seller/listings/${id}`, {
-      headers: { 'x-store-id': storeId }
+      headers: getStoreHeaders()
     });
   },
 
   submitListing: (id) => {
     return api.post(`/seller/listings/${id}/submit`, {}, {
-      headers: { 'x-store-id': storeId }
+      headers: getStoreHeaders()
     });
   },
   
   adminStartReview: (id) => {
     return api.post(`/seller/listings/${id}/admin-start-review`, {}, {
-      headers: { 'x-store-id': storeId }
+      headers: getStoreHeaders()
     });
   },
 
   adminReviewListing: (id, data) => {
     return api.post(`/seller/listings/${id}/admin-review`, data, {
-      headers: { 'x-store-id': storeId }
+      headers: getStoreHeaders()
     });
   },
   
   publishListing: (id) => {
     return api.post(`/seller/listings/${id}/publish`, {}, {
-      headers: { 'x-store-id': storeId }
+      headers: getStoreHeaders()
     });
   },
 
   getListingIssues: (id) => {
     return api.get(`/seller/listings/${id}/issues`, {
-      headers: { 'x-store-id': storeId }
+      headers: getStoreHeaders()
     });
   },
 
   bulkExport: () => {
     return api.post('/seller/listings/bulk-export', {}, {
-      headers: { 'x-store-id': storeId }
+      headers: getStoreHeaders()
     });
   },
   
   getBulkExportStatus: (jobId) => {
     return api.get(`/seller/listings/bulk-export/${jobId}/status`, {
-      headers: { 'x-store-id': storeId }
+      headers: getStoreHeaders()
     });
   }
 };

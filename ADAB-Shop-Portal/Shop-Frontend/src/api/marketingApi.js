@@ -1,8 +1,9 @@
 import client from './client';
 
-const storeId = '00000000-0000-0000-0000-000000000001'; // Mock store ID for testing
-
-const getHeaders = () => ({ 'x-store-id': storeId });
+const getHeaders = () => {
+  const storeId = localStorage.getItem('seller_store_id');
+  return storeId ? { 'x-store-id': storeId } : {};
+};
 
 export const marketingApi = {
   fetchPromotions: () => client.get('/promotions', { headers: getHeaders() }),

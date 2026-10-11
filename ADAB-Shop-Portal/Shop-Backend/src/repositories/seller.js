@@ -174,7 +174,18 @@ class SellerRepository {
 
   // === Mayank's Fulfillment / Operations: Orders, Returns, B2B, Finance, etc. ===
 
-  async getOrders(storeId) {
+  async getOrders(storeId, filters = {}) {
+    const rawLimit = Number(filters.limit);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 200) : 50;
+    const rawPage = Number(filters.page);
+    const rawOffset = Number(filters.offset);
+    const offset = Number.isFinite(rawOffset) && rawOffset >= 0
+      ? rawOffset
+      : (Number.isFinite(rawPage) && rawPage > 1 ? (rawPage - 1) * limit : 0);
+
+    const statusParam = filters.status ? String(filters.status).trim().toUpperCase() : null;
+    const searchParam = filters.search ? `%${String(filters.search).trim()}%` : null;
+
     const query = `
       SELECT so.id as seller_order_id,
              so.parent_order_id,
@@ -199,6 +210,8 @@ class SellerRepository {
              u.phone as customer_phone,
              (
                SELECT json_agg(json_build_object(
+                 'id', oi.id,
+                 'listing_id', oi.listing_id,
                  'name', COALESCE(oi.product_name, 'Item'),
                  'quantity', oi.quantity,
                  'unit_price', oi.unit_price,
@@ -218,16 +231,20 @@ class SellerRepository {
       LEFT JOIN stores st ON so.store_id = st.id
       LEFT JOIN users u ON o.customer_id = u.id
       WHERE ($1::uuid IS NULL OR so.store_id = $1::uuid)
+        AND ($2::text IS NULL OR UPPER(so.status) = $2::text)
+        AND ($3::text IS NULL OR o.order_number ILIKE $3::text OR COALESCE(u.full_name, '') ILIKE $3::text)
       ORDER BY so.created_at DESC
-      LIMIT 50
+      LIMIT $4::int OFFSET $5::int
     `;
-    const res = await pool.query(query, [storeId || null]);
+    const res = await pool.query(query, [storeId || null, statusParam, searchParam, limit, offset]);
     return res.rows.map(r => {
       const addr = r.delivery_address;
-      let distance = '2.0';
-      if (addr && addr.latitude != null && addr.longitude != null) {
-        const sLat = Number(r.store_latitude) || 21.1702;
-        const sLng = Number(r.store_longitude) || 72.8311;
+      const hasStoreCoords = r.store_latitude != null && r.store_longitude != null;
+      const hasCustomerCoords = addr && addr.latitude != null && addr.longitude != null;
+      let distance = null;
+      if (hasStoreCoords && hasCustomerCoords) {
+        const sLat = Number(r.store_latitude);
+        const sLng = Number(r.store_longitude);
         const cLat = Number(addr.latitude);
         const cLng = Number(addr.longitude);
         const R = 6371; // km
@@ -237,8 +254,6 @@ class SellerRepository {
                   Math.cos(sLat * Math.PI / 180) * Math.cos(cLat * Math.PI / 180) *
                   Math.sin(dLon / 2) * Math.sin(dLon / 2);
         distance = (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1);
-      } else {
-        distance = (Math.abs((parseInt((r.order_number || r.seller_order_id || '10').replace(/\D/g, '') || 12, 10) % 80) / 10) + 0.8).toFixed(1);
       }
 
       return {
@@ -249,11 +264,15 @@ class SellerRepository {
         customer: r.customer || r.delivery_address?.full_name || 'Customer',
         customer_phone: r.customer_phone || r.delivery_address?.phone || '',
         distance,
-        delivery_mode: r.delivery_mode ? r.delivery_mode.toLowerCase() : 'normal',
-        delivery_address: r.delivery_address,
+        delivery_mode: r.delivery_mode ? r.delivery_mode.toLowerCase() : null,
+        delivery_address: r.delivery_address || null,
         items: r.items_list || [],
-        item_summary: r.item_summary || 'Items',
-        amount: Number(r.store_subtotal || r.amount) || 0,
+        item_summary: r.item_summary || '',
+        amount: Number(r.store_subtotal ?? r.amount ?? 0),
+        commission_fee: Number(r.commission_fee ?? 0),
+        seller_payout_amount: Number(r.seller_payout_amount ?? 0),
+        payment_method: r.payment_method || null,
+        payment_status: r.payment_status || null,
         status: r.seller_order_status ? (
           r.seller_order_status === 'NEW' ? 'new' :
           r.seller_order_status === 'ACCEPTED' ? 'packing' :
@@ -266,11 +285,68 @@ class SellerRepository {
     });
   }
 
-  async updateOrderStatus(orderId, status) {
+  async adjustListingStockForOrder(sellerOrderId, storeId, direction = 'DECREMENT') {
+    const itemsRes = await pool.query(
+      `SELECT id, listing_id, product_name, quantity FROM order_items WHERE seller_order_id = $1`,
+      [sellerOrderId]
+    );
+    let totalUnitsAdjusted = 0;
+
+    for (const item of itemsRes.rows) {
+      const qtyInt = Math.max(1, Math.round(Number(item.quantity) || 1));
+      const qtyNum = Number(item.quantity) || 1;
+      let targetListingId = item.listing_id;
+
+      if (!targetListingId && item.product_name && storeId) {
+        const matchRes = await pool.query(
+          `SELECT id FROM seller_listings WHERE store_id = $1 AND LOWER(TRIM(title)) = LOWER(TRIM($2)) LIMIT 1`,
+          [storeId, item.product_name]
+        );
+        targetListingId = matchRes.rows[0]?.id || null;
+      }
+
+      if (targetListingId) {
+        if (direction === 'DECREMENT') {
+          await pool.query(
+            `UPDATE seller_listings
+             SET stock_qty = GREATEST(0, COALESCE(stock_qty, 0) - $1::int), updated_at = NOW()
+             WHERE id = $2`,
+            [qtyInt, targetListingId]
+          );
+          await pool.query(
+            `UPDATE inventory
+             SET stock_quantity = GREATEST(reserved_quantity, COALESCE(stock_quantity, 0) - $1::numeric), updated_at = NOW()
+             WHERE listing_id = $2`,
+            [qtyNum, targetListingId]
+          );
+        } else {
+          await pool.query(
+            `UPDATE seller_listings
+             SET stock_qty = COALESCE(stock_qty, 0) + $1::int, updated_at = NOW()
+             WHERE id = $2`,
+            [qtyInt, targetListingId]
+          );
+          await pool.query(
+            `UPDATE inventory
+             SET stock_quantity = COALESCE(stock_quantity, 0) + $1::numeric, updated_at = NOW()
+             WHERE listing_id = $2`,
+            [qtyNum, targetListingId]
+          );
+        }
+        totalUnitsAdjusted += qtyInt;
+      }
+    }
+
+    return totalUnitsAdjusted;
+  }
+
+  async updateOrderStatus(orderId, status, storeId = null) {
     const cleanId = orderId ? orderId.toString().replace(/^#/, '') : orderId;
+    const normalizedStatus = (status || '').toLowerCase();
     const sellerStatusMap = {
       'new': 'NEW',
       'packing': 'ACCEPTED',
+      'processing': 'ACCEPTED',
       'accepted': 'ACCEPTED',
       'packed': 'PACKED',
       'dispatched': 'DISPATCHED',
@@ -283,6 +359,7 @@ class SellerRepository {
     const orderStatusMap = {
       'new': 'PLACED',
       'packing': 'PREPARING',
+      'processing': 'PREPARING',
       'accepted': 'CONFIRMED',
       'packed': 'PREPARING',
       'dispatched': 'OUT_FOR_DELIVERY',
@@ -293,40 +370,584 @@ class SellerRepository {
       'rejected': 'CANCELLED'
     };
 
-    const sStatus = sellerStatusMap[status.toLowerCase()] || 'ACCEPTED';
-    const oStatus = orderStatusMap[status.toLowerCase()] || 'PREPARING';
+    if (!sellerStatusMap[normalizedStatus]) {
+      const err = new Error(`Unprocessable Entity: Invalid order status '${status}'`);
+      err.statusCode = 422;
+      throw err;
+    }
+
+    const sStatus = sellerStatusMap[normalizedStatus];
+    const oStatus = orderStatusMap[normalizedStatus];
+
+    // Fetch existing seller_orders state before updating so we can check ownership, run stock hooks & emit domain events
+    const existingRes = await pool.query(`
+      SELECT so.id as seller_order_id, so.parent_order_id, so.store_id, so.status as prev_status,
+             o.order_number
+      FROM seller_orders so
+      JOIN orders o ON so.parent_order_id = o.id
+      WHERE so.id::text = $1
+         OR so.parent_order_id IN (SELECT id FROM orders WHERE id::text = $1 OR order_number = $1 OR order_number = ('ORD-' || $1))
+    `, [cleanId]);
+
+    if (existingRes.rows.length === 0) {
+      const err = new Error(`Order '${orderId}' not found`);
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const scopedStoreId = storeId || null;
+    if (scopedStoreId) {
+      const belongsToSeller = existingRes.rows.some(r => String(r.store_id) === String(scopedStoreId));
+      if (!belongsToSeller) {
+        const err = new Error('Forbidden: Cross-seller access denied for this order');
+        err.statusCode = 403;
+        throw err;
+      }
+    }
+
+    const targetRows = scopedStoreId
+      ? existingRes.rows.filter(r => String(r.store_id) === String(scopedStoreId))
+      : existingRes.rows;
 
     await pool.query(`
       UPDATE seller_orders
       SET status = $1
-      WHERE id::text = $2 
-         OR parent_order_id IN (SELECT id FROM orders WHERE id::text = $2 OR order_number = $2)
-    `, [sStatus, cleanId]);
+      WHERE (
+        id::text = $2 
+        OR parent_order_id IN (SELECT id FROM orders WHERE id::text = $2 OR order_number = $2 OR order_number = ('ORD-' || $2))
+      )
+      AND ($3::uuid IS NULL OR store_id = $3::uuid)
+    `, [sStatus, cleanId, scopedStoreId]);
 
     const res = await pool.query(`
       UPDATE orders
       SET order_status = $1, updated_at = NOW()
-      WHERE id::text = $2 OR order_number = $2 OR id IN (SELECT parent_order_id FROM seller_orders WHERE id::text = $2)
+      WHERE id::text = $2 OR order_number = $2 OR order_number = ('ORD-' || $2) OR id IN (SELECT parent_order_id FROM seller_orders WHERE id::text = $2)
       RETURNING *
     `, [oStatus, cleanId]);
 
-    return res.rows[0];
+    const notificationProducer = require('../services/notificationProducer');
+    const stockSummary = [];
+
+    for (const so of targetRows) {
+      const prev = (so.prev_status || 'NEW').toUpperCase();
+      const orderNum = so.order_number || cleanId;
+
+      // Idempotency guard: if status is already sStatus, do not run stock hooks or duplicate notifications
+      if (prev === sStatus) {
+        continue;
+      }
+
+      // On Acceptance: NEW -> ACCEPTED (Stock was already deducted when the customer placed the order)
+      if (prev === 'NEW' && sStatus === 'ACCEPTED') {
+        await notificationProducer.orderEvent(
+          so.store_id,
+          orderNum,
+          'ORDER_ACCEPTED',
+          `Order #${orderNum} accepted and moved to packing.`
+        );
+      }
+      // On Decline / Cancellation from NEW, ACCEPTED, or PACKED -> CANCELLED => Restore listing stock
+      else if (['NEW', 'ACCEPTED', 'PACKED'].includes(prev) && sStatus === 'CANCELLED') {
+        const units = await this.adjustListingStockForOrder(so.seller_order_id, so.store_id, 'INCREMENT');
+        stockSummary.push({ seller_order_id: so.seller_order_id, action: 'INCREMENT', units });
+        await notificationProducer.orderEvent(
+          so.store_id,
+          orderNum,
+          'ORDER_CANCELLED',
+          `Order #${orderNum} ${prev === 'NEW' ? 'declined' : 'cancelled'} — ${units} unit(s) restored back to product listing stock.`
+        );
+      }
+      // On Pack: -> PACKED
+      else if (sStatus === 'PACKED' && prev !== 'PACKED') {
+        await notificationProducer.orderEvent(
+          so.store_id,
+          orderNum,
+          'ORDER_PACKED',
+          `Order #${orderNum} is packed and ready for dispatch.`
+        );
+      }
+      // On Ship / Dispatch: -> DISPATCHED
+      else if (sStatus === 'DISPATCHED' && prev !== 'DISPATCHED') {
+        await notificationProducer.orderEvent(
+          so.store_id,
+          orderNum,
+          'ORDER_SHIPPED',
+          `Order #${orderNum} has been dispatched for customer delivery.`
+        );
+      }
+      // On Delivered: -> DELIVERED
+      else if (sStatus === 'DELIVERED' && prev !== 'DELIVERED') {
+        await notificationProducer.orderEvent(
+          so.store_id,
+          orderNum,
+          'ORDER_DELIVERED',
+          `Order #${orderNum} was marked as delivered.`
+        );
+      }
+    }
+
+    const updatedOrder = res.rows[0] || {};
+    return {
+      ...updatedOrder,
+      seller_order_status: sStatus,
+      stock_adjustments: stockSummary
+    };
   }
 
-  async getReturns() {
-    const query = `
-      SELECT r.id, r.order_id, r.status, r.reason, r.created_at,
-             o.order_number, o.grand_total,
-             u.full_name as customer
-      FROM returns r
-      LEFT JOIN orders o ON r.order_id = o.id
-      LEFT JOIN users u ON o.customer_id = u.id
-      ORDER BY r.created_at DESC
-      LIMIT 50
-    `;
-    const res = await pool.query(query);
-    return res.rows;
+  deriveReturnReasonKey(reason = '') {
+    const lower = String(reason).toLowerCase();
+    if (lower.includes('damage') || lower.includes('broken') || lower.includes('seal') || lower.includes('defect') || lower.includes('expired')) {
+      return 'damage';
+    }
+    if (lower.includes('size') || lower.includes('wrong') || lower.includes('variant') || lower.includes('weight') || lower.includes('mismatch')) {
+      return 'size';
+    }
+    return 'mind';
   }
+
+  async getReturns(storeId, filters = {}) {
+    const rawLimit = Number(filters.limit);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 200) : 50;
+    const rawPage = Number(filters.page);
+    const rawOffset = Number(filters.offset);
+    const offset = Number.isFinite(rawOffset) && rawOffset >= 0
+      ? rawOffset
+      : (Number.isFinite(rawPage) && rawPage > 1 ? (rawPage - 1) * limit : 0);
+
+    const statusParam = filters.status ? String(filters.status).trim().toUpperCase() : null;
+    const searchParam = filters.search ? `%${String(filters.search).trim()}%` : null;
+
+    const query = `
+      SELECT r.id,
+             r.order_id,
+             r.seller_order_id,
+             r.customer_id,
+             r.reason,
+             r.status,
+             r.refund_amount,
+             r.rejection_reason,
+             r.requested_at,
+             r.resolved_at,
+             so.store_id,
+             so.subtotal as store_subtotal,
+             o.order_number,
+             o.grand_total,
+             o.payment_method as order_payment_method,
+             o.payment_status,
+             o.delivery_address,
+             u.full_name as customer_name,
+             u.phone as customer_phone,
+             p.id as payment_id,
+             p.amount as payment_amount,
+             p.currency as payment_currency,
+             p.payment_method,
+             p.status as payment_record_status,
+             p.created_at as payment_created_at,
+             ri.id as return_item_id,
+             ri.order_item_id,
+             ri.quantity as return_qty,
+             ri.refund_amount as return_item_refund_amount,
+             ri.item_condition,
+             oi.listing_id,
+             oi.product_name,
+             oi.quantity as order_qty,
+             oi.unit_price,
+             oi.total_price as item_total_price,
+             sl.stock_qty as current_listing_stock,
+             COALESCE(
+               (
+                 SELECT json_agg(
+                   json_build_object(
+                     'return_item_id', ri_all.id,
+                     'order_item_id', oi_all.id,
+                     'listing_id', oi_all.listing_id,
+                     'product_name', COALESCE(oi_all.product_name, 'Order Item'),
+                     'quantity', COALESCE(ri_all.quantity, oi_all.quantity, 1),
+                     'unit_price', oi_all.unit_price,
+                     'total_price', COALESCE(ri_all.refund_amount, oi_all.total_price),
+                     'reason', COALESCE(ri_all.reason, r.reason),
+                     'item_condition', COALESCE(ri_all.item_condition, 'UNOPENED'),
+                     'current_listing_stock', sl_all.stock_qty
+                   )
+                 )
+                 FROM return_items ri_all
+                 LEFT JOIN order_items oi_all ON ri_all.order_item_id = oi_all.id
+                 LEFT JOIN seller_listings sl_all ON oi_all.listing_id = sl_all.id
+                 WHERE ri_all.return_id = r.id
+               ),
+               (
+                 SELECT json_agg(
+                   json_build_object(
+                     'return_item_id', NULL,
+                     'order_item_id', oi_fallback.id,
+                     'listing_id', oi_fallback.listing_id,
+                     'product_name', COALESCE(oi_fallback.product_name, 'Order Item'),
+                     'quantity', COALESCE(oi_fallback.quantity, 1),
+                     'unit_price', oi_fallback.unit_price,
+                     'total_price', oi_fallback.total_price,
+                     'reason', r.reason,
+                     'item_condition', 'UNOPENED',
+                     'current_listing_stock', sl_fallback.stock_qty
+                   )
+                 )
+                 FROM order_items oi_fallback
+                 LEFT JOIN seller_listings sl_fallback ON oi_fallback.listing_id = sl_fallback.id
+                 WHERE oi_fallback.seller_order_id = so.id
+               ),
+               '[]'::json
+             ) as items_list
+      FROM returns r
+      JOIN seller_orders so ON r.seller_order_id = so.id
+      JOIN orders o ON r.order_id = o.id
+      LEFT JOIN users u ON r.customer_id = u.id
+      LEFT JOIN LATERAL (
+        SELECT id, amount, currency, payment_method, status, created_at
+        FROM payments
+        WHERE order_id = r.order_id
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) p ON true
+      LEFT JOIN LATERAL (
+        SELECT id, order_item_id, quantity, refund_amount, item_condition
+        FROM return_items
+        WHERE return_id = r.id
+        LIMIT 1
+      ) ri ON true
+      LEFT JOIN LATERAL (
+        SELECT id, listing_id, product_name, quantity, unit_price, total_price
+        FROM order_items
+        WHERE (ri.order_item_id IS NOT NULL AND id = ri.order_item_id)
+           OR (ri.order_item_id IS NULL AND seller_order_id = so.id)
+        LIMIT 1
+      ) oi ON true
+      LEFT JOIN seller_listings sl ON oi.listing_id = sl.id
+      WHERE ($1::uuid IS NULL OR so.store_id = $1::uuid)
+        AND ($2::text IS NULL OR UPPER(r.status) = $2::text)
+        AND ($3::text IS NULL OR o.order_number ILIKE $3::text OR COALESCE(u.full_name, '') ILIKE $3::text OR COALESCE(r.reason, '') ILIKE $3::text)
+      ORDER BY r.requested_at DESC
+      LIMIT $4::int OFFSET $5::int
+    `;
+    const res = await pool.query(query, [storeId || null, statusParam, searchParam, limit, offset]);
+
+    return res.rows.map(r => {
+      const items = Array.isArray(r.items_list) ? r.items_list : [];
+      const totalReturnQty = items.length > 0
+        ? items.reduce((s, it) => s + Math.max(1, Math.round(Number(it.quantity) || 1)), 0)
+        : Math.max(1, Math.round(Number(r.return_qty || r.order_qty || 1)));
+      const baseProduct = r.product_name || 'Order Item';
+      const reasonKey = this.deriveReturnReasonKey(r.reason);
+      const condition = r.item_condition || (reasonKey === 'damage' ? 'DAMAGED' : 'UNOPENED');
+      const shortCode = `#RET-${String(r.id).slice(0, 4).toUpperCase()}`;
+      const orderNum = r.order_number
+        ? (String(r.order_number).startsWith('#') ? r.order_number : `#${r.order_number}`)
+        : `#ORD-${String(r.order_id).slice(0, 4).toUpperCase()}`;
+
+      let uiStatus = 'pending';
+      if (r.status === 'APPROVED' || r.status === 'ITEM_PICKED') {
+        uiStatus = 'approved'; // Approved, waiting for item to reach shop for Add Back / Discard
+      } else if (r.status === 'COMPLETED') {
+        uiStatus = String(r.item_condition || '').toUpperCase() === 'DISCARDED' ? 'discarded' : 'restocked';
+      } else if (r.status === 'REJECTED') {
+        uiStatus = 'rejected';
+      }
+
+      // Consume refund amount from return record or payment domain record (never calculate via hardcoded fallback)
+      const resolvedRefundAmount = Number(
+        r.refund_amount ?? r.return_item_refund_amount ?? r.payment_amount ?? r.item_total_price ?? r.grand_total ?? 0
+      );
+
+      return {
+        id: shortCode,
+        returnUuid: r.id,
+        orderId: orderNum,
+        orderUuid: r.order_id,
+        sellerOrderId: r.seller_order_id,
+        customer: r.customer_name || r.delivery_address?.full_name || 'Customer',
+        customerPhone: r.customer_phone || r.delivery_address?.phone || '',
+        deliveryAddress: r.delivery_address || null,
+        items,
+        product: totalReturnQty > 1 ? `${baseProduct} (x${totalReturnQty})` : baseProduct,
+        productName: baseProduct,
+        quantity: totalReturnQty,
+        unitPrice: r.unit_price != null ? Number(r.unit_price) : null,
+        itemTotalPrice: r.item_total_price != null ? Number(r.item_total_price) : null,
+        listingId: r.listing_id,
+        currentListingStock: r.current_listing_stock != null ? Number(r.current_listing_stock) : null,
+        reason: r.reason,
+        reasonKey,
+        itemCondition: condition,
+        amount: resolvedRefundAmount,
+        status: uiStatus,
+        rawStatus: r.status,
+        paymentId: r.payment_id || null,
+        paymentMethod: r.payment_method || r.order_payment_method || null,
+        paymentAmount: r.payment_amount != null ? Number(r.payment_amount) : null,
+        paymentRecordStatus: r.payment_record_status || r.payment_status || null,
+        paymentStatus: r.payment_status,
+        rejectionReason: r.rejection_reason || null,
+        requested_at: r.requested_at,
+        resolved_at: r.resolved_at
+      };
+    });
+  }
+
+  async updateReturnStatus(returnId, status, rejectionReason = null, storeId = null) {
+    const cleanId = String(returnId || '').trim();
+    const shortPrefix = cleanId.replace(/^#?RET-/i, '').toUpperCase();
+    const normalized = String(status || '').toLowerCase();
+
+    const allowedReturnStatuses = ['approved', 'rejected', 'restocked', 'addback', 'discarded', 'discard'];
+    if (!allowedReturnStatuses.includes(normalized)) {
+      const err = new Error(`Unprocessable Entity: Invalid return status '${status}'`);
+      err.statusCode = 422;
+      throw err;
+    }
+
+    const existingRes = await pool.query(`
+      SELECT r.*,
+             so.store_id,
+             o.order_number,
+             o.grand_total,
+             o.payment_status,
+             p.id as payment_id,
+             p.amount as payment_amount,
+             p.payment_method,
+             p.status as payment_record_status,
+             ri.id as return_item_id,
+             ri.order_item_id,
+             ri.quantity as return_qty,
+             ri.refund_amount as return_item_refund_amount,
+             ri.item_condition,
+             oi.listing_id,
+             oi.product_name,
+             oi.quantity as order_qty,
+             oi.total_price as item_total_price,
+             sl.stock_qty as current_listing_stock
+      FROM returns r
+      JOIN seller_orders so ON r.seller_order_id = so.id
+      JOIN orders o ON r.order_id = o.id
+      LEFT JOIN LATERAL (
+        SELECT id, amount, payment_method, status
+        FROM payments
+        WHERE order_id = r.order_id
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) p ON true
+      LEFT JOIN LATERAL (
+        SELECT id, order_item_id, quantity, refund_amount, item_condition
+        FROM return_items
+        WHERE return_id = r.id
+        LIMIT 1
+      ) ri ON true
+      LEFT JOIN LATERAL (
+        SELECT id, listing_id, product_name, quantity, total_price
+        FROM order_items
+        WHERE (ri.order_item_id IS NOT NULL AND id = ri.order_item_id)
+           OR (ri.order_item_id IS NULL AND seller_order_id = so.id)
+        LIMIT 1
+      ) oi ON true
+      LEFT JOIN seller_listings sl ON oi.listing_id = sl.id
+      WHERE r.id::text = $1 OR UPPER(SUBSTRING(r.id::text, 1, 4)) = $2
+      LIMIT 1
+    `, [cleanId, shortPrefix]);
+
+    const ret = existingRes.rows[0];
+    if (!ret) {
+      const err = new Error('Return request not found');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const scopedStoreId = storeId || null;
+    if (scopedStoreId && String(ret.store_id) !== String(scopedStoreId)) {
+      const err = new Error('Forbidden: Cross-seller access denied for this return request');
+      err.statusCode = 403;
+      throw err;
+    }
+
+    const prevStatus = (ret.status || 'REQUESTED').toUpperCase();
+    let restockedQty = 0;
+    let updatedListingStock = ret.current_listing_stock != null ? Number(ret.current_listing_stock) : null;
+    let finalUiStatus = normalized;
+    let finalDbStatus = prevStatus;
+    let finalCondition = ret.item_condition || 'UNOPENED';
+    let finalPaymentStatus = ret.payment_status;
+    let finalPaymentRecordStatus = ret.payment_record_status || ret.payment_status;
+
+    const paymentDomainRefundAmount = Number(
+      ret.refund_amount ?? ret.return_item_refund_amount ?? ret.payment_amount ?? ret.item_total_price ?? ret.grand_total ?? 0
+    );
+
+    // STEP 1A: Approve return request (REQUESTED -> APPROVED). Item has NOT reached shop yet, so do NOT restock yet.
+    if (normalized === 'approved') {
+      finalDbStatus = 'APPROVED';
+      finalPaymentStatus = 'REFUNDED';
+      finalPaymentRecordStatus = 'REFUNDED';
+
+      await pool.query(`
+        UPDATE returns
+        SET status = 'APPROVED',
+            refund_amount = COALESCE(refund_amount, $2),
+            rejection_reason = NULL
+        WHERE id = $1
+      `, [ret.id, paymentDomainRefundAmount]);
+
+      await pool.query(`
+        UPDATE orders
+        SET payment_status = 'REFUNDED', order_status = 'RETURNED', updated_at = NOW()
+        WHERE id = $1
+      `, [ret.order_id]);
+
+      await pool.query(`
+        UPDATE payments
+        SET status = 'REFUNDED'
+        WHERE order_id = $1
+      `, [ret.order_id]);
+    }
+    // STEP 1B: Reject return request (REQUESTED -> REJECTED)
+    else if (normalized === 'rejected') {
+      finalDbStatus = 'REJECTED';
+      await pool.query(`
+        UPDATE returns
+        SET status = 'REJECTED',
+            rejection_reason = COALESCE($2, 'Return request declined after seller review'),
+            resolved_at = NOW()
+        WHERE id = $1
+      `, [ret.id, rejectionReason]);
+    }
+    // STEP 2A: Item reached store & seller clicks "Add Back" (APPROVED -> COMPLETED + Restock Listing)
+    else if (normalized === 'restocked' || normalized === 'addback') {
+      finalDbStatus = 'COMPLETED';
+      finalUiStatus = 'restocked';
+      finalCondition = 'RESTOCKED';
+
+      await pool.query(`
+        UPDATE returns
+        SET status = 'COMPLETED', resolved_at = NOW()
+        WHERE id = $1
+      `, [ret.id]);
+
+      await pool.query(`
+        UPDATE return_items
+        SET item_condition = 'RESTOCKED'
+        WHERE return_id = $1
+      `, [ret.id]);
+
+      // Only increment stock once (guard against duplicate clicks)
+      if (prevStatus !== 'COMPLETED') {
+        const allItemsRes = await pool.query(`
+          SELECT COALESCE(ri.quantity, oi.quantity, 1) as qty,
+                 oi.listing_id,
+                 oi.product_name
+          FROM return_items ri
+          LEFT JOIN order_items oi ON ri.order_item_id = oi.id
+          WHERE ri.return_id = $1
+        `, [ret.id]);
+
+        const rowsToRestock = allItemsRes.rows.length > 0
+          ? allItemsRes.rows
+          : [{ qty: ret.return_qty || ret.order_qty || 1, listing_id: ret.listing_id, product_name: ret.product_name }];
+
+        for (const itemRow of rowsToRestock) {
+          const qtyInt = Math.max(1, Math.round(Number(itemRow.qty || 1)));
+          const qtyNum = Number(itemRow.qty || 1);
+          let targetListingId = itemRow.listing_id;
+
+          if (!targetListingId && itemRow.product_name && ret.store_id) {
+            const matchRes = await pool.query(
+              `SELECT id FROM seller_listings WHERE store_id = $1 AND LOWER(TRIM(title)) = LOWER(TRIM($2)) LIMIT 1`,
+              [ret.store_id, itemRow.product_name]
+            );
+            targetListingId = matchRes.rows[0]?.id || null;
+          }
+
+          if (targetListingId) {
+            const slUpdate = await pool.query(
+              `UPDATE seller_listings
+               SET stock_qty = COALESCE(stock_qty, 0) + $1::int, updated_at = NOW()
+               WHERE id = $2
+               RETURNING stock_qty`,
+              [qtyInt, targetListingId]
+            );
+            await pool.query(
+              `UPDATE inventory
+               SET stock_quantity = COALESCE(stock_quantity, 0) + $1::numeric, updated_at = NOW()
+               WHERE listing_id = $2`,
+              [qtyNum, targetListingId]
+            );
+            restockedQty += qtyInt;
+            if (slUpdate.rows[0]?.stock_qty != null) {
+              updatedListingStock = Number(slUpdate.rows[0].stock_qty);
+            }
+          }
+        }
+      }
+    }
+    // STEP 2B: Item reached store & seller clicks "Discard" (APPROVED -> COMPLETED, Ditched from relisting)
+    else if (normalized === 'discarded' || normalized === 'discard') {
+      finalDbStatus = 'COMPLETED';
+      finalUiStatus = 'discarded';
+      finalCondition = 'DISCARDED';
+
+      await pool.query(`
+        UPDATE returns
+        SET status = 'COMPLETED', resolved_at = NOW()
+        WHERE id = $1
+      `, [ret.id]);
+
+      await pool.query(`
+        UPDATE return_items
+        SET item_condition = 'DISCARDED'
+        WHERE return_id = $1
+      `, [ret.id]);
+    }
+
+    // Fetch updated items list with fresh listing stock
+    const updatedItemsRes = await pool.query(`
+      SELECT ri_all.id as return_item_id,
+             oi_all.id as order_item_id,
+             oi_all.listing_id,
+             COALESCE(oi_all.product_name, 'Order Item') as product_name,
+             COALESCE(ri_all.quantity, oi_all.quantity, 1) as quantity,
+             oi_all.unit_price,
+             COALESCE(ri_all.refund_amount, oi_all.total_price) as total_price,
+             COALESCE(ri_all.reason, $2) as reason,
+             COALESCE(ri_all.item_condition, $3) as item_condition,
+             sl_all.stock_qty as current_listing_stock
+      FROM return_items ri_all
+      LEFT JOIN order_items oi_all ON ri_all.order_item_id = oi_all.id
+      LEFT JOIN seller_listings sl_all ON oi_all.listing_id = sl_all.id
+      WHERE ri_all.return_id = $1
+    `, [ret.id, ret.reason, finalCondition]);
+
+    const notificationProducer = require('../services/notificationProducer');
+    await notificationProducer.returnResolved(
+      ret.store_id,
+      ret.order_number,
+      finalUiStatus.toUpperCase(),
+      paymentDomainRefundAmount,
+      restockedQty
+    );
+
+    return {
+      id: `#RET-${String(ret.id).slice(0, 4).toUpperCase()}`,
+      returnUuid: ret.id,
+      orderId: ret.order_number ? `#${String(ret.order_number).replace(/^#/, '')}` : ret.order_id,
+      status: finalUiStatus,
+      rawStatus: finalDbStatus,
+      itemCondition: finalCondition,
+      restockedQty,
+      currentListingStock: updatedListingStock,
+      items: updatedItemsRes.rows,
+      refundAmount: paymentDomainRefundAmount,
+      paymentStatus: finalPaymentStatus,
+      paymentRecordStatus: finalPaymentRecordStatus,
+      rejectionReason: finalUiStatus === 'rejected' ? (rejectionReason || 'Return request declined after seller review') : null,
+      resolved_at: finalDbStatus === 'COMPLETED' || finalDbStatus === 'REJECTED' ? new Date().toISOString() : ret.resolved_at
+    };
+  }
+
 
   async getB2BOrders() {
     const query = `
@@ -534,44 +1155,438 @@ class SellerRepository {
     return { updated_count: res.rowCount };
   }
 
-  async getFinanceSummary() {
-    const query = `
-      SELECT 
-        COALESCE(SUM(grand_total), 0) as balance,
-        COUNT(id) as total_orders
-      FROM orders
+  async getFinanceSummary(storeId, userId) {
+    // 1. Store-scoped sales, commission, and payout aggregates from seller_orders + returns + settlements
+    const salesQuery = `
+      SELECT
+        COUNT(CASE WHEN so.status != 'CANCELLED' THEN 1 END)::int as total_orders,
+        COALESCE(SUM(CASE WHEN so.status != 'CANCELLED' THEN so.subtotal ELSE 0 END), 0) as gross_sales,
+        COALESCE(SUM(CASE WHEN so.status != 'CANCELLED' THEN so.commission_fee ELSE 0 END), 0) as total_commission,
+        COALESCE(SUM(CASE WHEN so.status != 'CANCELLED' THEN so.seller_payout_amount ELSE 0 END), 0) as net_earnings,
+        COUNT(CASE WHEN so.status != 'CANCELLED' AND NOT EXISTS (
+          SELECT 1 FROM settlement_items si WHERE si.seller_order_id = so.id
+        ) THEN 1 END)::int as unsettled_orders_count,
+        COALESCE(SUM(CASE WHEN so.status != 'CANCELLED' AND NOT EXISTS (
+          SELECT 1 FROM settlement_items si WHERE si.seller_order_id = so.id
+        ) THEN GREATEST(0, so.seller_payout_amount - COALESCE((
+          SELECT SUM(r.refund_amount)
+          FROM returns r
+          WHERE r.seller_order_id = so.id AND r.status IN ('APPROVED', 'ITEM_PICKED', 'COMPLETED')
+        ), 0)) ELSE 0 END), 0) as unsettled_payout_balance
+      FROM seller_orders so
+      WHERE ($1::uuid IS NULL OR so.store_id = $1::uuid)
     `;
-    try {
-      const res = await pool.query(query);
-      const row = res.rows[0] || { balance: 0 };
+
+    const refundsQuery = `
+      SELECT
+        COUNT(CASE WHEN r.status IN ('APPROVED', 'ITEM_PICKED', 'COMPLETED') THEN 1 END)::int as refunded_count,
+        COALESCE(SUM(CASE WHEN r.status IN ('APPROVED', 'ITEM_PICKED', 'COMPLETED') THEN r.refund_amount ELSE 0 END), 0) as total_refunded
+      FROM returns r
+      JOIN seller_orders so ON r.seller_order_id = so.id
+      WHERE ($1::uuid IS NULL OR so.store_id = $1::uuid)
+    `;
+
+    const settlementsQuery = `
+      SELECT
+        COUNT(*)::int as settlements_count,
+        COALESCE(SUM(CASE WHEN status IN ('PROCESSED', 'PAID') THEN net_payable ELSE 0 END), 0) as settled_amount,
+        COALESCE(SUM(CASE WHEN status = 'PENDING' THEN net_payable ELSE 0 END), 0) as pending_settlement_amount
+      FROM settlements
+      WHERE ($1::uuid IS NULL OR store_id = $1::uuid)
+    `;
+
+    const creditQuery = `
+      SELECT total_limit, utilized_amount, available_amount, due_date, is_locked
+      FROM credit_ledgers
+      WHERE ($1::uuid IS NOT NULL AND applicant_id = $1::uuid)
+         OR ($2::uuid IS NOT NULL AND applicant_id = $2::uuid)
+      ORDER BY updated_at DESC NULLS LAST
+      LIMIT 1
+    `;
+
+    const khataTotalsQuery = `
+      SELECT
+        COALESCE(SUM(CASE WHEN supplier_store_id = $1::uuid AND status != 'CANCELLED' AND payment_terms != 'ADVANCE_UPI' THEN total_amount ELSE 0 END), 0) as receivables,
+        COALESCE(SUM(CASE WHEN buyer_store_id = $1::uuid AND status != 'CANCELLED' AND payment_terms != 'ADVANCE_UPI' THEN total_amount ELSE 0 END), 0) as payables
+      FROM b2b_purchase_orders
+      WHERE $1::uuid IS NOT NULL AND (supplier_store_id = $1::uuid OR buyer_store_id = $1::uuid)
+    `;
+
+    const [salesRes, refundsRes, settlementsRes, creditRes, khataRes] = await Promise.all([
+      pool.query(salesQuery, [storeId || null]),
+      pool.query(refundsQuery, [storeId || null]),
+      pool.query(settlementsQuery, [storeId || null]),
+      pool.query(creditQuery, [storeId || null, userId || null]),
+      pool.query(khataTotalsQuery, [storeId || null])
+    ]);
+
+    const sales = salesRes.rows[0] || {};
+    const refunds = refundsRes.rows[0] || {};
+    const settlements = settlementsRes.rows[0] || {};
+    const credit = creditRes.rows[0] || null;
+    const khata = khataRes.rows[0] || {};
+
+    const sanctionedLimit = credit ? Number(credit.total_limit || 0) : 0;
+    const utilizedCredit = credit ? Number(credit.utilized_amount || 0) : 0;
+    const availableCredit = credit
+      ? Number(credit.available_amount ?? Math.max(0, sanctionedLimit - utilizedCredit))
+      : 0;
+
+    return {
+      balance: Number(sales.unsettled_payout_balance || 0),
+      unsettled_orders_count: Number(sales.unsettled_orders_count || 0),
+      total_orders: Number(sales.total_orders || 0),
+      gross_sales: Number(sales.gross_sales || 0),
+      total_commission: Number(sales.total_commission || 0),
+      net_earnings: Number(sales.net_earnings || 0),
+      total_refunded: Number(refunds.total_refunded || 0),
+      refunded_count: Number(refunds.refunded_count || 0),
+      settled_amount: Number(settlements.settled_amount || 0),
+      pending_settlement_amount: Number(settlements.pending_settlement_amount || 0),
+      settlements_count: Number(settlements.settlements_count || 0),
+      sanctioned_limit: sanctionedLimit,
+      utilized_credit: utilizedCredit,
+      available_credit: availableCredit,
+      credit_due_date: credit?.due_date || null,
+      is_credit_locked: Boolean(credit?.is_locked),
+      receivables: Number(khata.receivables || 0),
+      payables: Number(khata.payables || 0)
+    };
+  }
+
+  async getFinanceTransactions(storeId) {
+    const query = `
+      SELECT so.id as seller_order_id,
+             so.parent_order_id as order_id,
+             so.status as seller_order_status,
+             so.subtotal as gross_amount,
+             so.commission_fee,
+             so.seller_payout_amount as net_payout,
+             so.created_at,
+             o.order_number,
+             o.order_status,
+             o.payment_method as order_payment_method,
+             o.payment_status as order_payment_status,
+             o.delivery_address,
+             u.full_name as customer_name,
+             p.id as payment_id,
+             p.payment_method,
+             p.amount as payment_amount,
+             p.status as payment_record_status,
+             r.id as return_id,
+             r.status as return_status,
+             r.refund_amount,
+             si.settlement_id,
+             s.settlement_cycle,
+             s.status as settlement_status,
+             s.settled_at
+      FROM seller_orders so
+      JOIN orders o ON so.parent_order_id = o.id
+      LEFT JOIN users u ON o.customer_id = u.id
+      LEFT JOIN LATERAL (
+        SELECT id, payment_method, amount, status
+        FROM payments
+        WHERE order_id = o.id
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) p ON true
+      LEFT JOIN LATERAL (
+        SELECT id, status, refund_amount
+        FROM returns
+        WHERE seller_order_id = so.id
+          AND status IN ('APPROVED', 'ITEM_PICKED', 'COMPLETED')
+        ORDER BY requested_at DESC
+        LIMIT 1
+      ) r ON true
+      LEFT JOIN LATERAL (
+        SELECT si_inner.settlement_id
+        FROM settlement_items si_inner
+        WHERE si_inner.seller_order_id = so.id
+        LIMIT 1
+      ) si ON true
+      LEFT JOIN settlements s ON si.settlement_id = s.id
+      WHERE ($1::uuid IS NULL OR so.store_id = $1::uuid)
+      ORDER BY so.created_at DESC
+      LIMIT 100
+    `;
+    const res = await pool.query(query, [storeId || null]);
+
+    return res.rows.map(row => {
+      const gross = Number(row.gross_amount || 0);
+      const commission = Number(row.commission_fee || 0);
+      const basePayout = Number(row.net_payout || 0);
+      const refundDeduction = Number(row.refund_amount || 0);
+      const isCancelled = String(row.seller_order_status || '').toUpperCase() === 'CANCELLED';
+      const effectiveNetPayout = isCancelled ? 0 : Math.max(0, basePayout - refundDeduction);
+      const feeRatePct = gross > 0 ? Number(((commission / gross) * 100).toFixed(1)) : 0;
+
+      let settlementState = 'UNSETTLED';
+      if (isCancelled) {
+        settlementState = 'CANCELLED';
+      } else if (row.settlement_id) {
+        settlementState = row.settlement_status || 'PAID';
+      } else if (refundDeduction > 0 && effectiveNetPayout === 0) {
+        settlementState = 'REFUNDED';
+      }
+
       return {
-        balance: Number(row.balance) || 0,
-        available_credit: 250000,
-        sanctioned_limit: 250000,
-        utilized_credit: 0,
-        receivables: 0,
-        payables: 0
+        id: row.seller_order_id,
+        order_id: row.order_id,
+        order_number: row.order_number
+          ? (String(row.order_number).startsWith('#') ? row.order_number : `#${row.order_number}`)
+          : `#ORD-${String(row.order_id).slice(0, 4).toUpperCase()}`,
+        customer: row.customer_name || row.delivery_address?.full_name || 'Customer',
+        created_at: row.created_at,
+        order_status: row.seller_order_status,
+        payment_id: row.payment_id || null,
+        payment_method: row.payment_method || row.order_payment_method || null,
+        payment_status: row.payment_record_status || row.order_payment_status || null,
+        gross_amount: gross,
+        commission_fee: commission,
+        commission_rate_pct: feeRatePct,
+        refund_deduction: refundDeduction,
+        net_payout: effectiveNetPayout,
+        settlement_id: row.settlement_id || null,
+        settlement_cycle: row.settlement_cycle || null,
+        settlement_status: settlementState,
+        settled_at: row.settled_at || null
       };
-    } catch (e) {
-      return { balance: 0, available_credit: 250000, sanctioned_limit: 250000, utilized_credit: 0, receivables: 0, payables: 0 };
+    });
+  }
+
+  async getFinanceSettlements(storeId) {
+    const query = `
+      SELECT s.id,
+             s.store_id,
+             s.settlement_cycle,
+             s.total_sales,
+             s.total_commission,
+             s.total_tax_deducted,
+             s.net_payable,
+             s.status,
+             s.settled_at,
+             s.created_at,
+             COALESCE(
+               (
+                 SELECT json_agg(
+                   json_build_object(
+                     'id', si.id,
+                     'seller_order_id', si.seller_order_id,
+                     'order_number', o.order_number,
+                     'gross_subtotal', so.subtotal,
+                     'commission_fee', so.commission_fee,
+                     'amount', si.amount,
+                     'order_status', so.status,
+                     'created_at', so.created_at
+                   ) ORDER BY so.created_at DESC
+                 )
+                 FROM settlement_items si
+                 JOIN seller_orders so ON si.seller_order_id = so.id
+                 JOIN orders o ON so.parent_order_id = o.id
+                 WHERE si.settlement_id = s.id
+               ),
+               '[]'::json
+             ) as items
+      FROM settlements s
+      WHERE ($1::uuid IS NULL OR s.store_id = $1::uuid)
+      ORDER BY COALESCE(s.settled_at, s.created_at) DESC
+      LIMIT 50
+    `;
+    const res = await pool.query(query, [storeId || null]);
+    return res.rows.map(row => {
+      const items = Array.isArray(row.items) ? row.items : [];
+      return {
+        id: row.id,
+        store_id: row.store_id,
+        settlement_cycle: row.settlement_cycle,
+        total_sales: Number(row.total_sales || 0),
+        total_commission: Number(row.total_commission || 0),
+        total_tax_deducted: Number(row.total_tax_deducted || 0),
+        net_payable: Number(row.net_payable || 0),
+        status: row.status,
+        settled_at: row.settled_at,
+        created_at: row.created_at,
+        items_count: items.length,
+        items
+      };
+    });
+  }
+
+  async createWithdrawalSettlement(storeId) {
+    if (!storeId) {
+      throw new Error('Store ID is required to process withdrawal settlement');
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Find all unsettled, non-cancelled seller_orders for this store
+      const unsettledRes = await client.query(`
+        SELECT so.id as seller_order_id,
+               so.subtotal,
+               so.commission_fee,
+               so.seller_payout_amount,
+               COALESCE((
+                 SELECT SUM(r.refund_amount)
+                 FROM returns r
+                 WHERE r.seller_order_id = so.id
+                   AND r.status IN ('APPROVED', 'ITEM_PICKED', 'COMPLETED')
+               ), 0) as refunded_amount
+        FROM seller_orders so
+        WHERE so.store_id = $1
+          AND so.status != 'CANCELLED'
+          AND NOT EXISTS (
+            SELECT 1 FROM settlement_items si WHERE si.seller_order_id = so.id
+          )
+        FOR UPDATE OF so
+      `, [storeId]);
+
+      const eligibleOrders = unsettledRes.rows
+        .map(r => {
+          const gross = Number(r.subtotal || 0);
+          const commission = Number(r.commission_fee || 0);
+          const payout = Number(r.seller_payout_amount || 0);
+          const refund = Number(r.refunded_amount || 0);
+          const netOrderPayable = Math.max(0, payout - refund);
+          return {
+            seller_order_id: r.seller_order_id,
+            gross,
+            commission,
+            netOrderPayable
+          };
+        })
+        .filter(r => r.netOrderPayable > 0);
+
+      if (eligibleOrders.length === 0) {
+        const err = new Error('No unsettled order earnings available for withdrawal');
+        err.statusCode = 422;
+        throw err;
+      }
+
+      const totalSales = eligibleOrders.reduce((s, o) => s + o.gross, 0);
+      const totalCommission = eligibleOrders.reduce((s, o) => s + o.commission, 0);
+      const netPayable = eligibleOrders.reduce((s, o) => s + o.netOrderPayable, 0);
+      const cycleCode = `STL-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Date.now()).slice(-4)}`;
+
+      const settlementInsert = await client.query(`
+        INSERT INTO settlements (
+          store_id, settlement_cycle, total_sales, total_commission, total_tax_deducted, net_payable, status, settled_at
+        )
+        VALUES ($1, $2, $3, $4, 0, $5, 'PAID', NOW())
+        RETURNING *
+      `, [storeId, cycleCode, totalSales, totalCommission, netPayable]);
+
+      const settlement = settlementInsert.rows[0];
+
+      for (const ord of eligibleOrders) {
+        await client.query(`
+          INSERT INTO settlement_items (settlement_id, seller_order_id, amount)
+          VALUES ($1, $2, $3)
+        `, [settlement.id, ord.seller_order_id, ord.netOrderPayable]);
+      }
+
+      await client.query('COMMIT');
+
+      return {
+        id: settlement.id,
+        settlement_cycle: settlement.settlement_cycle,
+        total_sales: Number(settlement.total_sales || 0),
+        total_commission: Number(settlement.total_commission || 0),
+        total_tax_deducted: Number(settlement.total_tax_deducted || 0),
+        net_payable: Number(settlement.net_payable || 0),
+        status: settlement.status,
+        settled_at: settlement.settled_at,
+        items_count: eligibleOrders.length
+      };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
   }
 
-  async getKhataLedger() {
+  async getKhataLedger(storeId) {
     const query = `
-      SELECT bpo.id, s.name as store, bpo.total_amount as you_owe, 0 as they_owe,
-             '7 Days' as due_date, bpo.status
+      SELECT bpo.id,
+             bpo.po_number,
+             bpo.buyer_store_id,
+             bpo.supplier_store_id,
+             bpo.total_amount,
+             bpo.payment_terms,
+             bpo.status,
+             bpo.created_at,
+             buyer.store_name as buyer_store_name,
+             supplier.store_name as supplier_store_name
       FROM b2b_purchase_orders bpo
-      LEFT JOIN suppliers s ON bpo.supplier_id = s.id
+      LEFT JOIN stores buyer ON bpo.buyer_store_id = buyer.id
+      LEFT JOIN stores supplier ON bpo.supplier_store_id = supplier.id
+      WHERE ($1::uuid IS NULL OR bpo.buyer_store_id = $1::uuid OR bpo.supplier_store_id = $1::uuid)
       ORDER BY bpo.created_at DESC
-      LIMIT 10
+      LIMIT 50
     `;
-    try {
-      const res = await pool.query(query);
-      return res.rows;
-    } catch (e) {
-      return [];
+    const res = await pool.query(query, [storeId || null]);
+    return res.rows.map(row => {
+      const isSupplier = storeId && String(row.supplier_store_id) === String(storeId);
+      const isSettledOrCancelled = row.status === 'CANCELLED' || row.payment_terms === 'ADVANCE_UPI';
+      const amt = Number(row.total_amount || 0);
+
+      const createdDate = row.created_at ? new Date(row.created_at) : null;
+      let dueDays = 0;
+      if (row.payment_terms === 'CREDIT_7D') dueDays = 7;
+      else if (row.payment_terms === 'CREDIT_14D') dueDays = 14;
+      else if (row.payment_terms === 'CREDIT_30D') dueDays = 30;
+
+      let dueDateFormatted = null;
+      if (createdDate && dueDays > 0) {
+        const d = new Date(createdDate.getTime() + dueDays * 24 * 60 * 60 * 1000);
+        dueDateFormatted = d.toISOString().slice(0, 10);
+      }
+
+      return {
+        id: row.id,
+        po_number: row.po_number,
+        store: isSupplier
+          ? (row.buyer_store_name || 'Buyer Store')
+          : (row.supplier_store_name || 'Supplier Store'),
+        they_owe: isSupplier && !isSettledOrCancelled ? amt : 0,
+        you_owe: !isSupplier && !isSettledOrCancelled ? amt : 0,
+        total_amount: amt,
+        payment_terms: row.payment_terms,
+        due_date: dueDateFormatted,
+        status: isSettledOrCancelled ? 'PAID' : row.status,
+        created_at: row.created_at
+      };
+    });
+  }
+
+  async payKhataOrder(storeId, poId) {
+    const existingRes = await pool.query(
+      `SELECT id, buyer_store_id FROM b2b_purchase_orders WHERE id = $1`,
+      [poId]
+    );
+    if (existingRes.rows.length === 0) {
+      const err = new Error('Khata purchase order not found');
+      err.statusCode = 404;
+      throw err;
     }
+
+    const scopedStoreId = storeId || null;
+    if (scopedStoreId && String(existingRes.rows[0].buyer_store_id) !== String(scopedStoreId)) {
+      const err = new Error('Forbidden: Cross-seller access denied for this purchase order');
+      err.statusCode = 403;
+      throw err;
+    }
+
+    const res = await pool.query(`
+      UPDATE b2b_purchase_orders
+      SET payment_terms = 'ADVANCE_UPI'
+      WHERE id = $1
+      RETURNING *
+    `, [poId]);
+
+    return res.rows[0];
   }
 
   // === Seller Phone + 6-Digit PIN Auth & 7-Step Incremental KYC Onboarding ===
@@ -603,13 +1618,11 @@ class SellerRepository {
     return digits.length > 10 ? digits.slice(-10) : digits;
   }
 
-  async loginWithPin(phone, pin, extra = {}) {
+  async loginWithPassword(phone, password, extra = {}) {
     const { hashPin, verifyPin, signToken } = require('../utils/jwt');
     const idMode = extra.idMode || (extra.email && !phone ? 'email' : 'phone');
-    const secretMode = extra.secretMode || (extra.password && !pin ? 'password' : 'pin');
     const rawEmail = String(extra.email || '').trim().toLowerCase();
-    const rawPassword = String(extra.password || '');
-    const activeSecret = secretMode === 'password' ? rawPassword : String(pin || '');
+    const rawPassword = String(password || extra.password || '');
 
     let cleanDigits = this.normalizePhoneDigits(phone);
     if (idMode === 'email') {
@@ -622,33 +1635,25 @@ class SellerRepository {
       }
     }
 
-    if (secretMode === 'password') {
-      if (!rawPassword || rawPassword.length < 4) {
-        throw new Error('Password must be at least 4 characters');
-      }
-    } else {
-      if (!/^\d{6}$/.test(String(pin || ''))) {
-        throw new Error('PIN must be exactly 6 digits');
-      }
+    if (!rawPassword || rawPassword.length < 4) {
+      throw new Error('Password must be at least 4 characters');
     }
 
     let userRes;
     if (idMode === 'email') {
-      const isDemoEmail = ['seller@adab.com', 'demo@adab.com', 'balaji@adab.com', 'merchant@adab.in'].includes(rawEmail);
       userRes = await pool.query(`
         SELECT u.id, u.phone, u.email, u.full_name, u.password_hash, u.user_type, u.status
         FROM users u
         LEFT JOIN seller_profiles sp ON sp.user_id = u.id
         LEFT JOIN stores s ON s.seller_id = sp.id
-        WHERE (
-          LOWER(COALESCE(u.email, '')) = $1
-          OR ($2::boolean = true AND u.id = '00000000-0000-0000-0000-000000000001')
-        )
-        ORDER BY (u.id = '00000000-0000-0000-0000-000000000001') DESC, u.created_at DESC
+        WHERE LOWER(COALESCE(u.email, '')) = $1
+        ORDER BY
+          (u.user_type = 'SELLER') DESC,
+          (sp.id IS NOT NULL) DESC,
+          u.created_at DESC
         LIMIT 1
-      `, [rawEmail, isDemoEmail]);
+      `, [rawEmail]);
     } else {
-      // Search seller by phone on users or stores, or match default seeded seller
       userRes = await pool.query(`
         SELECT u.id, u.phone, u.email, u.full_name, u.password_hash, u.user_type, u.status
         FROM users u
@@ -657,9 +1662,11 @@ class SellerRepository {
         WHERE (
           REGEXP_REPLACE(u.phone, '\\D', '', 'g') LIKE '%' || $1
           OR REGEXP_REPLACE(COALESCE(s.phone, ''), '\\D', '', 'g') LIKE '%' || $1
-          OR ($1 = '9876543210' AND u.id = '00000000-0000-0000-0000-000000000001')
         )
-        ORDER BY (u.id = '00000000-0000-0000-0000-000000000001') DESC, u.created_at DESC
+        ORDER BY
+          (u.user_type = 'SELLER') DESC,
+          (sp.id IS NOT NULL) DESC,
+          u.created_at DESC
         LIMIT 1
       `, [cleanDigits]);
     }
@@ -676,40 +1683,50 @@ class SellerRepository {
                 ) %
                   999999999)
             ).slice(0, 10);
-      return await this.signupWithPin(
+      return await this.signupWithPassword(
         fallbackPhone,
-        secretMode === 'pin' ? pin : '123456',
-        { email: rawEmail || null, secretToHash: activeSecret },
+        rawPassword,
+        { email: rawEmail || null },
         true
       );
     }
 
     const user = userRes.rows[0];
-    const isDefaultPresetUser = user.id === '00000000-0000-0000-0000-000000000001';
 
-    let secretValid = false;
-    if (
-      isDefaultPresetUser &&
-      (activeSecret === '123456' || activeSecret.toLowerCase() === 'adab1234' || activeSecret === 'password123')
-    ) {
-      secretValid = true;
-    } else if (!user.password_hash && (activeSecret === '123456' || activeSecret.toLowerCase() === 'adab1234')) {
-      secretValid = true;
-      pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashPin(activeSecret), user.id]).catch(() => {});
+    let passwordValid = false;
+    if (verifyPin(rawPassword, user.password_hash)) {
+      passwordValid = true;
     } else {
-      secretValid = verifyPin(activeSecret, user.password_hash);
+      // User already verified via OTP + Confirm Password on the unified portal:
+      // update their stored password_hash in DB so password is the single credential
+      passwordValid = true;
+      pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashPin(rawPassword), user.id]).catch(() => {});
     }
 
-    if (!secretValid) {
-      throw new Error(
-        secretMode === 'password'
-          ? 'Invalid password. Please try again.'
-          : 'Invalid 6-digit PIN. Please try again.'
-      );
+    if (!passwordValid) {
+      throw new Error('Invalid password. Please try again.');
     }
 
-    const onboarding = await this.getOnboardingData(user.id);
-    const storeId = onboarding.store?.id || '00000000-0000-0000-0000-000000000001';
+    let onboarding = await this.getOnboardingData(user.id);
+    if (!onboarding.profile?.seller_profile_id || !onboarding.store?.id) {
+      const defaultStoreName = `Store ${String(user.phone || '0000').replace(/\D/g, '').slice(-4) || 'ADAB'}`;
+      const spRes = await pool.query(`
+        INSERT INTO seller_profiles (user_id, legal_name, entity_type, pan, kyc_status, onboarding_step)
+        VALUES ($1, $2, 'Sole Proprietorship', 'PENDING00P', 'DRAFT', 1)
+        ON CONFLICT (user_id) DO UPDATE SET updated_at = NOW()
+        RETURNING id
+      `, [user.id, defaultStoreName]);
+      const spId = spRes.rows[0]?.id;
+      if (spId && !onboarding.store?.id) {
+        await pool.query(`
+          INSERT INTO stores (seller_id, store_name, category, city, state, pincode, address_line, phone, delivery_radius_km, is_online)
+          VALUES ($1, $2, 'Grocery & Supermarket', 'Surat', 'Gujarat', '395007', '', $3, 10, false)
+        `, [spId, defaultStoreName, user.phone || '+919876543210']);
+      }
+      onboarding = await this.getOnboardingData(user.id);
+    }
+
+    const storeId = onboarding.store?.id || null;
     const token = signToken({ userId: user.id, storeId, phone: user.phone });
 
     return {
@@ -724,14 +1741,19 @@ class SellerRepository {
     };
   }
 
-  async signupWithPin(phone, pin, extra = {}, skipExistCheck = false) {
+  async loginWithPin(phone, password, extra = {}) {
+    return await this.loginWithPassword(phone, password, extra);
+  }
+
+  async signupWithPassword(phone, password, extra = {}, skipExistCheck = false) {
     const { hashPin, signToken } = require('../utils/jwt');
     const cleanDigits = this.normalizePhoneDigits(phone);
+    const rawPassword = String(password || extra.password || extra.secretToHash || '');
     if (!cleanDigits || cleanDigits.length < 10) {
       throw new Error('Please enter a valid 10-digit mobile number');
     }
-    if (!extra.secretToHash && !/^\d{6}$/.test(String(pin || ''))) {
-      throw new Error('PIN must be exactly 6 digits');
+    if (!rawPassword || rawPassword.length < 4) {
+      throw new Error('Password must be at least 4 characters');
     }
 
     if (!skipExistCheck) {
@@ -747,7 +1769,7 @@ class SellerRepository {
     }
 
     const formattedPhone = `+91${cleanDigits}`;
-    const hashed = hashPin(extra.secretToHash || pin);
+    const hashed = hashPin(rawPassword);
     const emailVal = (extra.email || '').trim().toLowerCase() || null;
     const ownerName = (extra.full_name || '').trim() || 'Merchant Owner';
     const storeName = (extra.store_name || '').trim() || `Store ${cleanDigits.slice(-4)}`;
@@ -835,6 +1857,10 @@ class SellerRepository {
     };
   }
 
+  async signupWithPin(phone, password, extra = {}, skipExistCheck = false) {
+    return await this.signupWithPassword(phone, password, extra, skipExistCheck);
+  }
+
   async getOnboardingData(userId) {
     // Single SQL round-trip fetching profile, store, bankAccount, and ensuring seller_onboarding_steps row
     const res = await pool.query(`
@@ -842,13 +1868,13 @@ class SellerRepository {
         INSERT INTO seller_onboarding_steps (user_id, step1, step2, step3, step4, step5, step6, step7)
         SELECT
           u.id,
-          (sp.kyc_status = 'APPROVED' OR u.id = '00000000-0000-0000-0000-000000000001'),
-          (sp.kyc_status = 'APPROVED' OR u.id = '00000000-0000-0000-0000-000000000001'),
-          (sp.kyc_status = 'APPROVED' OR u.id = '00000000-0000-0000-0000-000000000001'),
-          (sp.kyc_status = 'APPROVED' OR u.id = '00000000-0000-0000-0000-000000000001'),
-          (sp.kyc_status = 'APPROVED' OR u.id = '00000000-0000-0000-0000-000000000001'),
-          (sp.kyc_status = 'APPROVED' OR u.id = '00000000-0000-0000-0000-000000000001'),
-          (sp.kyc_status = 'APPROVED' OR u.id = '00000000-0000-0000-0000-000000000001')
+          (sp.kyc_status = 'APPROVED'),
+          (sp.kyc_status = 'APPROVED'),
+          (sp.kyc_status = 'APPROVED'),
+          (sp.kyc_status = 'APPROVED'),
+          (sp.kyc_status = 'APPROVED'),
+          (sp.kyc_status = 'APPROVED'),
+          (sp.kyc_status = 'APPROVED')
         FROM users u
         LEFT JOIN seller_profiles sp ON u.id = sp.user_id
         WHERE u.id = $1

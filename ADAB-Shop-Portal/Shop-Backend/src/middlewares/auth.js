@@ -8,21 +8,26 @@
 const { verifyToken } = require('../utils/jwt');
 
 function requireSellerAuth(req, res, next) {
-  let sellerId = req.headers['x-user-id'];
-  let storeId = req.headers['x-store-id'];
+  let sellerId = req.headers['x-user-id'] || null;
+  let storeId = req.headers['x-store-id'] || null;
 
   const authHeader = req.headers['authorization'];
-  if (authHeader && authHeader.startsWith('Bearer ')) {
+  if (authHeader) {
+    if (!authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Unauthorized: Malformed authorization header' });
+    }
     const token = authHeader.slice(7).trim();
     const decoded = verifyToken(token);
-    if (decoded && decoded.userId) {
-      sellerId = decoded.userId;
-      if (decoded.storeId) storeId = decoded.storeId;
+    if (!decoded || !decoded.userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized: Invalid or expired authentication token' });
     }
+    sellerId = decoded.userId;
+    if (decoded.storeId) storeId = decoded.storeId;
   }
 
-  if (!sellerId) sellerId = '00000000-0000-0000-0000-000000000001';
-  if (!storeId) storeId = '00000000-0000-0000-0000-000000000001';
+  if (!sellerId) {
+    return res.status(401).json({ success: false, error: 'Unauthorized: Authentication credentials required' });
+  }
 
   req.sellerContext = {
     userId: sellerId,

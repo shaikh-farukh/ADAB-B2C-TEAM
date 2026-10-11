@@ -42,20 +42,32 @@ class SellerService {
 
   // === Mayank's Fulfillment / Operations APIs ===
 
-  async getSellerOrders(storeId) {
-    return await sellerRepository.getOrders(storeId);
+  async getSellerOrders(storeId, filters = {}) {
+    return await sellerRepository.getOrders(storeId, filters);
   }
 
-  async updateOrderStatus(orderId, status) {
+  async updateOrderStatus(orderId, status, storeId = null) {
     if (!orderId || !status) {
-      throw new Error('Order ID and status are required');
+      const err = new Error('Order ID and status are required');
+      err.statusCode = 400;
+      throw err;
     }
-    return await sellerRepository.updateOrderStatus(orderId, status);
+    return await sellerRepository.updateOrderStatus(orderId, status, storeId);
   }
 
-  async getSellerReturns() {
-    return await sellerRepository.getReturns();
+  async getSellerReturns(storeId, filters = {}) {
+    return await sellerRepository.getReturns(storeId, filters);
   }
+
+  async updateReturnStatus(returnId, status, rejectionReason = null, storeId = null) {
+    if (!returnId || !status) {
+      const err = new Error('Return ID and status are required');
+      err.statusCode = 400;
+      throw err;
+    }
+    return await sellerRepository.updateReturnStatus(returnId, status, rejectionReason, storeId);
+  }
+
 
   async getB2BOrders() {
     return await sellerRepository.getB2BOrders();
@@ -99,20 +111,45 @@ class SellerService {
     return await sellerRepository.markThreadRead(userId, threadId);
   }
 
-  async getFinanceSummary() {
-    return await sellerRepository.getFinanceSummary();
+  async getFinanceSummary(storeId, userId) {
+    return await sellerRepository.getFinanceSummary(storeId, userId);
   }
 
-  async getKhataLedger() {
-    return await sellerRepository.getKhataLedger();
+  async getFinanceTransactions(storeId) {
+    return await sellerRepository.getFinanceTransactions(storeId);
   }
 
-  async loginWithPin(phone, pin, extra = {}) {
-    return await sellerRepository.loginWithPin(phone, pin, extra);
+  async getFinanceSettlements(storeId) {
+    return await sellerRepository.getFinanceSettlements(storeId);
   }
 
-  async signupWithPin(phone, pin, extra) {
-    return await sellerRepository.signupWithPin(phone, pin, extra);
+  async createWithdrawalSettlement(storeId) {
+    return await sellerRepository.createWithdrawalSettlement(storeId);
+  }
+
+  async getKhataLedger(storeId) {
+    return await sellerRepository.getKhataLedger(storeId);
+  }
+
+  async payKhataOrder(storeId, poId) {
+    if (!poId) throw new Error('Purchase order ID is required');
+    return await sellerRepository.payKhataOrder(storeId, poId);
+  }
+
+  async loginWithPassword(phone, password, extra = {}) {
+    return await sellerRepository.loginWithPassword(phone, password, extra);
+  }
+
+  async signupWithPassword(phone, password, extra = {}) {
+    return await sellerRepository.signupWithPassword(phone, password, extra);
+  }
+
+  async loginWithPin(phone, password, extra = {}) {
+    return await sellerRepository.loginWithPassword(phone, password, extra);
+  }
+
+  async signupWithPin(phone, password, extra = {}) {
+    return await sellerRepository.signupWithPassword(phone, password, extra);
   }
 
   async getOnboardingData(userId) {

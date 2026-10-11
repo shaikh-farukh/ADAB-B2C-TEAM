@@ -137,7 +137,7 @@ describe('OrdersPage Component', () => {
     await waitFor(() => {
       expect(screen.getByText(/Customer Location • #ORD-6840/i)).toBeDefined();
       expect(screen.getByText(/4.8 km away/i)).toBeDefined();
-      expect(screen.getByText(/Within Zone \(10 km\)/i)).toBeDefined();
+      expect(screen.getByText(/Ring Road, Surat/i)).toBeDefined();
     });
   });
 
@@ -221,7 +221,7 @@ describe('OrdersPage Component', () => {
     });
   });
 
-  it('renders Status column and updates status badge and shows toast when Accept button is clicked', async () => {
+  it('renders Status column and progresses through Accept -> Pack -> Send -> Delivered with toast feedback', async () => {
     sellerApi.getOrders.mockResolvedValue({
       success: true,
       data: [
@@ -246,21 +246,45 @@ describe('OrdersPage Component', () => {
     // Verify Status column header
     await waitFor(() => {
       expect(screen.getByRole('columnheader', { name: /status/i })).toBeDefined();
-      expect(screen.getByText('New')).toBeDefined();
+      expect(screen.getAllByText('New').length).toBeGreaterThanOrEqual(1);
       expect(screen.getByTitle('Accept Order')).toBeDefined();
     });
 
-    // Click Accept button directly in table row
+    // Step 1: Click Accept button directly in table row
     fireEvent.click(screen.getByTitle('Accept Order'));
 
     await waitFor(() => {
       expect(sellerApi.updateOrderStatus).toHaveBeenCalledWith('ORD-6840', 'packing');
-      // Status badge updates to Packing in table cell
       expect(screen.getByText('Packing', { selector: 'span' })).toBeDefined();
-      // Action button updates to Send
+      expect(screen.getByTitle('Mark Order Packed')).toBeDefined();
       expect(screen.getByTitle('Dispatch / Send Package')).toBeDefined();
-      // Toast message is displayed
-      expect(screen.getByText(/Order #ORD-6840 status updated to Packing/i)).toBeDefined();
+      expect(screen.getByText(/Order #ORD-6840 accepted \(ORDER_ACCEPTED\)/i)).toBeDefined();
+    });
+
+    // Step 2: Click Pack button
+    fireEvent.click(screen.getByTitle('Mark Order Packed'));
+
+    await waitFor(() => {
+      expect(sellerApi.updateOrderStatus).toHaveBeenCalledWith('ORD-6840', 'packed');
+      expect(screen.getByText('Packed', { selector: 'span' })).toBeDefined();
+      expect(screen.getByTitle('Dispatch / Send Package')).toBeDefined();
+    });
+
+    // Step 3: Click Send button
+    fireEvent.click(screen.getByTitle('Dispatch / Send Package'));
+
+    await waitFor(() => {
+      expect(sellerApi.updateOrderStatus).toHaveBeenCalledWith('ORD-6840', 'dispatched');
+      expect(screen.getByText('Dispatched', { selector: 'span' })).toBeDefined();
+      expect(screen.getByTitle('Mark Delivered')).toBeDefined();
+    });
+
+    // Step 4: Click Delivered button
+    fireEvent.click(screen.getByTitle('Mark Delivered'));
+
+    await waitFor(() => {
+      expect(sellerApi.updateOrderStatus).toHaveBeenCalledWith('ORD-6840', 'delivered');
+      expect(screen.getAllByText('Delivered').length).toBeGreaterThanOrEqual(2);
     });
   });
 });

@@ -63,21 +63,22 @@ function verifyToken(token) {
   }
 }
 
-function hashPin(pin) {
+function hashPassword(password) {
   const salt = 'adab_pin_salt_v1';
-  return crypto.scryptSync(String(pin), salt, 32).toString('hex');
+  return crypto.scryptSync(String(password), salt, 32).toString('hex');
 }
 
-function verifyPin(pin, storedHash) {
+function verifyPassword(password, storedHash) {
   if (!storedHash) return false;
-  // Support plain comparison if legacy/seeded hash or scrypt hex hash
-  const computed = hashPin(pin);
-  return storedHash === computed || storedHash === String(pin);
+  const computed = hashPassword(password);
+  return storedHash === computed || storedHash === String(password);
 }
 
 module.exports = {
   signToken,
   verifyToken,
-  hashPin,
-  verifyPin
+  hashPassword,
+  verifyPassword,
+  hashPin: hashPassword,
+  verifyPin: verifyPassword
 };

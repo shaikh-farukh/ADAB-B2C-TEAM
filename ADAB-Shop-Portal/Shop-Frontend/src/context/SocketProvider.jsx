@@ -28,12 +28,13 @@ export const SocketProvider = ({ children }) => {
   const listenersRef = useRef(new Map());
 
   // Get identity from localStorage (matches api.js interceptor)
-  const getUserId = () => localStorage.getItem('seller_user_id') || '00000000-0000-0000-0000-000000000001';
-  const getStoreId = () => localStorage.getItem('seller_store_id') || '00000000-0000-0000-0000-000000000001';
+  const getUserId = () => localStorage.getItem('seller_user_id') || null;
+  const getStoreId = () => localStorage.getItem('seller_store_id') || null;
 
   useEffect(() => {
     const userId = getUserId();
     const storeId = getStoreId();
+    if (!userId) return;
 
     const newSocket = io(SOCKET_URL, {
       reconnectionDelayMax: 10000,

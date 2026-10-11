@@ -4,22 +4,38 @@ import { useOrders } from '../hooks/useOrders';
 import { useSeller } from '../context/SellerContext';
 import L from 'leaflet';
 
-function OrderItemsModal({ order, onClose }) {
+function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating = false }) {
   if (!order) return null;
+  const [submitting, setSubmitting] = useState(false);
+  const busy = isUpdating || submitting;
   const items = Array.isArray(order.items) ? order.items : [];
-  const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '#9000';
+  const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '—';
   const displayCustomer = order.customer || order.customer_name || 'Customer';
   const displayAmount = order.amount !== undefined ? order.amount : (order.total_amount || 0);
+  const addr = order.delivery_address || {};
+  const addressString = [addr.address_line, addr.city, addr.state, addr.pincode].filter(Boolean).join(', ') || 'No delivery address recorded';
+  const s = (order.status || 'new').toLowerCase();
+
+  const runAction = async (nextStatus) => {
+    if (busy || !onUpdateStatus) return;
+    setSubmitting(true);
+    try {
+      await onUpdateStatus(order.id, nextStatus);
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
       <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-200">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-emerald-50 to-teal-50">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-emerald-50">
           <div>
             <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
               <i className="fa-solid fa-basket-shopping text-emerald-600"></i>
-              <span>Order Items • {displayId}</span>
+              <span>Order Detail • {displayId}</span>
             </h3>
             <p className="text-xs text-gray-500 mt-0.5">
               Customer: <span className="font-semibold text-gray-700">{displayCustomer}</span>
@@ -28,16 +44,31 @@ function OrderItemsModal({ order, onClose }) {
           </div>
           <button 
             type="button"
+            disabled={busy}
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors text-base font-bold shadow-xs cursor-pointer"
+            className="w-8 h-8 rounded-full bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors text-base font-bold shadow-xs cursor-pointer disabled:opacity-50"
             title="Close"
           >
             &times;
           </button>
         </div>
 
+        {/* Customer Shipping Address */}
+        <div className="px-5 py-3 bg-gray-50/80 border-b border-gray-100 flex items-start gap-2.5">
+          <i className="fa-solid fa-location-dot text-emerald-600 text-xs mt-1"></i>
+          <div className="text-xs">
+            <span className="font-bold text-gray-700 block">Shipping Address</span>
+            <span className="text-gray-600">{addressString}</span>
+            {order.distance && (
+              <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                {order.distance} km away
+              </span>
+            )}
+          </div>
+        </div>
+
         {/* Items List */}
-        <div className="p-5 max-h-[350px] overflow-y-auto">
+        <div className="p-5 max-h-[300px] overflow-y-auto">
           {items.length === 0 ? (
             <p className="text-sm text-gray-500 text-center py-6">No itemized records found for this order.</p>
           ) : (
@@ -69,20 +100,68 @@ function OrderItemsModal({ order, onClose }) {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-          <div className="text-xs text-gray-500">
-            Total Items: <span className="font-extrabold text-gray-800">{items.length}</span>
+        {/* Footer with Action Buttons */}
+        <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <span className="text-[10px] text-gray-400 uppercase font-bold block leading-tight">Grand Total ({items.length} items)</span>
+            <span className="text-base font-extrabold text-emerald-700">₹{Number(displayAmount).toLocaleString('en-IN')}</span>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <span className="text-[10px] text-gray-400 uppercase font-bold block leading-tight">Grand Total</span>
-              <span className="text-base font-extrabold text-emerald-700">₹{Number(displayAmount).toLocaleString('en-IN')}</span>
-            </div>
+          <div className="flex items-center gap-2">
+            {s === 'new' && onUpdateStatus && (
+              <>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => runAction('packing')}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {busy ? 'Updating...' : 'Accept Order'}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => { if (!busy) { onClose(); if (onDecline) onDecline(order); } }}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Decline &amp; Restore Stock
+                </button>
+              </>
+            )}
+            {(s === 'packing' || s === 'processing' || s === 'packed') && onUpdateStatus && (
+              <>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => runAction('dispatched')}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {busy ? 'Updating...' : 'Dispatch / Ship'}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => { if (!busy) { onClose(); if (onDecline) onDecline(order); } }}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel &amp; Restore Stock
+                </button>
+              </>
+            )}
+            {(s === 'dispatched' || s === 'shipped') && onUpdateStatus && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => runAction('delivered')}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {busy ? 'Updating...' : 'Mark Delivered'}
+              </button>
+            )}
             <button 
               type="button"
+              disabled={busy}
               onClick={onClose}
-              className="btn-soft !py-1.5 !px-3 !text-xs font-bold cursor-pointer"
+              className="btn-soft !py-1.5 !px-3 !text-xs font-bold cursor-pointer disabled:opacity-50"
             >
               Close
             </button>
@@ -107,7 +186,7 @@ function DeclineOrderModal({ order, onClose, onConfirm }) {
     { id: 'pricing', label: 'Price / Catalog Mismatch', icon: 'fa-tag' }
   ];
 
-  const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '#9000';
+  const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '—';
   const displayCustomer = order.customer || order.customer_name || 'Customer';
 
   const handleDecline = async () => {
@@ -206,100 +285,101 @@ function DeclineOrderModal({ order, onClose, onConfirm }) {
 function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
   if (!order) return null;
   const mapContainerRef = useRef(null);
-  const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '#9000';
+  const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '—';
   const displayCustomer = order.customer || order.customer_name || 'Customer';
   const addr = order.delivery_address || {};
-  const addrText = addr.address_line 
-    ? `${addr.address_line}, ${addr.city || 'Surat'} ${addr.pincode || ''}`
-    : 'Ring Road, Surat, Gujarat';
-  const distance = parseFloat(order.distance) || 2.0;
+  const addrText = [addr.address_line, addr.city, addr.state, addr.pincode].filter(Boolean).join(', ') || 'No delivery address recorded';
+  const distance = order.distance != null ? parseFloat(order.distance) : null;
 
   // Active Store Location and Details from database
-  const storeName = store?.store_name || 'Your Store';
-  const storeLat = Number(store?.latitude) || 21.1702;
-  const storeLng = Number(store?.longitude) || 72.8311;
-  const radiusKm = Number(store?.delivery_radius_km) || 10;
+  const storeName = store?.store_name || 'Store';
+  const hasStoreCoords = store?.latitude != null && store?.longitude != null;
+  const storeLat = hasStoreCoords ? Number(store.latitude) : null;
+  const storeLng = hasStoreCoords ? Number(store.longitude) : null;
+  const radiusKm = Number(store?.delivery_radius_km ?? 0);
 
   // Exact Customer Coordinates from delivery_address in orders table
-  const hasCoordinates = addr.latitude != null && addr.longitude != null;
-  const custLat = hasCoordinates
-    ? Number(addr.latitude)
-    : (storeLat + (distance / 111) * Math.cos(((parseInt((order.id || '10').replace(/\D/g, '') || 7, 10) * 53) % 360 * Math.PI) / 180));
-  const custLng = hasCoordinates
-    ? Number(addr.longitude)
-    : (storeLng + (distance / (111 * Math.cos((storeLat * Math.PI) / 180))) * Math.sin(((parseInt((order.id || '10').replace(/\D/g, '') || 7, 10) * 53) % 360 * Math.PI) / 180));
+  const hasCustomerCoords = addr.latitude != null && addr.longitude != null;
+  const custLat = hasCustomerCoords ? Number(addr.latitude) : null;
+  const custLng = hasCustomerCoords ? Number(addr.longitude) : null;
 
   useEffect(() => {
-    if (!mapContainerRef.current) return;
+    if (!mapContainerRef.current || (!hasStoreCoords && !hasCustomerCoords)) return;
     try {
       const leaflet = typeof window !== 'undefined' ? (window.L || L) : null;
       if (!leaflet || !leaflet.map) return;
 
+      const centerLat = hasStoreCoords ? storeLat : custLat;
+      const centerLng = hasStoreCoords ? storeLng : custLng;
+
       const map = leaflet.map(mapContainerRef.current, {
         zoomControl: true,
         attributionControl: false
-      }).setView([storeLat, storeLng], 12);
+      }).setView([centerLat, centerLng], 12);
 
       leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 18
       }).addTo(map);
 
-      // 1. Delivery Zone Radius Circle (green dashed boundary)
-      leaflet.circle([storeLat, storeLng], {
-        radius: radiusKm * 1000,
-        color: '#22C55E',
-        fillColor: '#22C55E',
-        fillOpacity: 0.08,
-        weight: 2,
-        dashArray: '6 4'
-      }).addTo(map);
+      if (hasStoreCoords && radiusKm > 0) {
+        leaflet.circle([storeLat, storeLng], {
+          radius: radiusKm * 1000,
+          color: '#22C55E',
+          fillColor: '#22C55E',
+          fillOpacity: 0.08,
+          weight: 2,
+          dashArray: '6 4'
+        }).addTo(map);
+      }
 
-      // 2. Store Marker (Green Icon Pin)
-      const storeIcon = leaflet.divIcon({
-        className: 'border-0 bg-transparent',
-        iconSize: [32, 32],
-        iconAnchor: [16, 16],
-        popupAnchor: [0, -16],
-        html: '<div style="width:32px;height:32px;background:#15803D;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 3px 8px rgba(0,0,0,0.35);border:2.5px solid white;cursor:pointer;"><i class="fa-solid fa-store"></i></div>'
-      });
-      leaflet.marker([storeLat, storeLng], { icon: storeIcon })
-        .addTo(map)
-        .bindPopup(`<b>${storeName}</b><br>${radiusKm} km delivery radius`);
+      if (hasStoreCoords) {
+        const storeIcon = leaflet.divIcon({
+          className: 'border-0 bg-transparent',
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
+          popupAnchor: [0, -16],
+          html: '<div style="width:32px;height:32px;background:#15803D;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 3px 8px rgba(0,0,0,0.35);border:2.5px solid white;cursor:pointer;"><i class="fa-solid fa-store"></i></div>'
+        });
+        leaflet.marker([storeLat, storeLng], { icon: storeIcon })
+          .addTo(map)
+          .bindPopup(`<b>${storeName}</b><br>${radiusKm} km delivery radius`);
+      }
 
-      // 3. Customer Marker (Blue Icon Pin)
-      const customerIcon = leaflet.divIcon({
-        className: 'border-0 bg-transparent',
-        iconSize: [32, 32],
-        iconAnchor: [16, 16],
-        popupAnchor: [0, -16],
-        html: '<div style="width:32px;height:32px;background:#2563EB;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 3px 8px rgba(0,0,0,0.35);border:2.5px solid white;cursor:pointer;"><i class="fa-solid fa-location-dot"></i></div>'
-      });
-      leaflet.marker([custLat, custLng], { icon: customerIcon })
-        .addTo(map)
-        .bindPopup(`<b>${displayCustomer}</b><br>${addrText}<br><b>Distance:</b> ${distance} km`)
-        .openPopup();
+      if (hasCustomerCoords) {
+        const customerIcon = leaflet.divIcon({
+          className: 'border-0 bg-transparent',
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
+          popupAnchor: [0, -16],
+          html: '<div style="width:32px;height:32px;background:#2563EB;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 3px 8px rgba(0,0,0,0.35);border:2.5px solid white;cursor:pointer;"><i class="fa-solid fa-location-dot"></i></div>'
+        });
+        leaflet.marker([custLat, custLng], { icon: customerIcon })
+          .addTo(map)
+          .bindPopup(`<b>${displayCustomer}</b><br>${addrText}${distance != null ? `<br><b>Distance:</b> ${distance} km` : ''}`)
+          .openPopup();
+      }
 
-      // 4. Connecting Delivery Polyline
-      leaflet.polyline([[storeLat, storeLng], [custLat, custLng]], {
-        color: '#3B82F6',
-        weight: 2.5,
-        dashArray: '6 6',
-        opacity: 0.85
-      }).addTo(map);
+      if (hasStoreCoords && hasCustomerCoords) {
+        leaflet.polyline([[storeLat, storeLng], [custLat, custLng]], {
+          color: '#3B82F6',
+          weight: 2.5,
+          dashArray: '6 6',
+          opacity: 0.85
+        }).addTo(map);
 
-      // Fit bounds to show store, customer, and boundary
-      map.fitBounds([
-        [storeLat, storeLng],
-        [custLat, custLng]
-      ], { padding: [50, 50] });
+        map.fitBounds([
+          [storeLat, storeLng],
+          [custLat, custLng]
+        ], { padding: [50, 50] });
+      }
 
       return () => {
         map.remove();
       };
     } catch (e) {
-      console.warn('Map initialization skipped (e.g. non-browser environment):', e);
+      console.warn('Map initialization skipped:', e);
     }
-  }, [storeLat, storeLng, custLat, custLng, distance, displayCustomer, addrText]);
+  }, [hasStoreCoords, hasCustomerCoords, storeLat, storeLng, custLat, custLng, radiusKm, distance, displayCustomer, addrText, storeName]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
@@ -312,7 +392,10 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
               <span>Customer Location • {displayId}</span>
             </h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              Customer: <span className="font-semibold text-gray-700">{displayCustomer}</span> • <span className="text-green-700 font-bold">{distance} km away</span>
+              Customer: <span className="font-semibold text-gray-700">{displayCustomer}</span>
+              {distance != null && (
+                <> • <span className="text-green-700 font-bold">{distance} km away</span></>
+              )}
             </p>
           </div>
           <button 
@@ -339,25 +422,35 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
               </div>
             )}
           </div>
-          <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-green-100 text-green-800 border border-green-200 shrink-0">
-            Within Zone ({radiusKm} km)
-          </span>
+          {radiusKm > 0 && (
+            <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-green-100 text-green-800 border border-green-200 shrink-0">
+              Zone: {radiusKm} km
+            </span>
+          )}
         </div>
 
         {/* Real Leaflet Map View */}
-        <div className="relative h-72 w-full bg-gray-100 overflow-hidden">
-          <div ref={mapContainerRef} className="w-full h-full z-1"></div>
-          <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-[11px] font-bold text-gray-800 shadow-sm flex items-center gap-1.5 z-10 pointer-events-none">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-            <span>{storeName} Zone: {radiusKm} km</span>
-          </div>
+        <div className="relative h-72 w-full bg-gray-100 overflow-hidden flex items-center justify-center">
+          {hasStoreCoords || hasCustomerCoords ? (
+            <>
+              <div ref={mapContainerRef} className="w-full h-full z-1"></div>
+              <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-[11px] font-bold text-gray-800 shadow-sm flex items-center gap-1.5 z-10 pointer-events-none">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                <span>{storeName} Zone: {radiusKm} km</span>
+              </div>
+            </>
+          ) : (
+            <div className="text-xs text-gray-500 p-4 text-center">
+              GPS coordinates not recorded for this delivery address.
+            </div>
+          )}
         </div>
 
         {/* Footer */}
         <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
           <div className="text-xs text-gray-500 flex items-center gap-1.5">
             <i className="fa-solid fa-motorcycle text-green-600"></i>
-            <span>Assigned: Bike / Van delivery</span>
+            <span>Delivery Mode: {order.delivery_mode || 'Normal'}</span>
           </div>
           <div className="flex items-center gap-2">
             <button 
@@ -421,12 +514,13 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
   );
 }
 
-function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline }) {
+function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, isUpdating = false }) {
   const getStatusBadge = (status) => {
     switch (status?.toLowerCase()) {
       case 'new': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">New</span>;
       case 'packing':
       case 'processing': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">Packing</span>;
+      case 'packed': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800">Packed</span>;
       case 'dispatched':
       case 'shipped': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800">Dispatched</span>;
       case 'ready': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800">Ready</span>;
@@ -446,22 +540,32 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline }) 
   };
 
   const getActionBtn = (status) => {
+    if (isUpdating) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-gray-500 bg-gray-100 border border-gray-200 whitespace-nowrap select-none">
+          <i className="fa-solid fa-spinner fa-spin text-[10px]"></i> Updating...
+        </span>
+      );
+    }
+
     const s = (status || '').toLowerCase();
     if (s === 'new') {
       return (
         <div className="flex items-center gap-1.5">
           <button 
             type="button"
+            disabled={isUpdating}
             onClick={() => onUpdateStatus(order.id, 'packing')} 
-            className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs whitespace-nowrap"
+            className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             title="Accept Order"
           >
             Accept
           </button>
           <button 
             type="button"
+            disabled={isUpdating}
             onClick={() => onDecline(order)} 
-            className="px-2 py-1 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer shadow-2xs whitespace-nowrap"
+            className="px-2 py-1 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             title="Decline Order"
           >
             Decline
@@ -474,16 +578,51 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline }) 
         <div className="flex items-center gap-1.5">
           <button 
             type="button"
+            disabled={isUpdating}
+            onClick={() => onUpdateStatus(order.id, 'packed')} 
+            className="px-2.5 py-1 rounded-lg text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition cursor-pointer shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Mark Order Packed"
+          >
+            Pack
+          </button>
+          <button 
+            type="button"
+            disabled={isUpdating}
             onClick={() => onUpdateStatus(order.id, 'dispatched')} 
-            className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs whitespace-nowrap"
+            className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             title="Dispatch / Send Package"
           >
             Send
           </button>
           <button 
             type="button"
+            disabled={isUpdating}
             onClick={() => onDecline(order)} 
-            className="px-2 py-1 rounded-lg text-xs font-bold text-gray-500 hover:text-rose-600 bg-gray-50 hover:bg-rose-50 border border-gray-200 hover:border-rose-200 transition cursor-pointer whitespace-nowrap"
+            className="px-2 py-1 rounded-lg text-xs font-bold text-gray-500 hover:text-rose-600 bg-gray-50 hover:bg-rose-50 border border-gray-200 hover:border-rose-200 transition cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Cancel Order"
+          >
+            Cancel
+          </button>
+        </div>
+      );
+    }
+    if (s === 'packed') {
+      return (
+        <div className="flex items-center gap-1.5">
+          <button 
+            type="button"
+            disabled={isUpdating}
+            onClick={() => onUpdateStatus(order.id, 'dispatched')} 
+            className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Dispatch / Send Package"
+          >
+            Send
+          </button>
+          <button 
+            type="button"
+            disabled={isUpdating}
+            onClick={() => onDecline(order)} 
+            className="px-2 py-1 rounded-lg text-xs font-bold text-gray-500 hover:text-rose-600 bg-gray-50 hover:bg-rose-50 border border-gray-200 hover:border-rose-200 transition cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             title="Cancel Order"
           >
             Cancel
@@ -495,8 +634,9 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline }) 
       return (
         <button 
           type="button"
+          disabled={isUpdating}
           onClick={() => onUpdateStatus(order.id, 'delivered')}
-          className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-teal-600 hover:bg-teal-700 text-white shadow-2xs flex items-center gap-1 whitespace-nowrap"
+          className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-teal-600 hover:bg-teal-700 text-white shadow-2xs flex items-center gap-1 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
           title="Mark Delivered"
         >
           <i className="fa-solid fa-check-double text-[10px]"></i>
@@ -524,11 +664,11 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline }) 
   const itemsList = Array.isArray(order.items) ? order.items : [];
   const itemCount = itemsList.length;
 
-  const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '#9000';
+  const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '—';
   const displayCustomer = order.customer || order.customer_name || 'Customer';
   const displayAmount = order.amount !== undefined ? order.amount : (order.total_amount || 0);
-  const displayDistance = order.distance || '1.5';
-  const deliveryType = order.delivery_mode || order.delivery_type || (order.id === '#9021' || order.id === '#9018' ? 'fast' : (order.id === '#9020' || order.id === '#9017' ? 'same' : (order.id === '#9015' ? 'pickup' : 'normal')));
+  const displayDistance = order.distance != null ? `${order.distance} km` : '—';
+  const deliveryType = order.delivery_mode || order.delivery_type || 'normal';
 
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50 transition">
@@ -537,7 +677,7 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline }) 
       <td className="px-4 py-3.5">
         <div className="inline-flex items-center gap-1.5">
           <span className="text-[10px] font-bold bg-green-100 text-green-800 px-2 py-0.5 rounded whitespace-nowrap">
-            {displayDistance} km
+            {displayDistance}
           </span>
           <button 
             type="button"
@@ -557,7 +697,7 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline }) 
           title="Click to view all items ordered"
         >
           <i className="fa-solid fa-basket-shopping text-[11px] text-emerald-600"></i>
-          <span>{itemCount > 0 ? `${itemCount} items` : (order.item_summary || 'Items')}</span>
+          <span>{itemCount > 0 ? `${itemCount} items` : (order.item_summary || '0 items')}</span>
           <i className="fa-solid fa-chevron-right text-[9px] text-emerald-500 group-hover:translate-x-0.5 transition-transform"></i>
         </button>
       </td>
@@ -579,7 +719,7 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline }) 
 
 export default function OrdersPage() {
   const { store } = useSeller();
-  const { orders, loading, error, updateStatus } = useOrders();
+  const { orders, loading, error, updatingIds, updateStatus } = useOrders();
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [mapOrder, setMapOrder] = useState(null);
   const [declineOrder, setDeclineOrder] = useState(null);
@@ -588,16 +728,34 @@ export default function OrdersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [toastMessage, setToastMessage] = useState(null);
 
+  const isOrderUpdating = (order) => {
+    if (!order || !updatingIds) return false;
+    const clean = order.id ? order.id.toString().replace(/^#/, '') : '';
+    return Boolean(updatingIds[order.id] || updatingIds[clean]);
+  };
+
   const handleStatusUpdate = async (orderId, newStatus) => {
+    const prevOrder = orders.find(o => o.id === orderId);
+    const prevStatus = (prevOrder?.status || '').toLowerCase();
     const success = await updateStatus(orderId, newStatus);
     if (success) {
       const clean = orderId ? orderId.toString().replace(/^#/, '') : '';
-      const readable = newStatus === 'packing' ? 'Packing' :
-                       newStatus === 'dispatched' ? 'Dispatched' :
-                       newStatus === 'delivered' ? 'Delivered' :
-                       newStatus === 'cancelled' ? 'Declined' : newStatus;
-      setToastMessage(`Order #${clean} status updated to ${readable}`);
-      setTimeout(() => setToastMessage(null), 3500);
+      let msg = `Order #${clean} status updated`;
+      if (newStatus === 'packing') {
+        msg = `Order #${clean} accepted (ORDER_ACCEPTED) • Moved to Packing`;
+      } else if (newStatus === 'packed') {
+        msg = `Order #${clean} packed (ORDER_PACKED)`;
+      } else if (newStatus === 'dispatched') {
+        msg = `Order #${clean} shipped (ORDER_SHIPPED)`;
+      } else if (newStatus === 'delivered') {
+        msg = `Order #${clean} marked Delivered`;
+      } else if (newStatus === 'cancelled') {
+        msg = prevStatus === 'new'
+          ? `Order #${clean} declined (ORDER_CANCELLED) • Listing stock restored`
+          : `Order #${clean} cancelled (ORDER_CANCELLED) • Listing stock restored`;
+      }
+      setToastMessage(msg);
+      setTimeout(() => setToastMessage(null), 4000);
     }
     return success;
   };
@@ -608,8 +766,9 @@ export default function OrdersPage() {
     const q = searchQuery.toLowerCase();
     const matchesStatus = statusFilter === 'all' ? true : (
       statusFilter === 'new' ? s === 'new' :
-      statusFilter === 'packing' ? (s === 'packing' || s === 'processing') :
+      statusFilter === 'packing' ? (s === 'packing' || s === 'processing' || s === 'packed') :
       statusFilter === 'dispatched' ? (s === 'dispatched' || s === 'shipped') :
+      statusFilter === 'delivered' ? s === 'delivered' :
       statusFilter === 'ready' ? s === 'ready' :
       statusFilter === 'declined' ? (s === 'cancelled' || s === 'declined') : true
     );
@@ -641,6 +800,15 @@ export default function OrdersPage() {
   }).length;
   const pickupCount = orders.filter(o => (o.delivery_mode || o.delivery_type || '').toLowerCase().includes('pickup')).length;
 
+  const statusTabs = [
+    { key: 'all', label: 'All', count: orders.length },
+    { key: 'new', label: 'New', count: orders.filter(o => (o.status || '').toLowerCase() === 'new').length },
+    { key: 'packing', label: 'Processing', count: orders.filter(o => ['packing', 'processing', 'packed'].includes((o.status || '').toLowerCase())).length },
+    { key: 'dispatched', label: 'Shipped', count: orders.filter(o => ['dispatched', 'shipped'].includes((o.status || '').toLowerCase())).length },
+    { key: 'delivered', label: 'Delivered', count: orders.filter(o => (o.status || '').toLowerCase() === 'delivered').length },
+    { key: 'declined', label: 'Cancelled', count: orders.filter(o => ['cancelled', 'declined'].includes((o.status || '').toLowerCase())).length }
+  ];
+
   return (
     <section id="sec-orders" className="space-y-4">
       {/* Header Section */}
@@ -651,10 +819,36 @@ export default function OrdersPage() {
         </div>
         <div className="flex gap-2 flex-wrap items-center">
           <span className="px-3 py-1.5 rounded-full bg-green-100 text-green-800 text-xs font-bold border border-green-200">
-            <i className="fa-solid fa-circle-dot mr-1"></i> Zone: <span id="ordersZoneRadius">10 km</span>
+            <i className="fa-solid fa-circle-dot mr-1"></i> Zone: <span id="ordersZoneRadius">{store?.delivery_radius_km ?? 0} km</span>
           </span>
           <Link to="/zones" className="btn-soft !text-xs">Edit Zone</Link>
         </div>
+      </div>
+
+      {/* Status Tabs: All, New, Processing, Shipped, Delivered, Cancelled */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+        {statusTabs.map(tab => {
+          const active = statusFilter === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setStatusFilter(tab.key)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap border ${
+                active
+                  ? 'bg-emerald-700 text-white border-emerald-700 shadow-2xs'
+                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                active ? 'bg-emerald-800 text-emerald-100' : 'bg-gray-100 text-gray-600'
+              }`}>
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Delivery Mode Pills */}
@@ -683,9 +877,9 @@ export default function OrdersPage() {
         >
           <option value="all">All status</option>
           <option value="new">New / Action needed</option>
-          <option value="packing">Packing</option>
-          <option value="dispatched">Out for delivery</option>
-          <option value="ready">Ready for pickup</option>
+          <option value="packing">Processing / Packing</option>
+          <option value="dispatched">Shipped / Out for delivery</option>
+          <option value="delivered">Delivered</option>
           <option value="declined">Declined / Cancelled</option>
         </select>
         <select 
@@ -759,6 +953,7 @@ export default function OrdersPage() {
                 onViewItems={setSelectedOrder}
                 onOpenMap={setMapOrder}
                 onDecline={setDeclineOrder}
+                isUpdating={isOrderUpdating(order)}
               />
             ))}
           </tbody>
@@ -770,11 +965,14 @@ export default function OrdersPage() {
         <button className="btn-primary !text-xs whitespace-nowrap">Manage Delivery Zone</button>
       </div>
 
-      {/* Itemized Order Modal */}
+      {/* Itemized Order Detail Modal */}
       {selectedOrder && (
         <OrderItemsModal 
           order={selectedOrder} 
-          onClose={() => setSelectedOrder(null)} 
+          onClose={() => setSelectedOrder(null)}
+          onUpdateStatus={handleStatusUpdate}
+          onDecline={setDeclineOrder}
+          isUpdating={isOrderUpdating(selectedOrder)}
         />
       )}
 

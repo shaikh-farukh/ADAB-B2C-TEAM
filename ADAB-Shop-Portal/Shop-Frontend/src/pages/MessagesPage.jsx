@@ -5,7 +5,7 @@ import { io } from 'socket.io-client';
 
 export default function MessagesPage() {
   const { profile } = useSeller();
-  const userId = profile?.user_id || '00000000-0000-0000-0000-000000000001';
+  const userId = profile?.id || profile?.user_id || localStorage.getItem('seller_user_id') || null;
 
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);

@@ -3,10 +3,14 @@ const router = express.Router();
 const sellerController = require('../controllers/seller');
 const notificationController = require('../controllers/notification');
 const { requireSellerAuth } = require('../middlewares/auth');
+const { idempotencyMiddleware } = require('../middlewares/idempotency');
 
 // Public Auth Endpoints (Phone + 6-digit PIN)
 router.post('/auth/login', sellerController.login);
 router.post('/auth/signup', sellerController.signup);
+
+// Idempotent Webhook Callback Endpoint
+router.post('/webhooks/callback', idempotencyMiddleware, (req, res) => sellerController.handleWebhookCallback(req, res));
 
 // Apply Seller Auth Middleware
 router.use(requireSellerAuth);
@@ -33,8 +37,9 @@ router.post('/notifications/:id/read', notificationController.markAsRead);
 
 // Dynamic Operations: Orders, Returns, B2B, Coupons, Points, Analytics, Catalog, Recommendations, Messages, Finance
 router.get('/orders', sellerController.getOrders);
-router.patch('/orders/:id/status', sellerController.updateOrderStatus);
+router.patch('/orders/:id/status', idempotencyMiddleware, sellerController.updateOrderStatus);
 router.get('/returns', sellerController.getReturns);
+router.patch('/returns/:id/status', idempotencyMiddleware, sellerController.updateReturnStatus);
 router.get('/b2b-orders', sellerController.getB2BOrders);
 router.get('/coupons', sellerController.getCoupons);
 router.get('/points', sellerController.getPoints);
@@ -45,8 +50,12 @@ router.get('/messages/threads', sellerController.getThreads);
 router.get('/messages/threads/:threadId', sellerController.getThreadMessages);
 router.post('/messages/threads/:threadId/messages', sellerController.sendThreadMessage);
 router.post('/messages/threads/:threadId/read', sellerController.markThreadRead);
-router.get('/finance/summary', sellerController.getFinanceSummary);
-router.get('/finance/khata', sellerController.getKhataLedger);
+router.get('/finance/summary', (req, res) => sellerController.getFinanceSummary(req, res));
+router.get('/finance/transactions', (req, res) => sellerController.getFinanceTransactions(req, res));
+router.get('/finance/settlements', (req, res) => sellerController.getFinanceSettlements(req, res));
+router.post('/finance/withdraw', idempotencyMiddleware, (req, res) => sellerController.createWithdrawalSettlement(req, res));
+router.get('/finance/khata', (req, res) => sellerController.getKhataLedger(req, res));
+router.post('/finance/khata/:id/pay', idempotencyMiddleware, (req, res) => sellerController.payKhataOrder(req, res));
 
 module.exports = router;
 

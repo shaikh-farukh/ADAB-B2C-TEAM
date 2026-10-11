@@ -206,6 +206,20 @@ class NotificationProducer {
 
   // --- Returns & Fulfillment Events (Called by Operations domain) ---
 
+  async orderEvent(storeId, orderNumber, eventType, details = '') {
+    const cleanNum = String(orderNumber || '').replace(/^#/, '');
+    const titles = {
+      ORDER_ACCEPTED: `Order #${cleanNum} Accepted (ORDER_ACCEPTED)`,
+      ORDER_PACKED: `Order #${cleanNum} Packed (ORDER_PACKED)`,
+      ORDER_SHIPPED: `Order #${cleanNum} Dispatched (ORDER_SHIPPED)`,
+      ORDER_DELIVERED: `Order #${cleanNum} Delivered (ORDER_DELIVERED)`,
+      ORDER_CANCELLED: `Order #${cleanNum} Cancelled (ORDER_CANCELLED)`
+    };
+    const title = titles[eventType] || `Order #${cleanNum} Updated`;
+    const message = details || `Order #${cleanNum} transitioned to ${eventType}.`;
+    return this.notifyByStore(storeId, title, message, 'ORDER_STATUS', '/orders');
+  }
+
   async returnCreated(storeId, orderNumber, reason) {
     return this.notifyByStore(storeId,
       'Return Request Received',
@@ -214,6 +228,31 @@ class NotificationProducer {
       '/returns'
     );
   }
+
+  async returnResolved(storeId, orderNumber, decision, refundAmount, restockedQty = 0) {
+    const cleanNum = String(orderNumber || '').replace(/^#/, '');
+    const amt = Number(refundAmount || 0).toLocaleString('en-IN');
+    let title = `Return Updated • Order #${cleanNum}`;
+    let message = `Return status updated for Order #${cleanNum}.`;
+
+    if (decision === 'APPROVED') {
+      title = `Return Approved • Order #${cleanNum}`;
+      message = `Refund of ₹${amt} approved for Order #${cleanNum}. Awaiting item arrival at store for inspection.`;
+    } else if (decision === 'RESTOCKED') {
+      title = `Return Restocked • Order #${cleanNum}`;
+      message = `Returned item from Order #${cleanNum} reached the store — +${restockedQty} unit(s) added back to catalog.`;
+    } else if (decision === 'DISCARDED') {
+      title = `Return Discarded • Order #${cleanNum}`;
+      message = `Returned item from Order #${cleanNum} reached the store and was discarded from relisting.`;
+    } else if (decision === 'REJECTED') {
+      title = `Return Rejected • Order #${cleanNum}`;
+      message = `Return request for Order #${cleanNum} was rejected.`;
+    }
+
+    return this.notifyByStore(storeId, title, message, 'ORDER_STATUS', '/returns');
+  }
 }
 
 module.exports = new NotificationProducer();
+
+
