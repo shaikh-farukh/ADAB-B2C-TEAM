@@ -5,7 +5,12 @@ const router = express.Router();
 
 // Profile & Settings
 router.get('/me', customerController.getProfile);
-router.patch('/me', customerController.updateProfile);
+// Notification Preferences
+router.get('/me/notification-preferences', customerController.getNotificationPreferences);
+router.patch('/me/notification-preferences', customerController.updateNotificationPreferences);
+router.get('/me/notifications/preferences', customerController.getNotificationPreferences);
+router.patch('/me/notifications/preferences', customerController.updateNotificationPreferences);
+router.patch('/me/notifications', customerController.updateNotificationPreferences);
 
 // Addresses
 router.get('/me/addresses', customerController.getAddresses);

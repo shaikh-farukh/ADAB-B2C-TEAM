@@ -28,6 +28,24 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
+exports.getNotificationPreferences = async (req, res) => {
+  try {
+    const data = await customerService.getNotificationPreferences(getUserId(req));
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.updateNotificationPreferences = async (req, res) => {
+  try {
+    const data = await customerService.updateNotificationPreferences(getUserId(req), req.body);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 exports.getAddresses = async (req, res) => {
   try {
     const data = await customerService.getAddresses(getUserId(req));

@@ -122,6 +122,8 @@ async function getCartItems(cartId) {
       sl.is_active,
       sl.approval_status,
       sl.stock_qty,
+      'Tomorrow, by 10 AM' as delivery_estimate,
+      '7 Days Returnable' as return_policy,
       sl.store_id,
       s.store_name,
       s.store_name AS store,

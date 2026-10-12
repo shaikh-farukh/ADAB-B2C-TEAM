@@ -9,8 +9,23 @@ export const api = axios.create({
   },
 });
 
+const pendingAxiosRequests = new Map();
+
+// Wrap api.get to deduplicate
+const originalGet = api.get;
+api.get = function (url, config) {
+  if (pendingAxiosRequests.has(url)) {
+    return pendingAxiosRequests.get(url);
+  }
+  const promise = originalGet.call(api, url, config).finally(() => {
+    pendingAxiosRequests.delete(url);
+  });
+  pendingAxiosRequests.set(url, promise);
+  return promise;
+};
+
 // Setup mock adapter
-const mock = new MockAdapter(api, { delayResponse: 500 });
+const mock = new MockAdapter(api, { delayResponse: 500, onNoMatch: 'passthrough' });
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'; // Enable via env variable if needed
 
 if (USE_MOCK) {

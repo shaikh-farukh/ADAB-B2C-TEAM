@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import ProductCard from '../components/ProductCard';
 import { api } from '../api/api';
 
-export default function WishlistPage({ onAddToCart, onToggleWishlist, wishlist }) {
+let cachedWishlistProducts = {};
+
+export default function WishlistPage({ onAddToCart, onToggleWishlist, onMoveToCart, wishlist }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -16,8 +18,18 @@ export default function WishlistPage({ onAddToCart, onToggleWishlist, wishlist }
 
     setLoading(true);
     
-    // Fetch product details for all wishlisted items
-    const fetchPromises = wishlist.map(id => 
+    // Find what we need to fetch
+    const missingIds = wishlist.filter(id => !cachedWishlistProducts[id]);
+    const cachedProducts = wishlist.map(id => cachedWishlistProducts[id]).filter(Boolean);
+
+    if (missingIds.length === 0) {
+      setProducts(cachedProducts);
+      setLoading(false);
+      return;
+    }
+
+    // Fetch product details for missing items
+    const fetchPromises = missingIds.map(id => 
       api.get(`/catalog/products/${id}`)
         .then(res => res.data.data)
         .catch(err => {
@@ -28,7 +40,14 @@ export default function WishlistPage({ onAddToCart, onToggleWishlist, wishlist }
 
     Promise.all(fetchPromises).then(results => {
       // Filter out nulls (failed requests)
-      setProducts(results.filter(p => p !== null));
+      const newProducts = results.filter(p => p !== null);
+      newProducts.forEach(p => {
+        cachedWishlistProducts[p.id] = p;
+      });
+      
+      // Combine cached + newly fetched in the order of wishlist
+      const finalProducts = wishlist.map(id => cachedWishlistProducts[id]).filter(Boolean);
+      setProducts(finalProducts);
       setLoading(false);
     });
 
@@ -53,8 +72,12 @@ export default function WishlistPage({ onAddToCart, onToggleWishlist, wishlist }
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {products.map(product => {
             const handleMoveToCart = (productId, productName) => {
-              onAddToCart(productId, productName);
-              onToggleWishlist(productId);
+              if (onMoveToCart) {
+                onMoveToCart(productId, productName);
+              } else {
+                onAddToCart(productId, productName);
+                onToggleWishlist(productId);
+              }
             };
             return (
               <ProductCard 

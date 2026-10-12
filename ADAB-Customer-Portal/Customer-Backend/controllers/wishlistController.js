@@ -41,3 +41,30 @@ exports.getWishlist = async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 };
+
+const cartService = require('../services/cartService');
+
+exports.moveItemToCart = async (req, res) => {
+  try {
+    const { userId } = req.params; // or from auth
+    const { listingId } = req.params; // the item id or listing id
+
+    if (!userId || !listingId) {
+      return res.status(400).json({ success: false, message: 'userId and listingId are required' });
+    }
+
+    // Remove from wishlist
+    await wishlistService.removeWishlistItem(userId, listingId);
+
+    // Get or create cart for user
+    const cart = await cartService.getOrCreateCart({ customerId: userId });
+
+    // Add to cart
+    const cartItem = await cartService.addItemToCart(cart.id, listingId, 1);
+
+    res.status(200).json({ success: true, message: 'Item moved to cart', cartItem });
+  } catch (error) {
+    console.error('Error moving item to cart:', error);
+    res.status(500).json({ success: false, message: error.message || 'Internal Server Error' });
+  }
+};

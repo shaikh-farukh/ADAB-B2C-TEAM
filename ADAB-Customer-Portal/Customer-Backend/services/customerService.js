@@ -57,6 +57,42 @@ exports.getProfile = async (rawUserId) => {
   return res.rows[0];
 };
 
+exports.getNotificationPreferences = async (rawUserId) => {
+  const userId = await resolveCustomerUserId(rawUserId);
+  const res = await pool.query(`SELECT * FROM notification_preferences WHERE user_id = $1`, [userId]);
+  if (res.rows.length === 0) {
+    const insertRes = await pool.query(`
+      INSERT INTO notification_preferences (user_id) VALUES ($1) RETURNING *
+    `, [userId]);
+    return insertRes.rows[0];
+  }
+  return res.rows[0];
+};
+
+exports.updateNotificationPreferences = async (rawUserId, body) => {
+  const userId = await resolveCustomerUserId(rawUserId);
+  // Ensure record exists before update
+  await exports.getNotificationPreferences(userId);
+  const res = await pool.query(`
+    UPDATE notification_preferences
+    SET order_updates_sms = COALESCE($1, order_updates_sms),
+        order_updates_email = COALESCE($2, order_updates_email),
+        order_updates_whatsapp = COALESCE($3, order_updates_whatsapp),
+        promotional_sms = COALESCE($4, promotional_sms),
+        promotional_email = COALESCE($5, promotional_email),
+        promotional_whatsapp = COALESCE($6, promotional_whatsapp),
+        soundbox_alerts = COALESCE($7, soundbox_alerts),
+        updated_at = NOW()
+    WHERE user_id = $8
+    RETURNING *
+  `, [
+    body.order_updates_sms, body.order_updates_email, body.order_updates_whatsapp,
+    body.promotional_sms, body.promotional_email, body.promotional_whatsapp,
+    body.soundbox_alerts, userId
+  ]);
+  return res.rows[0];
+};
+
 exports.updateProfile = async (rawUserId, body) => {
   const userId = await resolveCustomerUserId(rawUserId);
   if (body.name || body.phone || body.email) {

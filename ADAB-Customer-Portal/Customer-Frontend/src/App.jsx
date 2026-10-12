@@ -15,6 +15,7 @@ import OrderStatusView from './components/OrderStatusView';
 import OrdersView from './components/OrdersView';
 import NotificationsView from './components/NotificationsView';
 import AccountPage from './pages/AccountPage';
+import NotificationsPage from './pages/NotificationsPage';
 import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI, CustomerAPI } from './services/api';
 import { api } from './api/api';
 
@@ -115,7 +116,7 @@ export default function App() {
   const refreshOrders = async () => {
     try {
       setLoadingOrders(true);
-      const res = await OrderAPI.getOrders();
+      const res = await OrderAPI.getOrders(mockUserId);
       if (res.status === 'success' && res.data) {
         setOrdersList(res.data);
         if (res.data.length > 0 && !activeOrder) {
@@ -223,6 +224,19 @@ export default function App() {
     } catch (err) {
       console.error('Error toggling wishlist:', err);
       showToast('Error updating wishlist');
+    }
+  };
+
+  const handleMoveToCart = async (listingId, productName) => {
+    try {
+      showToast(`Moving ${productName} to cart...`);
+      await WishlistAPI.moveToCart(mockUserId, listingId);
+      setWishlist(wishlist.filter(id => id !== listingId));
+      await refreshCart();
+      showToast(`Moved ${productName} to cart!`);
+    } catch (err) {
+      console.error('Error moving to cart:', err);
+      showToast(`Error: ${err.message}`);
     }
   };
 
@@ -646,6 +660,8 @@ export default function App() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
                   onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                  id="global-search-input"
+                  name="global_search"
                   placeholder="Search for fresh groceries, fashion, electronics..."
                   className="w-full bg-transparent border-none text-sm font-medium text-gray-900 placeholder-gray-400 focus:outline-none"
                 />
@@ -723,6 +739,8 @@ export default function App() {
               ? 'Notifications'
               : activeTab === 'stores' || activeTab === 'browse'
               ? 'Browse Products'
+              : activeTab === 'notifications'
+              ? 'Notifications'
               : activeTab.startsWith('product/')
               ? 'Product Details'
               : activeTab}
@@ -787,6 +805,7 @@ export default function App() {
           <WishlistPage
             onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
             onToggleWishlist={handleToggleWishlist}
+            onMoveToCart={handleMoveToCart}
             wishlist={wishlist}
           />
         )}
@@ -794,6 +813,11 @@ export default function App() {
         {/* Account Page */}
         {activeTab === 'account' && (
           <AccountPage onNavigate={setActiveTab} />
+        )}
+
+        {/* Notifications Page */}
+        {activeTab === 'notifications' && (
+          <NotificationsPage />
         )}
 
         {/* Shopping Cart Screen (Task 3: sec-cart) */}

@@ -75,11 +75,14 @@ exports.getProductById = async (id) => {
 exports.getProductSellers = async (id) => {
   // Mock seller offers for the product
   const res = await pool.query(`
-    SELECT sl.id, sl.sell_price as price, sl.mrp, sl.stock_qty, sl.delivery_estimate, st.store_name, st.rating, st.id as store_id
+    SELECT sl.id, sl.sell_price as price, sl.mrp, sl.stock_qty, 'Tomorrow, by 10 AM' as delivery_estimate, st.store_name, st.rating, st.id as store_id
     FROM seller_listings sl
-    LEFT JOIN stores st ON sl.store_id = st.id
-    WHERE sl.product_id = (SELECT product_id FROM seller_listings WHERE id = $1 LIMIT 1) 
-      AND sl.is_active = true AND sl.approval_status = 'APPROVED'
+    WHERE (
+      (sl.master_catalog_id IS NOT NULL AND sl.master_catalog_id = (SELECT master_catalog_id FROM seller_listings WHERE id = $1 LIMIT 1))
+      OR sl.id = $1
+    )
+    AND sl.is_active = true 
+    AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
   `, [id]);
   
   if (res.rows.length === 0) {

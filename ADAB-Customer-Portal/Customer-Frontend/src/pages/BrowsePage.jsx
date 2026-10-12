@@ -4,6 +4,8 @@ import { api } from '../api/api';
 import ProductCard from '../components/ProductCard';
 import { Filter, Store, X } from 'lucide-react';
 
+let browseCategoriesCache = null;
+
 export default function BrowsePage({ 
   onAddToCart, 
   onToggleWishlist, 
@@ -34,9 +36,14 @@ export default function BrowsePage({
 
   // Fetch categories dynamically from database
   useEffect(() => {
+    if (browseCategoriesCache) {
+      setCategoriesList(browseCategoriesCache);
+      return;
+    }
     api.get('/catalog/categories')
       .then(res => {
         const cats = res.data?.data || res.data || [];
+        browseCategoriesCache = cats;
         setCategoriesList(cats);
       })
       .catch(err => console.error('Error fetching categories:', err));

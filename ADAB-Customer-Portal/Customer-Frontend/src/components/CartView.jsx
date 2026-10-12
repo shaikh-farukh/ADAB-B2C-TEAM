@@ -566,6 +566,18 @@ export default function CartView({
                             <span>Out of stock</span>
                           </div>
                         )}
+                        
+                        {/* Pre-Purchase Transparency */}
+                        {(item.delivery_estimate || item.return_policy) && (
+                          <div className="text-[10px] text-gray-500 font-medium flex items-center gap-2 mt-1">
+                            {item.delivery_estimate && (
+                                <span className="flex items-center gap-1"><i className="fa-solid fa-truck text-blue-500"></i> {item.delivery_estimate}</span>
+                            )}
+                            {item.return_policy && (
+                                <span className="flex items-center gap-1"><i className="fa-solid fa-arrow-rotate-left text-green-500"></i> {item.return_policy}</span>
+                            )}
+                          </div>
+                        )}
 
                         {/* Real-time Validation Issue Badges (Task 3) */}
                         {matchedIssue && (
