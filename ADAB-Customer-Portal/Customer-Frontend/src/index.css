@@ -427,12 +427,39 @@ body {
   background: #E2E8F0;
   border-radius: 999px;
   overflow: hidden;
+  position: relative;
 }
 .order-track-fill {
   height: 100%;
   background: linear-gradient(90deg, #047857, #10B981);
   border-radius: 999px;
+  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
 }
+.order-track-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  animation: shimmerTrack 2s infinite linear;
+}
+@keyframes shimmerTrack {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.oh-row {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.oh-row:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
 
 /* Toast */
 .toast {

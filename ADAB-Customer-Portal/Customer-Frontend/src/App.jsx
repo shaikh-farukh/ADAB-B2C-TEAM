@@ -12,6 +12,8 @@ import ProductPage from './pages/ProductPage';
 import WishlistPage from './pages/WishlistPage';
 import AddressModal from './components/AddressModal';
 import OrderStatusView from './components/OrderStatusView';
+import OrdersView from './components/OrdersView';
+import NotificationsView from './components/NotificationsView';
 import AccountPage from './pages/AccountPage';
 import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI, CustomerAPI } from './services/api';
 import { api } from './api/api';
@@ -32,7 +34,7 @@ export default function App() {
       }
     }).catch(err => console.error("Failed to fetch stores in App", err));
   }, []);
-  const [unreadNotifications] = useState(4);
+  const [unreadNotifications, setUnreadNotifications] = useState(4);
   const [cartData, setCartData] = useState({
     items: [],
     summary: { subtotal: 0, grand_total: 0, delivery_fee: 29, discount: 0 }
@@ -108,8 +110,11 @@ export default function App() {
     }
   };
 
+  const [loadingOrders, setLoadingOrders] = useState(false);
+
   const refreshOrders = async () => {
     try {
+      setLoadingOrders(true);
       const res = await OrderAPI.getOrders();
       if (res.status === 'success' && res.data) {
         setOrdersList(res.data);
@@ -119,6 +124,21 @@ export default function App() {
       }
     } catch (err) {
       console.warn('Could not fetch orders:', err.message);
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+
+  const refreshNotifications = async () => {
+    try {
+      const res = await CustomerAPI.getUnreadNotificationCount();
+      if (typeof res?.data === 'number') {
+        setUnreadNotifications(res.data);
+      } else if (typeof res?.unread_count === 'number') {
+        setUnreadNotifications(res.unread_count);
+      }
+    } catch (err) {
+      console.warn('Could not fetch unread notifications count:', err.message);
     }
   };
 
@@ -126,6 +146,7 @@ export default function App() {
     refreshCart();
     refreshWishlist();
     refreshOrders();
+    refreshNotifications();
 
     // Load initial customer address from database if not cached
     const loadInitialAddress = async () => {
@@ -147,6 +168,13 @@ export default function App() {
     };
     loadInitialAddress();
   }, []);
+
+  // Automatically refresh orders whenever user navigates to orders, orderhistory, or track
+  useEffect(() => {
+    if (activeTab === 'orders' || activeTab === 'orderhistory' || activeTab === 'track') {
+      refreshOrders();
+    }
+  }, [activeTab]);
 
   // Fetch complete order details whenever tracking tab is active
   useEffect(() => {
@@ -237,6 +265,30 @@ export default function App() {
       throw err;
     } finally {
       setPlacingOrder(false);
+    }
+  };
+
+  // Day 4: Order Cancellation Handler
+  const handleCancelOrder = async (orderId) => {
+    try {
+      const res = await OrderAPI.cancelOrder(orderId, 'Cancelled by customer');
+      await refreshOrders();
+      return res;
+    } catch (err) {
+      console.error('Failed to cancel order:', err);
+      throw err;
+    }
+  };
+
+  // Day 4: Order Reorder Handler (Re-adds order items to cart)
+  const handleReorder = async (orderId) => {
+    try {
+      const res = await OrderAPI.reorder(orderId);
+      await refreshCart();
+      return res;
+    } catch (err) {
+      console.error('Failed to reorder items:', err);
+      throw err;
     }
   };
 
@@ -457,7 +509,7 @@ export default function App() {
             <button
               type="button"
               className="site-btn"
-              onClick={() => showToast('No unread notifications')}
+              onClick={() => setActiveTab('notifications')}
               aria-label="Notifications"
             >
               <i className="fa-solid fa-bell"></i>
@@ -515,8 +567,9 @@ export default function App() {
 
                 <button
                   type="button"
-                  onClick={() => showToast('No unread alerts')}
+                  onClick={() => setActiveTab('notifications')}
                   className="glass w-9 h-9 rounded-full flex items-center justify-center relative transition hover:bg-white/30 cursor-pointer"
+                  aria-label="Notifications"
                 >
                   <i className="fa-solid fa-bell text-sm"></i>
                   {unreadNotifications > 0 && (
@@ -647,6 +700,7 @@ export default function App() {
             type="button"
             onClick={() => {
               if (activeTab === 'track') setActiveTab('orders');
+              else if (activeTab === 'orderhistory') setActiveTab('orders');
               else if (activeTab === 'checkout') setActiveTab('cart');
               else setActiveTab('home');
             }}
@@ -661,8 +715,12 @@ export default function App() {
               ? 'Checkout'
               : activeTab === 'orders'
               ? 'Your Orders'
+              : activeTab === 'orderhistory'
+              ? 'Order History'
               : activeTab === 'track'
               ? 'Track Delivery'
+              : activeTab === 'notifications'
+              ? 'Notifications'
               : activeTab === 'stores' || activeTab === 'browse'
               ? 'Browse Products'
               : activeTab.startsWith('product/')
@@ -771,102 +829,31 @@ export default function App() {
           />
         )}
 
-        {/* Orders Screen (sec-orders) */}
-        {activeTab === 'orders' && (
-          <section id="sec-orders" className="pt-2 pb-4 space-y-3">
-            {ordersList.length === 0 ? (
-              <div className="bg-white border border-gray-200 rounded-3xl p-8 text-center">
-                <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center text-brand-green mx-auto mb-3">
-                  <i className="fa-solid fa-bag-shopping text-2xl"></i>
-                </div>
-                <h3 className="font-extrabold text-base text-gray-900 mb-1">No Orders Placed Yet</h3>
-                <p className="text-xs text-gray-500 mb-4">Explore local stores to place your first order with fast delivery.</p>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('stores')}
-                  className="site-btn primary mx-auto"
-                >
-                  Browse Products
-                </button>
-              </div>
-            ) : (
-              ordersList.map((order, idx) => {
-                const storeName = order.seller_orders?.[0]?.store_name || order.seller_orders?.[0]?.seller_name || 'Shabbir Grocery Shop';
-                const isLive = order.order_status === 'PLACED' || order.order_status === 'PROCESSING' || order.order_status === 'DISPATCHED';
-                const orderNum = order.order_number || (order.id && order.id.slice(0, 8)) || `ORD-${idx + 1000}`;
-                const dateStr = order.created_at
-                  ? new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-                  : 'Recent';
-
-                if (idx === 0 && isLive) {
-                  return (
-                    <div
-                      key={order.id || idx}
-                      className="border border-green-200 bg-green-50 rounded-2xl p-4 cursor-pointer hover:shadow-md transition"
-                      onClick={() => {
-                        setActiveOrder(order);
-                        setActiveTab('track');
-                      }}
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <div className="font-extrabold text-base text-gray-900">
-                            #{orderNum}
-                          </div>
-                          <div className="text-xs text-gray-600 mt-0.5">
-                            {storeName} · ₹{parseFloat(order.grand_total).toFixed(2)}
-                          </div>
-                        </div>
-                        <span className="text-[10px] font-bold bg-orange-500 text-white px-2.5 py-1 rounded-full uppercase tracking-wider">
-                          {order.order_status === 'PLACED' ? 'ON THE WAY' : order.order_status}
-                        </span>
-                      </div>
-                      <div className="order-track-bar mb-2">
-                        <div className="order-track-fill" style={{ width: '72%' }}></div>
-                      </div>
-                      <div className="text-xs text-brand-green font-bold flex items-center gap-1.5">
-                        <i className="fa-solid fa-motorcycle"></i>
-                        <span>Arriving in {order.eta_minutes || 18} min · Ramesh (Rider)</span>
-                      </div>
-                    </div>
-                  );
+        {/* Orders Screen (sec-orders) & Order History (sec-orderhistory) */}
+        {(activeTab === 'orders' || activeTab === 'orderhistory') && (
+          <OrdersView
+            orders={ordersList}
+            initialView={activeTab === 'orderhistory' ? 'orderhistory' : 'orders'}
+            loading={loadingOrders}
+            onRefresh={refreshOrders}
+            onViewChange={(view) => setActiveTab(view)}
+            onSelectOrder={async (order) => {
+              setActiveOrder(order);
+              setActiveTab('track');
+              try {
+                if (order?.id) {
+                  const full = await OrderAPI.getOrderById(order.id);
+                  if (full?.data) setActiveOrder(full.data);
                 }
-
-                return (
-                  <div
-                    key={order.id || idx}
-                    className="border border-gray-100 bg-white rounded-2xl p-4 shadow-sm hover:border-gray-200 transition cursor-pointer"
-                    onClick={async () => {
-                      setActiveOrder(order);
-                      setActiveTab('track');
-                      try {
-                        const full = await OrderAPI.getOrderById(order.id);
-                        if (full?.data) setActiveOrder(full.data);
-                      } catch (err) {
-                        console.warn('Could not fetch full order details:', err);
-                      }
-                    }}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="font-extrabold text-sm text-gray-900">#{orderNum}</div>
-                        <div className="text-xs text-gray-600 mt-0.5">
-                          {storeName} · ₹{parseFloat(order.grand_total).toFixed(2)} · {dateStr}
-                        </div>
-                      </div>
-                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
-                        order.order_status === 'DELIVERED' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-blue-100 text-blue-800'
-                      }`}>
-                        {order.order_status}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </section>
+              } catch (err) {
+                console.warn('Could not fetch full order details:', err);
+              }
+            }}
+            onCancelOrder={handleCancelOrder}
+            onReorder={handleReorder}
+            onBrowseShops={() => setActiveTab('stores')}
+            showToast={showToast}
+          />
         )}
 
         {/* Track Delivery Screen (sec-track) */}
@@ -878,12 +865,27 @@ export default function App() {
           />
         )}
 
+        {/* Notifications Screen (Task 3: sec-notifications) */}
+        {activeTab === 'notifications' && (
+          <NotificationsView
+            onBack={() => setActiveTab('home')}
+            onNavigate={(url) => {
+              const target = url.startsWith('/') ? url.substring(1) : url;
+              setActiveTab(target);
+            }}
+            showToast={showToast}
+            onUnreadCountChange={(count) => setUnreadNotifications(count)}
+          />
+        )}
+
         {/* Other Tab Placeholders */}
         {activeTab !== 'home' &&
           activeTab !== 'cart' &&
           activeTab !== 'checkout' &&
           activeTab !== 'orders' &&
+          activeTab !== 'orderhistory' &&
           activeTab !== 'track' &&
+          activeTab !== 'notifications' &&
           activeTab !== 'search' &&
           activeTab !== 'stores' &&
           activeTab !== 'browse' &&
@@ -925,6 +927,7 @@ export default function App() {
           <div>
             <h4>Account</h4>
             <a onClick={() => setActiveTab('orders')}>My orders</a>
+            <a onClick={() => setActiveTab('orderhistory')}>Order history</a>
             <a onClick={() => showToast('Wallet balance: ₹0')}>Wallet</a>
             <a onClick={() => showToast(`Rewards Points: ${points}`)}>Rewards</a>
           </div>
@@ -993,13 +996,21 @@ export default function App() {
           <button
             type="button"
             onClick={() => setActiveTab('account')}
-            className={`nav-tab flex flex-col items-center gap-0.5 py-1.5 px-3 cursor-pointer ${
+            className={`nav-tab flex flex-col items-center gap-0.5 py-1.5 px-3 relative cursor-pointer ${
               activeTab === 'account' ? 'nav-tab-on' : 'nav-tab-off'
             }`}
           >
             <i className="fa-solid fa-circle-user text-[22px]"></i>
             <span className="text-[10px] font-bold">You</span>
             <span className="nav-dot"></span>
+            {unreadNotifications > 0 && (
+              <span
+                id="navNotifBadge"
+                className="absolute top-1 right-2 min-w-[15px] h-3.5 px-1 bg-brand-coral text-white rounded-full text-[8px] font-extrabold flex items-center justify-center shadow-xs"
+              >
+                {unreadNotifications}
+              </span>
+            )}
           </button>
         </div>
       </nav>

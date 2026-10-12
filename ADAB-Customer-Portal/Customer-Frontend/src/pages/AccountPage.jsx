@@ -304,7 +304,7 @@ export default function AccountPage({ onNavigate }) {
         </div>
 
         {/* 9. Notifications */}
-        <div onClick={() => showPlaceholder('Notifications: Order & promo alerts coming soon.')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
+        <div onClick={() => (onNavigate ? onNavigate('notifications') : showPlaceholder('Notifications: Order & promo alerts coming soon.'))} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
           <div className="w-12 h-12 bg-purple-50 text-purple-500 rounded-xl flex items-center justify-center text-xl shrink-0">
             <i className="fa-solid fa-bell"></i>
           </div>

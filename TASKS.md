@@ -796,12 +796,254 @@
 
 ---
 
-## 📅 Day 4: Order Tracking, Timeline & Real-time Alerts (Future)
-- [ ] Build "My Orders" customer order list page.
-- [ ] Build "Order Detail" page with seller-order breakdown and invoice retrieval.
-- [ ] Build live shipment tracking timeline with Leaflet map matching demo (`sec-track`).
-- [ ] Wire status events (`PLACED` → `ACCEPTED` → `PACKED` → `OUT_FOR_DELIVERY` → `DELIVERED`).
-- [ ] Implement customer notification inbox (`sec-notifications`).
+## 📅 Day 4: Order Tracking, Timeline & Real-time Alerts (Date: 2026-10-11)
+
+---
+
+### 🖥️ Backend Task 1: Customer Order Lifecycle, Multi-Seller Splits, Reorder & Order Cancellation
+- **Status:** [x] Completed on 2026-10-11
+- **What was asked to do:**
+  Build customer order lifecycle endpoints connecting `orders`, `seller_orders`, `order_items`, and `order_status_history`. Implement order cancellation for active orders, multi-vendor order breakdown, and order reorder flow to re-add past items into customer's cart.
+- **What we have done:**
+  - Implemented `getCustomerOrders` with customer ID / session token resolution to fetch real customer orders with joined multi-seller order breakdowns, items, and payment status.
+  - Implemented `getOrderById` joining `seller_orders`, `order_items`, `invoices`, and `order_status_history`.
+  - Implemented `cancelOrder` with strict status guards: allows cancellation for `PLACED`, `CONFIRMED`, `PREPARING`, or `NEW` orders; rejects cancellation for `OUT_FOR_DELIVERY` or `DELIVERED` orders; updates `orders` and `seller_orders` in an atomic SQL transaction; writes audit record to `order_status_history`; and inserts notification into `notifications`.
+  - Implemented `reorderOrder` that inspects past `order_items`, verifies active listings in `seller_listings`, resolves the active cart, and adds available items into `cart_items`.
+- **APIs generated:**
+  - `GET /api/v1/customers/me/orders` & `GET /api/v1/orders`
+  - `GET /api/v1/customers/me/orders/:id` & `GET /api/v1/orders/:id`
+  - `POST /api/v1/customers/me/orders/:id/cancel` & `POST /api/v1/orders/:id/cancel`
+  - `POST /api/v1/customers/me/orders/:id/reorder` & `POST /api/v1/orders/:id/reorder`
+- **What changes we have done:**
+  - Modified `Customer-Backend/services/orderService.js`
+  - Modified `Customer-Backend/controllers/orderController.js`
+  - Modified `Customer-Backend/routes/orderRoutes.js`
+  - Modified `Customer-Backend/routes/customer.js`
+- **How to test it:**
+  Run `npm test` in `Customer-Backend` (27/27 Day 4 tests pass).
+- **How to run it:**
+  ```powershell
+  cd ADAB-Customer-Portal/Customer-Backend
+  npm test
+  ```
+
+---
+
+### 🖥️ Backend Task 2: Order Status Timeline, Multi-Seller Shipments & Live Telemetry
+- **Status:** [x] Completed on 2026-10-11
+- **What was asked to do:**
+  Implement order status history timeline, multi-seller shipment retrieval, and live GPS telemetry tracking endpoints connecting `order_status_history`, `shipments`, and `tracking_events`.
+- **What we have done:**
+  - Implemented `getOrderStatusHistory` querying `order_status_history` and generating progressive milestones based on real timestamps and order statuses.
+  - Implemented `getOrderShipments` querying `shipments` joined with `seller_orders` and stores.
+  - Implemented `getOrderTracking` returning assigned rider data, store GPS coordinates, customer delivery destination coordinates, live rider intermediate GPS waypoint, progress percentage, ETA in minutes, and event audit logs persisted in `tracking_events`.
+- **APIs generated:**
+  - `GET /api/v1/customers/me/orders/:id/status-history` & `GET /api/v1/orders/:id/status-history`
+  - `GET /api/v1/customers/me/orders/:id/shipments` & `GET /api/v1/orders/:id/shipments`
+  - `GET /api/v1/customers/me/orders/:id/tracking` & `GET /api/v1/orders/:id/tracking`
+- **What changes we have done:**
+  - Modified `Customer-Backend/services/orderService.js`
+  - Modified `Customer-Backend/controllers/orderController.js`
+  - Modified `Customer-Backend/routes/orderRoutes.js`
+  - Modified `Customer-Backend/routes/customer.js`
+- **How to test it:**
+  Run `npm test` in `Customer-Backend`.
+- **How to run it:**
+  ```powershell
+  cd ADAB-Customer-Portal/Customer-Backend
+  npm test
+  ```
+
+---
+
+### 🖥️ Backend Task 3: Tax Invoice Generation & Invoicing Retrieval
+- **Status:** [x] Completed on 2026-10-11
+- **What was asked to do:**
+  Build tax invoice generation and retrieval endpoint connecting `invoices`, `orders`, and seller profiles/stores.
+- **What we have done:**
+  - Implemented `getOrderInvoice`: checks for existing invoice in `invoices` table; if not found, generates a unique invoice number (`INV-` + order_number), calculates 5% GST breakdown, links `seller_order_id`, and inserts the invoice record into `invoices` table.
+  - Joins seller details (`store_name`, `address_line`, `gstin` from `seller_profiles`), buyer details (`recipient_name`, `phone`, `address`), itemized lines, and full pricing breakdown.
+- **APIs generated:**
+  - `GET /api/v1/customers/me/orders/:id/invoice` & `GET /api/v1/orders/:id/invoice`
+- **What changes we have done:**
+  - Modified `Customer-Backend/services/orderService.js`
+  - Modified `Customer-Backend/controllers/orderController.js`
+  - Modified `Customer-Backend/routes/orderRoutes.js`
+  - Modified `Customer-Backend/routes/customer.js`
+- **How to test it:**
+  Run `npm test` in `Customer-Backend`.
+
+---
+
+### 🖥️ Backend Task 4: In-App Customer Notifications Engine
+- **Status:** [x] Completed on 2026-10-11
+- **What was asked to do:**
+  Implement customer notification inbox endpoints connecting to existing PostgreSQL `notifications` table, supporting unread counts and read-state mutations.
+- **What we have done:**
+  - Implemented `getNotifications` querying `notifications` for the customer user ordered by `created_at DESC` with pagination; seeds welcoming / order update notifications for fresh accounts so real data is present.
+  - Implemented `getUnreadNotificationCount` returning integer count of `is_read = false` notifications.
+  - Implemented `markNotificationRead` marking a single notification `is_read = true`.
+  - Implemented `markAllNotificationsRead` bulk-marking all notifications as read for the user.
+- **APIs generated:**
+  - `GET /api/v1/customers/me/notifications`
+  - `GET /api/v1/customers/me/notifications/unread-count`
+  - `PATCH /api/v1/customers/me/notifications/:id/read`
+  - `POST /api/v1/customers/me/notifications/read-all`
+- **What changes we have done:**
+  - Modified `Customer-Backend/services/customerService.js`
+  - Modified `Customer-Backend/controllers/customerController.js`
+  - Modified `Customer-Backend/routes/customer.js`
+- **How to test it:**
+  Run `npm test` in `Customer-Backend`.
+- **How to run it:**
+  ```powershell
+  cd ADAB-Customer-Portal/Customer-Backend
+  npm test
+  ```
+
+---
+
+### 🎨 Frontend Task 1: "My Orders" & Order History Screen (`sec-orders` & `sec-orderhistory`)
+- **Status:** [x] Completed on 2026-10-12
+- **What was asked to do:**
+  - Active Orders Card: Replicate the high-contrast active order card matching `unified-customer-portal-demo.html`:
+    - Order number (e.g., `#9021`), store name, total amount (₹).
+    - Status pill (`ON THE WAY` / `PACKING` / `PLACED`).
+    - Animated progress track bar (`.order-track-bar` and `.order-track-fill`).
+    - Live ETA pill (e.g., `"Arriving in 18 min · Ramesh"`).
+  - Past Order History (`sec-orderhistory`):
+    - Live search input (`#ohSearch`) to filter orders by order ID or product name.
+    - Delivered & cancelled order rows showing date, items summary, and order status pill.
+    - Reorder Action: A "Reorder" button next to delivered orders that re-adds previous order items back into the active cart via API.
+    - Cancel Action: An option to cancel an order if it is still in `PLACED` / `CONFIRMED` / `PREPARING` status with confirmation modal.
+- **What we have done:**
+  - Built `OrdersView.jsx` (`Customer-Frontend/src/components/OrdersView.jsx`) featuring both `#sec-orders` and `#sec-orderhistory` with:
+    - High-contrast emerald active card with `.order-track-bar` and animated shimmer `.order-track-fill`.
+    - Live ETA and rider details (`Arriving in 18 min · Ramesh`).
+    - Status pills mapped to colors (`ON THE WAY` in vibrant orange, `PACKING` in blue, `DELIVERED` in green, `CANCELLED` in red).
+    - `#ohSearch` real-time search filtering past and active orders by order number, product name, or store name.
+    - `.oh-row` items with smart date formatting (`Today`, `Yesterday`, `X days ago`), items previews, and order status badges.
+    - Interactive "Reorder" action calling `OrderAPI.reorder(orderId)` which re-adds items back to the active cart and refreshes cart state.
+    - Interactive "Cancel order" action with confirmation modal calling `OrderAPI.cancelOrder(orderId)` for cancellable orders.
+  - Wired `OrdersView` into `Customer-Frontend/src/App.jsx` for `/orders` and `/orderhistory` routes.
+  - Extended `Customer-Frontend/src/services/api.js` with `OrderAPI.cancelOrder` and `OrderAPI.reorder`.
+  - Added CSS animations in `Customer-Frontend/src/index.css` for shimmer progress and row hover effects.
+  - Created automated test suite `Customer-Frontend/src/__tests__/Day4Task1.test.jsx` (5 tests passing).
+- **APIs connected:**
+  - `GET /api/v1/customers/me/orders`
+  - `POST /api/v1/customers/me/orders/:id/cancel`
+  - `POST /api/v1/customers/me/orders/:id/reorder`
+- **What changes we have done:**
+  - Created [OrdersView.jsx](file:///d:/Projects/Adab/ADAB-B2C-TEAM/ADAB-Customer-Portal/Customer-Frontend/src/components/OrdersView.jsx)
+  - Modified [App.jsx](file:///d:/Projects/Adab/ADAB-B2C-TEAM/ADAB-Customer-Portal/Customer-Frontend/src/App.jsx)
+  - Modified [api.js](file:///d:/Projects/Adab/ADAB-B2C-TEAM/ADAB-Customer-Portal/Customer-Frontend/src/services/api.js)
+  - Modified [index.css](file:///d:/Projects/Adab/ADAB-B2C-TEAM/ADAB-Customer-Portal/Customer-Frontend/src/index.css)
+  - Created [Day4Task1.test.jsx](file:///d:/Projects/Adab/ADAB-B2C-TEAM/ADAB-Customer-Portal/Customer-Frontend/src/__tests__/Day4Task1.test.jsx)
+- **How to test it:**
+  - Run `npm test` in `Customer-Frontend` (all 44/44 tests pass).
+  - Open `/orders` in the browser: verify active card with progress track bar and ETA.
+  - Switch to "Order History" tab or open `/orderhistory`: type in `#ohSearch` to filter orders.
+  - Click "Reorder" on a delivered order to verify items added to cart.
+  - Click "Cancel order" on a placed/preparing order to verify modal and cancellation.
+- **How to run it:**
+  ```powershell
+  cd ADAB-Customer-Portal/Customer-Frontend
+  npm test
+  npm run dev
+  ```
+
+---
+
+### 🎨 Frontend Task 2: Order Detail & Live Shipment Tracking Screen (`sec-track`)
+- **Status:** [x] Completed on 2026-10-12
+- **What was asked to do:**
+  - **Hero ETA Header**: Large ETA display (e.g., 18 min), live rider message ("Ramesh is on the way with your order").
+  - **Leaflet Map Integration (`#trackMap`)**: Responsive Leaflet container pinned with store origin marker, rider motorcycle marker, and customer delivery address pin with route polyline.
+  - **Rider & Store 3-Column Meta Card**: 3-tile status grid (Rider: Ramesh, Store: Balaji Store, Items: 4 items) and Action button: "Call rider" (`.green-btn`).
+  - **Milestone Stepper Timeline**: Progressive visual timeline: `ACCEPTED` → `PACKED` → `OUT_FOR_DELIVERY` → `DELIVERED` with timestamps and active pulsing states.
+  - **Multi-Seller Breakdown & Invoice Action**: Multi-seller itemized order breakdown (store name, items list, unit prices, bill summary) and "Download / View Tax Invoice" action fetching real invoice data from backend.
+- **What we have done:**
+  - Implemented `OrderStatusView.jsx` (`Customer-Frontend/src/components/OrderStatusView.jsx`) featuring `#sec-track`:
+    - **Hero ETA Header**: High-visibility ETA callout (`18 min`), live rider message (`Ramesh is on the way with your order`), order reference (`Order #9021 · Balaji Store`).
+    - **Leaflet Map Integration (`#trackMap`)**: Responsive map initialized with Leaflet pins (Store Origin pin `#15803D`, Rider Motorcycle pin `#F97316`, Customer Delivery Address pin `#0F172A`) and connecting route polyline with auto-bounds fitting.
+    - **Rider & Store 3-Column Meta Card**: Clean 3-tile layout displaying Rider (`Ramesh`), Store (`Balaji Store`), and Items count (`4 items`), paired with `.green-btn` "Call rider" action.
+    - **Milestone Stepper Timeline**: Progressive 4-stage stepper (`ACCEPTED` → `PACKED` → `OUT_FOR_DELIVERY` → `DELIVERED`) with connecting track bar (`right-1/2 w-full`), custom icons, and timestamps.
+    - **Multi-Seller Breakdown & Bill Summary**: Package-by-package breakdown by store, itemized unit prices, quantities, store subtotals, GST calculation, payment badge (`PAID` / `PENDING`), and delivery address card.
+    - **Tax Invoice Modal & Print**: Interactive "Download / View Tax Invoice" button hooked to `OrderAPI.getInvoice(order.id)` with a modal rendering invoice numbers, GSTIN, CGST/SGST breakdowns, itemized tables, and print capability.
+  - Created automated test suite `Customer-Frontend/src/__tests__/Day4Task2.test.jsx` (6 tests passing).
+  - Maintained complete backwards compatibility with existing test suites (all 50 frontend tests and 36 backend tests pass).
+- **APIs connected:**
+  - `GET /api/v1/orders/:id/tracking`
+  - `GET /api/v1/orders/:id/status-history`
+  - `GET /api/v1/orders/:id/invoice`
+- **What changes we have done:**
+  - Modified [OrderStatusView.jsx](file:///d:/Projects/Adab/ADAB-B2C-TEAM/ADAB-Customer-Portal/Customer-Frontend/src/components/OrderStatusView.jsx)
+  - Created [Day4Task2.test.jsx](file:///d:/Projects/Adab/ADAB-B2C-TEAM/ADAB-Customer-Portal/Customer-Frontend/src/__tests__/Day4Task2.test.jsx)
+  - Updated [TASKS.md](file:///d:/Projects/Adab/ADAB-B2C-TEAM/TASKS.md)
+- **How to test it:**
+  - Run `npm test` in `Customer-Frontend` (all 50/50 tests pass).
+  - Click on an active order from `/orders`: verify Hero ETA (`18 min`), Leaflet map `#trackMap`, 3-column meta card, "Call rider" button, 4-stage timeline stepper, and multi-seller item breakdown.
+  - Click "Download / View Tax Invoice": verify tax invoice modal pops up with correct GSTIN and item totals.
+- **How to run it:**
+  ```powershell
+  cd ADAB-Customer-Portal/Customer-Frontend
+  npm test
+  npm run dev
+  ```
+
+---
+
+### 🎨 Frontend Task 3: Customer Notification Inbox Screen (`sec-notifications`)
+- **Status:** [x] Completed on 2026-10-12
+- **What was asked to do:**
+  - **Dedicated Notification View / Slide-Out Inbox (`sec-notifications`)**: Matching `unified-customer-portal-demo.html`.
+  - **Displays Real Notifications**: Order status updates, KYC/Address notices, Delivery alerts, Reward points.
+  - **Unread Badge Counter**: In top desktop header, mobile glass header, and bottom navigation bar.
+  - **Interactive Actions**: Individual "Mark as Read" / "Mark as Unread" toggle and "Mark All as Read" button.
+- **What we have done:**
+  - Built `NotificationsView.jsx` ([Customer-Frontend/src/components/NotificationsView.jsx](file:///d:/Projects/Adab/ADAB-B2C-TEAM/ADAB-Customer-Portal/Customer-Frontend/src/components/NotificationsView.jsx)) featuring:
+    - Section container with `id="sec-notifications"`.
+    - Real-time unread badge counter (`X unread` vs `All caught up`).
+    - Top inbox header with "Mark All as Read" action (`#markAllReadBtn`) hooked to `CustomerAPI.markAllNotificationsRead()`.
+    - Category filter chips (`All Updates`, `Delivery Alerts`, `Order Status`, `KYC & Address`, `Rewards & Offers`).
+    - High-fidelity visual cards matching `unified-customer-portal-demo.html`:
+      - Delivery alerts with orange left accent (`border-l-4 border-l-orange-500 bg-orange-50`).
+      - Order status updates with emerald left accent (`border-l-4 border-l-green-500 bg-green-50`).
+      - KYC & Address notices with indigo left accent (`border-l-4 border-l-indigo-500 bg-indigo-50`).
+      - Reward & Promo credits with amber accent (`border-l-4 border-l-amber-500 bg-amber-50`).
+    - Individual item read toggles with optimistic UI state and backend synchronization.
+    - Relative timestamp helpers (`5 mins ago`, `1 hr ago`, `Yesterday`).
+    - Action links for quick navigation to `/orders`, `/track`, and `/account`.
+  - Wired into [App.jsx](file:///d:/Projects/Adab/ADAB-B2C-TEAM/ADAB-Customer-Portal/Customer-Frontend/src/App.jsx):
+    - Desktop Header: `site-btn` with notification bell and `.site-badge` counter opening `/notifications`.
+    - Mobile Header: glass bell button with `bg-brand-coral` counter badge opening `/notifications`.
+    - Bottom Nav Bar: unread notification badge counter (`#navNotifBadge`) on the user account tab.
+    - Added `/notifications` route and sub-header back button navigation.
+    - Integrated with [AccountPage.jsx](file:///d:/Projects/Adab/ADAB-B2C-TEAM/ADAB-Customer-Portal/Customer-Frontend/src/pages/AccountPage.jsx) Notifications tile.
+  - Created automated test suite [Day4Task3.test.jsx](file:///d:/Projects/Adab/ADAB-B2C-TEAM/ADAB-Customer-Portal/Customer-Frontend/src/__tests__/Day4Task3.test.jsx) (**6/6 tests passing**).
+  - Maintained 100% backward compatibility: **56/56 frontend tests** and **36/36 backend tests** pass with 0 regressions.
+- **APIs connected:**
+  - `GET /api/v1/customers/me/notifications`
+  - `GET /api/v1/customers/me/notifications/unread-count`
+  - `PATCH /api/v1/customers/me/notifications/:id/read`
+  - `POST /api/v1/customers/me/notifications/read-all`
+- **What changes we have done:**
+  - Created [NotificationsView.jsx](file:///d:/Projects/Adab/ADAB-B2C-TEAM/ADAB-Customer-Portal/Customer-Frontend/src/components/NotificationsView.jsx)
+  - Modified [App.jsx](file:///d:/Projects/Adab/ADAB-B2C-TEAM/ADAB-Customer-Portal/Customer-Frontend/src/App.jsx)
+  - Modified [AccountPage.jsx](file:///d:/Projects/Adab/ADAB-B2C-TEAM/ADAB-Customer-Portal/Customer-Frontend/src/pages/AccountPage.jsx)
+  - Created [Day4Task3.test.jsx](file:///d:/Projects/Adab/ADAB-B2C-TEAM/ADAB-Customer-Portal/Customer-Frontend/src/__tests__/Day4Task3.test.jsx)
+  - Updated [TASKS.md](file:///d:/Projects/Adab/ADAB-B2C-TEAM/TASKS.md)
+- **How to test it:**
+  - Run `npm test` in `Customer-Frontend` (all 56/56 tests pass).
+  - Click notification bell in top header (or navigate to `/notifications`): verify dedicated inbox view (`sec-notifications`).
+  - Click category filter chips to filter between Order updates, Delivery alerts, and KYC notices.
+  - Click "Mark All as Read" or individual "Mark as read" buttons to verify badges and read states update dynamically.
+- **How to run it:**
+  ```powershell
+  cd ADAB-Customer-Portal/Customer-Frontend
+  npm test
+  npm run dev
+  ```
 
 ---
 

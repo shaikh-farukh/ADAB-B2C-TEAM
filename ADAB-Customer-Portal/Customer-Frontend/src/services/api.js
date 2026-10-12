@@ -149,8 +149,21 @@ export const PaymentAPI = {
 };
 
 export const OrderAPI = {
-  getOrders: () => apiRequest('/orders'),
-  getOrderById: (orderId) => apiRequest(`/orders/${orderId}`)
+  getOrders: () => apiRequest('/customers/me/orders'),
+  getOrderById: (orderId) => apiRequest(`/customers/me/orders/${orderId}`),
+  cancelOrder: (orderId, reason = '') =>
+    apiRequest(`/customers/me/orders/${orderId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason })
+    }),
+  reorder: (orderId) =>
+    apiRequest(`/customers/me/orders/${orderId}/reorder`, {
+      method: 'POST'
+    }),
+  getStatusHistory: (orderId) => apiRequest(`/customers/me/orders/${orderId}/status-history`),
+  getShipments: (orderId) => apiRequest(`/customers/me/orders/${orderId}/shipments`),
+  getTracking: (orderId) => apiRequest(`/customers/me/orders/${orderId}/tracking`),
+  getInvoice: (orderId) => apiRequest(`/customers/me/orders/${orderId}/invoice`)
 };
 
 // Wishlist APIs
@@ -201,6 +214,20 @@ export const CustomerAPI = {
     apiRequest(`/customers/me/payment-methods/${id}`, {
       method: 'DELETE'
     }),
-  getWallet: () => apiRequest('/customers/me/wallet')
+  getWallet: () => apiRequest('/customers/me/wallet'),
+  // Notifications APIs (Day 4)
+  getNotifications: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/customers/me/notifications${query ? `?${query}` : ''}`);
+  },
+  getUnreadNotificationCount: () => apiRequest('/customers/me/notifications/unread-count'),
+  markNotificationRead: (notificationId) =>
+    apiRequest(`/customers/me/notifications/${notificationId}/read`, {
+      method: 'PATCH'
+    }),
+  markAllNotificationsRead: () =>
+    apiRequest('/customers/me/notifications/read-all', {
+      method: 'POST'
+    })
 };
 

@@ -135,3 +135,46 @@ exports.getWallet = async (req, res) => {
   }
 };
 
+exports.getNotifications = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit, 10) || 50;
+    const offset = parseInt(req.query.offset, 10) || 0;
+    const data = await customerService.getNotifications(getUserId(req), { limit, offset });
+    res.json({ status: 'success', success: true, data });
+  } catch (error) {
+    const { statusCode, response } = formatError(error);
+    res.status(statusCode).json(response);
+  }
+};
+
+exports.getUnreadNotificationCount = async (req, res) => {
+  try {
+    const count = await customerService.getUnreadNotificationCount(getUserId(req));
+    res.json({ status: 'success', success: true, data: { unread_count: count } });
+  } catch (error) {
+    const { statusCode, response } = formatError(error);
+    res.status(statusCode).json(response);
+  }
+};
+
+exports.markNotificationRead = async (req, res) => {
+  try {
+    const data = await customerService.markNotificationRead(getUserId(req), req.params.id);
+    res.json({ status: 'success', success: true, message: 'Notification marked as read', data });
+  } catch (error) {
+    const { statusCode, response } = formatError(error);
+    res.status(statusCode).json(response);
+  }
+};
+
+exports.markAllNotificationsRead = async (req, res) => {
+  try {
+    const data = await customerService.markAllNotificationsRead(getUserId(req));
+    res.json({ status: 'success', success: true, message: 'All notifications marked as read', data });
+  } catch (error) {
+    const { statusCode, response } = formatError(error);
+    res.status(statusCode).json(response);
+  }
+};
+
+

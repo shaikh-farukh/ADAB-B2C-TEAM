@@ -388,3 +388,96 @@ exports.getWallet = async (rawUserId) => {
   };
 };
 
+exports.getNotifications = async (rawUserId, { limit = 50, offset = 0 } = {}) => {
+  const userId = await resolveCustomerUserId(rawUserId);
+
+  let res = await pool.query(
+    `SELECT * FROM notifications 
+     WHERE user_id = $1 
+     ORDER BY created_at DESC 
+     LIMIT $2 OFFSET $3`,
+    [userId, limit, offset]
+  );
+
+  // If no notifications exist yet for this customer, generate initial notifications tied to their real orders/account
+  if (res.rows.length === 0) {
+    const ordersRes = await pool.query(
+      `SELECT id, order_number, order_status, grand_total FROM orders WHERE customer_id = $1 ORDER BY created_at DESC LIMIT 3`,
+      [userId]
+    );
+
+    if (ordersRes.rows.length > 0) {
+      for (const ord of ordersRes.rows) {
+        await pool.query(
+          `INSERT INTO notifications (user_id, title, message, type, is_read, action_url, created_at)
+           VALUES ($1, $2, $3, 'ORDER_STATUS', false, $4, NOW())`,
+          [
+            userId,
+            `Order #${ord.order_number} ${ord.order_status}`,
+            `Your order #${ord.order_number} for ₹${ord.grand_total} is currently ${ord.order_status}.`,
+            `/orders`
+          ]
+        );
+      }
+    } else {
+      await pool.query(
+        `INSERT INTO notifications (user_id, title, message, type, is_read, action_url, created_at)
+         VALUES ($1, 'Welcome to ADAB!', 'Start exploring local stores in your neighborhood with fast 14-45 min delivery.', 'GENERAL', false, '/stores', NOW())`,
+        [userId]
+      );
+    }
+
+    res = await pool.query(
+      `SELECT * FROM notifications 
+       WHERE user_id = $1 
+       ORDER BY created_at DESC 
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset]
+    );
+  }
+
+  return res.rows;
+};
+
+exports.getUnreadNotificationCount = async (rawUserId) => {
+  const userId = await resolveCustomerUserId(rawUserId);
+  const res = await pool.query(
+    `SELECT COUNT(*)::int as unread_count FROM notifications WHERE user_id = $1 AND is_read = false`,
+    [userId]
+  );
+  return res.rows[0]?.unread_count || 0;
+};
+
+exports.markNotificationRead = async (rawUserId, notificationId) => {
+  const userId = await resolveCustomerUserId(rawUserId);
+  const res = await pool.query(
+    `UPDATE notifications 
+     SET is_read = true 
+     WHERE id = $1 AND user_id = $2 
+     RETURNING *`,
+    [notificationId, userId]
+  );
+  if (res.rows.length === 0) {
+    const notifCheck = await pool.query(`SELECT id FROM notifications WHERE id = $1`, [notificationId]);
+    if (notifCheck.rows.length === 0) {
+      const err = new Error(`Notification #${notificationId} not found`);
+      err.statusCode = 404;
+      throw err;
+    }
+  }
+  return res.rows[0] || { id: notificationId, is_read: true };
+};
+
+exports.markAllNotificationsRead = async (rawUserId) => {
+  const userId = await resolveCustomerUserId(rawUserId);
+  const res = await pool.query(
+    `UPDATE notifications 
+     SET is_read = true 
+     WHERE user_id = $1 AND is_read = false 
+     RETURNING id`,
+    [userId]
+  );
+  return { updated_count: res.rows.length };
+};
+
+
