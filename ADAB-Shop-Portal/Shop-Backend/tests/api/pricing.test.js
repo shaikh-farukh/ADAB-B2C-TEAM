@@ -30,6 +30,7 @@ jest.mock('../../src/controllers/pricingController', () => ({
   updateBulkPricing: (req, res) => res.status(200).json({ success: true }),
   updateListingPricing: (req, res) => res.json({ id: req.params.listingId, price: 150 }),
   getPricingHistory: (req, res) => res.json([]),
+  getAllPreviews: (req, res) => res.json([]),
   previewPricing: (req, res) => res.json({ final_price: 150 }),
   schedulePricing: (req, res) => res.status(201).json({ id: '1' }),
   deleteSchedule: (req, res) => res.json({ success: true }),
