@@ -211,12 +211,82 @@ class SellerController {
 
   async getNearbyCatalog(req, res) {
     try {
-      const catalog = await sellerService.getNearbyCatalog();
+      const { storeId, userId } = getAuthenticatedSellerContext(req);
+      const { distance, category, q } = req.query;
+      const catalog = await sellerService.getNearbyCatalog(storeId, { distance, category, q, userId });
       res.json({ success: true, data: catalog });
     } catch (error) {
       handleError(res, error);
     }
   }
+
+  async getNearbyStores(req, res) {
+    try {
+      const { storeId, userId } = getAuthenticatedSellerContext(req);
+      const { distance, category, q } = req.query;
+      const stores = await sellerService.getNearbyStores(storeId, { distance, category, q, userId });
+      res.json({ success: true, data: stores });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async getBuyerCreditInfo(req, res) {
+    try {
+      const { storeId, userId } = getAuthenticatedSellerContext(req);
+      const credit = await sellerService.getBuyerCreditInfo(userId, storeId);
+      res.json({ success: true, data: credit });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async getPurchaseOrders(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      const orders = await sellerService.getPurchaseOrders(storeId);
+      res.json({ success: true, data: orders });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async getOtherStoreBrands(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      const { category, q, storeFilter } = req.query;
+      const brands = await sellerService.getOtherStoreBrands(storeId, { category, q, storeFilter });
+      res.json({ success: true, data: brands });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async addOtherStoreBrandToMyStore(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      const { originalListingId, sellPrice, stockQty } = req.body;
+      if (!originalListingId) {
+        return res.status(400).json({ success: false, error: 'originalListingId is required' });
+      }
+      const added = await sellerService.addOtherStoreBrandToMyStore(storeId, { originalListingId, sellPrice, stockQty });
+      res.status(201).json({ success: true, data: added, message: 'Added to your store catalog successfully' });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async getMyAddedOtherStoreBrands(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      const added = await sellerService.getMyAddedOtherStoreBrands(storeId);
+      res.json({ success: true, data: added });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+
 
   async getRecommendations(req, res) {
     try {

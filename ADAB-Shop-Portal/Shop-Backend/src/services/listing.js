@@ -23,14 +23,23 @@ class ListingService {
 
   async updateListing(storeId, id, data) {
     const existing = await this.getListingById(storeId, id);
-    if (!['DRAFT', 'CHANGES_REQUIRED', 'APPROVED'].includes(existing.approval_status)) {
-      throw new Error(`Cannot edit listing while it is in ${existing.approval_status} state. It must be in DRAFT, CHANGES_REQUIRED, or APPROVED.`);
+    if (!['DRAFT', 'CHANGES_REQUIRED', 'APPROVED', 'REJECTED'].includes(existing.approval_status)) {
+      throw new Error(`Cannot edit listing while it is in ${existing.approval_status} state. It must be in DRAFT, CHANGES_REQUIRED, APPROVED, or REJECTED.`);
     }
     const validatedData = updateListingSchema.parse(data);
 
     // If an approved listing is edited, transition its status to SUBMITTED for admin re-review
     if (existing.approval_status === 'APPROVED') {
       validatedData.approval_status = 'SUBMITTED';
+    } else if (existing.approval_status === 'REJECTED') {
+      // If seller edits a rejected listing, allow moving it back to DRAFT or SUBMITTED
+      if (data.approval_status === 'DRAFT') {
+        validatedData.approval_status = 'DRAFT';
+        validatedData.rejection_reason = null;
+      } else if (data.approval_status === 'SUBMITTED') {
+        validatedData.approval_status = 'SUBMITTED';
+        validatedData.rejection_reason = null;
+      }
     }
 
     const listing = await ListingRepository.updateListing(storeId, id, validatedData);
@@ -64,18 +73,27 @@ class ListingService {
 
   async submitListing(storeId, id) {
     const listing = await this.getListingById(storeId, id);
-    if (!['DRAFT', 'CHANGES_REQUIRED', 'APPROVED'].includes(listing.approval_status)) {
+    if (!['DRAFT', 'CHANGES_REQUIRED', 'APPROVED', 'REJECTED'].includes(listing.approval_status)) {
       throw new Error(`Cannot submit listing from state: ${listing.approval_status}`);
     }
     
     // Write history
     const pool = require('../../db');
+    const reasonText = listing.approval_status === 'APPROVED' 
+      ? 'Seller edited approved listing and re-submitted for review' 
+      : listing.approval_status === 'REJECTED'
+      ? 'Seller corrected rejected listing and re-submitted for review'
+      : 'Seller submitted for review';
+
     await pool.query(
       `INSERT INTO product_approval_history (listing_id, previous_status, new_status, rejection_reason) VALUES ($1, $2, $3, $4)`,
-      [id, listing.approval_status, 'SUBMITTED', listing.approval_status === 'APPROVED' ? 'Seller edited approved listing and re-submitted for review' : 'Seller submitted for review']
+      [id, listing.approval_status, 'SUBMITTED', reasonText]
     );
 
-    const updated = await ListingRepository.updateListing(storeId, id, { approval_status: 'SUBMITTED' });
+    const updated = await ListingRepository.updateListing(storeId, id, { 
+      approval_status: 'SUBMITTED',
+      rejection_reason: null
+    });
     const notificationProducer = require('./notificationProducer');
     await notificationProducer.listingSubmitted(storeId, listing.title);
     return updated;

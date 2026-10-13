@@ -86,9 +86,35 @@ class SellerService {
     return await sellerRepository.getAnalytics(storeId);
   }
 
-  async getNearbyCatalog() {
-    return await sellerRepository.getNearbyCatalog();
+  async getNearbyCatalog(storeId, options) {
+    return await sellerRepository.getNearbyCatalog(storeId, options);
   }
+
+  async getNearbyStores(storeId, options) {
+    return await sellerRepository.getNearbyStores(storeId, options);
+  }
+
+  async getBuyerCreditInfo(userId, storeId) {
+    return await sellerRepository.getBuyerCreditInfo(userId, storeId);
+  }
+
+  async getPurchaseOrders(storeId) {
+    return await sellerRepository.getPurchaseOrders(storeId);
+  }
+
+  async getOtherStoreBrands(storeId, options) {
+    return await sellerRepository.getOtherStoreBrands(storeId, options);
+  }
+
+  async addOtherStoreBrandToMyStore(storeId, data) {
+    return await sellerRepository.addOtherStoreBrandToMyStore(storeId, data);
+  }
+
+  async getMyAddedOtherStoreBrands(storeId) {
+    return await sellerRepository.getMyAddedOtherStoreBrands(storeId);
+  }
+
+
 
   async getRecommendations() {
     return await sellerRepository.getRecommendations();

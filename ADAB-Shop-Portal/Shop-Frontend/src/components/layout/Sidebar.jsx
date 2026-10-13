@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useSeller } from '../../context/SellerContext';
@@ -18,6 +18,28 @@ export default function Sidebar() {
   const [showSignOutModal, setShowSignOutModal] = useState(false);
   const storeName = store?.store_name || 'My Store';
   const initial = (storeName || 'S').substring(0, 2).toUpperCase();
+
+  const [buyCartCount, setBuyCartCount] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('adab_buy_cart') || '[]');
+      return Array.isArray(saved) ? saved.length : 0;
+    } catch (e) {
+      return 0;
+    }
+  });
+
+  useEffect(() => {
+    const handleCartUpdate = () => {
+      try {
+        const saved = JSON.parse(localStorage.getItem('adab_buy_cart') || '[]');
+        setBuyCartCount(Array.isArray(saved) ? saved.length : 0);
+      } catch (e) {
+        setBuyCartCount(0);
+      }
+    };
+    window.addEventListener('adab-cart-updated', handleCartUpdate);
+    return () => window.removeEventListener('adab-cart-updated', handleCartUpdate);
+  }, []);
 
   const completedCount = [1, 2, 3, 4, 5].filter((s) => Boolean(kycSteps?.[`step${s}`])).length;
   const rawKycStatus = String(profile?.kyc_status || 'DRAFT').trim().toUpperCase();
@@ -224,9 +246,6 @@ export default function Sidebar() {
         <NavLink to="/products" className={navClass}>
           <i className="fa-solid fa-boxes-stacked w-4 text-purple-600"></i> <span data-i18n="navMyProducts">My Products Catalog</span>
         </NavLink>
-        <NavLink to="/create" className={navClass}>
-          <i className="fa-solid fa-circle-plus w-4 text-emerald-600"></i> <span data-i18n="navCreate">Add New Product</span>
-        </NavLink>
         <NavLink to="/returns" className={navClass}>
           <i className="fa-solid fa-rotate-left w-4 text-rose-500"></i> <span data-i18n="navReturns">Returns &amp; Refunds</span>
           <span className="ml-auto bg-rose-100 text-rose-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">3</span>
@@ -244,11 +263,11 @@ export default function Sidebar() {
           <i className="fa-solid fa-book-open w-4 text-indigo-600"></i> <span data-i18n="navMasterCat">National FMCG Catalog</span>
         </NavLink>
         <NavLink to="/partnerbrands" className={navClass}>
-          <i className="fa-solid fa-handshake w-4 text-amber-600"></i> <span data-i18n="navPartnerPack">Partner Brands</span>
+          <i className="fa-solid fa-handshake w-4 text-amber-600"></i> <span data-i18n="navPartnerPack">Other Store Brands</span>
         </NavLink>
         <NavLink to="/buycart" className={navClass}>
           <i className="fa-solid fa-cart-shopping w-4 text-blue-600"></i> <span>Purchase Cart</span>
-          <span id="navBuyCartBadge" className="ml-auto bg-blue-600 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">0</span>
+          <span id="navBuyCartBadge" className="ml-auto bg-blue-600 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">{buyCartCount}</span>
         </NavLink>
 
         {/* 4. FINANCIALS & PAYMENTS */}

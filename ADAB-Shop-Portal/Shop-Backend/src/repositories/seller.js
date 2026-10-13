@@ -1088,19 +1088,392 @@ class SellerRepository {
     }
   }
 
-  async getNearbyCatalog() {
-    const query = `
-      SELECT p.id, COALESCE(p.name, p.title) as name, p.category, p.mrp, p.sell_price as price,
-             p.min_order_qty as min_order, s.store_name, s.city,
-             '3 km' as distance, 'Verified ADAB Merchant' as supplier_name
-      FROM products p
-      LEFT JOIN stores s ON p.store_id = s.id
-      LIMIT 30
-    `;
+  async getNearbyCatalog(buyerStoreId, options = {}) {
     try {
-      const res = await pool.query(query);
+      let buyerLat = null;
+      let buyerLng = null;
+      let buyerCity = '';
+
+      if (buyerStoreId) {
+        const storeRes = await pool.query(
+          `SELECT id, city, latitude, longitude FROM stores WHERE id = $1`,
+          [buyerStoreId]
+        );
+        if (storeRes.rows.length > 0) {
+          const s = storeRes.rows[0];
+          buyerLat = s.latitude ? Number(s.latitude) : null;
+          buyerLng = s.longitude ? Number(s.longitude) : null;
+          buyerCity = s.city || '';
+        }
+      }
+
+      const query = `
+        SELECT 
+          sl.id,
+          sl.store_id,
+          sl.title as name,
+          sl.category_id,
+          COALESCE(c.name, 'General') as category,
+          sl.mrp,
+          sl.sell_price as price,
+          sl.unit,
+          COALESCE(sl.min_order_qty, 1) as min_order,
+          COALESCE(sl.stock_qty, 0) as stock_qty,
+          sl.barcode,
+          sl.brand_tag,
+          s.store_name,
+          s.city as store_city,
+          s.phone as store_phone,
+          COALESCE(s.rating, 5.0) as store_rating,
+          COALESCE(s.is_online, false) as store_is_online,
+          CASE 
+            WHEN $2::numeric IS NOT NULL AND $3::numeric IS NOT NULL 
+                 AND s.latitude IS NOT NULL AND s.longitude IS NOT NULL THEN
+              ROUND(
+                CAST(
+                  6371 * acos(
+                    least(1.0, greatest(-1.0,
+                      cos(radians($2::numeric)) * cos(radians(s.latitude)) *
+                      cos(radians(s.longitude) - radians($3::numeric)) +
+                      sin(radians($2::numeric)) * sin(radians(s.latitude))
+                    ))
+                  ) AS numeric
+                ), 1
+              )
+            WHEN LOWER(s.city) = LOWER($4) THEN 3.0
+            ELSE 15.0
+          END AS distance_km,
+          COALESCE(sos.credit_config->>'enableCredit', 'true')::boolean as credit_allowed,
+          COALESCE(sos.credit_config->>'creditDays', '14') as credit_days,
+          COALESCE(sos.credit_config->>'creditLimit', '50000') as credit_limit,
+          (
+            SELECT json_agg(json_build_object(
+              'zone_name', dz.zone_name,
+              'radius_km', dz.radius_km,
+              'delivery_fee', dz.delivery_fee,
+              'estimated_minutes_min', dz.estimated_minutes_min,
+              'estimated_minutes_max', dz.estimated_minutes_max
+            ))
+            FROM delivery_zones dz
+            WHERE dz.store_id = s.id AND dz.is_active = true
+          ) AS delivery_options
+        FROM seller_listings sl
+        JOIN stores s ON sl.store_id = s.id
+        LEFT JOIN categories c ON sl.category_id = c.id
+        LEFT JOIN seller_profiles sp ON s.seller_id = sp.id
+        LEFT JOIN seller_onboarding_steps sos ON sp.user_id = sos.user_id
+        WHERE ($1::uuid IS NULL OR s.id != $1)
+          AND sl.is_active = true
+          AND sl.approval_status = 'APPROVED'
+        ORDER BY sl.created_at DESC
+        LIMIT 50;
+      `;
+
+      const res = await pool.query(query, [buyerStoreId || null, buyerLat, buyerLng, buyerCity]);
       return res.rows;
     } catch (e) {
+      console.error('getNearbyCatalog Error:', e);
+      return [];
+    }
+  }
+
+  async getNearbyStores(buyerStoreId, options = {}) {
+    try {
+      let buyerLat = null;
+      let buyerLng = null;
+      let buyerCity = '';
+
+      if (buyerStoreId) {
+        const storeRes = await pool.query(
+          `SELECT id, city, latitude, longitude FROM stores WHERE id = $1`,
+          [buyerStoreId]
+        );
+        if (storeRes.rows.length > 0) {
+          const s = storeRes.rows[0];
+          buyerLat = s.latitude ? Number(s.latitude) : null;
+          buyerLng = s.longitude ? Number(s.longitude) : null;
+          buyerCity = s.city || '';
+        }
+      }
+
+      const query = `
+        SELECT 
+          s.id,
+          s.store_name,
+          s.category,
+          s.city,
+          s.pincode,
+          s.address_line,
+          s.phone,
+          COALESCE(s.delivery_radius_km, 10.0) as delivery_radius_km,
+          COALESCE(s.is_online, false) as is_online,
+          COALESCE(s.rating, 5.0) as rating,
+          COALESCE(s.rating_count, 0) as rating_count,
+          CASE 
+            WHEN $2::numeric IS NOT NULL AND $3::numeric IS NOT NULL 
+                 AND s.latitude IS NOT NULL AND s.longitude IS NOT NULL THEN
+              ROUND(
+                CAST(
+                  6371 * acos(
+                    least(1.0, greatest(-1.0,
+                      cos(radians($2::numeric)) * cos(radians(s.latitude)) *
+                      cos(radians(s.longitude) - radians($3::numeric)) +
+                      sin(radians($2::numeric)) * sin(radians(s.latitude))
+                    ))
+                  ) AS numeric
+                ), 1
+              )
+            WHEN LOWER(s.city) = LOWER($4) THEN 3.0
+            ELSE 15.0
+          END AS distance_km,
+          COALESCE(sos.credit_config->>'enableCredit', 'true')::boolean as credit_allowed,
+          COALESCE(sos.credit_config->>'creditDays', '14') as credit_days,
+          COALESCE(sos.credit_config->>'creditLimit', '50000') as credit_limit,
+          COALESCE(sos.credit_config->>'creditMinOrder', '5000') as credit_min_order,
+          (SELECT COUNT(*) FROM seller_listings sl WHERE sl.store_id = s.id AND sl.is_active = true AND sl.approval_status = 'APPROVED') as active_listings_count,
+          (
+            SELECT json_agg(json_build_object(
+              'zone_name', dz.zone_name,
+              'radius_km', dz.radius_km,
+              'delivery_fee', dz.delivery_fee,
+              'estimated_minutes_min', dz.estimated_minutes_min,
+              'estimated_minutes_max', dz.estimated_minutes_max
+            ))
+            FROM delivery_zones dz
+            WHERE dz.store_id = s.id AND dz.is_active = true
+          ) AS delivery_options
+        FROM stores s
+        LEFT JOIN seller_profiles sp ON s.seller_id = sp.id
+        LEFT JOIN seller_onboarding_steps sos ON sp.user_id = sos.user_id
+        WHERE ($1::uuid IS NULL OR s.id != $1)
+        ORDER BY distance_km ASC
+        LIMIT 50;
+      `;
+
+      const res = await pool.query(query, [buyerStoreId || null, buyerLat, buyerLng, buyerCity]);
+      return res.rows;
+    } catch (e) {
+      console.error('getNearbyStores Error:', e);
+      return [];
+    }
+  }
+
+  async getBuyerCreditInfo(userId, storeId) {
+    try {
+      const ledgerRes = await pool.query(
+        `SELECT total_limit, utilized_amount, available_amount FROM credit_ledgers WHERE applicant_id = $1 LIMIT 1`,
+        [userId]
+      );
+      if (ledgerRes.rows.length > 0) {
+        return ledgerRes.rows[0];
+      }
+
+      const onbRes = await pool.query(
+        `SELECT credit_config FROM seller_onboarding_steps WHERE user_id = $1 LIMIT 1`,
+        [userId]
+      );
+      if (onbRes.rows.length > 0 && onbRes.rows[0].credit_config) {
+        const cfg = onbRes.rows[0].credit_config;
+        const limit = Number(cfg.buyerCreditLimit) || 0;
+        return {
+          total_limit: limit,
+          utilized_amount: 0,
+          available_amount: limit
+        };
+      }
+
+      return { total_limit: 0, utilized_amount: 0, available_amount: 0 };
+    } catch (e) {
+      console.error('getBuyerCreditInfo Error:', e);
+      return { total_limit: 0, utilized_amount: 0, available_amount: 0 };
+    }
+  }
+
+  async getPurchaseOrders(storeId) {
+    try {
+      const query = `
+        SELECT 
+          po.id,
+          po.po_number,
+          po.supplier_id,
+          s.store_name as supplier_name,
+          po.total_amount,
+          po.payment_mode,
+          po.status,
+          po.created_at,
+          (
+            SELECT json_agg(json_build_object(
+              'item_name', poi.item_name,
+              'quantity', poi.quantity_ordered,
+              'price', poi.unit_purchase_price,
+              'total', poi.total_cost
+            ))
+            FROM stock_purchase_order_items poi
+            WHERE poi.purchase_order_id = po.id
+          ) as items
+        FROM stock_purchase_orders po
+        LEFT JOIN stores s ON po.supplier_id = s.id
+        WHERE po.store_id = $1
+        ORDER BY po.created_at DESC
+        LIMIT 20;
+      `;
+      const res = await pool.query(query, [storeId]);
+      return res.rows;
+    } catch (e) {
+      console.error('getPurchaseOrders Error:', e);
+      return [];
+    }
+  }
+
+  async getOtherStoreBrands(buyerStoreId, options = {}) {
+    try {
+      const { category, q, storeFilter } = options;
+      const params = [buyerStoreId || null];
+      let conditions = [
+        `($1::uuid IS NULL OR sl.store_id != $1)`,
+        `sl.product_type = 'OWN_BRAND'`,
+        `sl.is_active = true`,
+        `sl.approval_status = 'APPROVED'`
+      ];
+
+      if (category && category !== 'all') {
+        params.push(`%${category}%`);
+        conditions.push(`(c.name ILIKE $${params.length} OR sl.title ILIKE $${params.length})`);
+      }
+
+      if (q) {
+        params.push(`%${q}%`);
+        conditions.push(`(sl.title ILIKE $${params.length} OR sl.brand_tag ILIKE $${params.length} OR s.store_name ILIKE $${params.length})`);
+      }
+
+      if (storeFilter && storeFilter !== 'all') {
+        params.push(storeFilter);
+        conditions.push(`sl.store_id = $${params.length}`);
+      }
+
+      const query = `
+        SELECT 
+          sl.id,
+          sl.store_id,
+          sl.title,
+          sl.brand_tag,
+          sl.sku,
+          sl.barcode,
+          sl.category_id,
+          COALESCE(c.name, 'General') as category,
+          sl.mrp,
+          sl.sell_price as wholesale_price,
+          sl.unit,
+          COALESCE(sl.min_order_qty, 1) as min_order_qty,
+          COALESCE(sl.stock_qty, 0) as stock_qty,
+          s.store_name,
+          s.city as store_city,
+          COALESCE(s.rating, 5.0) as store_rating,
+          s.is_online as store_is_online,
+          (
+            SELECT COUNT(DISTINCT sl2.store_id)
+            FROM seller_listings sl2
+            WHERE sl2.master_catalog_id = sl.id
+          ) as stores_selling_count
+        FROM seller_listings sl
+        JOIN stores s ON sl.store_id = s.id
+        LEFT JOIN categories c ON sl.category_id = c.id
+        WHERE ${conditions.join(' AND ')}
+        ORDER BY sl.created_at DESC
+        LIMIT 50;
+      `;
+
+      const res = await pool.query(query, params);
+      return res.rows;
+    } catch (e) {
+      console.error('getOtherStoreBrands Error:', e);
+      return [];
+    }
+  }
+
+  async addOtherStoreBrandToMyStore(buyerStoreId, { originalListingId, sellPrice, stockQty }) {
+    try {
+      const origRes = await pool.query(
+        `SELECT * FROM seller_listings WHERE id = $1 AND product_type = 'OWN_BRAND' AND is_active = true`,
+        [originalListingId]
+      );
+      if (origRes.rows.length === 0) {
+        throw new Error('Original brand product not found or inactive');
+      }
+      const orig = origRes.rows[0];
+
+      const existingRes = await pool.query(
+        `SELECT id FROM seller_listings WHERE store_id = $1 AND master_catalog_id = $2`,
+        [buyerStoreId, originalListingId]
+      );
+      if (existingRes.rows.length > 0) {
+        const updateRes = await pool.query(
+          `UPDATE seller_listings 
+           SET sell_price = $1, stock_qty = $2, is_active = true, updated_at = NOW()
+           WHERE id = $3 RETURNING *`,
+          [Number(sellPrice) || orig.sell_price, Number(stockQty) || 10, existingRes.rows[0].id]
+        );
+        return updateRes.rows[0];
+      }
+
+      const insertRes = await pool.query(
+        `INSERT INTO seller_listings (
+          store_id, product_type, master_catalog_id, title, sku, barcode, brand_tag,
+          category_id, mrp, sell_price, unit, min_order_qty, allowed_buyers,
+          approval_status, is_active, stock_qty
+        ) VALUES (
+          $1, 'OWN_BRAND', $2, $3, $4, $5, $6,
+          $7, $8, $9, $10, $11, 'ALL',
+          'APPROVED', true, $12
+        ) RETURNING *`,
+        [
+          buyerStoreId,
+          orig.id,
+          orig.title,
+          orig.sku ? `${orig.sku}-RES` : null,
+          orig.barcode,
+          orig.brand_tag,
+          orig.category_id,
+          orig.mrp,
+          Number(sellPrice) || Number(orig.sell_price),
+          orig.unit || 'unit',
+          1,
+          Number(stockQty) || 20
+        ]
+      );
+      return insertRes.rows[0];
+    } catch (e) {
+      console.error('addOtherStoreBrandToMyStore Error:', e);
+      throw e;
+    }
+  }
+
+  async getMyAddedOtherStoreBrands(buyerStoreId) {
+    try {
+      const query = `
+        SELECT 
+          sl.id,
+          sl.title,
+          sl.brand_tag,
+          sl.sell_price,
+          sl.mrp,
+          sl.stock_qty,
+          sl.unit,
+          sl.approval_status,
+          sl.is_active,
+          s_orig.store_name as original_store_name,
+          s_orig.city as original_store_city,
+          orig.sell_price as wholesale_price
+        FROM seller_listings sl
+        JOIN seller_listings orig ON sl.master_catalog_id = orig.id
+        JOIN stores s_orig ON orig.store_id = s_orig.id
+        WHERE sl.store_id = $1
+        ORDER BY sl.created_at DESC;
+      `;
+      const res = await pool.query(query, [buyerStoreId]);
+      return res.rows;
+    } catch (e) {
+      console.error('getMyAddedOtherStoreBrands Error:', e);
       return [];
     }
   }
