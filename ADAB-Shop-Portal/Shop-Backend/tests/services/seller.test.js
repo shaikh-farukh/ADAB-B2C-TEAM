@@ -80,4 +80,24 @@ describe('Seller Service', () => {
     expect(settlement.status).toBe('PAID');
     expect(settlement.net_payable).toBe(1200);
   });
+
+  it('should forward saveOnboardingStep with phone data to repository', async () => {
+    const mockStepResult = {
+      profile: { id: 'user-1', phone: '+919876543210', is_phone_verified: true },
+      store: { id: 'store-1', phone: '+919876543210' }
+    };
+    sellerRepository.saveOnboardingStep.mockResolvedValue(mockStepResult);
+
+    const res = await sellerService.saveOnboardingStep('user-1', 1, {
+      store_name: 'Test Store',
+      owner_name: 'Owner',
+      address_line: 'Ring Road',
+      phone: '9876543210'
+    });
+
+    expect(sellerRepository.saveOnboardingStep).toHaveBeenCalledWith('user-1', 1, expect.objectContaining({
+      phone: '9876543210'
+    }));
+    expect(res).toEqual(mockStepResult);
+  });
 });

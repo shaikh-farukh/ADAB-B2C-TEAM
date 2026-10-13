@@ -159,6 +159,19 @@ export default function AuthPage() {
 
     try {
       setSubmitting(true);
+      if (idMode === 'phone' && phone) {
+        const cleanLoginPhone = phone.replace(/\D/g, '').slice(-10);
+        if (cleanLoginPhone) localStorage.setItem('seller_login_phone', cleanLoginPhone);
+        localStorage.setItem('seller_auth_mode', 'phone');
+        localStorage.removeItem('seller_login_email');
+      } else if (idMode === 'email' && email) {
+        localStorage.setItem('seller_login_email', email.trim().toLowerCase());
+        localStorage.setItem('seller_auth_mode', 'email');
+        localStorage.removeItem('seller_login_phone');
+      } else {
+        localStorage.setItem('seller_auth_mode', idMode || 'phone');
+        localStorage.removeItem('seller_login_phone');
+      }
       let data;
       try {
         data = await login(phone, password, {
@@ -217,6 +230,9 @@ export default function AuthPage() {
       setError('');
       setSubmitting(true);
       const targetEmail = email.trim() || 'seller@adab.com';
+      localStorage.setItem('seller_login_email', targetEmail.toLowerCase());
+      localStorage.setItem('seller_auth_mode', 'email');
+      localStorage.removeItem('seller_login_phone');
       const data = await login('', 'adab1234', {
         email: targetEmail,
         password: 'adab1234',

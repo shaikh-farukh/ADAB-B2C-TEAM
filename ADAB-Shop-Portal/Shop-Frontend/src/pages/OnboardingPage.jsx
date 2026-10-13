@@ -10,6 +10,12 @@ const STEP_TITLES = [
   'B2B Wholesale & Credit'
 ];
 
+const extractCleanPhone = (val) => {
+  if (!val) return '';
+  const digits = String(val).replace(/\D/g, '');
+  return digits.length > 10 ? digits.slice(-10) : digits;
+};
+
 export default function OnboardingPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -42,14 +48,30 @@ export default function OnboardingPage() {
   const [toastMsg, setToastMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  const authMode = localStorage.getItem('seller_auth_mode') || 
+    (localStorage.getItem('seller_login_email') ? 'email' : 
+     (localStorage.getItem('seller_login_phone') ? 'phone' : 
+      (profile?.email && !profile?.is_phone_verified ? 'email' : 'phone')));
+  const isPhoneLogin = authMode === 'phone';
+  const isEmailLogin = authMode === 'email';
+
   // Step 1 State: Store & Owner Profile (Critical) — initialized directly if step1 already saved
   const [shopName, setShopName] = useState(() => (kycSteps?.step1 ? store?.store_name || '' : ''));
   const [legalName, setLegalName] = useState(() => (kycSteps?.step1 ? profile?.legal_name || '' : ''));
   const [entityType, setEntityType] = useState(() => (kycSteps?.step1 ? profile?.entity_type || 'Sole Proprietorship' : 'Sole Proprietorship'));
   const [category, setCategory] = useState(() => (kycSteps?.step1 ? store?.category || 'Grocery & Supermarket' : 'Grocery & Supermarket'));
   const [ownerName, setOwnerName] = useState(() => (kycSteps?.step1 ? profile?.full_name || '' : ''));
-  const [phone, setPhone] = useState(() => profile?.phone || store?.phone || '');
-  const [email, setEmail] = useState(() => (kycSteps?.step1 ? profile?.email || '' : ''));
+  const [phone, setPhone] = useState(() => {
+    const loginPhone = localStorage.getItem('seller_login_phone');
+    if (loginPhone) return extractCleanPhone(loginPhone);
+    if (kycSteps?.step1 || profile?.is_phone_verified) {
+      return extractCleanPhone(profile?.phone || store?.phone);
+    }
+    return '';
+  });
+  const [email, setEmail] = useState(() => {
+    return profile?.email || localStorage.getItem('seller_login_email') || localStorage.getItem('seller_email') || '';
+  });
   const [address, setAddress] = useState(() => (kycSteps?.step1 ? store?.address_line || '' : ''));
   const [city, setCity] = useState(() => (kycSteps?.step1 ? store?.city || '' : ''));
   const [stateName, setStateName] = useState(() => (kycSteps?.step1 ? onboardingData?.profileData?.state || store?.state || '' : ''));
@@ -117,8 +139,17 @@ export default function OnboardingPage() {
 
   // Populate ONLY the verified phone number by default; other step fields populate if that step was saved or has DB data
   useEffect(() => {
-    if (profile?.phone || store?.phone) {
-      setPhone(profile?.phone || store?.phone || '');
+    const loginPhone = localStorage.getItem('seller_login_phone');
+    if (loginPhone) {
+      setPhone(extractCleanPhone(loginPhone));
+    } else if (kycSteps?.step1 || profile?.is_phone_verified) {
+      const p = extractCleanPhone(profile?.phone || store?.phone);
+      if (p) setPhone(p);
+    }
+
+    const loginEmail = profile?.email || localStorage.getItem('seller_login_email') || localStorage.getItem('seller_email') || '';
+    if (loginEmail) {
+      setEmail((prev) => prev || loginEmail);
     }
 
     const hasStep1 = Boolean(kycSteps?.step1 || (store?.address_line && String(store.address_line).trim()));
@@ -262,12 +293,17 @@ export default function OnboardingPage() {
   const handleDemoFillCurrentStep = () => {
     setErrorMsg('');
     if (currentStep === 1) {
+      if (!isPhoneLogin && (!phone || phone.length !== 10)) {
+        setPhone('9876543210');
+      }
       setShopName(`Mahadev Supermart ${phoneLast4}`);
       setLegalName(`Mahadev Supermart Enterprises ${phoneLast4}`);
       setEntityType('Sole Proprietorship');
       setCategory('Grocery & Supermarket');
       setOwnerName('Rajesh Patel');
-      setEmail(`mahadev.${phoneLast4}@adab.in`);
+      if (!isEmailLogin) {
+        setEmail(`mahadev.${phoneLast4}@adab.in`);
+      }
       setAddress('Shop 14, Ground Floor, Sardar Market, Ring Road, Surat');
       setCity('Surat');
       setStateName('Gujarat');
@@ -313,8 +349,14 @@ export default function OnboardingPage() {
       let payload = {};
 
       if (currentStep === 1) {
+        const cleanPhoneDigits = extractCleanPhone(phone);
         if (!shopName.trim() || !ownerName.trim() || !address.trim()) {
           setErrorMsg('Please fill Store Name, Owner Name, and Complete Store Address (or use Demo Fill Up below).');
+          setSaving(false);
+          return;
+        }
+        if (!cleanPhoneDigits || cleanPhoneDigits.length !== 10) {
+          setErrorMsg('Please enter a valid 10-digit Registered Mobile Number.');
           setSaving(false);
           return;
         }
@@ -324,6 +366,7 @@ export default function OnboardingPage() {
           entity_type: entityType,
           category,
           owner_name: ownerName,
+          phone: cleanPhoneDigits,
           email,
           address_line: address,
           city,
@@ -390,6 +433,10 @@ export default function OnboardingPage() {
       const isComplianceStep = [1, 2, 3, 5].includes(Number(currentStep));
 
       const updated = await saveOnboardingStep(currentStep, payload);
+      if (currentStep === 1 && payload.phone) {
+        localStorage.setItem('seller_login_phone', payload.phone);
+        localStorage.setItem('seller_phone', `+91${payload.phone}`);
+      }
       const nextSteps = {
         ...effectiveKycSteps,
         ...(updated?.kycSteps || {}),
@@ -742,29 +789,64 @@ export default function OnboardingPage() {
                   data-title="Registered Mobile Number"
                   className="text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] after:content-['_*'] after:text-rose-600 after:font-extrabold"
                 />
-                <div className="flex gap-2">
-                  <div className="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm font-mono flex items-center text-gray-800 select-all">
-                    {phone || '—'}
-                  </div>
-                  <span className="px-3 py-2 bg-green-100 text-green-800 text-xs font-extrabold rounded-xl shrink-0 flex items-center">
-                    <i className="fa-solid fa-circle-check text-green-600 mr-1"></i> OTP Verified
+                <div className="relative flex items-center">
+                  <span className="absolute left-3.5 text-xs font-bold text-gray-500 font-mono select-none">
+                    +91
                   </span>
+                  <input
+                    type="tel"
+                    name="ob_custom_phone"
+                    maxLength={10}
+                    autoComplete="tel"
+                    value={phone}
+                    disabled={isPhoneLogin}
+                    readOnly={isPhoneLogin}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    placeholder="9876543210"
+                    className={`w-full pl-12 ${isPhoneLogin ? 'pr-32 bg-gray-100 text-gray-700 cursor-not-allowed select-all' : 'pr-28 bg-white focus:border-green-600'} py-2.5 rounded-xl border border-gray-200 text-sm font-mono outline-none`}
+                  />
+                  <div className="absolute right-2.5 flex items-center pointer-events-none">
+                    {isPhoneLogin ? (
+                      <span className="px-2 py-1 bg-green-100 text-green-800 text-[11px] font-extrabold rounded-lg shrink-0 flex items-center gap-1 shadow-xs">
+                        <i className="fa-solid fa-circle-check text-green-600"></i> OTP Verified
+                      </span>
+                    ) : phone.length === 10 ? (
+                      <span className="px-2 py-1 bg-blue-50 text-blue-700 text-[11px] font-bold rounded-lg shrink-0 border border-blue-200 flex items-center gap-1">
+                        <i className="fa-solid fa-circle-info text-blue-500"></i> 10 Digits
+                      </span>
+                    ) : (
+                      <span className="px-2 py-1 bg-amber-50 text-amber-700 text-[11px] font-bold rounded-lg shrink-0 border border-amber-200/60">
+                        {10 - phone.length} digits left
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div>
                 <div
-                  data-title="Official Business Email"
-                  className="text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)]"
+                  data-title={isEmailLogin ? "Registered Business Email" : "Official Business Email"}
+                  className={`text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] ${isEmailLogin ? "after:content-['_*'] after:text-rose-600 after:font-extrabold" : ""}`}
                 />
-                <input
-                  type="text"
-                  name="ob_custom_s6"
-                  autoComplete="one-time-code"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="e.g. store@adab.in"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600"
-                />
+                <div className="relative flex items-center">
+                  <input
+                    type="email"
+                    name="ob_custom_email"
+                    autoComplete="email"
+                    value={email}
+                    disabled={isEmailLogin}
+                    readOnly={isEmailLogin}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="e.g. store@adab.in"
+                    className={`w-full px-3.5 ${isEmailLogin ? 'pr-32 bg-gray-100 text-gray-700 cursor-not-allowed select-all' : 'pr-3.5 bg-white focus:border-green-600'} py-2.5 rounded-xl border border-gray-200 text-sm outline-none`}
+                  />
+                  {isEmailLogin && (
+                    <div className="absolute right-2.5 flex items-center pointer-events-none">
+                      <span className="px-2 py-1 bg-green-100 text-green-800 text-[11px] font-extrabold rounded-lg shrink-0 flex items-center gap-1 shadow-xs">
+                        <i className="fa-solid fa-circle-check text-green-600"></i> OTP Verified
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -812,6 +894,10 @@ export default function OnboardingPage() {
                   placeholder="e.g. 395007"
                 />
               </div>
+              <p className="text-[11px] text-gray-500 mt-2 flex items-center gap-1.5">
+                <i className="fa-solid fa-map-location-dot text-emerald-600"></i>
+                <span>Store coordinates are automatically geocoded from this address for delivery mapping &amp; radius calculation.</span>
+              </p>
             </div>
           </div>
         )}

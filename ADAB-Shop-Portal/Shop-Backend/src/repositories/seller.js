@@ -1,4 +1,5 @@
 const pool = require('../../db');
+const { geocodeAddress } = require('../services/geocodingService');
 
 class SellerRepository {
   // === Shared: Profile & Store Read (used by both Shabbir & Mayank) ===
@@ -29,7 +30,7 @@ class SellerRepository {
 
   async getProfile(sellerId) {
     const query = `
-      SELECT u.id, u.full_name, u.email, u.phone, u.status,
+      SELECT u.id, u.full_name, u.email, u.phone, u.status, u.is_phone_verified,
              sp.legal_name, sp.entity_type, sp.gstin, sp.pan, sp.kyc_status,
              sp.submitted_at, sp.verified_at, sp.rejection_reason
       FROM users u
@@ -46,7 +47,7 @@ class SellerRepository {
 
   async getStore(userId) {
     const query = `
-      SELECT s.id, s.seller_id as owner_id, s.store_name, s.city, s.address_line, 
+      SELECT s.id, s.seller_id as owner_id, s.store_name, s.city, s.state, s.pincode, s.address_line, 
              s.ui_mode, s.is_online, s.delivery_radius_km, s.rating, s.phone, s.category,
              s.latitude, s.longitude
       FROM stores s
@@ -54,7 +55,26 @@ class SellerRepository {
       WHERE sp.user_id = $1
     `;
     const res = await pool.query(query, [userId]);
-    return res.rows[0];
+    const store = res.rows[0];
+
+    // Lazy background geocode for existing stores with missing coordinates
+    if (store && (store.latitude == null || store.longitude == null) && (store.address_line || store.city || store.pincode)) {
+      geocodeAddress({
+        addressLine: store.address_line,
+        city: store.city,
+        state: store.state,
+        pincode: store.pincode
+      }).then(coords => {
+        if (coords) {
+          pool.query(
+            'UPDATE stores SET latitude = $1, longitude = $2 WHERE id = $3 AND (latitude IS NULL OR longitude IS NULL)',
+            [coords.latitude, coords.longitude, store.id]
+          ).catch(() => {});
+        }
+      }).catch(() => {});
+    }
+
+    return store;
   }
 
   // === Shabbir's Day 4: Profile/Store/Settings Updates & Dashboard ===
@@ -92,11 +112,32 @@ class SellerRepository {
     const store = await this.getStore(userId);
     if (!store) throw new Error("Store not found");
 
+    const allowedFields = ['store_name', 'city', 'state', 'pincode', 'address_line', 'phone', 'category', 'latitude', 'longitude'];
+    const updatePayload = { ...data };
+
+    const addressChanged = (updatePayload.address_line !== undefined && updatePayload.address_line !== store.address_line) ||
+                           (updatePayload.city !== undefined && updatePayload.city !== store.city) ||
+                           (updatePayload.pincode !== undefined && updatePayload.pincode !== store.pincode);
+
+    if (addressChanged && (updatePayload.latitude === undefined || updatePayload.longitude === undefined)) {
+      try {
+        const coords = await geocodeAddress({
+          addressLine: updatePayload.address_line !== undefined ? updatePayload.address_line : store.address_line,
+          city: updatePayload.city !== undefined ? updatePayload.city : store.city,
+          state: updatePayload.state !== undefined ? updatePayload.state : store.state,
+          pincode: updatePayload.pincode !== undefined ? updatePayload.pincode : store.pincode
+        });
+        if (coords) {
+          updatePayload.latitude = coords.latitude;
+          updatePayload.longitude = coords.longitude;
+        }
+      } catch (geoErr) {}
+    }
+
     const fields = [];
     const values = [];
     let idx = 1;
-    const allowedFields = ['store_name', 'city', 'address_line', 'phone', 'category'];
-    for (const [k, v] of Object.entries(data)) {
+    for (const [k, v] of Object.entries(updatePayload)) {
       if (allowedFields.includes(k)) {
         fields.push(`${k} = $${idx++}`);
         values.push(v);
@@ -1692,10 +1733,9 @@ class SellerRepository {
     let userRes;
     if (idMode === 'email') {
       userRes = await pool.query(`
-        SELECT u.id, u.phone, u.email, u.full_name, u.password_hash, u.user_type, u.status
+        SELECT u.id, u.phone, u.email, u.full_name, u.password_hash, u.user_type, u.status, u.is_phone_verified
         FROM users u
         LEFT JOIN seller_profiles sp ON sp.user_id = u.id
-        LEFT JOIN stores s ON s.seller_id = sp.id
         WHERE LOWER(COALESCE(u.email, '')) = $1
         ORDER BY
           (u.user_type = 'SELLER') DESC,
@@ -1705,14 +1745,10 @@ class SellerRepository {
       `, [rawEmail]);
     } else {
       userRes = await pool.query(`
-        SELECT u.id, u.phone, u.email, u.full_name, u.password_hash, u.user_type, u.status
+        SELECT u.id, u.phone, u.email, u.full_name, u.password_hash, u.user_type, u.status, u.is_phone_verified
         FROM users u
         LEFT JOIN seller_profiles sp ON sp.user_id = u.id
-        LEFT JOIN stores s ON s.seller_id = sp.id
-        WHERE (
-          REGEXP_REPLACE(u.phone, '\\D', '', 'g') LIKE '%' || $1
-          OR REGEXP_REPLACE(COALESCE(s.phone, ''), '\\D', '', 'g') LIKE '%' || $1
-        )
+        WHERE RIGHT(REGEXP_REPLACE(u.phone, '\\D', '', 'g'), 10) = $1
         ORDER BY
           (u.user_type = 'SELLER') DESC,
           (sp.id IS NOT NULL) DESC,
@@ -1724,6 +1760,7 @@ class SellerRepository {
     if (userRes.rows.length === 0) {
       // Auto-register new seller on first login
       let signupPhone = cleanDigits;
+      const isEmailMode = Boolean(rawEmail && (!signupPhone || signupPhone.length < 10));
       if (!signupPhone || signupPhone.length < 10) {
         if (rawEmail) {
           signupPhone = '9' + Math.floor(100000000 + Math.random() * 900000000).toString().slice(0, 9);
@@ -1737,7 +1774,8 @@ class SellerRepository {
         email: rawEmail || undefined,
         full_name: extra.full_name || defaultName,
         store_name: extra.store_name || `${defaultName} Store`,
-        idMode
+        idMode,
+        is_phone_verified: !isEmailMode
       }, true);
     }
 
@@ -1773,7 +1811,7 @@ class SellerRepository {
         await pool.query(`
           INSERT INTO stores (seller_id, store_name, category, city, state, pincode, address_line, phone, delivery_radius_km, is_online)
           VALUES ($1, $2, 'Grocery & Supermarket', 'Surat', 'Gujarat', '395007', '', $3, 10, false)
-        `, [spId, defaultStoreName, user.phone || '+919876543210']);
+        `, [spId, defaultStoreName, user.phone || '']);
       }
       onboarding = await this.getOnboardingData(user.id);
     }
@@ -1785,6 +1823,8 @@ class SellerRepository {
       token,
       userId: user.id,
       storeId,
+      phone: user.phone,
+      email: user.email,
       profile: onboarding.profile,
       store: onboarding.store,
       kycSteps: onboarding.kycSteps,
@@ -1826,12 +1866,14 @@ class SellerRepository {
     const ownerName = (extra.full_name || '').trim() || 'Merchant Owner';
     const storeName = (extra.store_name || '').trim() || `Store ${cleanDigits.slice(-4)}`;
 
+    const isPhoneVerified = extra.is_phone_verified !== undefined ? Boolean(extra.is_phone_verified) : (extra.idMode !== 'email');
+
     // Single atomic CTE round-trip for user + seller_profile + store + seller_onboarding_steps
     const cteRes = await pool.query(`
       WITH new_user AS (
         INSERT INTO users (phone, email, password_hash, full_name, user_type, status, is_phone_verified)
-        VALUES ($1, $5, $2, $3, 'SELLER', 'ACTIVE', true)
-        RETURNING id, phone, full_name, email, status
+        VALUES ($1, $5, $2, $3, 'SELLER', 'ACTIVE', $6)
+        RETURNING id, phone, full_name, email, status, is_phone_verified
       ),
       new_profile AS (
         INSERT INTO seller_profiles (user_id, legal_name, entity_type, pan, kyc_status, onboarding_step)
@@ -1853,7 +1895,7 @@ class SellerRepository {
         (SELECT row_to_json(new_user) FROM new_user) AS user_row,
         (SELECT row_to_json(new_profile) FROM new_profile) AS profile_row,
         (SELECT row_to_json(new_store) FROM new_store) AS store_row
-    `, [formattedPhone, hashed, ownerName, storeName, emailVal]);
+    `, [formattedPhone, hashed, ownerName, storeName, emailVal, isPhoneVerified]);
 
     const { user_row: u, profile_row: sp, store_row: store } = cteRes.rows[0];
     const profile = {
@@ -1861,6 +1903,7 @@ class SellerRepository {
       full_name: u.full_name,
       email: u.email,
       phone: u.phone,
+      is_phone_verified: u.is_phone_verified,
       status: u.status,
       seller_profile_id: sp.id,
       legal_name: sp.legal_name,
@@ -1901,6 +1944,8 @@ class SellerRepository {
       token,
       userId: u.id,
       storeId: store.id,
+      phone: u.phone,
+      email: u.email,
       profile,
       store,
       kycSteps,
@@ -1939,6 +1984,7 @@ class SellerRepository {
           'full_name', u.full_name,
           'email', u.email,
           'phone', u.phone,
+          'is_phone_verified', u.is_phone_verified,
           'status', u.status,
           'seller_profile_id', sp.id,
           'legal_name', sp.legal_name,
@@ -2022,6 +2068,23 @@ class SellerRepository {
       step7: Boolean(isApproved || (!isRejected && stepsRow.step7))
     };
 
+    // Lazy background geocode for existing stores with missing coordinates
+    if (store && (store.latitude == null || store.longitude == null) && (store.address_line || store.city || store.pincode)) {
+      geocodeAddress({
+        addressLine: store.address_line,
+        city: store.city,
+        state: store.state,
+        pincode: store.pincode
+      }).then(coords => {
+        if (coords) {
+          pool.query(
+            'UPDATE stores SET latitude = $1, longitude = $2 WHERE id = $3 AND (latitude IS NULL OR longitude IS NULL)',
+            [coords.latitude, coords.longitude, store.id]
+          ).catch(() => {});
+        }
+      }).catch(() => {});
+    }
+
     return {
       profile,
       store,
@@ -2063,10 +2126,73 @@ class SellerRepository {
         throw new Error('Store Name, Owner Name, and Complete Address are required for Step 1');
       }
 
-      await pool.query(`
-        UPDATE users SET full_name = $1, email = COALESCE($2, email), updated_at = NOW()
-        WHERE id = $3
-      `, [fullName, email, userId]);
+      // Resolve latitude and longitude (explicitly provided or auto-geocoded via OpenStreetMap)
+      let storeLat = data.latitude !== undefined && data.latitude !== null && !isNaN(Number(data.latitude))
+        ? Number(Number(data.latitude).toFixed(7))
+        : null;
+      let storeLng = data.longitude !== undefined && data.longitude !== null && !isNaN(Number(data.longitude))
+        ? Number(Number(data.longitude).toFixed(7))
+        : null;
+
+      if (storeLat == null || storeLng == null) {
+        try {
+          const geocoded = await geocodeAddress({
+            addressLine,
+            city,
+            state: stateVal,
+            pincode: pincodeVal
+          });
+          if (geocoded) {
+            storeLat = geocoded.latitude;
+            storeLng = geocoded.longitude;
+          }
+        } catch (geoErr) {
+          // Gracefully continue without blocking Step 1 completion
+        }
+      }
+
+      let phoneToUpdate = null;
+      if (data.phone) {
+        const cleanPhone = this.normalizePhoneDigits(data.phone);
+        if (!cleanPhone || cleanPhone.length !== 10) {
+          throw new Error('Please enter a valid 10-digit mobile number');
+        }
+        phoneToUpdate = `+91${cleanPhone}`;
+        const existingPhoneUser = await pool.query(`
+          SELECT id FROM users
+          WHERE RIGHT(REGEXP_REPLACE(phone, '\\D', '', 'g'), 10) = $1 AND id != $2
+          LIMIT 1
+        `, [cleanPhone, userId]);
+        if (existingPhoneUser.rows.length > 0) {
+          throw new Error('This mobile number is already registered to another account');
+        }
+      }
+
+      if (phoneToUpdate) {
+        await pool.query(`
+          UPDATE users SET full_name = $1, email = COALESCE($2, email), phone = $3, is_phone_verified = true, updated_at = NOW()
+          WHERE id = $4
+        `, [fullName, email, phoneToUpdate, userId]);
+
+        await pool.query(`
+          UPDATE stores
+          SET store_name = $1, category = $2, address_line = $3, city = $4, state = $5, pincode = $6, phone = $7,
+              latitude = COALESCE($8, latitude), longitude = COALESCE($9, longitude)
+          WHERE id = $10
+        `, [storeName, category, addressLine, city, stateVal, pincodeVal, phoneToUpdate, storeLat, storeLng, store.id]);
+      } else {
+        await pool.query(`
+          UPDATE users SET full_name = $1, email = COALESCE($2, email), updated_at = NOW()
+          WHERE id = $3
+        `, [fullName, email, userId]);
+
+        await pool.query(`
+          UPDATE stores
+          SET store_name = $1, category = $2, address_line = $3, city = $4, state = $5, pincode = $6,
+              latitude = COALESCE($7, latitude), longitude = COALESCE($8, longitude)
+          WHERE id = $9
+        `, [storeName, category, addressLine, city, stateVal, pincodeVal, storeLat, storeLng, store.id]);
+      }
 
       await pool.query(`
         UPDATE seller_profiles
@@ -2077,12 +2203,6 @@ class SellerRepository {
             updated_at = NOW()
         WHERE user_id = $4
       `, [legalName, entityType, isAlreadyApproved ? 'APPROVED' : 'DRAFT', userId]);
-
-      await pool.query(`
-        UPDATE stores
-        SET store_name = $1, category = $2, address_line = $3, city = $4, state = $5, pincode = $6
-        WHERE id = $7
-      `, [storeName, category, addressLine, city, stateVal, pincodeVal, store.id]);
 
       const profileExtra = {
         state: stateVal,
@@ -2197,11 +2317,19 @@ class SellerRepository {
       const delhiveryRate = parseRate(data.delhiveryRate, prevCfg.delhiveryRate, 450);
       const exportFreightRate = parseRate(data.exportFreightRate, prevCfg.exportFreightRate, 2500);
 
+      let storeLat = data.latitude !== undefined && data.latitude !== null && !isNaN(Number(data.latitude))
+        ? Number(Number(data.latitude).toFixed(7))
+        : null;
+      let storeLng = data.longitude !== undefined && data.longitude !== null && !isNaN(Number(data.longitude))
+        ? Number(Number(data.longitude).toFixed(7))
+        : null;
+
       const deliveryConfig = {
         ...prevCfg,
         open_time: openTime,
         close_time: closeTime,
         delivery_radius_km: radiusKm,
+        ...(storeLat !== null ? { latitude: storeLat, longitude: storeLng } : {}),
         delivFast,
         delivSame,
         delivScheduled,
@@ -2221,9 +2349,11 @@ class SellerRepository {
 
       await pool.query(`
         UPDATE stores
-        SET open_time = $1, close_time = $2, delivery_radius_km = $3
+        SET open_time = $1, close_time = $2, delivery_radius_km = $3,
+            latitude = COALESCE($5, latitude),
+            longitude = COALESCE($6, longitude)
         WHERE id = $4
-      `, [openTime, closeTime, radiusKm, store.id]);
+      `, [openTime, closeTime, radiusKm, store.id, storeLat, storeLng]);
 
       await pool.query(`
         UPDATE seller_onboarding_steps

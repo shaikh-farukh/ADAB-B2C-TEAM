@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { useSeller } from '../context/SellerContext';
 import { useOrders } from '../hooks/useOrders';
 
@@ -27,7 +28,14 @@ const extractBaseline = (storeObj, obData) => {
     ? Math.min(20, Math.max(0, Math.round(Number(rawR))))
     : 10;
 
+  const rawLat = storeObj?.latitude != null ? Number(storeObj.latitude) : (cfg.latitude != null ? Number(cfg.latitude) : null);
+  const rawLng = storeObj?.longitude != null ? Number(storeObj.longitude) : (cfg.longitude != null ? Number(cfg.longitude) : null);
+  const lat = Number.isFinite(rawLat) ? Number(rawLat.toFixed(7)) : 21.1702;
+  const lng = Number.isFinite(rawLng) ? Number(rawLng.toFixed(7)) : 72.8311;
+
   return {
+    lat,
+    lng,
     radius: r,
     fastDelivery: cfg.delivFast !== undefined ? Boolean(cfg.delivFast) : true,
     sameDay: cfg.delivSame !== undefined ? Boolean(cfg.delivSame) : true,
@@ -54,6 +62,10 @@ export default function DeliveryPage() {
 
   const initialBaseline = extractBaseline(store, onboardingData);
   const [savedBaseline, setSavedBaseline] = useState(initialBaseline);
+
+  // Dynamic store location state (movable on map)
+  const [currentLat, setCurrentLat] = useState(initialBaseline.lat);
+  const [currentLng, setCurrentLng] = useState(initialBaseline.lng);
 
   const [radius, setRadius] = useState(String(initialBaseline.radius));
   const [fastDelivery, setFastDelivery] = useState(initialBaseline.fastDelivery);
@@ -87,8 +99,13 @@ export default function DeliveryPage() {
     ? Math.min(20, Math.max(0, Math.round(parsedRadius)))
     : 10;
 
+  const isLocationChanged =
+    Math.abs(currentLat - savedBaseline.lat) > 0.00001 ||
+    Math.abs(currentLng - savedBaseline.lng) > 0.00001;
+
   // Compute dirty state against saved baseline
   const hasUnsavedChanges =
+    isLocationChanged ||
     radiusVal !== savedBaseline.radius ||
     fastDelivery !== savedBaseline.fastDelivery ||
     sameDay !== savedBaseline.sameDay ||
@@ -113,6 +130,8 @@ export default function DeliveryPage() {
     if (hasUnsavedRef.current) return;
     const nextBase = extractBaseline(store, onboardingData);
     setSavedBaseline(nextBase);
+    setCurrentLat(nextBase.lat);
+    setCurrentLng(nextBase.lng);
     setRadius(String(nextBase.radius));
     setFastDelivery(nextBase.fastDelivery);
     setSameDay(nextBase.sameDay);
@@ -173,7 +192,27 @@ export default function DeliveryPage() {
     };
   }, [hasUnsavedChanges, location.pathname, location.search, location.hash]);
 
+  const handleResetPinLocation = () => {
+    setCurrentLat(savedBaseline.lat);
+    setCurrentLng(savedBaseline.lng);
+    if (markerInstanceRef.current && circleInstanceRef.current && mapInstanceRef.current) {
+      markerInstanceRef.current.setLatLng([savedBaseline.lat, savedBaseline.lng]);
+      circleInstanceRef.current.setLatLng([savedBaseline.lat, savedBaseline.lng]);
+      mapInstanceRef.current.panTo([savedBaseline.lat, savedBaseline.lng]);
+      markerInstanceRef.current.bindPopup(
+        `<b>${storeName}</b><br>${storeCity} • <b>${radiusVal} km</b> delivery zone<br><span style="color:#15803D;font-weight:bold;font-size:11px;">🖐️ Drag pin to adjust location</span>`
+      ).openPopup();
+    }
+  };
+
   const handleResetChanges = () => {
+    setCurrentLat(savedBaseline.lat);
+    setCurrentLng(savedBaseline.lng);
+    if (markerInstanceRef.current && circleInstanceRef.current && mapInstanceRef.current) {
+      markerInstanceRef.current.setLatLng([savedBaseline.lat, savedBaseline.lng]);
+      circleInstanceRef.current.setLatLng([savedBaseline.lat, savedBaseline.lng]);
+      mapInstanceRef.current.setView([savedBaseline.lat, savedBaseline.lng], 13);
+    }
     setRadius(String(savedBaseline.radius));
     setFastDelivery(savedBaseline.fastDelivery);
     setSameDay(savedBaseline.sameDay);
@@ -194,8 +233,6 @@ export default function DeliveryPage() {
 
   const storeName = store?.store_name || 'Your Store';
   const storeCity = store?.city || 'Surat';
-  const storeLat = Number(store?.latitude) || 21.1702;
-  const storeLng = Number(store?.longitude) || 72.8311;
   const activeOrdersCount = Array.isArray(orders) ? orders.length : 0;
 
   // Interactive Leaflet Map & Section Refs
@@ -221,19 +258,29 @@ export default function DeliveryPage() {
     };
   }, []);
 
-  // Initialize Leaflet Map once on mount / store coordinates change
+  // Initialize Leaflet Map once on mount / when store loads
   useEffect(() => {
     if (!mapContainerRef.current) return;
     try {
       const leaflet = typeof window !== 'undefined' ? window.L || L : null;
       if (!leaflet || !leaflet.map) return;
 
+      if (mapContainerRef.current._leaflet_id) {
+        delete mapContainerRef.current._leaflet_id;
+      }
+      if (mapInstanceRef.current) {
+        try {
+          mapInstanceRef.current.remove();
+        } catch (_) {}
+        mapInstanceRef.current = null;
+      }
+
       const map = leaflet
         .map(mapContainerRef.current, {
           zoomControl: true,
           attributionControl: false
         })
-        .setView([storeLat, storeLng], 12);
+        .setView([currentLat, currentLng], 12);
 
       leaflet
         .tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -243,7 +290,7 @@ export default function DeliveryPage() {
 
       // Delivery Zone Radius Circle
       const circle = leaflet
-        .circle([storeLat, storeLng], {
+        .circle([currentLat, currentLng], {
           radius: radiusVal * 1000,
           color: '#F97316',
           fillColor: '#22C55E',
@@ -253,44 +300,90 @@ export default function DeliveryPage() {
         })
         .addTo(map);
 
-      // Store Marker Pin
+      // Store Marker Pin (draggable only)
       const storeIcon = leaflet.divIcon({
         className: 'border-0 bg-transparent',
         iconSize: [32, 32],
         iconAnchor: [16, 16],
         popupAnchor: [0, -16],
-        html: '<div style="width:32px;height:32px;background:#15803D;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 3px 8px rgba(0,0,0,0.35);border:2.5px solid white;cursor:pointer;"><i class="fa-solid fa-store"></i></div>'
+        html: '<div style="width:32px;height:32px;background:#15803D;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 3px 8px rgba(0,0,0,0.35);border:2.5px solid white;cursor:grab;"><i class="fa-solid fa-store"></i></div>'
       });
 
       const marker = leaflet
-        .marker([storeLat, storeLng], { icon: storeIcon })
+        .marker([currentLat, currentLng], { icon: storeIcon, draggable: true })
         .addTo(map)
         .bindPopup(
-          `<b>${storeName}</b><br>${storeCity} • <b>${radiusVal} km</b> delivery zone`
+          `<b>${storeName}</b><br>${storeCity} • <b>${radiusVal} km</b> delivery zone<br><span style="color:#15803D;font-weight:bold;font-size:11px;">🖐️ Drag pin to adjust location</span>`
         );
+
+      marker.on('drag', (e) => {
+        const pos = e.target.getLatLng();
+        if (circleInstanceRef.current) {
+          circleInstanceRef.current.setLatLng(pos);
+        }
+      });
+
+      marker.on('dragend', (e) => {
+        const pos = e.target.getLatLng();
+        const newLat = Number(pos.lat.toFixed(7));
+        const newLng = Number(pos.lng.toFixed(7));
+        setCurrentLat(newLat);
+        setCurrentLng(newLng);
+        if (circleInstanceRef.current) {
+          circleInstanceRef.current.setLatLng([newLat, newLng]);
+        }
+        marker.bindPopup(
+          `<b>${storeName}</b><br>📍 Location: ${newLat.toFixed(5)}, ${newLng.toFixed(5)}<br><span style="color:#15803D;font-weight:bold;font-size:11px;">Click "Save Delivery Settings" to apply</span>`
+        ).openPopup();
+      });
 
       mapInstanceRef.current = map;
       circleInstanceRef.current = circle;
       markerInstanceRef.current = marker;
 
       if (radiusVal > 0 && circle.getBounds) {
-        map.fitBounds(circle.getBounds(), { padding: [20, 20], maxZoom: 14 });
+        try {
+          map.fitBounds(circle.getBounds(), { padding: [20, 20], maxZoom: 14 });
+        } catch (_) {}
       } else {
-        map.setView([storeLat, storeLng], 14);
+        map.setView([currentLat, currentLng], 14);
       }
 
+      // Invalidate map size so Leaflet tiles render reliably after mount
+      const invalidateTimer = setTimeout(() => {
+        try {
+          map.invalidateSize();
+        } catch (_) {}
+      }, 150);
+
       return () => {
-        map.remove();
+        clearTimeout(invalidateTimer);
+        try {
+          map.remove();
+        } catch (_) {}
         mapInstanceRef.current = null;
         circleInstanceRef.current = null;
         markerInstanceRef.current = null;
+        if (mapContainerRef.current && mapContainerRef.current._leaflet_id) {
+          delete mapContainerRef.current._leaflet_id;
+        }
       };
     } catch (e) {
       console.warn('Map initialization skipped:', e);
     }
-  }, [storeLat, storeLng, storeName, storeCity]);
+  }, [store?.id]);
 
-  // Smoothly update Leaflet circle radius & zoom whenever radiusVal changes
+  // Sync map center, marker & circle if coordinates change externally when buffer is clean
+  useEffect(() => {
+    if (hasUnsavedRef.current) return;
+    if (markerInstanceRef.current && circleInstanceRef.current && mapInstanceRef.current) {
+      markerInstanceRef.current.setLatLng([savedBaseline.lat, savedBaseline.lng]);
+      circleInstanceRef.current.setLatLng([savedBaseline.lat, savedBaseline.lng]);
+      mapInstanceRef.current.panTo([savedBaseline.lat, savedBaseline.lng]);
+    }
+  }, [savedBaseline.lat, savedBaseline.lng]);
+
+  // Smoothly update Leaflet circle radius & bounds whenever radiusVal changes
   useEffect(() => {
     const map = mapInstanceRef.current;
     const circle = circleInstanceRef.current;
@@ -301,18 +394,16 @@ export default function DeliveryPage() {
       circle.setRadius(radiusVal * 1000);
       if (marker) {
         marker.setPopupContent(
-          `<b>${storeName}</b><br>${storeCity} • <b>${radiusVal} km</b> delivery zone`
+          `<b>${storeName}</b><br>${storeCity} • <b>${radiusVal} km</b> delivery zone<br><span style="color:#15803D;font-weight:bold;font-size:11px;">🖐️ Drag pin to adjust location</span>`
         );
       }
       if (radiusVal > 0 && circle.getBounds) {
         map.fitBounds(circle.getBounds(), { padding: [20, 20], maxZoom: 14 });
-      } else {
-        map.setView([storeLat, storeLng], 15);
       }
     } catch (e) {
       // Ignore fitBounds errors in non-DOM test environments
     }
-  }, [radiusVal, storeLat, storeLng, storeName, storeCity]);
+  }, [radiusVal, storeName, storeCity]);
 
   const handleRateWheel = (e, currentVal, setter, stepAmount, enabled) => {
     if (!enabled) return;
@@ -335,6 +426,8 @@ export default function DeliveryPage() {
     }
 
     const nextSnapshot = {
+      lat: currentLat,
+      lng: currentLng,
       radius: radiusVal,
       fastDelivery,
       sameDay,
@@ -367,6 +460,8 @@ export default function DeliveryPage() {
 
       if (saveOnboardingStep) {
         await saveOnboardingStep(4, {
+          latitude: currentLat,
+          longitude: currentLng,
           open_time: openTime,
           close_time: closeTime,
           delivery_radius_km: nextSnapshot.radius,
@@ -390,7 +485,7 @@ export default function DeliveryPage() {
 
       setSavedMsg(
         customMessage ||
-          `Delivery zone (${radiusVal}km), channels & mode rates saved and synced with Store KYC!`
+          `Delivery location (${currentLat.toFixed(4)}, ${currentLng.toFixed(4)}), zone (${radiusVal}km) & mode rates saved and synced!`
       );
       setTimeout(() => setSavedMsg(''), 3500);
       return true;
@@ -573,9 +668,45 @@ export default function DeliveryPage() {
               </div>
             </div>
 
-            {/* Live Leaflet Map Service */}
-            <div className="relative h-64 bg-gray-100 rounded-xl overflow-hidden border border-gray-200">
-              <div ref={mapContainerRef} className="w-full h-full z-0"></div>
+            {/* Live Leaflet Map Service with Dynamic Relocation */}
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-gray-700 flex items-center gap-1">
+                    <i className="fa-solid fa-location-dot text-emerald-600"></i> Pin:
+                  </span>
+                  <span className="font-mono bg-gray-100 px-2 py-0.5 rounded border border-gray-200 text-gray-800 font-bold text-[11px]">
+                    {currentLat.toFixed(4)}, {currentLng.toFixed(4)}
+                  </span>
+                  {isLocationChanged && (
+                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold border border-amber-200">
+                      Moved (Unsaved)
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  {isLocationChanged && (
+                    <button
+                      type="button"
+                      onClick={handleResetPinLocation}
+                      className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                      title="Reset pin to saved store position"
+                    >
+                      <i className="fa-solid fa-rotate-left"></i>
+                      <span>Reset Pin</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="relative h-72 bg-gray-100 rounded-xl overflow-hidden border border-gray-200 group">
+                <div ref={mapContainerRef} className="w-full h-full z-0"></div>
+                <div className="absolute top-2.5 left-2.5 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-bold text-gray-700 pointer-events-none flex items-center gap-1.5 z-10 shadow-xs">
+                  <i className="fa-solid fa-hand-pointer text-emerald-600"></i>
+                  <span>Drag store pin to adjust location</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -3,6 +3,13 @@ const minioService = require('../services/minioService');
 const { getAuthenticatedSellerContext } = require('../middlewares/auth');
 
 class ListingController {
+  formatErrorMessage(err) {
+    if (err && Array.isArray(err.errors)) {
+      return err.errors.map(e => `${e.path?.join('.') || 'field'}: ${e.message}`).join('; ');
+    }
+    return err?.message || 'Validation error';
+  }
+
   async createListing(req, res) {
     try {
       const { storeId } = getAuthenticatedSellerContext(req);
@@ -11,7 +18,7 @@ class ListingController {
       const listing = await ListingService.createListing(storeId, req.body);
       res.status(201).json(listing);
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(400).json({ error: this.formatErrorMessage(err) });
     }
   }
 
@@ -80,7 +87,7 @@ class ListingController {
       const listing = await ListingService.updateListing(storeId, req.params.id, req.body);
       res.json(listing);
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(400).json({ error: this.formatErrorMessage(err) });
     }
   }
 

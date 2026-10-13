@@ -36,4 +36,38 @@ describe('Listing DTO Validation', () => {
     expect(result.success).toBe(false);
     expect(result.error.issues[0].message).toBe('Sell price must be positive');
   });
+
+  it('should allow image_url to be null or empty string without error', () => {
+    const payloadWithNull = {
+      title: 'Valid Title',
+      mrp: 100,
+      sell_price: 90,
+      image_url: null,
+    };
+    const resNull = createListingSchema.safeParse(payloadWithNull);
+    expect(resNull.success).toBe(true);
+    expect(resNull.data.image_url).toBeNull();
+
+    const payloadWithEmpty = {
+      title: 'Valid Title',
+      mrp: 100,
+      sell_price: 90,
+      image_url: '',
+    };
+    const resEmpty = createListingSchema.safeParse(payloadWithEmpty);
+    expect(resEmpty.success).toBe(true);
+    expect(resEmpty.data.image_url).toBeNull();
+  });
+
+  it('should preserve valid image_url string', () => {
+    const payload = {
+      title: 'Valid Title',
+      mrp: 100,
+      sell_price: 90,
+      image_url: 'https://images.example.com/product.jpg',
+    };
+    const res = createListingSchema.safeParse(payload);
+    expect(res.success).toBe(true);
+    expect(res.data.image_url).toBe('https://images.example.com/product.jpg');
+  });
 });

@@ -211,6 +211,15 @@ export function SellerProvider({ children }) {
       localStorage.setItem('seller_onboarding_cache', JSON.stringify(onboarding));
       setOnboardingData(onboarding);
     }
+    const rawP = authPayload.phone || prof?.phone || st?.phone || '';
+    const cleanDigits = String(rawP).replace(/\D/g, '').slice(-10);
+    if (cleanDigits) {
+      localStorage.setItem('seller_phone', `+91${cleanDigits}`);
+    }
+    const rawEmail = authPayload.email || prof?.email || '';
+    if (rawEmail) {
+      localStorage.setItem('seller_email', String(rawEmail).trim().toLowerCase());
+    }
     lastFetchTimeRef.current = Date.now();
     setLoading(false);
     setIsAuthenticated(true);
@@ -225,6 +234,8 @@ export function SellerProvider({ children }) {
   const login = async (phone, password, extra = {}) => {
     const res = await sellerService.login(phone, password, extra);
     const data = res?.data || res;
+    const mode = extra.idMode || (extra.email && !phone ? 'email' : 'phone');
+    localStorage.setItem('seller_auth_mode', mode);
     handleAuthSuccess(data);
     return data;
   };
@@ -232,6 +243,8 @@ export function SellerProvider({ children }) {
   const signup = async (phone, password, extra = {}) => {
     const res = await sellerService.signup(phone, password, extra);
     const data = res?.data || res;
+    const mode = extra.idMode || (extra.email && !phone ? 'email' : 'phone');
+    localStorage.setItem('seller_auth_mode', mode);
     handleAuthSuccess(data);
     return data;
   };
@@ -244,6 +257,12 @@ export function SellerProvider({ children }) {
     localStorage.removeItem('seller_profile_cache');
     localStorage.removeItem('seller_store_cache');
     localStorage.removeItem('seller_onboarding_cache');
+    localStorage.removeItem('seller_phone');
+    localStorage.removeItem('seller_login_phone');
+    localStorage.removeItem('seller_email');
+    localStorage.removeItem('seller_login_email');
+    localStorage.removeItem('seller_auth_mode');
+    localStorage.removeItem('seller_login_identifier');
     setIsAuthenticated(false);
     setProfile(null);
     setStore(null);

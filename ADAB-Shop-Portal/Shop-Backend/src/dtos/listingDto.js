@@ -17,7 +17,7 @@ const createListingSchema = z.object({
   allowed_buyers: z.preprocess(emptyStringAsNull, z.string().nullable().optional()), // CUSTOMERS, STORES, BOTH
   approval_status: z.preprocess(emptyStringAsNull, z.string().nullable().optional()).default('DRAFT'), // DRAFT, SUBMITTED
   is_active: z.boolean().optional().default(true),
-  image_url: z.string().url().optional().or(z.literal('')), // allow empty string if deleted
+  image_url: z.preprocess(emptyStringAsNull, z.string().nullable().optional()),
   stock_qty: z.coerce.number().int().nonnegative().optional().default(0),
   category_id: z.preprocess(emptyStringAsNull, z.coerce.number().int().positive().nullable().optional()),
 });

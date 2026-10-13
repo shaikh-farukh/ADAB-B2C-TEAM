@@ -198,32 +198,6 @@ export default function RegStatusPage() {
           </div>
 
           <div className="flex flex-wrap gap-2 shrink-0">
-            {isRejected && (
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={handleSubmitApplication}
-                className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-extrabold shadow-sm flex items-center gap-1.5 transition disabled:opacity-60"
-              >
-                <i className={`fa-solid ${submitting ? 'fa-spinner animate-spin' : 'fa-rotate-right'}`}></i>
-                {submitting ? 'Submitting...' : 'Resubmit Application'}
-              </button>
-            )}
-            {!isApproved && !isRejected && isCriticalSetupDone && !kycSteps?.step7 && (
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={handleSubmitApplication}
-                className={`px-3.5 py-2 rounded-xl text-white text-xs font-extrabold shadow-sm flex items-center gap-1.5 transition disabled:opacity-60 ${
-                  needsResubmission
-                    ? 'bg-amber-500 hover:bg-amber-600'
-                    : 'bg-green-700 hover:bg-green-800'
-                }`}
-              >
-                <i className={`fa-solid ${submitting ? 'fa-spinner animate-spin' : needsResubmission ? 'fa-rotate-right' : 'fa-paper-plane'}`}></i>
-                {submitting ? 'Submitting...' : needsResubmission ? 'Resubmit Application' : 'Submit Application'}
-              </button>
-            )}
             <button
               type="button"
               onClick={handleRefresh}
@@ -291,14 +265,6 @@ export default function RegStatusPage() {
               >
                 Edit KYC Steps
               </button>
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={handleSubmitApplication}
-                className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs disabled:opacity-60"
-              >
-                {submitting ? 'Submitting...' : 'Resubmit Now →'}
-              </button>
             </div>
           </div>
         )}
@@ -312,17 +278,16 @@ export default function RegStatusPage() {
               <div>
                 <div className="font-extrabold text-sm">Compliance Changes Need Resubmission</div>
                 <div className="text-xs text-amber-800 mt-0.5">
-                  You updated compliance details (Store Profile, Tax/GST, Bank Account, or Credit Terms) after your previous submission. Please resubmit so Admin can verify your updated records.
+                  You updated compliance details (Store Profile, Tax/GST, Bank Account, or Credit Terms) after your previous submission. Please review details and submit your application below.
                 </div>
               </div>
             </div>
             <button
               type="button"
-              disabled={submitting}
-              onClick={handleSubmitApplication}
-              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs shadow-sm shrink-0 self-start sm:self-center disabled:opacity-60"
+              onClick={() => navigate('/onboarding')}
+              className="px-3.5 py-2 rounded-xl bg-white border border-amber-300 hover:bg-amber-100 text-amber-800 font-extrabold text-xs shrink-0 self-start sm:self-center"
             >
-              {submitting ? 'Submitting...' : 'Resubmit Application Now →'}
+              Edit KYC Steps
             </button>
           </div>
         )}
@@ -336,17 +301,16 @@ export default function RegStatusPage() {
               <div>
                 <div className="font-extrabold text-sm">Ready for Admin Verification Submission</div>
                 <div className="text-xs text-blue-800 mt-0.5">
-                  Your critical store &amp; tax steps are saved ({completedCount}/5 modules complete). Submit your application below to send it to the Admin verification queue.
+                  Your critical store &amp; tax steps are saved ({completedCount}/5 modules complete). Review details and submit your application below to send it to the Admin verification queue.
                 </div>
               </div>
             </div>
             <button
               type="button"
-              disabled={submitting}
-              onClick={handleSubmitApplication}
-              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-sm shrink-0 self-start sm:self-center disabled:opacity-60"
+              onClick={() => navigate('/onboarding')}
+              className="px-3.5 py-2 rounded-xl bg-white border border-blue-300 hover:bg-blue-100 text-blue-800 font-extrabold text-xs shrink-0 self-start sm:self-center"
             >
-              {submitting ? 'Submitting...' : 'Submit Application Now →'}
+              Edit KYC Steps
             </button>
           </div>
         )}

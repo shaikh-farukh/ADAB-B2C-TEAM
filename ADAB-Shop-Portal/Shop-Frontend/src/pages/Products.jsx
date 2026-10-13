@@ -379,7 +379,16 @@ const Products = () => {
       refresh();
     } catch (err) {
       console.error('Failed to save listing', err);
-      alert('Failed to save: ' + (err.response?.data?.error || err.message));
+      let rawErr = err.response?.data?.error || err.message;
+      if (typeof rawErr === 'string' && rawErr.trim().startsWith('[')) {
+        try {
+          const parsed = JSON.parse(rawErr);
+          if (Array.isArray(parsed)) {
+            rawErr = parsed.map(p => `${p.path?.join('.') || 'Field'}: ${p.message}`).join(', ');
+          }
+        } catch (e) {}
+      }
+      alert('Failed to save: ' + rawErr);
     }
   };
 
