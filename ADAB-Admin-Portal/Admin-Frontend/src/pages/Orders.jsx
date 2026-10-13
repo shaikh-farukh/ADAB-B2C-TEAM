@@ -31,6 +31,10 @@ export default function Orders() {
     submitting: false
   });
 
+  // Dedicated sub-resource states
+  const [statusHistory, setStatusHistory] = useState([]);
+  const [shipments, setShipments] = useState([]);
+
   // Fetch Orders List
   const fetchOrders = useCallback((page = 1) => {
     setLoading(true);
@@ -41,11 +45,13 @@ export default function Orders() {
       limit: 10,
       search: searchTerm,
       status: statusFilter,
-      payment_status: paymentStatusFilter,
-      exceptions: activeTab === 'exceptions' ? 'true' : 'false'
+      payment_status: paymentStatusFilter
     });
 
-    apiClient.get(`/orders?${params.toString()}`)
+    // Contract #40: GET /orders/exceptions vs Contract #11: GET /orders
+    const endpoint = activeTab === 'exceptions' ? '/orders/exceptions' : '/orders';
+
+    apiClient.get(`${endpoint}?${params.toString()}`)
       .then(res => {
         if (res.data.success) {
           setOrders(res.data.data || []);
@@ -82,6 +88,24 @@ export default function Orders() {
         setDetailError(err.response?.data?.message || 'Failed to load order detail');
       })
       .finally(() => setDetailLoading(false));
+
+    // Contract #38: GET /orders/:id/status-history
+    apiClient.get(`/orders/${orderId}/status-history`)
+      .then(res => {
+        if (res.data.success) {
+          setStatusHistory(res.data.data || []);
+        }
+      })
+      .catch(() => setStatusHistory([]));
+
+    // Contract #39: GET /orders/:id/shipments
+    apiClient.get(`/orders/${orderId}/shipments`)
+      .then(res => {
+        if (res.data.success) {
+          setShipments(res.data.data || []);
+        }
+      })
+      .catch(() => setShipments([]));
   }, []);
 
   const handleOpenDetail = (id) => {
@@ -424,14 +448,16 @@ export default function Orders() {
               </div>
 
               {/* Shipments & Tracking */}
-              {orderDetail.shipments && orderDetail.shipments.length > 0 && (
+              {((shipments && shipments.length > 0) || (orderDetail.shipments && orderDetail.shipments.length > 0)) && (
                 <div className="card p-4 space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Shipment & Tracking Information</h3>
-                  {orderDetail.shipments.map((ship, idx) => (
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Shipment & Tracking Information ({((shipments && shipments.length > 0) ? shipments : orderDetail.shipments).length})
+                  </h3>
+                  {((shipments && shipments.length > 0) ? shipments : orderDetail.shipments).map((ship, idx) => (
                     <div key={idx} className="bg-slate-50 p-3 rounded-lg border text-xs space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-slate-800">{ship.carrier_name}</span>
-                        <StatusBadge status={ship.status} />
+                        <span className="font-bold text-slate-800">{ship.carrier_name || 'Carrier'}</span>
+                        <StatusBadge status={ship.status || 'SHIPPED'} />
                       </div>
                       <div className="text-slate-600">
                         Tracking Number: <span className="font-mono font-semibold text-slate-800">{ship.tracking_number || 'N/A'}</span>
@@ -444,11 +470,13 @@ export default function Orders() {
               )}
 
               {/* Status History */}
-              {orderDetail.status_history && orderDetail.status_history.length > 0 && (
+              {((statusHistory && statusHistory.length > 0) || (orderDetail.status_history && orderDetail.status_history.length > 0)) && (
                 <div className="card p-4 space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Order Status Audit Trail</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Order Status Audit Trail ({((statusHistory && statusHistory.length > 0) ? statusHistory : orderDetail.status_history).length})
+                  </h3>
                   <div className="space-y-2 text-xs">
-                    {orderDetail.status_history.map((hist, idx) => (
+                    {((statusHistory && statusHistory.length > 0) ? statusHistory : orderDetail.status_history).map((hist, idx) => (
                       <div key={idx} className="flex items-start gap-2.5 pb-2 border-b last:border-0 last:pb-0">
                         <div className="w-2 h-2 rounded-full bg-indigo-500 mt-1.5 shrink-0"></div>
                         <div className="flex-1">

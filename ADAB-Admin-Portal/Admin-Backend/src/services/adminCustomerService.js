@@ -52,3 +52,36 @@ exports.updateCustomerStatus = async (id, status) => {
     return null;
   }
 };
+
+exports.getCustomerOrders = async (id) => {
+  try {
+    const res = await pool.query(`
+      SELECT o.* 
+      FROM orders o
+      WHERE o.customer_id::text = $1
+      ORDER BY o.created_at DESC
+      LIMIT 50
+    `, [id]);
+    return res.rows;
+  } catch(e) {
+    console.error('getCustomerOrders error:', e.message);
+    return [];
+  }
+};
+
+exports.getCustomerTickets = async (id) => {
+  try {
+    const res = await pool.query(`
+      SELECT st.* 
+      FROM support_tickets st
+      WHERE st.user_id::text = $1
+      ORDER BY st.created_at DESC
+      LIMIT 50
+    `, [id]);
+    return res.rows;
+  } catch(e) {
+    console.error('getCustomerTickets error:', e.message);
+    return [];
+  }
+};
+

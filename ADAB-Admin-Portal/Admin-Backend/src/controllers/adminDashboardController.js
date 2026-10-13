@@ -9,3 +9,14 @@ exports.getDashboard = async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal Server Error', error: error.message });
   }
 };
+
+exports.getDashboardActions = async (req, res) => {
+  try {
+    const data = await dashboardService.getDashboardActions();
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error('Dashboard Actions Error:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error', error: error.message });
+  }
+};
+

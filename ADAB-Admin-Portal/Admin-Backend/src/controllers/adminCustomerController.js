@@ -30,3 +30,22 @@ exports.updateCustomerStatus = async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 };
+
+exports.getCustomerOrders = async (req, res) => {
+  try {
+    const data = await customerService.getCustomerOrders(req.params.id);
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
+exports.getCustomerTickets = async (req, res) => {
+  try {
+    const data = await customerService.getCustomerTickets(req.params.id);
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+

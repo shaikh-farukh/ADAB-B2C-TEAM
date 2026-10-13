@@ -52,3 +52,52 @@ exports.updateSellerStatus = async (id, status) => {
     return null;
   }
 };
+
+exports.getSellerDocuments = async (id) => {
+  try {
+    // id could be users.id or seller_profiles.id
+    const res = await pool.query(`
+      SELECT sd.* 
+      FROM seller_documents sd
+      LEFT JOIN seller_profiles sp ON sd.seller_id = sp.id
+      WHERE sd.seller_id::text = $1 OR sp.user_id::text = $1
+      ORDER BY sd.uploaded_at DESC
+    `, [id]);
+    return res.rows;
+  } catch(e) {
+    console.error('getSellerDocuments error:', e.message);
+    return [];
+  }
+};
+
+exports.getSellerHealth = async (id) => {
+  try {
+    // id could be stores.id or seller_profiles.id or users.id
+    const res = await pool.query(`
+      SELECT ah.* 
+      FROM account_health ah
+      LEFT JOIN stores s ON ah.store_id = s.id
+      LEFT JOIN seller_profiles sp ON s.seller_id = sp.id
+      WHERE ah.store_id::text = $1 OR s.seller_id::text = $1 OR sp.user_id::text = $1
+      ORDER BY ah.last_evaluated_at DESC
+      LIMIT 1
+    `, [id]);
+    return res.rows[0] || {
+      order_defect_rate: 0.0,
+      cancellation_rate: 0.0,
+      late_dispatch_rate: 0.0,
+      policy_compliance_score: 100,
+      status: 'HEALTHY'
+    };
+  } catch(e) {
+    console.error('getSellerHealth error:', e.message);
+    return {
+      order_defect_rate: 0.0,
+      cancellation_rate: 0.0,
+      late_dispatch_rate: 0.0,
+      policy_compliance_score: 100,
+      status: 'HEALTHY'
+    };
+  }
+};
+

@@ -59,7 +59,7 @@ const inMemoryHistory = [
 /**
  * List Approval Queue Items with filtering, sorting, and pagination
  */
-async function getApprovalQueue({ status = 'PENDING', seller_id, category_id, sort = 'DESC', page = 1, limit = 20 } = {}) {
+async function getApprovalQueue({ status = 'ALL', seller_id, category_id, search, sort = 'DESC', page = 1, limit = 20 } = {}) {
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
   const limitNum = Math.max(1, parseInt(limit, 10) || 20);
   const offset = (pageNum - 1) * limitNum;
@@ -67,30 +67,51 @@ async function getApprovalQueue({ status = 'PENDING', seller_id, category_id, so
 
   try {
     if (pool && typeof pool.query === 'function') {
-      let countQuery = `SELECT COUNT(*) FROM seller_listings WHERE 1=1`;
+      let countQuery = `
+        SELECT COUNT(*) 
+        FROM seller_listings sl
+        LEFT JOIN stores s ON sl.store_id = s.id
+        WHERE 1=1
+      `;
       let queryText = `
-        SELECT id, store_id AS seller_id, master_catalog_id AS product_id, title, approval_status AS status, sell_price AS price, created_at, updated_at, rejection_reason
-        FROM seller_listings
+        SELECT sl.id, sl.store_id AS seller_id, sl.master_catalog_id AS product_id, sl.title, 
+               sl.approval_status AS status, sl.sell_price AS price, sl.created_at, sl.updated_at, sl.rejection_reason,
+               s.store_name, s.seller_id AS seller_owner_id
+        FROM seller_listings sl
+        LEFT JOIN stores s ON sl.store_id = s.id
         WHERE 1=1
       `;
       const params = [];
 
-      let dbStatus = status;
-      if (status && status !== 'ALL') {
-        if (status === 'LIVE') dbStatus = 'APPROVED';
-        if (status === 'PENDING') dbStatus = 'SUBMITTED';
-        params.push(dbStatus.toUpperCase());
-        queryText += ` AND approval_status = $${params.length}`;
-        countQuery += ` AND approval_status = $${params.length}`;
+      if (status && String(status).toUpperCase() !== 'ALL') {
+        let dbStatus = String(status).toUpperCase();
+        if (dbStatus === 'LIVE') dbStatus = 'APPROVED';
+        if (dbStatus === 'PENDING') {
+          queryText += ` AND sl.approval_status IN ('SUBMITTED', 'PENDING', 'UNDER_REVIEW')`;
+          countQuery += ` AND sl.approval_status IN ('SUBMITTED', 'PENDING', 'UNDER_REVIEW')`;
+        } else if (dbStatus === 'CHANGES_REQUESTED' || dbStatus === 'CHANGES_REQUIRED') {
+          queryText += ` AND sl.approval_status IN ('CHANGES_REQUIRED', 'CHANGES_REQUESTED')`;
+          countQuery += ` AND sl.approval_status IN ('CHANGES_REQUIRED', 'CHANGES_REQUESTED')`;
+        } else {
+          params.push(dbStatus);
+          queryText += ` AND sl.approval_status = $${params.length}`;
+          countQuery += ` AND sl.approval_status = $${params.length}`;
+        }
       }
 
       if (seller_id && UUID_REGEX.test(seller_id)) {
         params.push(seller_id);
-        queryText += ` AND store_id = $${params.length}`;
-        countQuery += ` AND store_id = $${params.length}`;
+        queryText += ` AND sl.store_id = $${params.length}`;
+        countQuery += ` AND sl.store_id = $${params.length}`;
       }
 
-      queryText += ` ORDER BY created_at ${sortOrder} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+      if (search && search.trim()) {
+        params.push(`%${search.trim()}%`);
+        queryText += ` AND (sl.title ILIKE $${params.length} OR sl.id::text ILIKE $${params.length} OR s.store_name ILIKE $${params.length})`;
+        countQuery += ` AND (sl.title ILIKE $${params.length} OR sl.id::text ILIKE $${params.length} OR s.store_name ILIKE $${params.length})`;
+      }
+
+      queryText += ` ORDER BY sl.created_at ${sortOrder} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
       
       const [countRes, res] = await Promise.all([
         pool.query(countQuery, params),
@@ -116,7 +137,7 @@ async function getApprovalQueue({ status = 'PENDING', seller_id, category_id, so
 
   // Filter in-memory items
   let filtered = inMemoryQueue.filter(item => {
-    if (status && status !== 'ALL' && item.status.toUpperCase() !== status.toUpperCase()) {
+    if (status && String(status).toUpperCase() !== 'ALL' && item.status.toUpperCase() !== String(status).toUpperCase()) {
       return false;
     }
     if (seller_id && item.seller_id !== seller_id) {
@@ -124,6 +145,12 @@ async function getApprovalQueue({ status = 'PENDING', seller_id, category_id, so
     }
     if (category_id && String(item.category_id) !== String(category_id)) {
       return false;
+    }
+    if (search && search.trim()) {
+      const s = search.trim().toLowerCase();
+      if (!item.title?.toLowerCase().includes(s) && !String(item.id)?.toLowerCase().includes(s)) {
+        return false;
+      }
     }
     return true;
   });
@@ -149,7 +176,14 @@ async function getApprovalQueue({ status = 'PENDING', seller_id, category_id, so
 async function getApprovalItemById(id) {
   try {
     if (pool && typeof pool.query === 'function' && UUID_REGEX.test(id)) {
-      const itemRes = await pool.query('SELECT id, store_id AS seller_id, master_catalog_id AS product_id, title, approval_status AS status, sell_price AS price, created_at, updated_at, rejection_reason FROM seller_listings WHERE id = $1', [id]);
+      const itemRes = await pool.query(`
+        SELECT sl.id, sl.store_id AS seller_id, sl.master_catalog_id AS product_id, sl.title, 
+               sl.approval_status AS status, sl.sell_price AS price, sl.created_at, sl.updated_at, sl.rejection_reason,
+               s.store_name, s.seller_id AS seller_owner_id
+        FROM seller_listings sl
+        LEFT JOIN stores s ON sl.store_id = s.id
+        WHERE sl.id = $1
+      `, [id]);
       if (itemRes.rowCount > 0) {
         const histRes = await pool.query(
           'SELECT * FROM product_approval_history WHERE listing_id = $1 ORDER BY action_at DESC',
@@ -194,9 +228,14 @@ async function updateApprovalItemState({ id, admin_id, transitionResult }) {
   const validListingId = (id && UUID_REGEX.test(id)) ? id : '00000000-0000-0000-0000-000000000000';
 
   // 1. In-memory update
+  const effectiveReason = (transitionResult.new_status === 'APPROVED' || transitionResult.new_status === 'PENDING')
+    ? null
+    : (transitionResult.rejection_reason || transitionResult.notes || null);
+
   const item = inMemoryQueue.find(i => i.id === id || i.listing_id === id);
   if (item) {
     item.status = transitionResult.new_status;
+    item.rejection_reason = effectiveReason;
     item.updated_at = new Date().toISOString();
   }
 
@@ -214,18 +253,41 @@ async function updateApprovalItemState({ id, admin_id, transitionResult }) {
   // 2. Database persistence
   try {
     if (pool && typeof pool.query === 'function' && UUID_REGEX.test(id)) {
-      await pool.query('UPDATE seller_listings SET approval_status = $1, updated_at = NOW() WHERE id = $2', [
-        transitionResult.new_status,
-        id
-      ]);
+      let dbListingStatus = transitionResult.new_status;
+      if (transitionResult.new_status === 'CHANGES_REQUESTED') {
+        dbListingStatus = 'CHANGES_REQUIRED';
+      } else if (transitionResult.new_status === 'SUSPENDED') {
+        dbListingStatus = 'REJECTED';
+      } else if (transitionResult.new_status === 'PENDING') {
+        dbListingStatus = 'SUBMITTED';
+      }
 
-      if (UUID_REGEX.test(validAdminId)) {
+      await pool.query(
+        'UPDATE seller_listings SET approval_status = $1, rejection_reason = $2, updated_at = NOW() WHERE id = $3',
+        [dbListingStatus, effectiveReason, id]
+      );
+
+      let effectiveAdminId = null;
+      if (admin_id && UUID_REGEX.test(admin_id)) {
+        try {
+          const userChk = await pool.query('SELECT id FROM users WHERE id = $1', [admin_id]);
+          if (userChk.rowCount > 0) effectiveAdminId = admin_id;
+        } catch (e) {}
+      }
+      if (!effectiveAdminId) {
+        try {
+          const adminChk = await pool.query("SELECT id FROM users WHERE user_type = 'ADMIN' LIMIT 1");
+          if (adminChk.rowCount > 0) effectiveAdminId = adminChk.rows[0].id;
+        } catch (e) {}
+      }
+
+      if (effectiveAdminId) {
         await pool.query(
-          `INSERT INTO product_approval_history (listing_id, admin_id, previous_status, new_status, rejection_reason, notes, action_at)
-           VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+          `INSERT INTO product_approval_history (listing_id, admin_id, previous_status, old_status, new_status, rejection_reason, reason, notes, action_at)
+           VALUES ($1, $2, $3, $3, $4, $5, $5, $6, NOW())`,
           [
             id,
-            validAdminId,
+            effectiveAdminId,
             transitionResult.previous_status,
             transitionResult.new_status,
             transitionResult.rejection_reason || null,

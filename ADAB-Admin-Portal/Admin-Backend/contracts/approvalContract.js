@@ -78,12 +78,17 @@ function validateSuspendDTO(body = {}) {
  * Standardized Approval Item DTO format
  */
 function formatApprovalItemDTO(item = {}) {
+  const status = item.current_status || item.status || 'PENDING';
   return {
     id: item.id || 'N/A',
     listing_id: item.listing_id || item.id || 'N/A',
     title: item.title || item.name || 'Untitled Listing',
     seller_id: item.seller_id || null,
-    current_status: item.current_status || item.status || 'PENDING',
+    store_name: item.store_name || null,
+    status: status,
+    current_status: status,
+    price: item.price !== undefined ? item.price : null,
+    rejection_reason: item.rejection_reason || null,
     created_at: item.created_at || new Date().toISOString(),
     updated_at: item.updated_at || new Date().toISOString()
   };

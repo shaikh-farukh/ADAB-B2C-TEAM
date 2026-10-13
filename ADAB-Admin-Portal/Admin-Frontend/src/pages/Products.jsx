@@ -112,6 +112,21 @@ export default function Products() {
     setIsEditModalOpen(true);
   };
 
+  const [productListings, setProductListings] = useState([]);
+
+  const handleUpdateStatus = (id, targetStatus, reason = '') => {
+    apiClient.patch(`/products/${id}/status`, { 
+      status: targetStatus, 
+      action: targetStatus,
+      reason: reason || undefined
+    })
+      .then(() => {
+        fetchProducts(pagination.page);
+        if (selectedProduct) openDetailsModal(selectedProduct);
+      })
+      .catch(err => alert(err.response?.data?.message || 'Failed to update status'));
+  };
+
   const openDetailsModal = (product) => {
     setSelectedProduct(product);
     apiClient.get(`/products/${product.id}`)
@@ -122,6 +137,15 @@ export default function Products() {
       .catch(() => {
         setProductDetails(product);
         setIsDetailsModalOpen(true);
+      });
+
+    // Contract #34: GET /products/:id/listings
+    apiClient.get(`/products/${product.id}/listings`)
+      .then(res => {
+        setProductListings(res.data.data?.listings || res.data.data || []);
+      })
+      .catch(() => {
+        setProductListings([]);
       });
   };
 
@@ -377,16 +401,34 @@ export default function Products() {
           </div>
 
           <div>
-            <h4 className="font-extrabold text-slate-800 mb-2">Associated Seller Listings ({productDetails?.listings?.length || 0})</h4>
-            {productDetails?.listings && productDetails.listings.length > 0 ? (
+            <h4 className="font-extrabold text-slate-800 mb-2">
+              Associated Seller Listings ({(productListings.length > 0 ? productListings : productDetails?.listings || []).length})
+            </h4>
+            {(productListings.length > 0 ? productListings : productDetails?.listings || []).length > 0 ? (
               <div className="space-y-1.5">
-                {productDetails.listings.map((l, idx) => (
+                {(productListings.length > 0 ? productListings : productDetails?.listings || []).map((l, idx) => (
                   <div key={idx} className="p-2.5 bg-slate-50 rounded-lg flex justify-between items-center border border-slate-200">
                     <div>
-                      <div className="font-bold text-slate-800">{l.title}</div>
-                      <div className="text-[11px] text-slate-500">Store: {l.store_name || l.store_id}</div>
+                      <div className="font-bold text-slate-800">{l.title || l.product_title || 'Listing'}</div>
+                      <div className="text-[11px] text-slate-500">Store: {l.store_name || l.store_id || 'Seller Store'}</div>
                     </div>
-                    <StatusBadge status={l.approval_status || l.status} />
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={l.approval_status || l.status} />
+                      <button
+                        onClick={() => handleUpdateStatus(l.id, 'APPROVE')}
+                        className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                        title="Approve Listing"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleUpdateStatus(l.id, 'SUSPEND', 'Administrative suspension')}
+                        className="text-[11px] font-bold px-2 py-0.5 rounded bg-rose-50 text-rose-700 hover:bg-rose-100"
+                        title="Suspend Listing"
+                      >
+                        Suspend
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

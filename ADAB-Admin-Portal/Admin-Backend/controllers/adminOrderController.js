@@ -66,17 +66,37 @@ async function updateOrderStatus(req, res) {
       });
     }
 
-    const userId = req.user ? req.user.id : null;
+    const validStatuses = ['PLACED', 'CONFIRMED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED', 'RETURNED'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: 'BAD_REQUEST',
+        message: `Invalid order status: ${status}. Must be one of: ${validStatuses.join(', ')}`
+      });
+    }
+
+    const userId = req.user ? (req.user.id || req.user.userId) : null;
     const result = await orderService.updateOrderStatus(id, {
       new_status: status,
       notes: notes || '',
       user_id: userId
     });
 
+    if (!result.success) {
+      return res.status(404).json({
+        success: false,
+        error: 'NOT_FOUND',
+        message: result.message || 'Order not found'
+      });
+    }
+
     return res.status(200).json({
       success: true,
       message: `Order status updated to ${status}`,
-      data: result
+      data: {
+        ...result,
+        order_status: status
+      }
     });
   } catch (error) {
     console.error('Error updating order status:', error.message);

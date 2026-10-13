@@ -49,7 +49,10 @@ export default function Returns() {
       exceptions: activeTab === 'exceptions' ? 'true' : 'false'
     });
 
-    apiClient.get(`/returns?${params.toString()}`)
+    // Contract #42: GET /returns/exceptions vs Contract #14: GET /returns
+    const endpoint = activeTab === 'exceptions' ? '/returns/exceptions' : '/returns';
+
+    apiClient.get(`${endpoint}?${params.toString()}`)
       .then(res => {
         if (res.data.success) {
           setReturnsList(res.data.data || []);
@@ -69,6 +72,21 @@ export default function Returns() {
     fetchReturns(1);
   }, [fetchReturns]);
 
+  // Dedicated refund ledger state
+  const [returnRefunds, setReturnRefunds] = useState([]);
+
+  // Process refund action (Contract #41: POST /returns/:id/refund)
+  const handleProcessRefund = (returnId, amount) => {
+    if (!window.confirm(`Process refund of ₹${amount || 0}?`)) return;
+    apiClient.post(`/returns/${returnId}/refund`, { amount, refund_mode: 'ORIGINAL_PAYMENT' })
+      .then(res => {
+        alert(res.data.message || 'Refund successfully processed');
+        fetchReturnDetail(returnId);
+        fetchReturns(pagination.page);
+      })
+      .catch(err => alert(err.response?.data?.message || 'Failed to process refund'));
+  };
+
   // Fetch Return Details
   const fetchReturnDetail = useCallback((returnId) => {
     if (!returnId) return;
@@ -86,6 +104,15 @@ export default function Returns() {
         setDetailError(err.response?.data?.message || 'Failed to load return details');
       })
       .finally(() => setDetailLoading(false));
+
+    // Contract #41 (GET Ledger): GET /returns/:id/refund
+    apiClient.get(`/returns/${returnId}/refund`)
+      .then(res => {
+        if (res.data.success) {
+          setReturnRefunds(res.data.data || []);
+        }
+      })
+      .catch(() => setReturnRefunds([]));
   }, []);
 
   const handleOpenDetail = (id) => {
@@ -417,11 +444,21 @@ export default function Returns() {
               </div>
 
               {/* Refund Status */}
-              {returnDetail.refunds && returnDetail.refunds.length > 0 && (
+              {((returnRefunds && returnRefunds.length > 0) || (returnDetail.refunds && returnDetail.refunds.length > 0) || returnDetail.status === 'APPROVED') && (
                 <div className="card p-4 space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Refund Status & Gateway Ledger</h3>
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                      Refund Status & Gateway Ledger ({((returnRefunds && returnRefunds.length > 0) ? returnRefunds : returnDetail.refunds || []).length})
+                    </h3>
+                    <button
+                      onClick={() => handleProcessRefund(returnDetail.id, returnDetail.refund_amount)}
+                      className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                    >
+                      Process Refund
+                    </button>
+                  </div>
                   <div className="space-y-2 text-xs">
-                    {returnDetail.refunds.map((rf, idx) => (
+                    {((returnRefunds && returnRefunds.length > 0) ? returnRefunds : (returnDetail.refunds || [])).map((rf, idx) => (
                       <div key={idx} className="bg-slate-50 p-3 rounded-lg border flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <div className="font-bold text-slate-800">

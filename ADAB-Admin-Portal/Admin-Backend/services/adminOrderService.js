@@ -220,10 +220,13 @@ async function updateOrderStatus(orderId, { new_status, notes = '', user_id = nu
       [new_status, orderId]
     );
 
+    const isValidUuid = typeof user_id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user_id);
+    const validUserId = isValidUuid ? user_id : null;
+
     await client.query(
       `INSERT INTO order_status_history (order_id, previous_status, new_status, changed_by_user_id, notes, created_at)
        VALUES ($1, $2, $3, $4, $5, NOW())`,
-      [orderId, previousStatus, new_status, user_id, notes]
+      [orderId, previousStatus, new_status, validUserId, notes]
     );
 
     await client.query('COMMIT');

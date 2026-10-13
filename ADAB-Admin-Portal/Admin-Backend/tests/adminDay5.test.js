@@ -2,20 +2,21 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
 
-const mockClient = {
-  query: jest.fn().mockResolvedValue({ rows: [{ id: 1, status: 'UPDATED' }] }),
-  release: jest.fn()
-};
-
-jest.mock('../db', () => ({
-  query: jest.fn().mockImplementation((q) => {
-    if (q && q.toLowerCase && q.toLowerCase().includes('count(*) over()')) {
-      return Promise.resolve({ rows: [{ full_count: '1', id: 1, email: 'test@test.com', status: 'PENDING' }] });
-    }
-    return Promise.resolve({ rows: [{ id: 1, email: 'test@test.com', status: 'PENDING' }] });
-  }),
-  connect: jest.fn().mockResolvedValue(mockClient)
-}));
+jest.mock('../db', () => {
+  const mockClient = {
+    query: jest.fn().mockResolvedValue({ rows: [{ id: 1, status: 'UPDATED' }] }),
+    release: jest.fn()
+  };
+  return {
+    query: jest.fn().mockImplementation((q) => {
+      if (q && q.toLowerCase && q.toLowerCase().includes('count(*) over()')) {
+        return Promise.resolve({ rows: [{ full_count: '1', id: 1, email: 'test@test.com', status: 'PENDING' }] });
+      }
+      return Promise.resolve({ rows: [{ id: 1, email: 'test@test.com', status: 'PENDING' }] });
+    }),
+    connect: jest.fn().mockResolvedValue(mockClient)
+  };
+});
 
 process.env.JWT_SECRET = 'testsecret';
 const app = require('../server');

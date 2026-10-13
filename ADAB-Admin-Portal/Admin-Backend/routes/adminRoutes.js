@@ -11,6 +11,7 @@ const approvalCtrl = require('../controllers/approvalContractController');
 const orderCtrl = require('../controllers/adminOrderController');
 const returnCtrl = require('../controllers/adminReturnController');
 const offerCtrl = require('../controllers/adminOfferController');
+const rbacCtrl = require('../controllers/rbacController');
 const orderService = require('../services/adminOrderService');
 const returnService = require('../services/adminReturnService');
 
@@ -60,6 +61,25 @@ router.get('/returns/:id/refund', adminGuard({ permissions: [PERMISSIONS.RETURNS
   if (!ret) return res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'Return not found' });
   res.status(200).json({ success: true, data: ret.refunds || [] });
 });
+router.post(
+  '/returns/:id/refund',
+  adminGuard({ permissions: [PERMISSIONS.RETURNS_WRITE] }),
+  auditMiddleware({ action: 'ADMIN_PROCESS_REFUND', entityType: 'REFUND' }),
+  async (req, res) => {
+    try {
+      const { amount, refund_mode } = req.body || {};
+      const ret = await returnService.getAdminReturnById(req.params.id);
+      if (!ret) return res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'Return not found' });
+      const result = await returnService.resolveAdminReturn(req.params.id, {
+        action: 'approve',
+        notes: `Refund processed: ${refund_mode || 'ORIGINAL_PAYMENT'} (Amount: ${amount || ret.refund_amount})`
+      });
+      res.status(200).json({ success: true, message: 'Refund successfully initiated and recorded', data: result });
+    } catch (err) {
+      res.status(500).json({ success: false, error: 'REFUND_ERROR', message: err.message });
+    }
+  }
+);
 router.get('/returns/:id', adminGuard({ permissions: [PERMISSIONS.RETURNS_READ] }), returnCtrl.getReturnById);
 router.post(
   '/returns/:id/resolve',
@@ -135,7 +155,19 @@ router.patch(
 
 // ─── Approval Queue & Moderation APIs ───
 router.get('/approvals/queue', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), approvalCtrl.getApprovalQueue);
-router.get('/approvals', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), approvalCtrl.getApprovalList);
+router.get('/approvals', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), (req, res, next) => {
+  if (req.query.type === 'seller' || req.query.type === 'customer' || req.query.type === 'seller-reg' || req.query.type === 'customer-reg') {
+    const type = req.query.type.includes('seller') ? 'seller' : 'customer';
+    req.query.type = type;
+    const legacyApprovalCtrl = require('../src/controllers/adminApprovalController');
+    return legacyApprovalCtrl.getApprovals(req, res, next);
+  }
+  return approvalCtrl.getApprovalList(req, res, next);
+});
+router.patch('/approvals/:id', adminGuard({ permissions: [PERMISSIONS.CATALOG_APPROVE] }), (req, res, next) => {
+  const legacyApprovalCtrl = require('../src/controllers/adminApprovalController');
+  return legacyApprovalCtrl.updateApproval(req, res, next);
+});
 router.get('/approvals/counts', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), approvalCtrl.getApprovalCounts);
 router.get('/approvals/:id', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), approvalCtrl.getApprovalById);
 router.get('/approvals/:id/history', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), approvalCtrl.getApprovalHistory);
@@ -202,6 +234,28 @@ router.post(
   adminGuard({ permissions: [PERMISSIONS.CATALOG_WRITE] }),
   auditMiddleware({ action: 'ADMIN_PAUSE_OFFER', entityType: 'OFFER' }),
   offerCtrl.pauseOffer
+);
+
+// ─── RBAC Roles & Permissions APIs ───
+router.get('/rbac/roles', adminGuard({ permissions: [PERMISSIONS.USERS_MANAGE] }), rbacCtrl.getRoles);
+router.post(
+  '/rbac/roles',
+  adminGuard({ permissions: [PERMISSIONS.USERS_MANAGE] }),
+  auditMiddleware({ action: 'ADMIN_CREATE_ROLE', entityType: 'ROLE' }),
+  rbacCtrl.createRole
+);
+router.patch(
+  '/rbac/roles/:id',
+  adminGuard({ permissions: [PERMISSIONS.USERS_MANAGE] }),
+  auditMiddleware({ action: 'ADMIN_UPDATE_ROLE', entityType: 'ROLE' }),
+  rbacCtrl.updateRole
+);
+router.get('/permissions', adminGuard({ permissions: [PERMISSIONS.USERS_MANAGE] }), rbacCtrl.getPermissions);
+router.put(
+  '/rbac/roles/:id/permissions',
+  adminGuard({ permissions: [PERMISSIONS.USERS_MANAGE] }),
+  auditMiddleware({ action: 'ADMIN_UPDATE_ROLE_PERMISSIONS', entityType: 'ROLE' }),
+  rbacCtrl.updateRolePermissions
 );
 
 // ─── Seller / Customer User Status Authorization ───

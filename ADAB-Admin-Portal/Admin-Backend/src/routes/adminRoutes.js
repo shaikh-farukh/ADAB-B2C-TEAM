@@ -28,6 +28,7 @@ router.use(auth);
 router.use(adminAuth);
 
 // Dashboard
+router.get('/dashboard/actions', dashboardController.getDashboardActions);
 router.get('/dashboard', dashboardController.getDashboard);
 
 // Notifications
@@ -35,41 +36,36 @@ router.get('/notifications', notificationController.getNotifications);
 router.get('/notifications/unread-count', notificationController.getUnreadCount);
 router.post('/notifications/:id/read', notificationController.markAsRead);
 
-// Sellers (Day-1 Skeletons)
+// Sellers (Day-1 Skeletons & Oversight)
+router.get('/reports/sellers', day5Controller.getSellersReport);
 router.get('/sellers', sellerController.getSellers);
+router.get('/sellers/:id/documents', sellerController.getSellerDocuments);
+router.get('/sellers/:id/health', sellerController.getSellerHealth);
 router.get('/sellers/:id', sellerController.getSellerDetails);
 router.patch('/sellers/:id/status', sellerController.updateSellerStatus);
 
-// Customers (Day-1 Skeletons)
+// Customers (Day-1 Skeletons & Oversight)
+router.get('/reports/customers', day5Controller.getCustomersReport);
 router.get('/customers', customerController.getCustomers);
+router.get('/customers/:id/orders', customerController.getCustomerOrders);
+router.get('/customers/:id/tickets', customerController.getCustomerTickets);
 router.get('/customers/:id', customerController.getCustomerDetails);
 router.patch('/customers/:id/status', customerController.updateCustomerStatus);
 
-// Approvals (Day-2)
-router.get('/approvals', approvalController.getApprovals);
-router.patch('/approvals/:id', approvalController.updateApproval);
-
-// Legacy Products / Moderation (Day-3 Test Support)
-router.get('/products', productController.getProducts);
-router.get('/products/:id', productController.getProductDetails);
+// Legacy Product Moderation Actions (Non-colliding)
 router.post('/products/:id/approve', productController.approveProduct);
 router.post('/products/:id/reject', productController.rejectProduct);
 router.post('/products/:id/request-changes', productController.requestChangesProduct);
 router.post('/products/:id/suspend', productController.suspendProduct);
 
-// Orders (Day-4)
-router.get('/orders', orderController.getOrders);
-router.get('/orders/:id', orderController.getOrderDetails);
-router.patch('/orders/:id/status', orderController.updateOrderStatus);
-
-// Returns (Day-4)
-router.get('/returns', returnController.getReturns);
-router.get('/returns/:id', returnController.getReturnDetails);
-router.post('/returns/:id/resolve', returnController.resolveReturn);
-
-// Day-5 (Offers, Reports, Audit, Settings)
-router.get('/offers', day5Controller.getOffers);
+// Reports by Domain (Day-4/5)
+router.get('/reports/orders', day5Controller.getOrdersReport);
+router.get('/reports/returns', day5Controller.getReturnsReport);
 router.get('/reports/summary', day5Controller.getReportsSummary);
+router.get('/reports/sales', day5Controller.getSalesReport);
+router.get('/reports/reviews', day5Controller.getReviewsReport);
+router.post('/reports/export', day5Controller.exportReport);
+router.get('/audit/entity/:type/:id', day5Controller.getAuditLogByEntity);
 router.get('/audit', day5Controller.getAuditLogs);
 router.get('/settings', day5Controller.getSettings);
 router.patch('/settings', day5Controller.updateSettings);

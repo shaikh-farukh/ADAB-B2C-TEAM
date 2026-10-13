@@ -13,6 +13,8 @@ export default function Offers() {
   const [statusFilter, setStatusFilter] = useState('');
 
   const [createModal, setCreateModal] = useState({ isOpen: false, code: '', title: '', discount_type: 'PERCENTAGE', discount_value: '', min_order_amount: '', max_discount_amount: '', usage_limit: '' });
+  const [editModal, setEditModal] = useState({ isOpen: false, id: null, code: '', title: '', discount_type: 'PERCENTAGE', discount_value: '', min_order_amount: '', max_discount_amount: '' });
+  const [validateModal, setValidateModal] = useState({ isOpen: false, code: '', cart_amount: 500, result: null, error: null, loading: false });
 
   const fetchOffers = (p = 1) => {
     setLoading(true);
@@ -42,11 +44,62 @@ export default function Offers() {
       .catch(err => alert(err.response?.data?.message || 'Failed to create offer'));
   };
 
-  const toggleStatus = (id, currentStatus) => {
-    const action = currentStatus ? 'pause' : 'activate';
-    apiClient.post(`/offers/${id}/${action}`)
+  const handleUpdate = () => {
+    if (!editModal.id) return;
+    apiClient.patch(`/offers/${editModal.id}`, editModal)
+      .then(() => {
+        setEditModal({ isOpen: false, id: null, code: '', title: '', discount_type: 'PERCENTAGE', discount_value: '', min_order_amount: '', max_discount_amount: '' });
+        fetchOffers(pagination.page);
+      })
+      .catch(err => alert(err.response?.data?.message || 'Failed to update offer'));
+  };
+
+  const handleDelete = (id, code) => {
+    if (!window.confirm(`Are you sure you want to deactivate offer '${code}'?`)) return;
+    apiClient.delete(`/offers/${id}`)
       .then(() => fetchOffers(pagination.page))
-      .catch(() => alert(`Failed to ${action} offer`));
+      .catch(err => alert('Failed to delete offer'));
+  };
+
+  const handleValidate = () => {
+    if (!validateModal.code) return;
+    setValidateModal(prev => ({ ...prev, loading: true, result: null, error: null }));
+    apiClient.post('/offers/validate', {
+      code: validateModal.code.trim(),
+      cart_amount: Number(validateModal.cart_amount || 0)
+    })
+      .then(res => {
+        setValidateModal(prev => ({ ...prev, result: res.data, loading: false }));
+      })
+      .catch(err => {
+        setValidateModal(prev => ({
+          ...prev,
+          error: err.response?.data?.message || 'Coupon validation failed',
+          loading: false
+        }));
+      });
+  };
+
+  const openEdit = (row) => {
+    setEditModal({
+      isOpen: true,
+      id: row.id,
+      code: row.code,
+      title: row.title || row.code,
+      discount_type: row.discount_type || 'PERCENTAGE',
+      discount_value: row.discount_value,
+      min_order_amount: row.min_order_amount || row.min_order_value || '',
+      max_discount_amount: row.max_discount_amount || row.max_discount_cap || ''
+    });
+  };
+
+  const toggleStatus = (id, currentStatus) => {
+    const call = currentStatus 
+      ? apiClient.post(`/offers/${id}/pause`) 
+      : apiClient.post(`/offers/${id}/activate`);
+    call
+      .then(() => fetchOffers(pagination.page))
+      .catch(() => alert(`Failed to ${currentStatus ? 'pause' : 'activate'} offer`));
   };
 
   const columns = [
@@ -57,9 +110,15 @@ export default function Offers() {
     { header: 'Min Order', render: (row) => row.min_order_amount ? `₹${row.min_order_amount}` : 'No Min' },
     { header: 'Status', render: (row) => <StatusBadge status={row.is_active ? 'ACTIVE' : 'INACTIVE'} /> },
     { header: 'Actions', render: (row) => (
-      <div className="flex gap-2">
-        <button onClick={() => toggleStatus(row.id, row.is_active)} className={`text-xs font-bold px-2.5 py-1 rounded-lg text-white ${row.is_active ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
+      <div className="flex gap-1.5 flex-wrap">
+        <button onClick={() => openEdit(row)} className="text-xs font-bold px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700">
+          Edit
+        </button>
+        <button onClick={() => toggleStatus(row.id, row.is_active)} className={`text-xs font-bold px-2 py-1 rounded text-white ${row.is_active ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
           {row.is_active ? 'Pause' : 'Activate'}
+        </button>
+        <button onClick={() => handleDelete(row.id, row.code)} className="text-xs font-bold px-2 py-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-600">
+          Delete
         </button>
       </div>
     )}
@@ -72,9 +131,14 @@ export default function Offers() {
           <h1 className="text-2xl font-extrabold text-slate-900">Platform Offers &amp; Coupons</h1>
           <p className="text-xs text-slate-500 mt-1">Manage promotional discounts, coupon codes &amp; eligibility rules</p>
         </div>
-        <button onClick={() => setCreateModal({ ...createModal, isOpen: true })} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm">
-          + Create Offer
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setValidateModal({ isOpen: true, code: '', cart_amount: 500, result: null, error: null, loading: false })} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm">
+            <i className="fa-solid fa-magnifying-glass mr-1.5"></i> Validate Code
+          </button>
+          <button onClick={() => setCreateModal({ ...createModal, isOpen: true })} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm">
+            + Create Offer
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-3 my-4">
@@ -99,6 +163,7 @@ export default function Offers() {
       <AdminTable columns={columns} data={offers} loading={loading} emptyMessage="No offers created yet." />
       <Pagination page={pagination.page} total={pagination.total} pageSize={pagination.limit} onPageChange={p => fetchOffers(p)} />
 
+      {/* Create Offer Modal */}
       <Modal
         isOpen={createModal.isOpen}
         title="Create New Platform Offer"
@@ -138,6 +203,81 @@ export default function Offers() {
               <input type="number" value={createModal.max_discount_amount} onChange={e => setCreateModal({ ...createModal, max_discount_amount: e.target.value })} placeholder="e.g. 100" className="w-full p-2.5 text-xs border border-slate-200 rounded-xl outline-none" />
             </div>
           </div>
+        </div>
+      </Modal>
+
+      {/* Edit Offer Modal */}
+      <Modal
+        isOpen={editModal.isOpen}
+        title={`Edit Offer: ${editModal.code}`}
+        onClose={() => setEditModal({ isOpen: false, id: null, code: '', title: '', discount_type: 'PERCENTAGE', discount_value: '', min_order_amount: '', max_discount_amount: '' })}
+        onPrimary={handleUpdate}
+        primaryLabel="Save Changes"
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Title</label>
+            <input type="text" value={editModal.title} onChange={e => setEditModal({ ...editModal, title: e.target.value })} className="w-full p-2.5 text-xs border border-slate-200 rounded-xl outline-none" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Discount Type</label>
+              <select value={editModal.discount_type} onChange={e => setEditModal({ ...editModal, discount_type: e.target.value })} className="w-full p-2.5 text-xs border border-slate-200 rounded-xl outline-none">
+                <option value="PERCENTAGE">Percentage (%)</option>
+                <option value="FIXED">Fixed Amount (₹)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Discount Value</label>
+              <input type="number" value={editModal.discount_value} onChange={e => setEditModal({ ...editModal, discount_value: e.target.value })} className="w-full p-2.5 text-xs border border-slate-200 rounded-xl outline-none" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Min Order Amount (₹)</label>
+              <input type="number" value={editModal.min_order_amount} onChange={e => setEditModal({ ...editModal, min_order_amount: e.target.value })} className="w-full p-2.5 text-xs border border-slate-200 rounded-xl outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Max Discount Cap (₹)</label>
+              <input type="number" value={editModal.max_discount_amount} onChange={e => setEditModal({ ...editModal, max_discount_amount: e.target.value })} className="w-full p-2.5 text-xs border border-slate-200 rounded-xl outline-none" />
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Validate Coupon Modal */}
+      <Modal
+        isOpen={validateModal.isOpen}
+        title="Check & Validate Coupon Code"
+        onClose={() => setValidateModal({ isOpen: false, code: '', cart_amount: 500, result: null, error: null, loading: false })}
+        onPrimary={handleValidate}
+        primaryLabel={validateModal.loading ? 'Checking...' : 'Check Code'}
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Coupon Code</label>
+            <input type="text" value={validateModal.code} onChange={e => setValidateModal({ ...validateModal, code: e.target.value })} placeholder="e.g. WELCOME50" className="w-full p-2.5 text-xs border border-slate-200 rounded-xl outline-none uppercase font-mono" />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Cart Amount (₹)</label>
+            <input type="number" value={validateModal.cart_amount} onChange={e => setValidateModal({ ...validateModal, cart_amount: e.target.value })} placeholder="500" className="w-full p-2.5 text-xs border border-slate-200 rounded-xl outline-none" />
+          </div>
+
+          {validateModal.error && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-bold">
+              {validateModal.error}
+            </div>
+          )}
+
+          {validateModal.result && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs space-y-1">
+              <div className="font-extrabold flex items-center gap-1.5">
+                <i className="fa-solid fa-circle-check text-emerald-600"></i> Coupon is Valid &amp; Applicable!
+              </div>
+              <div>Discount Calculated: <span className="font-extrabold text-emerald-700">₹{validateModal.result.discount_amount}</span></div>
+              <div>Final Cart Amount: <span className="font-extrabold">₹{validateModal.result.final_amount}</span></div>
+            </div>
+          )}
         </div>
       </Modal>
     </div>

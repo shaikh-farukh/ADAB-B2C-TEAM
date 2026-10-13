@@ -38,7 +38,8 @@ const ALLOWED_TRANSITIONS = Object.freeze({
     { targetState: APPROVAL_STATES.SUSPENDED, action: APPROVAL_ACTIONS.SUSPEND, requireReason: true }
   ],
   [APPROVAL_STATES.REJECTED]: [
-    { targetState: APPROVAL_STATES.PENDING, action: APPROVAL_ACTIONS.REOPEN }
+    { targetState: APPROVAL_STATES.PENDING, action: APPROVAL_ACTIONS.REOPEN },
+    { targetState: APPROVAL_STATES.APPROVED, action: APPROVAL_ACTIONS.APPROVE }
   ],
   [APPROVAL_STATES.APPROVED]: [
     { targetState: APPROVAL_STATES.REJECTED, action: APPROVAL_ACTIONS.REVOKE, requireReason: true },
@@ -60,35 +61,67 @@ class ApprovalStateMachineError extends Error {
 }
 
 /**
+ * Normalizes database/external state strings into standard APPROVAL_STATES.
+ */
+function normalizeState(state) {
+  if (!state || typeof state !== 'string') return state;
+  const upper = state.trim().toUpperCase();
+  switch (upper) {
+    case 'SUBMITTED':
+    case 'UNDER_REVIEW':
+    case 'DRAFT':
+    case 'PENDING':
+      return APPROVAL_STATES.PENDING;
+    case 'APPROVED':
+    case 'PUBLISHED':
+    case 'LIVE':
+      return APPROVAL_STATES.APPROVED;
+    case 'REJECTED':
+      return APPROVAL_STATES.REJECTED;
+    case 'CHANGES_REQUIRED':
+    case 'CHANGES_REQUESTED':
+      return APPROVAL_STATES.CHANGES_REQUESTED;
+    case 'SUSPENDED':
+      return APPROVAL_STATES.SUSPENDED;
+    default:
+      return upper;
+  }
+}
+
+/**
  * Validates if a state string is a recognized approval state.
  */
 function isValidState(state) {
-  return Object.values(APPROVAL_STATES).includes(state);
+  const norm = normalizeState(state);
+  return Object.values(APPROVAL_STATES).includes(norm);
 }
 
 /**
  * Gets allowed target states and actions from a current state.
  */
 function getAllowedTransitions(currentState) {
-  if (!isValidState(currentState)) {
+  const normCurrent = normalizeState(currentState);
+  if (!isValidState(normCurrent)) {
     throw new ApprovalStateMachineError(
       `Unknown initial state: '${currentState}'`,
       'UNKNOWN_STATE',
       { state: currentState }
     );
   }
-  return ALLOWED_TRANSITIONS[currentState] || [];
+  return ALLOWED_TRANSITIONS[normCurrent] || [];
 }
 
 /**
  * Checks whether a transition from currentState to targetState is valid.
  */
 function canTransition(currentState, targetState) {
-  if (!isValidState(currentState) || !isValidState(targetState)) {
+  const normCurrent = normalizeState(currentState);
+  const normTarget = normalizeState(targetState);
+  if (!isValidState(normCurrent) || !isValidState(normTarget)) {
     return false;
   }
-  const allowed = ALLOWED_TRANSITIONS[currentState] || [];
-  return allowed.some(t => t.targetState === targetState);
+  const allowed = ALLOWED_TRANSITIONS[normCurrent] || [];
+  return allowed.some(t => t.targetState === normTarget);
 }
 
 /**
@@ -100,7 +133,10 @@ function canTransition(currentState, targetState) {
  * @returns {Object} transitionResult
  */
 function transition(currentState, targetState, payload = {}) {
-  if (!isValidState(currentState)) {
+  const normCurrent = normalizeState(currentState);
+  const normTarget = normalizeState(targetState);
+
+  if (!isValidState(normCurrent)) {
     throw new ApprovalStateMachineError(
       `Invalid starting state '${currentState}'`,
       'INVALID_CURRENT_STATE',
@@ -108,7 +144,7 @@ function transition(currentState, targetState, payload = {}) {
     );
   }
 
-  if (!isValidState(targetState)) {
+  if (!isValidState(normTarget)) {
     throw new ApprovalStateMachineError(
       `Invalid target state '${targetState}'`,
       'INVALID_TARGET_STATE',
@@ -116,23 +152,23 @@ function transition(currentState, targetState, payload = {}) {
     );
   }
 
-  if (currentState === targetState) {
+  if (normCurrent === normTarget) {
     throw new ApprovalStateMachineError(
-      `Cannot transition to identical state '${currentState}'`,
+      `Cannot transition to identical state '${normCurrent}'`,
       'SAME_STATE_TRANSITION',
-      { currentState, targetState }
+      { currentState: normCurrent, targetState: normTarget }
     );
   }
 
-  const allowedRule = (ALLOWED_TRANSITIONS[currentState] || []).find(
-    t => t.targetState === targetState
+  const allowedRule = (ALLOWED_TRANSITIONS[normCurrent] || []).find(
+    t => t.targetState === normTarget
   );
 
   if (!allowedRule) {
     throw new ApprovalStateMachineError(
       `Forbidden state transition from '${currentState}' to '${targetState}'. Transition skipped or disallowed.`,
       'DISALLOWED_TRANSITION',
-      { currentState, targetState, allowedTransitions: getAllowedTransitions(currentState) }
+      { currentState, targetState, allowedTransitions: getAllowedTransitions(normCurrent) }
     );
   }
 
@@ -155,8 +191,8 @@ function transition(currentState, targetState, payload = {}) {
 
   return {
     success: true,
-    previous_status: currentState,
-    new_status: targetState,
+    previous_status: normCurrent,
+    new_status: normTarget,
     action: allowedRule.action,
     rejection_reason: payload.rejection_reason || null,
     notes: payload.notes || null,
@@ -168,6 +204,7 @@ module.exports = {
   APPROVAL_STATES,
   APPROVAL_ACTIONS,
   ApprovalStateMachineError,
+  normalizeState,
   isValidState,
   getAllowedTransitions,
   canTransition,

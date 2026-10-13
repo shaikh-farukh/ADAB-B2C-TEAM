@@ -8,7 +8,7 @@ export default function AdminSidebar() {
 
   return (
     <aside className="lg:w-64 lg:p-0 shrink-0">
-      <nav className="card p-2 text-sm sticky top-20">
+      <nav className="card p-2 text-sm sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto custom-sidebar-scroll">
         <div className="nav-label">Overview</div>
         <NavLink to="/" className={getNavClass}><i className="fa-solid fa-gauge-high w-4"></i> Dashboard</NavLink>
         <NavLink to="/approvals" className={getNavClass}><i className="fa-solid fa-check-to-slot w-4 text-amber-500"></i> Approvals</NavLink>

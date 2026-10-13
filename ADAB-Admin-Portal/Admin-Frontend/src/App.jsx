@@ -16,28 +16,15 @@ import Reports from './pages/Reports';
 import AuditLog from './pages/AuditLog';
 import Settings from './pages/Settings';
 import ProductCatalog from './pages/ProductCatalog';
+import Login from './pages/Login';
 
 export default function App() {
-  const [loadingToken, setLoadingToken] = React.useState(!localStorage.getItem('token'));
-
-  useEffect(() => {
-    if (!localStorage.getItem('token')) {
-      apiClient.post('/dev-login').then(res => {
-        if (res.data.token) {
-          localStorage.setItem('token', res.data.token);
-        }
-      }).catch(err => console.error('Auto-login failed', err))
-        .finally(() => setLoadingToken(false));
-    }
-  }, []);
-
-  if (loadingToken) {
-    return <div className="min-h-screen flex items-center justify-center text-slate-500 font-medium">Initializing Admin Session...</div>;
-  }
+  const [loadingToken, setLoadingToken] = React.useState(false);
 
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/login" element={<Login />} />
         <Route path="/" element={<AdminLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="approvals" element={<ApprovalQueue />} />

@@ -7,6 +7,7 @@ dotenv.config();
 const pool = require('./db');
 const adminRoutes = require('./routes/adminRoutes');
 const legacyAdminRoutes = require('./src/routes/adminRoutes');
+const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5005;
@@ -32,23 +33,27 @@ app.use((req, res, next) => {
   next();
 });
 
+// Middleware
+app.use(cors());
+app.use(express.json());
+
 // Rate Limiting Middleware
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
+  max: process.env.NODE_ENV === 'test' ? 100 : 2500, // Generous limit in dev, strict in test
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.method === 'OPTIONS', // Never rate limit CORS preflight requests
   message: { success: false, message: 'Too many requests from this IP, please try again after 15 minutes' }
 });
 
 // Apply rate limiter to all API routes
 app.use('/api/', limiter);
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-
 // Routes
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/admin/auth', authRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/admin', legacyAdminRoutes);
 app.use('/api/admin', adminRoutes);
@@ -77,9 +82,38 @@ app.get('/api/data', (req, res) => {
 
 // Start Server
 if (require.main === module) {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
   });
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`❌ Port ${PORT} is already in use by another process.`);
+      console.error(`   Please terminate the existing process or use a different port.`);
+    } else {
+      console.error('❌ Server startup error:', err.message);
+    }
+  });
+
+  process.on('unhandledRejection', (reason) => {
+    console.error('⚠️ Unhandled Rejection:', reason);
+  });
+
+  process.on('uncaughtException', (err) => {
+    console.error('⚠️ Uncaught Exception:', err.message);
+  });
+
+  // Graceful shutdown handling
+  const shutdown = (signal) => {
+    console.log(`\n🛑 Received ${signal}. Shutting down Admin Backend cleanly...`);
+    server.close(() => {
+      console.log('HTTP server closed.');
+      process.exit(0);
+    });
+  };
+
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
 module.exports = app;

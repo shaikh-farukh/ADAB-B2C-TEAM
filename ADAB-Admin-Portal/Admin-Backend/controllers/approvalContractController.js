@@ -23,9 +23,10 @@ const {
 // 1. Approval Queue Listing
 async function getApprovalQueue(req, res) {
   const result = await fetchApprovalQueue({
-    status: req.query.status || 'PENDING',
+    status: req.query.status !== undefined ? req.query.status : 'ALL',
     seller_id: req.query.seller_id,
     category_id: req.query.category_id,
+    search: req.query.search,
     sort: req.query.sort || 'DESC',
     page: req.query.page || 1,
     limit: req.query.limit || 20
@@ -309,11 +310,20 @@ async function getApprovalCounts(req, res) {
   const items = queueRes.data || [];
 
   const counts = {
-    pending: items.filter(i => (i.status || i.current_status) === 'PENDING').length,
-    approved: items.filter(i => (i.status || i.current_status) === 'APPROVED').length,
-    rejected: items.filter(i => (i.status || i.current_status) === 'REJECTED').length,
-    changes_requested: items.filter(i => (i.status || i.current_status) === 'CHANGES_REQUESTED').length,
-    suspended: items.filter(i => (i.status || i.current_status) === 'SUSPENDED').length,
+    pending: items.filter(i => {
+      const st = (i.status || i.current_status || '').toUpperCase();
+      return st === 'PENDING' || st === 'SUBMITTED' || st === 'UNDER_REVIEW' || st === 'DRAFT';
+    }).length,
+    approved: items.filter(i => {
+      const st = (i.status || i.current_status || '').toUpperCase();
+      return st === 'APPROVED' || st === 'PUBLISHED' || st === 'LIVE';
+    }).length,
+    rejected: items.filter(i => (i.status || i.current_status || '').toUpperCase() === 'REJECTED').length,
+    changes_requested: items.filter(i => {
+      const st = (i.status || i.current_status || '').toUpperCase();
+      return st === 'CHANGES_REQUESTED' || st === 'CHANGES_REQUIRED';
+    }).length,
+    suspended: items.filter(i => (i.status || i.current_status || '').toUpperCase() === 'SUSPENDED').length,
     total: items.length
   };
 

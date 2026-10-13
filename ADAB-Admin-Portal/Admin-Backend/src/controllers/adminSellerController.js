@@ -30,3 +30,22 @@ exports.updateSellerStatus = async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 };
+
+exports.getSellerDocuments = async (req, res) => {
+  try {
+    const data = await sellerService.getSellerDocuments(req.params.id);
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
+exports.getSellerHealth = async (req, res) => {
+  try {
+    const data = await sellerService.getSellerHealth(req.params.id);
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
