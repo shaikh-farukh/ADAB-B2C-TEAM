@@ -46,6 +46,8 @@ exports.searchProducts = async (req, res) => {
       q: req.query.q || '',
       category: req.query.category || null,
       categories: req.query.categories ? req.query.categories.split(',') : [],
+      storeId: req.query.storeId || req.query.store || null,
+      storeName: req.query.storeName || null,
       minPrice: req.query.minPrice ? parseFloat(req.query.minPrice) : null,
       maxPrice: req.query.maxPrice ? parseFloat(req.query.maxPrice) : null,
       brand: req.query.brand || null,

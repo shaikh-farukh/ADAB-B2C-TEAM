@@ -9,20 +9,7 @@ export const api = axios.create({
   },
 });
 
-const pendingAxiosRequests = new Map();
 
-// Wrap api.get to deduplicate
-const originalGet = api.get;
-api.get = function (url, config) {
-  if (pendingAxiosRequests.has(url)) {
-    return pendingAxiosRequests.get(url);
-  }
-  const promise = originalGet.call(api, url, config).finally(() => {
-    pendingAxiosRequests.delete(url);
-  });
-  pendingAxiosRequests.set(url, promise);
-  return promise;
-};
 
 // Setup mock adapter
 const mock = new MockAdapter(api, { delayResponse: 500, onNoMatch: 'passthrough' });

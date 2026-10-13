@@ -32,6 +32,7 @@ export default function AccountPage({ onNavigate }) {
   const [addressForm, setAddressForm] = useState({
     type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false
   });
+  const [serviceabilityResults, setServiceabilityResults] = useState({});
 
   useEffect(() => {
     fetchData();
@@ -288,56 +289,177 @@ export default function AccountPage({ onNavigate }) {
     </div>
   );
 
+  const checkServiceability = async (addressId) => {
+    try {
+      const res = await api.get(`/customers/me/addresses/${addressId}/serviceability`);
+      if (res.data?.success) {
+        setServiceabilityResults(prev => ({ ...prev, [addressId]: res.data.data }));
+      }
+    } catch (err) {
+      console.warn('Serviceability check error:', err);
+    }
+  };
+
   const renderAddresses = () => (
     <div className="max-w-4xl mx-auto w-full">
-      <h2 className="text-2xl font-black text-[#111827] mb-6">Manage Addresses</h2>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-black text-[#111827]">Delivery Addresses</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Manage your saved shipping addresses for fast 1-click checkout</p>
+        </div>
+        <button
+          onClick={() => setActiveView('dashboard')}
+          className="text-xs font-bold text-gray-500 hover:text-gray-900 bg-white border border-gray-200 px-3 py-1.5 rounded-xl transition cursor-pointer"
+        >
+          ← Back to Account
+        </button>
+      </div>
 
       <div className="flex flex-col gap-4 mb-12">
-        {addresses.map(addr => (
-          <div key={addr.id} className={`border rounded-xl p-5 flex justify-between items-start transition-colors ${addr.isDefault ? 'border-[#18753C] bg-[#F5FBF7]' : 'border-gray-200 bg-white shadow-sm'}`}>
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="font-extrabold text-gray-900 text-lg">{addr.type}</span>
-                {addr.isDefault && <span className="bg-[#E8F5E9] text-[#18753C] text-[10px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider">DEFAULT</span>}
+        {addresses.map(addr => {
+          const serviceInfo = serviceabilityResults[addr.id];
+          return (
+            <div key={addr.id} className={`border rounded-2xl p-5 flex flex-col sm:flex-row justify-between sm:items-start gap-4 transition-all ${addr.isDefault ? 'border-[#18753C] bg-[#F5FBF7] shadow-sm' : 'border-gray-200 bg-white shadow-sm'}`}>
+              <div className="space-y-1.5 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-gray-900 text-base">{addr.type}</span>
+                  {addr.isDefault ? (
+                    <span className="bg-[#E8F5E9] text-[#18753C] text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-green-200">
+                      DEFAULT ADDRESS
+                    </span>
+                  ) : (
+                    <button
+                      onClick={async () => {
+                        await api.patch(`/customers/me/addresses/${addr.id}`, { ...addr, isDefault: true });
+                        fetchData(true);
+                        showToast('Set as default address!');
+                      }}
+                      className="text-[10px] text-gray-500 hover:text-brand-green font-bold underline cursor-pointer"
+                    >
+                      Set as Default
+                    </button>
+                  )}
+                </div>
+                <p className="text-gray-700 text-sm">{addr.address}, {addr.city}, {addr.state} - <span className="font-bold text-gray-900">{addr.zip}</span></p>
+                <p className="text-gray-500 text-xs">{addr.recipientName || profile?.name || 'Customer'} &bull; {addr.phone || profile?.phone || '+91 98765 12340'}</p>
+
+                {/* Serviceability Check Result / Button */}
+                <div className="pt-2">
+                  {serviceInfo ? (
+                    <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-emerald-200">
+                      <i className="fa-solid fa-bolt text-emerald-600"></i>
+                      <span>{serviceInfo.deliverySpeed} (Pincode {serviceInfo.pincode})</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => checkServiceability(addr.id)}
+                      className="text-[11px] font-bold text-brand-green hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <i className="fa-solid fa-location-crosshairs"></i> Check Delivery Serviceability
+                    </button>
+                  )}
+                </div>
               </div>
-              <p className="text-gray-600 text-sm mb-1">{addr.address}, {addr.city} {addr.zip}</p>
-              <p className="text-gray-400 text-sm">{addr.recipientName || profile?.name || 'Pooja Sharma'} &bull; {addr.phone || profile?.phone || '+91 98765 12340'}</p>
+
+              <div className="flex items-center gap-2 self-end sm:self-start">
+                <button 
+                  onClick={() => { 
+                    setEditingAddressId(addr.id); 
+                    setAddressForm({ type: addr.type, recipientName: addr.recipientName || '', phone: addr.phone || '', address: addr.address, city: addr.city, state: addr.state, zip: addr.zip, isDefault: addr.isDefault }); 
+                    setIsAddingAddress(true); 
+                  }} 
+                  className="text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-xl transition cursor-pointer"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleDeleteAddress(addr.id)}
+                  className="text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-xl transition cursor-pointer"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
-            <button onClick={() => { setEditingAddressId(addr.id); setAddressForm({ type: addr.type, recipientName: addr.recipientName || '', phone: addr.phone || '', address: addr.address, city: addr.city, state: addr.state, zip: addr.zip, isDefault: addr.isDefault }); setIsAddingAddress(true); }} className="text-sm font-bold text-gray-700 bg-gray-100 px-5 py-2 rounded-xl hover:bg-gray-200 transition-colors">Edit</button>
-          </div>
-        ))}
+          );
+        })}
         
         {/* ADD NEW ADDRESS BUTTON */}
         {!isAddingAddress && (
-          <button onClick={() => { setIsAddingAddress(true); setEditingAddressId(null); setAddressForm({ type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false }); }} className="w-full border-2 border-dashed border-[#18753C]/40 bg-white text-[#18753C] font-bold py-6 rounded-2xl flex items-center justify-center gap-2 hover:bg-green-50 transition-colors text-lg">
-            <i className="fa-solid fa-plus"></i> Add New Address
+          <button 
+            onClick={() => { 
+              setIsAddingAddress(true); 
+              setEditingAddressId(null); 
+              setAddressForm({ type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false }); 
+            }} 
+            className="w-full border-2 border-dashed border-[#18753C]/40 bg-white text-[#18753C] font-extrabold py-5 rounded-2xl flex items-center justify-center gap-2 hover:bg-green-50 transition text-base cursor-pointer"
+          >
+            <i className="fa-solid fa-plus"></i> Add New Delivery Address
           </button>
         )}
 
         {isAddingAddress && (
-          <form onSubmit={handleSaveAddress} className="flex flex-col gap-4 bg-white p-6 rounded-2xl border border-[#18753C] shadow-sm mt-2">
-            <h3 className="font-bold text-lg mb-2">{editingAddressId ? 'Edit Address' : 'Add New Address'}</h3>
-            <select value={addressForm.type} onChange={e => setAddressForm({...addressForm, type: e.target.value})} className="border border-gray-200 p-3 rounded-xl text-sm focus:border-brand-green outline-none bg-white">
-              <option value="Home">Home</option>
-              <option value="Office">Office</option>
-              <option value="Other">Other</option>
-            </select>
-            <div className="flex gap-4">
-              <input type="text" value={addressForm.recipientName} onChange={e => setAddressForm({...addressForm, recipientName: e.target.value})} className="border border-gray-200 p-3 rounded-xl text-sm w-1/2 focus:border-brand-green outline-none" placeholder="Name" required />
-              <input type="tel" value={addressForm.phone} onChange={e => setAddressForm({...addressForm, phone: e.target.value})} className="border border-gray-200 p-3 rounded-xl text-sm w-1/2 focus:border-brand-green outline-none" placeholder="Phone Number" required />
+          <form onSubmit={handleSaveAddress} className="flex flex-col gap-4 bg-white p-6 rounded-3xl border border-[#18753C] shadow-lg mt-2 animate-fade-in">
+            <div className="flex justify-between items-center mb-1">
+              <h3 className="font-black text-lg text-gray-900">{editingAddressId ? 'Edit Address' : 'Add New Address'}</h3>
+              <button 
+                type="button" 
+                onClick={() => { setIsAddingAddress(false); setEditingAddressId(null); }}
+                className="text-gray-400 hover:text-gray-700 text-sm font-bold"
+              >
+                ✕ Cancel
+              </button>
             </div>
-            <textarea value={addressForm.address} onChange={e => setAddressForm({...addressForm, address: e.target.value})} className="border border-gray-200 p-3 rounded-xl text-sm focus:border-brand-green outline-none" placeholder="Street Address / Area" required rows="3" />
-            <div className="flex gap-4">
-              <input type="text" value={addressForm.city} onChange={e => setAddressForm({...addressForm, city: e.target.value})} className="border border-gray-200 p-3 rounded-xl text-sm w-1/2 focus:border-brand-green outline-none" placeholder="City" required />
-              <input type="text" value={addressForm.zip} onChange={e => setAddressForm({...addressForm, zip: e.target.value})} className="border border-gray-200 p-3 rounded-xl text-sm w-1/2 focus:border-brand-green outline-none" placeholder="Pincode" required />
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Address Type</label>
+                <select value={addressForm.type} onChange={e => setAddressForm({...addressForm, type: e.target.value})} className="w-full border border-gray-200 p-3 rounded-xl text-sm focus:border-brand-green outline-none bg-white font-medium">
+                  <option value="Home">Home (Personal)</option>
+                  <option value="Office">Office / Business</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Recipient Name</label>
+                <input type="text" value={addressForm.recipientName} onChange={e => setAddressForm({...addressForm, recipientName: e.target.value})} className="w-full border border-gray-200 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium" placeholder="Full Name" required />
+              </div>
             </div>
-            <label className="flex items-center gap-2 text-sm mt-2 cursor-pointer font-medium text-gray-700">
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Mobile Number</label>
+                <input type="tel" value={addressForm.phone} onChange={e => setAddressForm({...addressForm, phone: e.target.value})} className="w-full border border-gray-200 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium" placeholder="10-digit Phone Number" required />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Pincode</label>
+                <input type="text" value={addressForm.zip} onChange={e => setAddressForm({...addressForm, zip: e.target.value})} className="w-full border border-gray-200 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium" placeholder="6-digit Pincode (e.g. 395007)" required />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Flat, House no., Building, Street</label>
+              <textarea value={addressForm.address} onChange={e => setAddressForm({...addressForm, address: e.target.value})} className="w-full border border-gray-200 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium" placeholder="House / Flat / Street address" required rows="2" />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">City</label>
+                <input type="text" value={addressForm.city} onChange={e => setAddressForm({...addressForm, city: e.target.value})} className="w-full border border-gray-200 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium" placeholder="City (e.g. Surat)" required />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">State</label>
+                <input type="text" value={addressForm.state} onChange={e => setAddressForm({...addressForm, state: e.target.value})} className="w-full border border-gray-200 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium" placeholder="State (e.g. Gujarat)" required />
+              </div>
+            </div>
+
+            <label className="flex items-center gap-2.5 text-xs mt-2 cursor-pointer font-bold text-gray-700 select-none">
               <input type="checkbox" checked={addressForm.isDefault} onChange={e => setAddressForm({...addressForm, isDefault: e.target.checked})} className="w-4 h-4 accent-[#18753C] rounded" />
-              Set as default address
+              Make this my default shipping address
             </label>
-            <div className="flex gap-3 justify-end mt-4">
-              <button type="button" onClick={() => { setIsAddingAddress(false); setEditingAddressId(null); }} className="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-sm cursor-pointer text-gray-700 transition-colors">Cancel</button>
-              <button type="submit" className="px-6 py-2.5 bg-[#18753C] hover:bg-[#156030] text-white rounded-xl font-bold text-sm cursor-pointer transition-colors">Save Address</button>
+
+            <div className="flex gap-3 justify-end mt-4 pt-3 border-t border-gray-100">
+              <button type="button" onClick={() => { setIsAddingAddress(false); setEditingAddressId(null); }} className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-xs text-gray-700 transition cursor-pointer">Cancel</button>
+              <button type="submit" className="px-6 py-2.5 bg-[#18753C] hover:bg-[#156030] text-white rounded-xl font-extrabold text-xs shadow-md transition cursor-pointer">Save Address</button>
             </div>
           </form>
         )}

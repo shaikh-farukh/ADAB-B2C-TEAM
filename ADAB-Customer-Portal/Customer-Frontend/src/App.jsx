@@ -12,6 +12,7 @@ import ProductPage from './pages/ProductPage';
 import WishlistPage from './pages/WishlistPage';
 import AccountPage from './pages/AccountPage';
 import NotificationsPage from './pages/NotificationsPage';
+import ShopsPage from './pages/ShopsPage';
 import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI } from './services/api';
 import { api } from './api/api';
 
@@ -149,13 +150,12 @@ export default function App() {
 
   const handleMoveToCart = async (listingId, productName) => {
     try {
-      showToast(`Moving ${productName} to cart...`);
-      await WishlistAPI.moveToCart(mockUserId, listingId);
-      setWishlist(wishlist.filter(id => id !== listingId));
+      showToast(`Adding ${productName} to cart...`);
+      await CartAPI.addItem(listingId, 1);
       await refreshCart();
-      showToast(`Moved ${productName} to cart!`);
+      showToast(`Added ${productName} to cart!`);
     } catch (err) {
-      console.error('Error moving to cart:', err);
+      console.error('Error adding to cart:', err);
       showToast(`Error: ${err.message}`);
     }
   };
@@ -340,7 +340,14 @@ export default function App() {
             </button>
             <button
               type="button"
-              className={`site-link ${activeTab === 'stores' ? 'on' : ''}`}
+              className={`site-link ${activeTab === 'browse' ? 'on' : ''}`}
+              onClick={() => setActiveTab('browse')}
+            >
+              Browse
+            </button>
+            <button
+              type="button"
+              className={`site-link ${activeTab === 'stores' || activeTab === 'shops' ? 'on' : ''}`}
               onClick={() => setActiveTab('stores')}
             >
               Shops
@@ -348,7 +355,7 @@ export default function App() {
             <button
               type="button"
               className={`site-link ${activeTab === 'categories' ? 'on' : ''}`}
-              onClick={() => setActiveTab('stores')}
+              onClick={() => setActiveTab('browse')}
             >
               Categories
             </button>
@@ -603,7 +610,9 @@ export default function App() {
               ? 'Your Orders'
               : activeTab === 'track'
               ? 'Track Delivery'
-              : activeTab === 'stores' || activeTab === 'browse'
+              : activeTab === 'stores' || activeTab === 'shops'
+              ? 'Local Verified Shops'
+              : activeTab === 'browse'
               ? 'Browse Products'
               : activeTab === 'notifications'
               ? 'Notifications'
@@ -623,9 +632,10 @@ export default function App() {
             onToggleWishlist={handleToggleWishlist}
             wishlist={wishlist}
             onNavigate={(tab) => {
-              if (tab === 'track') setActiveTab('track');
+              if (tab.startsWith('browse')) navigate(`/${tab}`);
+              else if (tab.startsWith('search')) navigate(`/${tab}`);
+              else if (tab === 'track') setActiveTab('track');
               else if (tab === 'stores') setActiveTab('stores');
-              else if (tab.startsWith('search')) setActiveTab('search');
               else if (tab === 'cart') setActiveTab('cart');
               else if (tab === 'orders') setActiveTab('orders');
               else setActiveTab(tab);
@@ -651,8 +661,17 @@ export default function App() {
           />
         )}
 
-        {/* Stores / Browse Products Screen (Mahi's BrowsePage) */}
-        {(activeTab === 'stores' || activeTab === 'browse') && (
+        {/* Local Verified Shops Directory Screen */}
+        {(activeTab === 'stores' || activeTab === 'shops') && (
+          <ShopsPage
+            onNavigate={(tab) => {
+              setActiveTab(tab);
+            }}
+          />
+        )}
+
+        {/* Browse Products Screen (Mahi's BrowsePage) */}
+        {activeTab === 'browse' && (
           <BrowsePage
             onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
             onToggleWishlist={handleToggleWishlist}
@@ -970,6 +989,18 @@ export default function App() {
           >
             <i className="fa-solid fa-compass text-[22px]"></i>
             <span className="text-[10px] font-bold">Explore</span>
+            <span className="nav-dot"></span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('browse')}
+            className={`nav-tab flex flex-col items-center gap-0.5 py-1.5 px-3 cursor-pointer ${
+              activeTab === 'browse' ? 'nav-tab-on' : 'nav-tab-off'
+            }`}
+          >
+            <i className="fa-solid fa-layer-group text-[22px]"></i>
+            <span className="text-[10px] font-bold">Browse</span>
             <span className="nav-dot"></span>
           </button>
 
