@@ -24,6 +24,7 @@ const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5003';
  */
 export const SocketProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
+  const [socket, setSocket] = useState(null);
   const socketRef = useRef(null);
   const listenersRef = useRef(new Map());
 
@@ -31,17 +32,21 @@ export const SocketProvider = ({ children }) => {
   const getToken = () => localStorage.getItem('seller_token') || localStorage.getItem('token') || null;
 
   const getUserId = () => {
+    const directId = localStorage.getItem('seller_user_id');
+    if (directId) return directId;
     try {
-      const user = JSON.parse(localStorage.getItem('seller_user') || localStorage.getItem('user') || '{}');
-      return user.id || user.userId || null;
+      const user = JSON.parse(localStorage.getItem('seller_user') || localStorage.getItem('user') || localStorage.getItem('seller_profile_cache') || '{}');
+      return user.id || user.userId || user.user_id || null;
     } catch {
       return null;
     }
   };
 
   const getStoreId = () => {
+    const directStoreId = localStorage.getItem('seller_store_id');
+    if (directStoreId) return directStoreId;
     try {
-      const store = JSON.parse(localStorage.getItem('seller_store') || localStorage.getItem('store') || '{}');
+      const store = JSON.parse(localStorage.getItem('seller_store') || localStorage.getItem('store') || localStorage.getItem('seller_store_cache') || '{}');
       return store.id || store.storeId || null;
     } catch {
       return null;
@@ -65,6 +70,7 @@ export const SocketProvider = ({ children }) => {
     newSocket.on('connect', () => {
       console.log('[Socket] Connected:', newSocket.id);
       setIsConnected(true);
+      setSocket(newSocket);
     });
 
     newSocket.on('disconnect', (reason) => {
@@ -82,10 +88,12 @@ export const SocketProvider = ({ children }) => {
     });
 
     socketRef.current = newSocket;
+    setSocket(newSocket);
 
     return () => {
       newSocket.disconnect();
       socketRef.current = null;
+      setSocket(null);
       setIsConnected(false);
     };
   }, []);
@@ -95,19 +103,19 @@ export const SocketProvider = ({ children }) => {
    * Components should call this in useEffect and clean up on unmount.
    */
   const subscribe = useCallback((event, handler) => {
-    const socket = socketRef.current;
-    if (socket) {
-      socket.on(event, handler);
+    const s = socketRef.current;
+    if (s) {
+      s.on(event, handler);
     }
     return () => {
-      if (socket) {
-        socket.off(event, handler);
+      if (s) {
+        s.off(event, handler);
       }
     };
   }, []);
 
   const value = {
-    socket: socketRef.current,
+    socket,
     isConnected,
     subscribe,
     getUserId,

@@ -60,6 +60,7 @@ export const sellerApi = {
   getNearbyCatalog: () => apiClient.get('/nearby-catalog'),
   getRecommendations: () => apiClient.get('/recommendations'),
   getThreads: () => apiClient.get('/messages/threads'),
+  getMessages: () => apiClient.get('/messages/threads'),
   getThreadMessages: (threadId) => apiClient.get(`/messages/threads/${threadId}`),
   sendThreadMessage: (threadId, content) => apiClient.post(`/messages/threads/${threadId}/messages`, { content }),
   markThreadRead: (threadId) => apiClient.post(`/messages/threads/${threadId}/read`, {}),

@@ -1,85 +1,59 @@
 import client from './client';
 
-const getHeaders = () => {
-  const storeId = localStorage.getItem('seller_store_id');
-  return storeId ? { 'x-store-id': storeId } : {};
-};
-
 export const listingApi = {
   fetchListings: (filters) => {
     return client.get('/listings', {
-      params: filters,
-      headers: getHeaders()
+      params: filters
     });
   },
   
   fetchListingById: (id) => {
-    return client.get(`/listings/${id}`, {
-      headers: getHeaders()
-    });
+    return client.get(`/listings/${id}`);
   },
 
   createListing: (data) => {
-    return client.post('/listings', data, {
-      headers: getHeaders()
-    });
+    return client.post('/listings', data);
   },
 
   updateListing: (id, data) => {
-    return client.patch(`/listings/${id}`, data, {
-      headers: getHeaders()
-    });
+    return client.patch(`/listings/${id}`, data);
   },
 
   deleteListing: (id) => {
-    return client.delete(`/listings/${id}`, {
-      headers: getHeaders()
-    });
+    return client.delete(`/listings/${id}`);
   },
 
   submitListing: (id) => {
-    return client.post(`/listings/${id}/submit`, {}, {
-      headers: getHeaders()
-    });
+    return client.post(`/listings/${id}/submit`, {});
   },
   
   adminStartReview: (id) => {
-    return client.post(`/listings/${id}/admin-start-review`, {}, {
-      headers: getHeaders()
-    });
+    return client.post(`/listings/${id}/admin-start-review`, {});
   },
 
   adminReviewListing: (id, data) => {
-    return client.post(`/listings/${id}/admin-review`, data, {
-      headers: getHeaders()
-    });
+    return client.post(`/listings/${id}/admin-review`, data);
   },
   
   publishListing: (id) => {
-    return client.post(`/listings/${id}/publish`, {}, {
-      headers: getHeaders()
-    });
+    return client.post(`/listings/${id}/publish`, {});
   },
 
   bulkUpload: (formData) => {
     return client.post('/listings/bulk-upload', formData, {
       headers: {
-        ...getHeaders(),
         'Content-Type': 'multipart/form-data'
       }
     });
   },
 
   checkUploadStatus: (jobId) => {
-    return client.get(`/listings/bulk-upload/${jobId}/status`, {
-      headers: getHeaders()
-    });
+    return client.get(`/listings/bulk-upload/${jobId}/status`);
   },
 
   uploadImage: (formData) => {
     return client.post('/listings/upload-image', formData, {
       headers: {
-        ...getHeaders(),
         'Content-Type': 'multipart/form-data'
       }
     });
@@ -87,14 +61,11 @@ export const listingApi = {
 
   bulkExport: () => {
     return client.post('/listings/bulk-export', {}, {
-      headers: getHeaders(),
       responseType: 'blob'
     });
   },
 
   checkExportStatus: (jobId) => {
-    return client.get(`/listings/bulk-export/${jobId}/status`, {
-      headers: getHeaders()
-    });
+    return client.get(`/listings/bulk-export/${jobId}/status`);
   }
 };

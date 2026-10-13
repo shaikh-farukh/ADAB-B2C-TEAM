@@ -126,6 +126,26 @@ All issues were systematically identified, fixed, and verified with automated te
 
 ---
 
+### 2.7. WebSocket Client & Frontend Header Hardening
+* **Affected Files:**
+  * [`Shop-Frontend/src/pages/MessagesPage.jsx`](file:///c:/Users/SHABBIR%20G/Desktop/ADAB-B2C-TEAM/ADAB-Shop-Portal/Shop-Frontend/src/pages/MessagesPage.jsx)
+  * [`Shop-Frontend/src/context/SocketProvider.jsx`](file:///c:/Users/SHABBIR%20G/Desktop/ADAB-B2C-TEAM/ADAB-Shop-Portal/Shop-Frontend/src/context/SocketProvider.jsx)
+  * [`Shop-Frontend/src/services/listingService.js`](file:///c:/Users/SHABBIR%20G/Desktop/ADAB-B2C-TEAM/ADAB-Shop-Portal/Shop-Frontend/src/services/listingService.js)
+  * [`Shop-Frontend/src/api/listingApi.js`](file:///c:/Users/SHABBIR%20G/Desktop/ADAB-B2C-TEAM/ADAB-Shop-Portal/Shop-Frontend/src/api/listingApi.js)
+  * [`Shop-Frontend/src/api/marketingApi.js`](file:///c:/Users/SHABBIR%20G/Desktop/ADAB-B2C-TEAM/ADAB-Shop-Portal/Shop-Frontend/src/api/marketingApi.js)
+  * [`Shop-Frontend/src/api/pricingApi.js`](file:///c:/Users/SHABBIR%20G/Desktop/ADAB-B2C-TEAM/ADAB-Shop-Portal/Shop-Frontend/src/api/pricingApi.js)
+  * [`Shop-Frontend/src/api/sellerApi.js`](file:///c:/Users/SHABBIR%20G/Desktop/ADAB-B2C-TEAM/ADAB-Shop-Portal/Shop-Frontend/src/api/sellerApi.js)
+* **Problem:**
+  1. `MessagesPage.jsx` instantiated a raw socket connection via `io('http://localhost:5003')` without the `auth: { token }` payload, causing the backend middleware to reject it with `Authentication error: Missing token`.
+  2. `SocketProvider.jsx` attempted to read non-existent localStorage keys (`seller_user` / `seller_store`), causing `getUserId()` and `getStoreId()` to return `null`.
+  3. `listingService.js`, `listingApi.js`, `marketingApi.js`, and `pricingApi.js` still manually attached `x-store-id` from localStorage. If a stale store ID lingered from a previous login, the backend threw a `403 Forbidden` error.
+* **Resolution:**
+  1. Refactored `MessagesPage.jsx` to use the shared `useSocket()` hook with JWT handshake authentication, subscribing to real-time `receive_message` and `message_read_status` events and hooking cleanly into the backend thread APIs.
+  2. Aligned `SocketProvider.jsx` to read `seller_user_id`, `seller_store_id`, `seller_profile_cache`, and `seller_store_cache`.
+  3. Removed manual `x-store-id` header attachments from all frontend API modules; authentication and store resolution rely strictly on verified JWT Bearer tokens.
+
+---
+
 ## 3. Summary of Files Changed
 
 | File Path | Component | Changes Made |
@@ -142,7 +162,13 @@ All issues were systematically identified, fixed, and verified with automated te
 | `Shop-Backend/src/services/emailOtpService.js` | Service | Implemented Brevo/SMTP OTP service with local developer simulation fallback. |
 | `Shop-Backend/src/config/socket.js` | WebSocket | Implemented JWT handshake authentication and room isolation. |
 | `Shop-Frontend/src/pages/Marketing.jsx` | Frontend UI | Fixed datetime formatting and local timezone parsing for coupon dates. |
-| `Shop-Frontend/src/services/listingService.js` | Frontend API | Aligned headers and verified endpoint routes for product updates. |
+| `Shop-Frontend/src/pages/MessagesPage.jsx` | Frontend UI | Wired up authenticated `useSocket()` and real-time thread chat. |
+| `Shop-Frontend/src/context/SocketProvider.jsx` | Context | Aligned localStorage keys (`seller_user_id`, `seller_store_id`) and live socket state. |
+| `Shop-Frontend/src/services/listingService.js` | Frontend API | Removed redundant `x-store-id` headers; aligned routes. |
+| `Shop-Frontend/src/api/listingApi.js` | Frontend API | Removed redundant `x-store-id` headers. |
+| `Shop-Frontend/src/api/marketingApi.js` | Frontend API | Removed redundant `x-store-id` headers. |
+| `Shop-Frontend/src/api/pricingApi.js` | Frontend API | Removed redundant `x-store-id` headers. |
+| `Shop-Frontend/src/api/sellerApi.js` | Frontend API | Added `getMessages` alias; thread endpoints. |
 | `Shop-Frontend/src/services/api.js` | Frontend API | Removed spoofable identity headers; relies on verified JWT token. |
 | `Shop-Frontend/src/api/client.js` | Frontend API | Removed manual header injections; added auto-logout on `401`. |
 
