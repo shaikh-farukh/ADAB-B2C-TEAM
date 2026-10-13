@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const marketingController = require('../controllers/marketingController');
+const { requireSellerAuth } = require('../middlewares/auth');
+
+router.use(['/promotions', '/coupons'], requireSellerAuth);
 
 // Promotions
 router.get('/promotions', marketingController.getPromotions);

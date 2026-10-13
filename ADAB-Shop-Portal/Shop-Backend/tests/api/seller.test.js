@@ -42,6 +42,8 @@ jest.mock('../../src/services/seller', () => ({
   getThreadMessages: jest.fn().mockResolvedValue([]),
   sendThreadMessage: jest.fn().mockResolvedValue({ id: 'msg1' }),
   markThreadRead: jest.fn().mockResolvedValue({ success: true }),
+  sendOtp: jest.fn().mockResolvedValue({ success: true, isSimulated: true }),
+  verifyOtp: jest.fn().mockResolvedValue({ success: true })
 }));
 
 app.use('/api/v1/seller', sellerRoutes);
@@ -100,4 +102,22 @@ describe('Seller API Routes (Supertest)', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.sales).toBe(100);
   });
+
+  it('POST /api/v1/seller/auth/send-otp should send OTP', async () => {
+    const res = await request(app)
+      .post('/api/v1/seller/auth/send-otp')
+      .send({ email: 'seller@adab.com', idMode: 'email' });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.recipient).toBe('seller@adab.com');
+  });
+
+  it('POST /api/v1/seller/auth/verify-otp should verify OTP', async () => {
+    const res = await request(app)
+      .post('/api/v1/seller/auth/verify-otp')
+      .send({ email: 'seller@adab.com', otp: '123456', idMode: 'email' });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
 });
+

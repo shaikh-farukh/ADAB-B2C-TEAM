@@ -18,19 +18,26 @@ function extractPaginationFilters(req) {
 
 async function resolveSellerStoreId(req) {
   const { userId, storeId: ctxStoreId } = getAuthenticatedSellerContext(req);
-  const headerStoreId = req.headers['x-store-id'] || ctxStoreId || null;
-  let storeId = headerStoreId;
+  let storeId = ctxStoreId || null;
 
   if (userId && typeof sellerService.getSellerStore === 'function') {
     const ownedStore = await sellerService.getSellerStore(userId);
     if (ownedStore && ownedStore.id) {
-      if (headerStoreId && String(headerStoreId) !== String(ownedStore.id)) {
-        const err = new Error('Forbidden: Cross-seller store access denied');
-        err.statusCode = 403;
-        throw err;
-      }
       storeId = ownedStore.id;
     }
+  }
+
+  const headerStoreId = req.headers['x-store-id'];
+  if (headerStoreId && storeId && String(headerStoreId) !== String(storeId)) {
+    const err = new Error('Forbidden: Cross-seller store access denied');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  if (!storeId) {
+    const err = new Error('Forbidden: Seller store not configured or unauthorized');
+    err.statusCode = 403;
+    throw err;
   }
 
   return { userId, storeId };
@@ -162,7 +169,8 @@ class SellerController {
 
   async getB2BOrders(req, res) {
     try {
-      const b2bOrders = await sellerService.getB2BOrders();
+      const { storeId } = await resolveSellerStoreId(req);
+      const b2bOrders = await sellerService.getB2BOrders(storeId);
       res.json({ success: true, data: b2bOrders });
     } catch (error) {
       handleError(res, error);
@@ -171,7 +179,8 @@ class SellerController {
 
   async getCoupons(req, res) {
     try {
-      const coupons = await sellerService.getCoupons();
+      const { storeId } = await resolveSellerStoreId(req);
+      const coupons = await sellerService.getCoupons(storeId);
       res.json({ success: true, data: coupons });
     } catch (error) {
       handleError(res, error);
@@ -329,16 +338,43 @@ class SellerController {
 
   async handleWebhookCallback(req, res) {
     try {
+      const configuredSecret = process.env.WEBHOOK_SECRET || 'adab_secret_webhook_key_2026';
+      const providedSecret = req.headers['x-webhook-secret'] || req.headers['x-webhook-signature'];
+      if (!providedSecret || providedSecret !== configuredSecret) {
+        return res.status(401).json({ success: false, error: 'Unauthorized: Invalid or missing webhook signature' });
+      }
+
       const { event_type, order_id, return_id, status, rejection_reason } = req.body || {};
       const normalizedType = String(event_type || '').toUpperCase();
 
       if (normalizedType === 'ORDER_STATUS_UPDATED' && order_id && status) {
-        const updated = await sellerService.updateOrderStatus(order_id, status);
+        const pool = require('../../db');
+        const cleanId = order_id.toString().replace(/^#/, '');
+        const orderLookup = await pool.query(
+          `SELECT store_id FROM seller_orders WHERE id::text = $1 OR parent_order_id IN (SELECT id FROM orders WHERE id::text = $1 OR order_number = $1 OR order_number = ('ORD-' || $1)) LIMIT 1`,
+          [cleanId]
+        );
+        const storeId = orderLookup.rows[0]?.store_id;
+        if (!storeId) {
+          return res.status(404).json({ success: false, error: `Order '${order_id}' not found` });
+        }
+        const updated = await sellerService.updateOrderStatus(order_id, status, storeId);
         return res.json({ success: true, event_type: normalizedType, data: updated });
       }
 
       if (normalizedType === 'RETURN_STATUS_UPDATED' && return_id && status) {
-        const updated = await sellerService.updateReturnStatus(return_id, status, rejection_reason || null);
+        const pool = require('../../db');
+        const cleanId = String(return_id).trim();
+        const shortPrefix = cleanId.replace(/^#?RET-/i, '').toUpperCase();
+        const retLookup = await pool.query(
+          `SELECT so.store_id FROM returns r JOIN seller_orders so ON r.seller_order_id = so.id WHERE r.id::text = $1 OR UPPER(SUBSTRING(r.id::text, 1, 4)) = $2 LIMIT 1`,
+          [cleanId, shortPrefix]
+        );
+        const storeId = retLookup.rows[0]?.store_id;
+        if (!storeId) {
+          return res.status(404).json({ success: false, error: `Return '${return_id}' not found` });
+        }
+        const updated = await sellerService.updateReturnStatus(return_id, status, rejection_reason || null, storeId);
         return res.json({ success: true, event_type: normalizedType, data: updated });
       }
 
@@ -405,6 +441,50 @@ class SellerController {
     }
   }
 
+  async sendOtp(req, res) {
+    try {
+      const { email, phone, idMode, name, store_name } = req.body;
+      const identifier = (idMode === 'email' ? email : (email || phone)) || '';
+      if (!identifier) {
+        return res.status(400).json({ success: false, error: 'Email or phone number is required' });
+      }
+      const result = await sellerService.sendOtp(identifier, {
+        name,
+        storeName: store_name,
+        idMode
+      });
+      res.json({
+        success: true,
+        message: 'Verification code sent successfully',
+        data: {
+          recipient: identifier,
+          isSimulated: Boolean(result?.isSimulated),
+          expiresIn: `${process.env.OTP_EXPIRY_MINUTES || 5} minutes`
+        }
+      });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async verifyOtp(req, res) {
+    try {
+      const { email, phone, otp, idMode } = req.body;
+      const identifier = (idMode === 'email' ? email : (email || phone)) || '';
+      if (!identifier || !otp) {
+        return res.status(400).json({ success: false, error: 'Identifier and OTP code are required' });
+      }
+      const verifyResult = await sellerService.verifyOtp(identifier, otp);
+      if (!verifyResult.success) {
+        return res.status(400).json({ success: false, error: verifyResult.message || 'Invalid OTP' });
+      }
+      res.json({ success: true, message: 'OTP verified successfully', data: verifyResult });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
 }
 
 module.exports = new SellerController();
+

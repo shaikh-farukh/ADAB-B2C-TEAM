@@ -25,16 +25,7 @@ export default function POSPage() {
             type: p.product_type || 'General'
           })));
         } else {
-          setProducts([
-            { id: '101', name: 'Fortune Oil 1L', price: 165, stock: 45, type: 'Grocery' },
-            { id: '102', name: 'Maggi 70g', price: 14, stock: 120, type: 'Snacks' },
-            { id: '103', name: 'Bread', price: 40, stock: 20, type: 'Dairy' },
-            { id: '104', name: 'Eggs 6pc', price: 48, stock: 35, type: 'Dairy' },
-            { id: '105', name: 'Paneer 200g', price: 90, stock: 15, type: 'Dairy' },
-            { id: '106', name: 'Banana dozen', price: 60, stock: 25, type: 'Grocery' },
-            { id: '107', name: 'Colgate 200g', price: 98, stock: 50, type: 'Grocery' },
-            { id: '108', name: 'Lays 52g', price: 20, stock: 80, type: 'Snacks' }
-          ]);
+          setProducts([]);
         }
       } catch (err) {
         console.error('Error fetching listings for POS:', err);

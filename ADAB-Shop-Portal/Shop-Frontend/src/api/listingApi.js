@@ -26,7 +26,7 @@ export const listingApi = {
   },
 
   updateListing: (id, data) => {
-    return client.put(`/listings/${id}`, data, {
+    return client.patch(`/listings/${id}`, data, {
       headers: getHeaders()
     });
   },

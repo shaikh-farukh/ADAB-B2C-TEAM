@@ -146,14 +146,22 @@ class ListingRepository {
     }
 
     if (data.image_url) {
-      // Upsert image
-      await pool.query(
-        `INSERT INTO product_images (product_id, image_url, is_primary) 
-         VALUES ($1, $2, true) 
-         ON CONFLICT (product_id) WHERE is_primary = true 
-         DO UPDATE SET image_url = EXCLUDED.image_url`, 
-        [id, data.image_url]
+      // Upsert primary image safely without relying on partial index constraint
+      const existingImg = await pool.query(
+        'SELECT id FROM product_images WHERE product_id = $1 AND is_primary = true LIMIT 1',
+        [id]
       );
+      if (existingImg.rows.length > 0) {
+        await pool.query(
+          'UPDATE product_images SET image_url = $1, created_at = NOW() WHERE id = $2',
+          [data.image_url, existingImg.rows[0].id]
+        );
+      } else {
+        await pool.query(
+          'INSERT INTO product_images (product_id, image_url, is_primary) VALUES ($1, $2, true)',
+          [id, data.image_url]
+        );
+      }
     }
 
     return listing;

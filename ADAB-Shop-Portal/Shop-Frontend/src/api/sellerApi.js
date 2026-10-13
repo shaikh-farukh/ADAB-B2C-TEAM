@@ -11,6 +11,10 @@ const buildIdempotencyHeaders = (actionKey) => {
 };
 
 export const sellerApi = {
+  // Auth & OTP Domain
+  sendOtp: (payload) => apiClient.post('/auth/send-otp', payload),
+  verifyOtp: (payload) => apiClient.post('/auth/verify-otp', payload),
+
   // Orders Domain
   getOrders: () => apiClient.get('/orders'),
   updateOrderStatus: (orderId, status, driverId = null) =>

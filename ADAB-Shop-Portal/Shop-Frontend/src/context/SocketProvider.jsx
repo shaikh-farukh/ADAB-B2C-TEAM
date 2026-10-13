@@ -27,23 +27,38 @@ export const SocketProvider = ({ children }) => {
   const socketRef = useRef(null);
   const listenersRef = useRef(new Map());
 
-  // Get identity from localStorage (matches api.js interceptor)
-  const getUserId = () => localStorage.getItem('seller_user_id') || null;
-  const getStoreId = () => localStorage.getItem('seller_store_id') || null;
+  // Get JWT token from localStorage
+  const getToken = () => localStorage.getItem('seller_token') || localStorage.getItem('token') || null;
+
+  const getUserId = () => {
+    try {
+      const user = JSON.parse(localStorage.getItem('seller_user') || localStorage.getItem('user') || '{}');
+      return user.id || user.userId || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const getStoreId = () => {
+    try {
+      const store = JSON.parse(localStorage.getItem('seller_store') || localStorage.getItem('store') || '{}');
+      return store.id || store.storeId || null;
+    } catch {
+      return null;
+    }
+  };
 
   useEffect(() => {
-    const userId = getUserId();
-    const storeId = getStoreId();
-    if (!userId) return;
+    const token = getToken();
+    if (!token) return;
 
     const newSocket = io(SOCKET_URL, {
       reconnectionDelayMax: 10000,
       reconnection: true,
       reconnectionAttempts: Infinity,
-      // Auth sent in handshake — server validates and auto-joins room
+      // Auth sent in handshake — server validates JWT and auto-joins room
       auth: {
-        userId,
-        storeId,
+        token,
       },
     });
 

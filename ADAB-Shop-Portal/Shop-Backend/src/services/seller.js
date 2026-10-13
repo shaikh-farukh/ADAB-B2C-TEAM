@@ -1,3 +1,4 @@
+
 const sellerRepository = require('../repositories/seller');
 
 class SellerService {
@@ -69,12 +70,12 @@ class SellerService {
   }
 
 
-  async getB2BOrders() {
-    return await sellerRepository.getB2BOrders();
+  async getB2BOrders(storeId = null) {
+    return await sellerRepository.getB2BOrders(storeId);
   }
 
-  async getCoupons() {
-    return await sellerRepository.getCoupons();
+  async getCoupons(storeId = null) {
+    return await sellerRepository.getCoupons(storeId);
   }
 
   async getPoints(userId) {
@@ -161,6 +162,30 @@ class SellerService {
     if (!userId) throw new Error('Seller ID is required');
     return await sellerRepository.saveOnboardingStep(userId, stepNum, data);
   }
+
+  async sendOtp(identifier, meta = {}) {
+    const emailOtpService = require('./emailOtpService');
+    const otp = emailOtpService.generateOTP();
+    const isEmail = identifier && identifier.includes('@');
+    if (isEmail) {
+      return await emailOtpService.sendOTPEmail(identifier, otp, meta);
+    }
+    // For phone identifier, save OTP and return simulated / dev confirmation
+    emailOtpService.saveOTP(identifier, otp);
+    console.log(`[Seller Service] 📱 Phone OTP simulated for ${identifier}: ${otp}`);
+    return {
+      success: true,
+      messageId: `phone-simulated-${Date.now()}`,
+      isSimulated: true,
+      otp
+    };
+  }
+
+  async verifyOtp(identifier, otp) {
+    const emailOtpService = require('./emailOtpService');
+    return emailOtpService.verifyOTP(identifier, otp);
+  }
 }
 
 module.exports = new SellerService();
+

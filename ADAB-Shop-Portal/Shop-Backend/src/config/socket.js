@@ -1,53 +1,67 @@
 const socketIo = require('socket.io');
+const { verifyJwtToken } = require('../utils/jwt');
+const pool = require('../../db');
 
 let io;
 
 /**
- * Socket.IO Configuration with Authentication
- * 
- * AUTH NOTE: Currently uses temporary header-based identity (x-user-id, x-store-id).
- * When real JWT/session auth is implemented:
- *   1. Replace the auth middleware below to decode JWT from socket.handshake.auth.token
- *   2. Set socket.userId and socket.storeId from the decoded token
- *   3. No other changes needed — room join and event routing are already based on socket.userId
+ * Socket.IO Configuration with JWT Authentication
  * 
  * Security guarantees:
+ *   - Authenticated handshake via JWT token
+ *   - Verifies active seller role in PostgreSQL database
  *   - Server-side room join (client cannot join arbitrary rooms)
- *   - Identity validated on handshake (not on each message)
- *   - Connection rejected if identity is missing
+ *   - Connection rejected if JWT token is missing or invalid
  */
 module.exports = {
   init: (httpServer) => {
     io = socketIo(httpServer, {
       cors: {
-        origin: process.env.CORS_ORIGIN || '*', // Restrict in production via env
+        origin: process.env.CORS_ORIGIN || '*',
         methods: ['GET', 'POST', 'PATCH']
       }
     });
 
     // === Socket Authentication Middleware ===
-    io.use((socket, next) => {
-      // Extract identity from handshake auth (sent by SocketProvider)
-      const userId = socket.handshake.auth?.userId || socket.handshake.query?.userId;
-      const storeId = socket.handshake.auth?.storeId || socket.handshake.query?.storeId;
+    io.use(async (socket, next) => {
+      try {
+        const rawToken = socket.handshake.auth?.token || socket.handshake.headers?.authorization;
+        const token = rawToken ? String(rawToken).replace(/^Bearer\s+/i, '') : null;
+        if (!token) {
+          return next(new Error('Authentication error: Missing token'));
+        }
 
-      if (!userId) {
-        console.warn('[Socket Auth] Connection rejected: missing userId');
-        return next(new Error('Authentication required: userId missing'));
+        const decoded = verifyJwtToken(token);
+        const userId = decoded.id || decoded.userId;
+        if (!userId) {
+          return next(new Error('Authentication error: Invalid token payload'));
+        }
+
+        const userRes = await pool.query(
+          `SELECT u.id, u.status, u.user_type, s.id as store_id
+           FROM users u
+           LEFT JOIN seller_profiles sp ON sp.user_id = u.id
+           LEFT JOIN stores s ON s.seller_id = sp.id
+           WHERE u.id = $1`,
+          [userId]
+        );
+        const user = userRes.rows && userRes.rows[0];
+        if (!user || user.status !== 'ACTIVE' || String(user.user_type || '').toUpperCase() !== 'SELLER') {
+          return next(new Error('Authentication error: Unauthorized seller'));
+        }
+
+        socket.userId = userId;
+        socket.storeId = user.store_id || null;
+        socket.user = {
+          userId,
+          storeId: user.store_id,
+          ...decoded
+        };
+
+        next();
+      } catch (err) {
+        return next(new Error('Authentication error: ' + (err.message || 'Invalid token')));
       }
-
-      // Validate UUID format (basic check)
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!uuidRegex.test(userId)) {
-        console.warn('[Socket Auth] Connection rejected: invalid userId format');
-        return next(new Error('Invalid userId format'));
-      }
-
-      // Attach verified identity to socket (used for room routing)
-      socket.userId = userId;
-      socket.storeId = storeId || null;
-
-      next();
     });
 
     // === Connection Handler ===
@@ -66,16 +80,6 @@ module.exports = {
         userId,
         storeId,
         message: 'Connected and authenticated'
-      });
-
-      // Handle legacy join_seller_room (backwards compatibility, but enforce authorization)
-      socket.on('join_seller_room', (requestedId) => {
-        if (requestedId !== userId) {
-          console.warn(`[Socket] IDOR attempt: userId=${userId} tried to join room ${requestedId}`);
-          socket.emit('auth_error', 'Cannot join another seller\'s room');
-          return;
-        }
-        // Already joined above, this is a no-op
       });
 
       socket.on('disconnect', (reason) => {

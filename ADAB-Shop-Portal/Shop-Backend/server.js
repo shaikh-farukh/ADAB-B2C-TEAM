@@ -49,8 +49,8 @@ app.get('/api/health', async (req, res) => {
 });
 
 // Domain Routes
-app.use('/api/v1/seller', marketingRoutes);
 app.use('/api/v1/seller', sellerRoutes);
+app.use('/api/v1/seller', marketingRoutes);
 app.use('/api/v1/seller/listings', listingRoutes);
 app.use('/api/v1/seller/pricing', pricingRoutes);
 
@@ -59,36 +59,26 @@ const server = app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
 
-// Initialize Socket.io
+// Initialize Socket.io (with JWT Handshake Authentication & Room Scoping)
 const socket = require('./src/config/socket');
 const io = socket.init(server);
 
 const sellerService = require('./src/services/seller');
 
 io.on('connection', (clientSocket) => {
-  console.log('Client connected to socket:', clientSocket.id);
-  
-  // Sellers can join their own user-specific room
-  clientSocket.on('join_seller_room', (sellerId) => {
-    clientSocket.join(sellerId);
-    console.log(`Socket ${clientSocket.id} joined seller room: ${sellerId}`);
-  });
+  const authUserId = clientSocket.userId || clientSocket.user?.userId;
+  console.log(`Client connected to socket: ${clientSocket.id} (user: ${authUserId})`);
 
   // Handle incoming messages from the frontend via Socket
   clientSocket.on('send_message', async (data) => {
     try {
-      const { userId, customerId, content } = data;
-      // Save to database using existing service
-      const newMsg = await sellerService.sendMessage(userId, {
-        customer_id: customerId,
+      const { threadId, content } = data;
+      const newMsg = await sellerService.sendThreadMessage(authUserId, threadId, {
         content: content
       });
       
       // Broadcast back to the seller's room (so other tabs sync)
-      io.to(userId).emit('receive_message', newMsg);
-      
-      // If we had a customer portal, we would broadcast to customerId room here:
-      // io.to(customerId).emit('receive_message', newMsg);
+      io.to(authUserId).emit('receive_message', newMsg);
     } catch (err) {
       console.error('Socket send_message error:', err);
     }
@@ -96,9 +86,9 @@ io.on('connection', (clientSocket) => {
 
   clientSocket.on('mark_read', async (data) => {
     try {
-      const { userId, messageId } = data;
-      const updatedMsg = await sellerService.markMessageRead(userId, messageId);
-      io.to(userId).emit('message_read_status', updatedMsg);
+      const { threadId } = data;
+      const updatedMsg = await sellerService.markThreadRead(authUserId, threadId);
+      io.to(authUserId).emit('message_read_status', updatedMsg);
     } catch (err) {
       console.error('Socket mark_read error:', err);
     }

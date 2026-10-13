@@ -63,6 +63,41 @@ const mockPool = {
     const normalizedSql = sql.replace(/\s+/g, ' ').trim();
     mockDbState.queryLog.push({ sql: normalizedSql, params });
 
+    // 0. User & Store lookup in requireSellerAuth middleware
+    if (normalizedSql.includes('FROM users u') && normalizedSql.includes('seller_profiles sp') && normalizedSql.includes('stores s')) {
+      const userId = params[0];
+      if (userId === 'user-nonexistent' || userId === 'user-inactive') return { rows: [] };
+      if (userId === 'user-no-profile') {
+        return {
+          rows: [{
+            id: userId,
+            user_id: userId,
+            email: `${userId}@adab.com`,
+            phone: '9876543210',
+            status: 'ACTIVE',
+            user_status: 'ACTIVE',
+            user_type: 'SELLER',
+            seller_profile_id: null,
+            store_id: null
+          }]
+        };
+      }
+      const store = mockDbState.stores.get(userId);
+      return {
+        rows: [{
+          id: userId,
+          user_id: userId,
+          email: `${userId}@adab.com`,
+          phone: '9876543210',
+          status: 'ACTIVE',
+          user_status: 'ACTIVE',
+          user_type: 'SELLER',
+          seller_profile_id: store ? store.owner_id : `sp-${userId}`,
+          store_id: store ? store.id : null
+        }]
+      };
+    }
+
     // 1. Store lookup by user_id
     if (normalizedSql.includes('FROM stores s JOIN seller_profiles sp')) {
       const userId = params[0];
@@ -73,7 +108,7 @@ const mockPool = {
     // 2. Profile lookup
     if (normalizedSql.includes('FROM users u LEFT JOIN seller_profiles sp')) {
       const userId = params[0];
-      if (userId === 'user-nonexistent') return { rows: [] };
+      if (userId === 'user-nonexistent' || userId === 'user-no-profile') return { rows: [] };
       return {
         rows: [{
           id: userId,
@@ -464,7 +499,7 @@ const mockPool = {
         }]
       };
     }
-    if (normalizedSql.includes('FROM settlements WHERE ($1::uuid IS NULL OR store_id = $1::uuid)')) {
+    if (normalizedSql.includes('FROM settlements') && (normalizedSql.includes('store_id = $1::uuid') || normalizedSql.includes('($1::uuid IS NULL OR store_id = $1::uuid)'))) {
       const [storeId] = params;
       const list = mockDbState.settlements.filter(s => !storeId || s.store_id === storeId);
       return {
@@ -602,6 +637,21 @@ jest.mock('../../src/services/minioService', () => ({
 const sellerRoutes = require('../../src/routes/seller');
 const listingRoutes = require('../../src/routes/listing');
 const { idempotencyStore } = require('../../src/middlewares/idempotency');
+const { generateJwtToken } = require('../../src/utils/jwt');
+
+const tokenSellerA = generateJwtToken({ id: 'user-seller-a', role: 'SELLER' });
+const tokenSellerB = generateJwtToken({ id: 'user-seller-b', role: 'SELLER' });
+const tokenSellerNoProfile = generateJwtToken({ id: 'user-no-profile', role: 'SELLER' });
+
+const sellerAHeaders = {
+  Authorization: `Bearer ${tokenSellerA}`,
+  'x-store-id': '11111111-1111-1111-1111-111111111111'
+};
+
+const sellerBHeaders = {
+  Authorization: `Bearer ${tokenSellerB}`,
+  'x-store-id': '22222222-2222-2222-2222-222222222222'
+};
 
 const app = express();
 app.use(express.json());
@@ -617,10 +667,6 @@ describe('DAY 7: Full Seller Flow E2E & Production Hardening Suite', () => {
 
   describe('1. Full Seller Flow E2E: Listing -> Admin Approved -> Purchase -> Accept -> Pack -> Ship -> Deliver -> Return -> Refund -> Settlement', () => {
     it('executes the complete cross-domain seller lifecycle end-to-end with accurate stock, refund, and settlement math', async () => {
-      const sellerAHeaders = {
-        'x-user-id': 'user-seller-a',
-        'x-store-id': '11111111-1111-1111-1111-111111111111'
-      };
 
       // STEP 1: Shabbir creates a listing with initial stock = 20, sell_price = 500
       const createRes = await request(app)
@@ -838,7 +884,7 @@ describe('DAY 7: Full Seller Flow E2E & Production Hardening Suite', () => {
   describe('2. Day 6/7 Idempotency Key Replay Verification', () => {
     it('replays cached response with X-Idempotency-Replayed header without re-running DB mutations', async () => {
       const sellerAHeaders = {
-        'x-user-id': 'user-seller-a',
+        Authorization: `Bearer ${tokenSellerA}`,
         'x-store-id': '11111111-1111-1111-1111-111111111111',
         'Idempotency-Key': 'idem-duplicate-test-key'
       };
@@ -876,8 +922,8 @@ describe('DAY 7: Full Seller Flow E2E & Production Hardening Suite', () => {
       expect(secondRes.status).toBe(200);
       expect(secondRes.headers['x-idempotency-replayed']).toBe('true');
       expect(secondRes.body).toEqual(firstRes.body);
-      // Zero additional DB queries executed on replay
-      expect(mockDbState.queryLog.length).toBe(queryCountAfterFirst);
+      // Only 1 auth verification query executed; zero additional mutation DB queries executed on replay
+      expect(mockDbState.queryLog.length).toBe(queryCountAfterFirst + 1);
     });
   });
 
@@ -931,7 +977,7 @@ describe('DAY 7: Full Seller Flow E2E & Production Hardening Suite', () => {
       const res = await request(app)
         .get('/api/v1/seller/orders')
         .set({
-          'x-user-id': 'user-seller-b',
+          Authorization: `Bearer ${tokenSellerB}`,
           'x-store-id': '11111111-1111-1111-1111-111111111111' // Store A's ID!
         });
       expect(res.status).toBe(403);
@@ -940,7 +986,7 @@ describe('DAY 7: Full Seller Flow E2E & Production Hardening Suite', () => {
 
     it('returns 403 Forbidden when Seller B attempts to mutate Seller A order, return, or Khata PO', async () => {
       const sellerBHeaders = {
-        'x-user-id': 'user-seller-b',
+        Authorization: `Bearer ${tokenSellerB}`,
         'x-store-id': '22222222-2222-2222-2222-222222222222'
       };
 
@@ -976,21 +1022,13 @@ describe('DAY 7: Full Seller Flow E2E & Production Hardening Suite', () => {
     it('returns 400 Bad Request when required parameters are missing', async () => {
       const res = await request(app)
         .patch('/api/v1/seller/orders/ORD-STORE-A/status')
-        .set({
-          'x-user-id': 'user-seller-a',
-          'x-store-id': '11111111-1111-1111-1111-111111111111'
-        })
+        .set(sellerAHeaders)
         .send({}); // missing status
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/Order ID and status are required/i);
     });
 
     it('returns 404 Not Found when querying or updating non-existent resources', async () => {
-      const sellerAHeaders = {
-        'x-user-id': 'user-seller-a',
-        'x-store-id': '11111111-1111-1111-1111-111111111111'
-      };
-
       const order404 = await request(app)
         .patch('/api/v1/seller/orders/ORD-DOES-NOT-EXIST/status')
         .set(sellerAHeaders)
@@ -1005,31 +1043,20 @@ describe('DAY 7: Full Seller Flow E2E & Production Hardening Suite', () => {
 
       const profile404 = await request(app)
         .get('/api/v1/seller/profile')
-        .set({ 'x-user-id': 'user-nonexistent' });
+        .set({ Authorization: `Bearer ${tokenSellerNoProfile}` });
       expect(profile404.status).toBe(404);
     });
 
     it('returns 422 Unprocessable Entity on invalid state values or zero-balance withdrawal', async () => {
-      const sellerBHeaders = {
-        'x-user-id': 'user-seller-b',
-        'x-store-id': '22222222-2222-2222-2222-222222222222'
-      };
-
       const invalidOrderStatus = await request(app)
         .patch('/api/v1/seller/orders/ORD-STORE-A/status')
-        .set({
-          'x-user-id': 'user-seller-a',
-          'x-store-id': '11111111-1111-1111-1111-111111111111'
-        })
+        .set(sellerAHeaders)
         .send({ status: 'teleported_to_mars' });
       expect(invalidOrderStatus.status).toBe(422);
 
       const invalidReturnStatus = await request(app)
         .patch('/api/v1/seller/returns/ret-store-a-uuid/status')
-        .set({
-          'x-user-id': 'user-seller-a',
-          'x-store-id': '11111111-1111-1111-1111-111111111111'
-        })
+        .set(sellerAHeaders)
         .send({ status: 'unknown_action' });
       expect(invalidReturnStatus.status).toBe(422);
 
@@ -1044,10 +1071,6 @@ describe('DAY 7: Full Seller Flow E2E & Production Hardening Suite', () => {
 
   describe('4. Pagination, Filters, SQL Parameterization (SQL Injection Prevention) & Rate Limiting', () => {
     it('parameterizes pagination, status, and search filters safely against SQL injection payloads', async () => {
-      const sellerAHeaders = {
-        'x-user-id': 'user-seller-a',
-        'x-store-id': '11111111-1111-1111-1111-111111111111'
-      };
       const sqlInjectionPayload = "'; DROP TABLE orders; --";
 
       const res = await request(app)

@@ -14,6 +14,14 @@ const sellerService = {
     return api.post('/seller/auth/signup', { phone, password, ...extra });
   },
 
+  sendOtp: (payload) => {
+    return api.post('/seller/auth/send-otp', payload);
+  },
+
+  verifyOtp: (payload) => {
+    return api.post('/seller/auth/verify-otp', payload);
+  },
+
   getOnboarding: () => {
     return api.get('/seller/onboarding', {
       headers: getUserHeaders()

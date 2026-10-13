@@ -11,20 +11,12 @@ const client = axios.create({
   timeout: 30000,
 });
 
-// Request Interceptor: Attach JWT token and seller context headers
+// Request Interceptor: Attach JWT token strictly (never inject spoofable identity headers)
 client.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('seller_token');
+    const token = localStorage.getItem('seller_token') || localStorage.getItem('token');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
-    }
-    const userId = localStorage.getItem('seller_user_id');
-    if (userId) {
-      config.headers['x-user-id'] = userId;
-    }
-    const storeId = localStorage.getItem('seller_store_id');
-    if (storeId) {
-      config.headers['x-store-id'] = storeId;
     }
     return config;
   },
@@ -33,12 +25,25 @@ client.interceptors.request.use(
   }
 );
 
-// Response Interceptor: Handle global errors
+// Response Interceptor: Handle global errors and auto-logout on 401
 client.interceptors.response.use(
   (response) => {
     return response.data;
   },
   (error) => {
+    if (error.response && error.response.status === 401) {
+      const isAuthPath = window.location.pathname.includes('/login') ||
+                         window.location.pathname.includes('/register') ||
+                         window.location.pathname.includes('/auth');
+      if (!isAuthPath) {
+        localStorage.removeItem('seller_token');
+        localStorage.removeItem('token');
+        localStorage.removeItem('seller_user');
+        localStorage.removeItem('seller_user_id');
+        localStorage.removeItem('seller_store_id');
+        window.location.href = '/login';
+      }
+    }
     console.error('API Error:', error.response?.data || error.message);
     return Promise.reject(error);
   }

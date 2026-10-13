@@ -5,9 +5,11 @@ const notificationController = require('../controllers/notification');
 const { requireSellerAuth } = require('../middlewares/auth');
 const { idempotencyMiddleware } = require('../middlewares/idempotency');
 
-// Public Auth Endpoints (Phone + 6-digit PIN)
+// Public Auth Endpoints (Phone / Email + OTP / PIN)
 router.post('/auth/login', sellerController.login);
 router.post('/auth/signup', sellerController.signup);
+router.post('/auth/send-otp', sellerController.sendOtp);
+router.post('/auth/verify-otp', sellerController.verifyOtp);
 
 // Idempotent Webhook Callback Endpoint
 router.post('/webhooks/callback', idempotencyMiddleware, (req, res) => sellerController.handleWebhookCallback(req, res));
@@ -41,7 +43,6 @@ router.patch('/orders/:id/status', idempotencyMiddleware, sellerController.updat
 router.get('/returns', sellerController.getReturns);
 router.patch('/returns/:id/status', idempotencyMiddleware, sellerController.updateReturnStatus);
 router.get('/b2b-orders', sellerController.getB2BOrders);
-router.get('/coupons', sellerController.getCoupons);
 router.get('/points', sellerController.getPoints);
 router.get('/analytics', sellerController.getAnalytics);
 router.get('/nearby-catalog', sellerController.getNearbyCatalog);

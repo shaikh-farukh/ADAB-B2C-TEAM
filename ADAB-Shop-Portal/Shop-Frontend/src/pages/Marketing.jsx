@@ -16,36 +16,66 @@ const Marketing = () => {
   const defaultPromoForm = { title: '', promo_type: 'SEASONAL', start_date: '', end_date: '' };
   const [promoForm, setPromoForm] = useState(defaultPromoForm);
 
+  const toLocalDateTimeInput = (dateString) => {
+    if (!dateString) return '';
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    const year = d.getFullYear();
+    const month = pad(d.getMonth() + 1);
+    const day = pad(d.getDate());
+    const hours = pad(d.getHours());
+    const minutes = pad(d.getMinutes());
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
   const handleCreateCoupon = async (e) => {
     e.preventDefault();
     try {
+      const payload = {
+        applies_to: couponForm.applies_to || 'ENTIRE_SHOP',
+        target_value: couponForm.target_value ? couponForm.target_value : null,
+        code: (couponForm.code || '').trim().toUpperCase(),
+        discount_value: parseFloat(couponForm.discount_value),
+        discount_type: couponForm.discount_type || 'PERCENTAGE',
+        target_audience: couponForm.target_audience || 'CUSTOMERS',
+        min_order_value: couponForm.min_order_value !== '' && couponForm.min_order_value !== null ? parseFloat(couponForm.min_order_value) : 0,
+        max_discount_cap: couponForm.max_discount_cap !== '' && couponForm.max_discount_cap !== null ? parseFloat(couponForm.max_discount_cap) : null,
+        usage_limit: couponForm.usage_limit !== '' && couponForm.usage_limit !== null ? parseInt(couponForm.usage_limit, 10) : null,
+        valid_from: couponForm.valid_from ? new Date(couponForm.valid_from).toISOString() : new Date().toISOString(),
+        valid_until: couponForm.valid_until ? new Date(couponForm.valid_until).toISOString() : new Date(Date.now() + 30 * 86400000).toISOString()
+      };
+
       if (editingCouponId) {
-        await updateCoupon(editingCouponId, couponForm);
+        await updateCoupon(editingCouponId, payload);
       } else {
-        await addCoupon(couponForm);
+        await addCoupon(payload);
       }
       setShowModal(false);
       setEditingCouponId(null);
       setCouponForm(defaultCouponForm);
     } catch (err) {
-      alert('Error saving coupon: ' + (err.response?.data?.error || err.message));
+      const errorMsg = err?.response?.data?.details?.[0]?.message 
+        || err?.response?.data?.error 
+        || err?.message 
+        || 'Error saving coupon';
+      alert('Error saving coupon: ' + errorMsg);
     }
   };
 
   const openEditCoupon = (c) => {
-    const toLocalString = (dateString) => dateString ? new Date(dateString).toISOString().slice(0, 16) : '';
     setCouponForm({
       applies_to: c.applies_to || 'ENTIRE_SHOP',
       target_value: c.target_value || '',
-      code: c.code,
-      discount_value: c.discount_value,
-      discount_type: c.discount_type,
+      code: c.code || '',
+      discount_value: c.discount_value !== undefined && c.discount_value !== null ? parseFloat(c.discount_value) : '',
+      discount_type: c.discount_type || 'PERCENTAGE',
       target_audience: c.target_audience || 'CUSTOMERS',
-      min_order_value: c.min_order_value || '',
-      max_discount_cap: c.max_discount_cap || '',
+      min_order_value: c.min_order_value !== undefined && c.min_order_value !== null ? parseFloat(c.min_order_value) : '',
+      max_discount_cap: c.max_discount_cap !== undefined && c.max_discount_cap !== null ? parseFloat(c.max_discount_cap) : '',
       usage_limit: c.usage_limit || '',
-      valid_from: toLocalString(c.valid_from),
-      valid_until: toLocalString(c.valid_until)
+      valid_from: toLocalDateTimeInput(c.valid_from),
+      valid_until: toLocalDateTimeInput(c.valid_until)
     });
     setEditingCouponId(c.id);
     setShowModal(true);
@@ -54,26 +84,36 @@ const Marketing = () => {
   const handleCreatePromo = async (e) => {
     e.preventDefault();
     try {
+      const payload = {
+        title: promoForm.title.trim(),
+        promo_type: promoForm.promo_type || 'SEASONAL',
+        start_date: promoForm.start_date ? new Date(promoForm.start_date).toISOString() : new Date().toISOString(),
+        end_date: promoForm.end_date ? new Date(promoForm.end_date).toISOString() : new Date(Date.now() + 14 * 86400000).toISOString()
+      };
+
       if (editingPromoId) {
-        await updatePromotion(editingPromoId, promoForm);
+        await updatePromotion(editingPromoId, payload);
       } else {
-        await addPromotion(promoForm);
+        await addPromotion(payload);
       }
       setShowModal(false);
       setEditingPromoId(null);
       setPromoForm(defaultPromoForm);
     } catch (err) {
-      alert('Error saving promotion: ' + (err.response?.data?.error || err.message));
+      const errorMsg = err?.response?.data?.details?.[0]?.message 
+        || err?.response?.data?.error 
+        || err?.message 
+        || 'Error saving promotion';
+      alert('Error saving promotion: ' + errorMsg);
     }
   };
 
   const openEditPromo = (p) => {
-    const toLocalString = (dateString) => dateString ? new Date(dateString).toISOString().slice(0, 16) : '';
     setPromoForm({
-      title: p.title,
-      promo_type: p.promo_type,
-      start_date: toLocalString(p.start_date),
-      end_date: toLocalString(p.end_date)
+      title: p.title || '',
+      promo_type: p.promo_type || 'SEASONAL',
+      start_date: toLocalDateTimeInput(p.start_date),
+      end_date: toLocalDateTimeInput(p.end_date)
     });
     setEditingPromoId(p.id);
     setShowModal(true);
@@ -126,11 +166,11 @@ const Marketing = () => {
                     </button>
                   </div>
                 </div>
-                <div className="text-2xl font-black text-brand-dark mb-1">{c.discount_value}{c.discount_type === 'PERCENTAGE' ? '%' : '₹'} OFF</div>
-                <div className="text-xs text-gray-500 font-medium">Min Order: ₹{c.min_order_value || 0}</div>
+                <div className="text-2xl font-black text-brand-dark mb-1">{parseFloat(c.discount_value || 0)}{c.discount_type === 'PERCENTAGE' ? '%' : '₹'} OFF</div>
+                <div className="text-xs text-gray-500 font-medium">Min Order: ₹{parseFloat(c.min_order_value || 0)}</div>
                 <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center text-xs text-gray-400">
                   <span><i className="fa-solid fa-users mr-1"></i> Used: {c.usage_count || 0} / {c.usage_limit || '∞'}</span>
-                  <span><i className="fa-solid fa-clock mr-1"></i> Ends: {new Date(c.valid_until).toLocaleDateString()}</span>
+                  <span><i className="fa-solid fa-clock mr-1"></i> Ends: {c.valid_until ? new Date(c.valid_until).toLocaleDateString() : 'No expiry'}</span>
                 </div>
               </div>
             </div>

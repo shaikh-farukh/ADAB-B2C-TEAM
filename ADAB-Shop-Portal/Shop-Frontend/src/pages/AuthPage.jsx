@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSeller } from '../context/SellerContext';
+import sellerService from '../services/sellerService';
 
 const HARDCODED_OTP = '123456';
 
@@ -17,6 +18,7 @@ export default function AuthPage() {
   const [otp, setOtp] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [infoMsg, setInfoMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const phoneInputRef = useRef(null);
@@ -70,9 +72,10 @@ export default function AuthPage() {
   };
 
   // Step 1: User presses "Start the Portal"
-  const handleStartPortal = (e) => {
+  const handleStartPortal = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     setError('');
+    setInfoMsg('');
 
     if (idMode === 'phone') {
       const cleanDigits = phone.replace(/\D/g, '');
@@ -93,8 +96,30 @@ export default function AuthPage() {
       return;
     }
 
-    // Lock top inputs & unlock OTP + Confirm Password + Verify
-    setPortalStarted(true);
+    setSubmitting(true);
+    try {
+      const identifier = idMode === 'email' ? email.trim() : (email.trim() || phone);
+      if (identifier) {
+        const otpRes = await sellerService.sendOtp({ email: email.trim(), phone, idMode });
+        const isSimulated = otpRes?.data?.isSimulated || otpRes?.isSimulated;
+        if (idMode === 'email') {
+          setInfoMsg(
+            isSimulated
+              ? `Verification code dispatched (Simulated / Demo code: 123456).`
+              : `Verification code sent to ${email.trim()}. Please check your inbox.`
+          );
+        } else {
+          setInfoMsg('Enter the verification code or demo code 123456 to continue.');
+        }
+      }
+    } catch (err) {
+      console.warn('OTP dispatch warning:', err?.message);
+      setInfoMsg('Enter verification code or demo code 123456.');
+    } finally {
+      setSubmitting(false);
+      // Lock top inputs & unlock OTP + Confirm Password + Verify
+      setPortalStarted(true);
+    }
   };
 
   // Step 2: User presses "Verify"
@@ -103,8 +128,27 @@ export default function AuthPage() {
     if (!portalStarted) return;
     setError('');
 
-    if (otp !== HARDCODED_OTP) {
-      setError('Invalid OTP. Please check and try again.');
+    let otpValid = false;
+    if (otp === HARDCODED_OTP) {
+      otpValid = true;
+    } else {
+      try {
+        const verifyRes = await sellerService.verifyOtp({
+          email: email.trim(),
+          phone,
+          otp,
+          idMode
+        });
+        if (verifyRes?.data?.success || verifyRes?.success) {
+          otpValid = true;
+        }
+      } catch (err) {
+        // Fallback check
+      }
+    }
+
+    if (!otpValid) {
+      setError('Invalid or expired OTP. Please check and try again, or enter 123456.');
       return;
     }
 
@@ -197,11 +241,12 @@ export default function AuthPage() {
     if (idMode === 'email') {
       setEmail('seller@adab.com');
       setPhone('');
+      setPassword('adab1234');
     } else {
-      setPhone('9876543210');
+      setPhone('9999999999');
       setEmail('');
+      setPassword('123456');
     }
-    setPassword('adab1234');
     setOtp('');
     setConfirmPassword('');
     setError('');
@@ -255,6 +300,13 @@ export default function AuthPage() {
           <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-700 flex items-start gap-2">
             <i className="fa-solid fa-circle-exclamation mt-0.5 text-rose-600"></i>
             <span>{error}</span>
+          </div>
+        )}
+
+        {infoMsg && (
+          <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 flex items-start gap-2">
+            <i className="fa-solid fa-circle-check mt-0.5 text-emerald-600"></i>
+            <span>{infoMsg}</span>
           </div>
         )}
 

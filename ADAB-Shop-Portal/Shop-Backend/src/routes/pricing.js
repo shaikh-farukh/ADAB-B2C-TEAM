@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const pricingController = require('../controllers/pricingController');
+const { requireSellerAuth } = require('../middlewares/auth');
+
+router.use(requireSellerAuth);
 
 router.get('/', pricingController.getPricing);
 router.post('/bulk', pricingController.updateBulkPricing);

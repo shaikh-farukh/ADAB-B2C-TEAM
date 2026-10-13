@@ -102,7 +102,7 @@ class ListingController {
   // Admin endpoint mock
   async adminStartReview(req, res) {
     try {
-      const storeId = req.headers['x-store-id'];
+      const { storeId } = getAuthenticatedSellerContext(req);
       const listing = await ListingService.adminStartReview(storeId, req.params.id);
       res.json(listing);
     } catch (err) {
@@ -112,7 +112,7 @@ class ListingController {
 
   async adminReview(req, res) {
     try {
-      const storeId = req.headers['x-store-id']; // Normally admin wouldn't need this, but using it for simplicity
+      const { storeId } = getAuthenticatedSellerContext(req);
       const listing = await ListingService.adminReviewListing(
         storeId, 
         req.params.id, 
@@ -127,7 +127,7 @@ class ListingController {
 
   async publishListing(req, res) {
     try {
-      const storeId = req.headers['x-store-id'];
+      const { storeId } = getAuthenticatedSellerContext(req);
       const listing = await ListingService.publishListing(storeId, req.params.id);
       res.json(listing);
     } catch (err) {

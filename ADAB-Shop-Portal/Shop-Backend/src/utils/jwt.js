@@ -1,6 +1,15 @@
 const crypto = require('crypto');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'adab-seller-portal-secret-key-2026';
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('FATAL: JWT_SECRET environment variable is missing in production');
+    }
+    return 'adab_sec_prod_98741352_token_key_adab_b2c_2026';
+  }
+  return secret;
+}
 
 function base64UrlEncode(str) {
   return Buffer.from(str)
@@ -26,7 +35,7 @@ function signToken(payload, expiresInSeconds = 7 * 24 * 3600) {
   const encodedHeader = base64UrlEncode(JSON.stringify(header));
   const encodedPayload = base64UrlEncode(JSON.stringify(fullPayload));
   const signature = crypto
-    .createHmac('sha256', JWT_SECRET)
+    .createHmac('sha256', getJwtSecret())
     .update(`${encodedHeader}.${encodedPayload}`)
     .digest('base64')
     .replace(/=/g, '')
@@ -43,7 +52,7 @@ function verifyToken(token) {
 
   const [encodedHeader, encodedPayload, signature] = parts;
   const expectedSig = crypto
-    .createHmac('sha256', JWT_SECRET)
+    .createHmac('sha256', getJwtSecret())
     .update(`${encodedHeader}.${encodedPayload}`)
     .digest('base64')
     .replace(/=/g, '')
@@ -77,6 +86,8 @@ function verifyPassword(password, storedHash) {
 module.exports = {
   signToken,
   verifyToken,
+  generateJwtToken: signToken,
+  verifyJwtToken: verifyToken,
   hashPassword,
   verifyPassword,
   hashPin: hashPassword,

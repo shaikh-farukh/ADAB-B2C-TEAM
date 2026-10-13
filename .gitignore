@@ -82,11 +82,14 @@ pnpm-debug.log*
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
 
 # Caching & Build Tools
 .eslintcache
 .vite/
 **/.vite/
+.vitest/
+**/.vitest/
 docker-compose.override.yml
 
 # Universal Scratch & Temporary Files
@@ -106,6 +109,7 @@ test-*.js
 fix*.js
 fix*.cjs
 patch*.js
+*.local.md
 
 # ==============================================================================
 # PORTAL SPECIFIC EXPLICIT RULES & SCRIPTS
@@ -149,14 +153,6 @@ ADAB-Shop-Portal/Shop-Backend/test-day3.js
 ADAB-Shop-Portal/Shop-Backend/migrate-states.js
 ADAB-Shop-Portal/Shop-Backend/create-tables.js
 ADAB-Shop-Portal/Shop-Backend/update-status.js
-ADAB-Shop-Portal/Shop-Backend/add-columns.js
-ADAB-Shop-Portal/Shop-Backend/add-columns-2.js
-ADAB-Shop-Portal/Shop-Backend/create-outbox.js
-ADAB-Shop-Portal/Shop-Backend/get_constraint.js
-ADAB-Shop-Portal/Shop-Backend/test-day3.js
-ADAB-Shop-Portal/Shop-Backend/migrate-states.js
-ADAB-Shop-Portal/Shop-Backend/create-tables.js
-ADAB-Shop-Portal/Shop-Backend/update-status.js
 ADAB-Shop-Portal/Shop-Backend/get-schemas.js
 ADAB-Shop-Portal/Shop-Backend/test-api.js
 ADAB-Shop-Portal/Shop-Backend/test-pricing.js
@@ -169,3 +165,7 @@ ADAB-Shop-Portal/Shop-Backend/test-day4.js
 ADAB-Shop-Portal/Shop-Backend/setup-trigger.js
 ADAB-Shop-Portal/Shop-Backend/docs/shabbir_final_audit.md
 ADAB-Shop-Portal/Shop-Backend/src/jobs/bulkExportJob.js
+
+ADAB-Shop-Portal/Shop-Backend/test-notif.js
+ADAB-Shop-Portal/Shop-Backend/test-notification.js
+ADAB-Shop-Portal/Shop-Backend/test-scenarios.js

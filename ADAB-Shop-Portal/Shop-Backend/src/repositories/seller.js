@@ -175,6 +175,11 @@ class SellerRepository {
   // === Mayank's Fulfillment / Operations: Orders, Returns, B2B, Finance, etc. ===
 
   async getOrders(storeId, filters = {}) {
+    if (!storeId) {
+      const err = new Error('Unauthorized: Valid store ID is required');
+      err.statusCode = 400;
+      throw err;
+    }
     const rawLimit = Number(filters.limit);
     const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 200) : 50;
     const rawPage = Number(filters.page);
@@ -230,13 +235,13 @@ class SellerRepository {
       JOIN orders o ON so.parent_order_id = o.id
       LEFT JOIN stores st ON so.store_id = st.id
       LEFT JOIN users u ON o.customer_id = u.id
-      WHERE ($1::uuid IS NULL OR so.store_id = $1::uuid)
+      WHERE so.store_id = $1::uuid
         AND ($2::text IS NULL OR UPPER(so.status) = $2::text)
         AND ($3::text IS NULL OR o.order_number ILIKE $3::text OR COALESCE(u.full_name, '') ILIKE $3::text)
       ORDER BY so.created_at DESC
       LIMIT $4::int OFFSET $5::int
     `;
-    const res = await pool.query(query, [storeId || null, statusParam, searchParam, limit, offset]);
+    const res = await pool.query(query, [storeId, statusParam, searchParam, limit, offset]);
     return res.rows.map(r => {
       const addr = r.delivery_address;
       const hasStoreCoords = r.store_latitude != null && r.store_longitude != null;
@@ -395,19 +400,20 @@ class SellerRepository {
       throw err;
     }
 
-    const scopedStoreId = storeId || null;
-    if (scopedStoreId) {
-      const belongsToSeller = existingRes.rows.some(r => String(r.store_id) === String(scopedStoreId));
-      if (!belongsToSeller) {
-        const err = new Error('Forbidden: Cross-seller access denied for this order');
-        err.statusCode = 403;
-        throw err;
-      }
+    if (!storeId) {
+      const err = new Error('Unauthorized: Store ID is required');
+      err.statusCode = 400;
+      throw err;
     }
 
-    const targetRows = scopedStoreId
-      ? existingRes.rows.filter(r => String(r.store_id) === String(scopedStoreId))
-      : existingRes.rows;
+    const belongsToSeller = existingRes.rows.some(r => String(r.store_id) === String(storeId));
+    if (!belongsToSeller) {
+      const err = new Error('Forbidden: Cross-seller access denied for this order');
+      err.statusCode = 403;
+      throw err;
+    }
+
+    const targetRows = existingRes.rows.filter(r => String(r.store_id) === String(storeId));
 
     await pool.query(`
       UPDATE seller_orders
@@ -416,8 +422,8 @@ class SellerRepository {
         id::text = $2 
         OR parent_order_id IN (SELECT id FROM orders WHERE id::text = $2 OR order_number = $2 OR order_number = ('ORD-' || $2))
       )
-      AND ($3::uuid IS NULL OR store_id = $3::uuid)
-    `, [sStatus, cleanId, scopedStoreId]);
+      AND store_id = $3::uuid
+    `, [sStatus, cleanId, storeId]);
 
     const res = await pool.query(`
       UPDATE orders
@@ -507,6 +513,12 @@ class SellerRepository {
   }
 
   async getReturns(storeId, filters = {}) {
+    if (!storeId) {
+      const err = new Error('Unauthorized: Valid store ID is required');
+      err.statusCode = 400;
+      throw err;
+    }
+
     const rawLimit = Number(filters.limit);
     const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 200) : 50;
     const rawPage = Number(filters.page);
@@ -622,13 +634,13 @@ class SellerRepository {
         LIMIT 1
       ) oi ON true
       LEFT JOIN seller_listings sl ON oi.listing_id = sl.id
-      WHERE ($1::uuid IS NULL OR so.store_id = $1::uuid)
+      WHERE so.store_id = $1::uuid
         AND ($2::text IS NULL OR UPPER(r.status) = $2::text)
         AND ($3::text IS NULL OR o.order_number ILIKE $3::text OR COALESCE(u.full_name, '') ILIKE $3::text OR COALESCE(r.reason, '') ILIKE $3::text)
       ORDER BY r.requested_at DESC
       LIMIT $4::int OFFSET $5::int
     `;
-    const res = await pool.query(query, [storeId || null, statusParam, searchParam, limit, offset]);
+    const res = await pool.query(query, [storeId, statusParam, searchParam, limit, offset]);
 
     return res.rows.map(r => {
       const items = Array.isArray(r.items_list) ? r.items_list : [];
@@ -759,8 +771,13 @@ class SellerRepository {
       throw err;
     }
 
-    const scopedStoreId = storeId || null;
-    if (scopedStoreId && String(ret.store_id) !== String(scopedStoreId)) {
+    if (!storeId) {
+      const err = new Error('Unauthorized: Store ID is required');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    if (String(ret.store_id) !== String(storeId)) {
       const err = new Error('Forbidden: Cross-seller access denied for this return request');
       err.statusCode = 403;
       throw err;
@@ -949,32 +966,36 @@ class SellerRepository {
   }
 
 
-  async getB2BOrders() {
+  async getB2BOrders(storeId = null) {
     const query = `
       SELECT bpo.id, bpo.po_number, bpo.status, bpo.total_amount, bpo.created_at,
-             s.name as supplier_name
+             s.name as supplier_name,
+             buyer.store_name as buyer_store_name
       FROM b2b_purchase_orders bpo
       LEFT JOIN suppliers s ON bpo.supplier_id = s.id
+      LEFT JOIN stores buyer ON bpo.buyer_store_id = buyer.id
+      WHERE ($1::uuid IS NULL OR bpo.buyer_store_id = $1::uuid OR bpo.supplier_store_id = $1::uuid)
       ORDER BY bpo.created_at DESC
       LIMIT 50
     `;
     try {
-      const res = await pool.query(query);
+      const res = await pool.query(query, [storeId || null]);
       return res.rows;
     } catch (e) {
       return [];
     }
   }
 
-  async getCoupons() {
+  async getCoupons(storeId = null) {
     const query = `
       SELECT id, code, discount_type, discount_value, min_order_value, max_discount, 
              start_date, end_date, is_active, usage_limit, usage_count, description
       FROM coupons
+      WHERE ($1::uuid IS NULL OR store_id = $1::uuid)
       ORDER BY created_at DESC
     `;
     try {
-      const res = await pool.query(query);
+      const res = await pool.query(query, [storeId || null]);
       return res.rows;
     } catch (e) {
       return [];
@@ -1156,6 +1177,12 @@ class SellerRepository {
   }
 
   async getFinanceSummary(storeId, userId) {
+    if (!storeId) {
+      const err = new Error('Unauthorized: Valid store ID is required');
+      err.statusCode = 400;
+      throw err;
+    }
+
     // 1. Store-scoped sales, commission, and payout aggregates from seller_orders + returns + settlements
     const salesQuery = `
       SELECT
@@ -1174,7 +1201,7 @@ class SellerRepository {
           WHERE r.seller_order_id = so.id AND r.status IN ('APPROVED', 'ITEM_PICKED', 'COMPLETED')
         ), 0)) ELSE 0 END), 0) as unsettled_payout_balance
       FROM seller_orders so
-      WHERE ($1::uuid IS NULL OR so.store_id = $1::uuid)
+      WHERE so.store_id = $1::uuid
     `;
 
     const refundsQuery = `
@@ -1183,7 +1210,7 @@ class SellerRepository {
         COALESCE(SUM(CASE WHEN r.status IN ('APPROVED', 'ITEM_PICKED', 'COMPLETED') THEN r.refund_amount ELSE 0 END), 0) as total_refunded
       FROM returns r
       JOIN seller_orders so ON r.seller_order_id = so.id
-      WHERE ($1::uuid IS NULL OR so.store_id = $1::uuid)
+      WHERE so.store_id = $1::uuid
     `;
 
     const settlementsQuery = `
@@ -1192,7 +1219,7 @@ class SellerRepository {
         COALESCE(SUM(CASE WHEN status IN ('PROCESSED', 'PAID') THEN net_payable ELSE 0 END), 0) as settled_amount,
         COALESCE(SUM(CASE WHEN status = 'PENDING' THEN net_payable ELSE 0 END), 0) as pending_settlement_amount
       FROM settlements
-      WHERE ($1::uuid IS NULL OR store_id = $1::uuid)
+      WHERE store_id = $1::uuid
     `;
 
     const creditQuery = `
@@ -1209,15 +1236,15 @@ class SellerRepository {
         COALESCE(SUM(CASE WHEN supplier_store_id = $1::uuid AND status != 'CANCELLED' AND payment_terms != 'ADVANCE_UPI' THEN total_amount ELSE 0 END), 0) as receivables,
         COALESCE(SUM(CASE WHEN buyer_store_id = $1::uuid AND status != 'CANCELLED' AND payment_terms != 'ADVANCE_UPI' THEN total_amount ELSE 0 END), 0) as payables
       FROM b2b_purchase_orders
-      WHERE $1::uuid IS NOT NULL AND (supplier_store_id = $1::uuid OR buyer_store_id = $1::uuid)
+      WHERE supplier_store_id = $1::uuid OR buyer_store_id = $1::uuid
     `;
 
     const [salesRes, refundsRes, settlementsRes, creditRes, khataRes] = await Promise.all([
-      pool.query(salesQuery, [storeId || null]),
-      pool.query(refundsQuery, [storeId || null]),
-      pool.query(settlementsQuery, [storeId || null]),
-      pool.query(creditQuery, [storeId || null, userId || null]),
-      pool.query(khataTotalsQuery, [storeId || null])
+      pool.query(salesQuery, [storeId]),
+      pool.query(refundsQuery, [storeId]),
+      pool.query(settlementsQuery, [storeId]),
+      pool.query(creditQuery, [storeId, userId || null]),
+      pool.query(khataTotalsQuery, [storeId])
     ]);
 
     const sales = salesRes.rows[0] || {};
@@ -1255,6 +1282,12 @@ class SellerRepository {
   }
 
   async getFinanceTransactions(storeId) {
+    if (!storeId) {
+      const err = new Error('Unauthorized: Valid store ID is required');
+      err.statusCode = 400;
+      throw err;
+    }
+
     const query = `
       SELECT so.id as seller_order_id,
              so.parent_order_id as order_id,
@@ -1305,11 +1338,11 @@ class SellerRepository {
         LIMIT 1
       ) si ON true
       LEFT JOIN settlements s ON si.settlement_id = s.id
-      WHERE ($1::uuid IS NULL OR so.store_id = $1::uuid)
+      WHERE so.store_id = $1::uuid
       ORDER BY so.created_at DESC
       LIMIT 100
     `;
-    const res = await pool.query(query, [storeId || null]);
+    const res = await pool.query(query, [storeId]);
 
     return res.rows.map(row => {
       const gross = Number(row.gross_amount || 0);
@@ -1355,6 +1388,12 @@ class SellerRepository {
   }
 
   async getFinanceSettlements(storeId) {
+    if (!storeId) {
+      const err = new Error('Unauthorized: Valid store ID is required');
+      err.statusCode = 400;
+      throw err;
+    }
+
     const query = `
       SELECT s.id,
              s.store_id,
@@ -1388,11 +1427,11 @@ class SellerRepository {
                '[]'::json
              ) as items
       FROM settlements s
-      WHERE ($1::uuid IS NULL OR s.store_id = $1::uuid)
+      WHERE s.store_id = $1::uuid
       ORDER BY COALESCE(s.settled_at, s.created_at) DESC
       LIMIT 50
     `;
-    const res = await pool.query(query, [storeId || null]);
+    const res = await pool.query(query, [storeId]);
     return res.rows.map(row => {
       const items = Array.isArray(row.items) ? row.items : [];
       return {
@@ -1508,6 +1547,12 @@ class SellerRepository {
   }
 
   async getKhataLedger(storeId) {
+    if (!storeId) {
+      const err = new Error('Unauthorized: Valid store ID is required');
+      err.statusCode = 400;
+      throw err;
+    }
+
     const query = `
       SELECT bpo.id,
              bpo.po_number,
@@ -1522,11 +1567,11 @@ class SellerRepository {
       FROM b2b_purchase_orders bpo
       LEFT JOIN stores buyer ON bpo.buyer_store_id = buyer.id
       LEFT JOIN stores supplier ON bpo.supplier_store_id = supplier.id
-      WHERE ($1::uuid IS NULL OR bpo.buyer_store_id = $1::uuid OR bpo.supplier_store_id = $1::uuid)
+      WHERE (bpo.buyer_store_id = $1::uuid OR bpo.supplier_store_id = $1::uuid)
       ORDER BY bpo.created_at DESC
       LIMIT 50
     `;
-    const res = await pool.query(query, [storeId || null]);
+    const res = await pool.query(query, [storeId]);
     return res.rows.map(row => {
       const isSupplier = storeId && String(row.supplier_store_id) === String(storeId);
       const isSettledOrCancelled = row.status === 'CANCELLED' || row.payment_terms === 'ADVANCE_UPI';
@@ -1562,6 +1607,12 @@ class SellerRepository {
   }
 
   async payKhataOrder(storeId, poId) {
+    if (!storeId) {
+      const err = new Error('Unauthorized: Valid store ID is required');
+      err.statusCode = 400;
+      throw err;
+    }
+
     const existingRes = await pool.query(
       `SELECT id, buyer_store_id FROM b2b_purchase_orders WHERE id = $1`,
       [poId]
@@ -1572,8 +1623,7 @@ class SellerRepository {
       throw err;
     }
 
-    const scopedStoreId = storeId || null;
-    if (scopedStoreId && String(existingRes.rows[0].buyer_store_id) !== String(scopedStoreId)) {
+    if (String(existingRes.rows[0].buyer_store_id) !== String(storeId)) {
       const err = new Error('Forbidden: Cross-seller access denied for this purchase order');
       err.statusCode = 403;
       throw err;
@@ -1582,9 +1632,9 @@ class SellerRepository {
     const res = await pool.query(`
       UPDATE b2b_purchase_orders
       SET payment_terms = 'ADVANCE_UPI'
-      WHERE id = $1
+      WHERE id = $1 AND buyer_store_id = $2::uuid
       RETURNING *
-    `, [poId]);
+    `, [poId, storeId]);
 
     return res.rows[0];
   }
@@ -1672,39 +1722,25 @@ class SellerRepository {
     }
 
     if (userRes.rows.length === 0) {
-      // Derive deterministic 10-digit phone when signing up via email alone
-      const fallbackPhone =
-        cleanDigits && cleanDigits.length === 10
-          ? cleanDigits
-          : String(
-              9000000000 +
-                (Math.abs(
-                  rawEmail.split('').reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) | 0, 7)
-                ) %
-                  999999999)
-            ).slice(0, 10);
-      return await this.signupWithPassword(
-        fallbackPhone,
-        rawPassword,
-        { email: rawEmail || null },
-        true
-      );
+      throw new Error('Account not found. Please register first or verify your credentials.');
     }
 
     const user = userRes.rows[0];
 
-    let passwordValid = false;
-    if (verifyPin(rawPassword, user.password_hash)) {
-      passwordValid = true;
-    } else {
-      // User already verified via OTP + Confirm Password on the unified portal:
-      // update their stored password_hash in DB so password is the single credential
-      passwordValid = true;
-      pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashPin(rawPassword), user.id]).catch(() => {});
+    // Validate account status
+    if (user.status && ['BLOCKED', 'SUSPENDED', 'DEACTIVATED'].includes(String(user.status).toUpperCase())) {
+      throw new Error('Your account has been deactivated or suspended. Please contact support.');
     }
 
+    // Validate user type
+    if (user.user_type && user.user_type !== 'SELLER') {
+      throw new Error('Unauthorized account type. This portal is for registered sellers only.');
+    }
+
+    // Validate password strictly
+    const passwordValid = verifyPin(rawPassword, user.password_hash);
     if (!passwordValid) {
-      throw new Error('Invalid password. Please try again.');
+      throw new Error('Invalid credentials. Please verify your credentials and PIN.');
     }
 
     let onboarding = await this.getOnboardingData(user.id);

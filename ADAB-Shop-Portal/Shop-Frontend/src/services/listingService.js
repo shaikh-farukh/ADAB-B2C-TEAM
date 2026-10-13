@@ -26,7 +26,7 @@ const listingService = {
   },
 
   updateListing: (id, data) => {
-    return api.put(`/seller/listings/${id}`, data, {
+    return api.patch(`/seller/listings/${id}`, data, {
       headers: getStoreHeaders()
     });
   },

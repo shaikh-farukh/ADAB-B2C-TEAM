@@ -11,22 +11,38 @@ const createPromotionSchema = z.object({
 
 const updatePromotionSchema = createPromotionSchema.partial();
 
+const emptyToNull = (val) => (val === '' || val === undefined || val === null ? null : val);
+const emptyToZero = (val) => (val === '' || val === undefined || val === null ? 0 : val);
+
 const createCouponSchema = z.object({
   code: z.string().min(1),
   discount_type: z.enum(['PERCENTAGE', 'FLAT_AMOUNT']),
   discount_value: z.coerce.number().positive(),
-  min_order_value: z.coerce.number().min(0).optional(),
-  max_discount_cap: z.coerce.number().positive().optional().nullable(),
-  usage_limit: z.coerce.number().int().positive().optional().nullable(),
+  min_order_value: z.preprocess(emptyToZero, z.coerce.number().min(0)).optional().nullable(),
+  max_discount_cap: z.preprocess(emptyToNull, z.coerce.number().positive().nullable()).optional(),
+  usage_limit: z.preprocess(emptyToNull, z.coerce.number().int().positive().nullable()).optional(),
   valid_from: z.coerce.date(),
   valid_until: z.coerce.date(),
   applies_to: z.string().optional(),
-  target_value: z.string().optional().nullable(),
+  target_value: z.preprocess(emptyToNull, z.string().nullable()).optional(),
   target_audience: z.string().optional(),
   is_active: z.boolean().optional()
 });
 
-const updateCouponSchema = createCouponSchema.partial();
+const updateCouponSchema = z.object({
+  code: z.string().min(1).optional(),
+  discount_type: z.enum(['PERCENTAGE', 'FLAT_AMOUNT']).optional(),
+  discount_value: z.coerce.number().positive().optional(),
+  min_order_value: z.preprocess(emptyToZero, z.coerce.number().min(0)).optional().nullable(),
+  max_discount_cap: z.preprocess(emptyToNull, z.coerce.number().positive().nullable()).optional(),
+  usage_limit: z.preprocess(emptyToNull, z.coerce.number().int().positive().nullable()).optional(),
+  valid_from: z.coerce.date().optional(),
+  valid_until: z.coerce.date().optional(),
+  applies_to: z.string().optional(),
+  target_value: z.preprocess(emptyToNull, z.string().nullable()).optional(),
+  target_audience: z.string().optional(),
+  is_active: z.boolean().optional()
+});
 
 module.exports = {
   createPromotionSchema,
