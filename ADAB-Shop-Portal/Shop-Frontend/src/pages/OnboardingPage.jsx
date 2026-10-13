@@ -413,8 +413,7 @@ export default function OnboardingPage() {
         if (
           (fromPath === '/finance' && nextSteps?.step3) ||
           ((fromPath === '/delivery' || fromPath === '/zones' || fromPath === '/orders' || fromPath === '/partner') && nextSteps?.step4) ||
-          ((fromPath === '/credit-apply' || fromPath === '/creditterms') && nextSteps?.step5) ||
-          (fromPath === '/create' && nextSteps?.step1 && nextSteps?.step2)
+          ((fromPath === '/credit-apply' || fromPath === '/creditterms') && nextSteps?.step5)
         ) {
           navigate(fromPath, { replace: true });
           return;

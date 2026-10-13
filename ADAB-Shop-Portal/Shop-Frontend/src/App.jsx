@@ -33,6 +33,7 @@ import FreightPage from './pages/FreightPage';
 import MessagesPage from './pages/MessagesPage';
 import RecommendationsPage from './pages/RecommendationsPage';
 import ReportsPage from './pages/ReportsPage';
+import PartnerBrandsPage from './pages/PartnerBrandsPage';
 import Sidebar from './components/layout/Sidebar';
 
 const MainLayout = ({ children, store, profile, isPortalUnlocked = true }) => {
@@ -248,19 +249,8 @@ function PortalContent() {
         <Route path="/recommendations" element={<RecommendationsPage />} />
         <Route path="/reports" element={<ReportsPage />} />
 
-        {/* Catalog & Brand expansions */}
-        <Route 
-          path="/create" 
-          element={
-            <KycGate requiredSteps={[1, 2]} featureName="Add New Product">
-              <PlaceholderPage 
-                title="Add New Product (Studio)" 
-                fileName="CreateProductPage.jsx" 
-                description="Fast product creation with barcode scanner, photo upload, category, price, and GST slab." 
-              />
-            </KycGate>
-          } 
-        />
+        <Route path="/create" element={<Navigate to="/products" replace />} />
+
         <Route 
           path="/catalog" 
           element={
@@ -273,13 +263,7 @@ function PortalContent() {
         />
         <Route 
           path="/partnerbrands" 
-          element={
-            <PlaceholderPage 
-              title="Partner Brands & Packs" 
-              fileName="PartnerBrandsPage.jsx" 
-              description="White-label and manufacturer packs from other registered merchant brands." 
-            />
-          } 
+          element={<PartnerBrandsPage />} 
         />
 
         {/* Catch-all fallback */}

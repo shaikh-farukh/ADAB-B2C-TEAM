@@ -57,7 +57,13 @@ export const sellerApi = {
   getAnalytics: () => apiClient.get('/analytics'),
 
   // Dynamic Catalog, Recommendations, Messages
-  getNearbyCatalog: () => apiClient.get('/nearby-catalog'),
+  getNearbyCatalog: (params) => apiClient.get('/nearby-catalog', { params }),
+  getNearbyStores: (params) => apiClient.get('/nearby-stores', { params }),
+  getBuyerCreditBalance: () => apiClient.get('/credit-balance'),
+  getPurchaseOrders: () => apiClient.get('/purchase-orders'),
+  getOtherStoreBrands: (params) => apiClient.get('/other-store-brands', { params }),
+  addOtherStoreBrandToMyStore: (data) => apiClient.post('/other-store-brands/add-to-store', data),
+  getMyAddedOtherStoreBrands: () => apiClient.get('/other-store-brands/my-added'),
   getRecommendations: () => apiClient.get('/recommendations'),
   getThreads: () => apiClient.get('/messages/threads'),
   getMessages: () => apiClient.get('/messages/threads'),

@@ -365,6 +365,11 @@ const Products = () => {
       if (editingListing) {
         if (editingListing.approval_status === 'APPROVED') {
           dataToSave.approval_status = 'SUBMITTED';
+        } else if (editingListing.approval_status === 'REJECTED') {
+          if (!submitForReview) {
+            dataToSave.approval_status = 'DRAFT';
+            dataToSave.rejection_reason = null;
+          }
         }
         savedListing = await updateListing(editingListing.id, dataToSave);
       } else {
@@ -1081,6 +1086,18 @@ const Products = () => {
                     <span>Editing an approved product will re-submit it for admin verification. It cannot be saved as an unreviewed draft.</span>
                   </div>
                 )}
+                {editingListing?.approval_status === 'REJECTED' && (
+                  <div className="mb-3 p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-start gap-2.5">
+                    <i className="fa-solid fa-triangle-exclamation text-red-500 text-sm shrink-0 mt-0.5"></i>
+                    <div>
+                      <span className="font-extrabold text-red-950 block mb-0.5">Product Previously Rejected by Admin</span>
+                      {editingListing.rejection_reason && (
+                        <span className="text-red-700 block mb-1">Reason: "{editingListing.rejection_reason}"</span>
+                      )}
+                      <span className="text-red-600">Correct the fields below, then click <strong>"Save as Draft"</strong> to edit later or <strong>"Re-Submit for Review"</strong> to send back to Admin.</span>
+                    </div>
+                  </div>
+                )}
                 <div className="flex gap-3">
                   {editingListing?.approval_status === 'APPROVED' ? (
                     <button type="button" onClick={(e) => saveListing(e, true)} className="w-full py-3.5 rounded-xl bg-brand-dark hover:bg-green-800 text-white font-extrabold text-sm shadow-md transition flex justify-center items-center gap-2">
@@ -1092,7 +1109,7 @@ const Products = () => {
                         <i className="fa-solid fa-save"></i> Save as Draft
                       </button>
                       <button type="button" onClick={(e) => saveListing(e, true)} className="flex-1 py-3.5 rounded-xl bg-brand-dark hover:bg-green-800 text-white font-extrabold text-sm shadow-md transition flex justify-center items-center gap-2">
-                        <i className="fa-solid fa-paper-plane"></i> Submit for Review
+                        <i className="fa-solid fa-paper-plane"></i> {editingListing?.approval_status === 'REJECTED' ? 'Re-Submit for Review' : 'Submit for Review'}
                       </button>
                     </>
                   )}
