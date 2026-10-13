@@ -5,7 +5,10 @@ const upload = multer({ dest: 'uploads/' });
 const ListingController = require('../controllers/listing');
 const { requireSellerAuth } = require('../middlewares/auth');
 
-// Base route: /api/v1/listings
+// Public reference endpoints
+router.get('/categories', ListingController.getCategories);
+
+// Base route: /api/v1/listings (Protected)
 router.use(requireSellerAuth);
 
 router.post('/bulk-upload', upload.single('file'), ListingController.bulkUpload);
@@ -15,6 +18,8 @@ router.get('/bulk-export/:jobId/status', ListingController.getBulkExportStatus);
 
 const memoryUpload = multer({ storage: multer.memoryStorage() });
 router.post('/upload-image', memoryUpload.single('image'), ListingController.uploadImage);
+
+router.post('/batch-delete', ListingController.batchDeleteListings);
 
 router.post('/', ListingController.createListing);
 router.get('/', ListingController.getListings);

@@ -10,12 +10,16 @@ export const useMarketing = () => {
   const fetchMarketingData = useCallback(async () => {
     try {
       setLoading(true);
-      const [promosRes, couponsRes] = await Promise.all([
+      const [promosRes, couponsRes] = await Promise.allSettled([
         marketingApi.fetchPromotions(),
         marketingApi.fetchCoupons()
       ]);
-      setPromotions(promosRes || []);
-      setCoupons(couponsRes || []);
+      if (promosRes.status === 'fulfilled') {
+        setPromotions(promosRes.value || []);
+      }
+      if (couponsRes.status === 'fulfilled') {
+        setCoupons(couponsRes.value || []);
+      }
     } catch (err) {
       console.error(err);
       setError(err);
@@ -38,6 +42,11 @@ export const useMarketing = () => {
     await fetchMarketingData();
   };
 
+  const deletePromotion = async (id) => {
+    await marketingApi.deletePromotion(id);
+    await fetchMarketingData();
+  };
+
   const addCoupon = async (data) => {
     await marketingApi.createCoupon(data);
     await fetchMarketingData();
@@ -55,6 +64,7 @@ export const useMarketing = () => {
     error,
     addPromotion,
     updatePromotion,
+    deletePromotion,
     addCoupon,
     updateCoupon,
     refresh: fetchMarketingData

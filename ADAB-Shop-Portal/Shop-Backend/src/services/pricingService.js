@@ -29,6 +29,10 @@ module.exports = {
   previewPricing: async (storeId, listingId) => {
     return await pricingRepo.previewPricing(storeId, listingId);
   },
+
+  getAllPreviews: async (storeId) => {
+    return await pricingRepo.getAllPreviews(storeId);
+  },
   
   schedulePricing: async (storeId, listingId, data) => {
     const result = await pricingRepo.schedulePricing(storeId, listingId, data);

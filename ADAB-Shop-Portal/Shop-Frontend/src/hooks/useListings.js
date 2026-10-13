@@ -78,6 +78,10 @@ export const useListings = () => {
     return await listingApi.deleteListing(id);
   };
 
+  const batchDeleteListings = async (ids) => {
+    return await listingApi.batchDeleteListings(ids);
+  };
+
   const submitListing = async (id) => {
     return await listingApi.submitListing(id);
   };
@@ -117,6 +121,7 @@ export const useListings = () => {
     createListing,
     updateListing,
     deleteListing,
+    batchDeleteListings,
     submitListing,
     bulkUpload,
     checkUploadStatus,

@@ -1,12 +1,18 @@
 const { z } = require('zod');
 
+const promotionProductItemSchema = z.object({
+  listing_id: z.string().uuid(),
+  promo_price: z.coerce.number().positive()
+});
+
 const createPromotionSchema = z.object({
   title: z.string().min(1),
   promo_type: z.string().min(1),
   start_date: z.coerce.date(),
   end_date: z.coerce.date(),
-  banner_url: z.string().url().optional().nullable(),
-  is_active: z.boolean().optional()
+  banner_url: z.string().optional().nullable(),
+  is_active: z.boolean().optional(),
+  products: z.array(promotionProductItemSchema).optional()
 });
 
 const updatePromotionSchema = createPromotionSchema.partial();

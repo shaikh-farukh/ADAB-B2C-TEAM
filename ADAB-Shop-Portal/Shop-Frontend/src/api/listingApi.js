@@ -11,6 +11,10 @@ export const listingApi = {
     return client.get(`/listings/${id}`);
   },
 
+  fetchCategories: () => {
+    return client.get('/listings/categories');
+  },
+
   createListing: (data) => {
     return client.post('/listings', data);
   },
@@ -21,6 +25,10 @@ export const listingApi = {
 
   deleteListing: (id) => {
     return client.delete(`/listings/${id}`);
+  },
+
+  batchDeleteListings: (ids) => {
+    return client.post('/listings/batch-delete', { ids });
   },
 
   submitListing: (id) => {

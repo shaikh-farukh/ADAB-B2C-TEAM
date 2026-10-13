@@ -11,6 +11,10 @@ const listingService = {
     return api.get(`/seller/listings/${id}`);
   },
 
+  getCategories: () => {
+    return api.get('/seller/listings/categories');
+  },
+
   createListing: (data) => {
     return api.post('/seller/listings', data);
   },
@@ -21,6 +25,10 @@ const listingService = {
 
   deleteListing: (id) => {
     return api.delete(`/seller/listings/${id}`);
+  },
+
+  batchDeleteListings: (ids) => {
+    return api.post('/seller/listings/batch-delete', { ids });
   },
 
   submitListing: (id) => {

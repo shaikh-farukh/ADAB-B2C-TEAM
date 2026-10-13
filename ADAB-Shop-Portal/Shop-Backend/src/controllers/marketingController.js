@@ -30,6 +30,23 @@ module.exports = {
     }
   },
 
+  checkOverlap: async (req, res) => {
+    try {
+      const storeId = getAuthorizedStoreId(req);
+      const { listing_ids, start_date, end_date, exclude_promo_id } = req.body;
+      const overlaps = await marketingService.checkOverlap(storeId, {
+        listing_ids,
+        start_date,
+        end_date,
+        exclude_promo_id
+      });
+      res.json({ overlaps, hasOverlap: overlaps.length > 0 });
+    } catch (err) {
+      const status = err.statusCode || 400;
+      res.status(status).json({ error: err.message });
+    }
+  },
+
   createPromotion: async (req, res) => {
     try {
       const storeId = getAuthorizedStoreId(req);

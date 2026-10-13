@@ -8,6 +8,7 @@ router.use(['/promotions', '/coupons'], requireSellerAuth);
 // Promotions
 router.get('/promotions', marketingController.getPromotions);
 router.post('/promotions', marketingController.createPromotion);
+router.post('/promotions/check-overlap', marketingController.checkOverlap);
 router.patch('/promotions/:id', marketingController.updatePromotion);
 router.delete('/promotions/:id', marketingController.deletePromotion);
 

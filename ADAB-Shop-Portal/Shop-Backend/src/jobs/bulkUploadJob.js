@@ -28,14 +28,25 @@ bulkUploadQueue.on('error', () => {});
 const processCsvDirectly = async (storeId, filePath, userId) => {
   const results = [];
   
+  let detectedHeaders = [];
+
   // Parse CSV
   await new Promise((resolve, reject) => {
     fs.createReadStream(filePath)
       .pipe(csv())
+      .on('headers', (headers) => {
+        detectedHeaders = headers.map(h => (h || '').trim().toLowerCase());
+      })
       .on('data', (data) => results.push(data))
       .on('end', () => resolve())
       .on('error', (error) => reject(error));
   });
+
+  // Verify format and required columns
+  if (detectedHeaders.length === 0 || !detectedHeaders.includes('title') || (!detectedHeaders.includes('sell_price') && !detectedHeaders.includes('price'))) {
+    try { fs.unlinkSync(filePath); } catch(e) {}
+    throw new Error("Invalid CSV format: Missing required columns ('title', 'sell_price'). Please download and use the official CSV template.");
+  }
 
   let successCount = 0;
   let failCount = 0;
@@ -50,16 +61,24 @@ const processCsvDirectly = async (storeId, filePath, userId) => {
     }
     
     try {
+      const sellPrice = parseFloat(row.sell_price || row.price) || 0;
+      const mrp = parseFloat(row.mrp) || sellPrice;
+      const categoryId = row.category_id ? parseInt(row.category_id, 10) : null;
+      const rawType = (row.product_type || 'OWN_BRAND').trim().toUpperCase();
+      const productType = ['OWN_BRAND', 'LOOSE_WEIGHT', 'PACKED_ITEM'].includes(rawType) ? rawType : 'OWN_BRAND';
+      const defaultUnit = productType === 'LOOSE_WEIGHT' ? 'kg' : productType === 'PACKED_ITEM' ? 'pack' : 'pcs';
+
       await ListingRepository.createListing(storeId, {
-        title: row.title,
-        sku: row.sku || '',
-        barcode: row.barcode || '',
-        brand_tag: row.brand_tag || 'GENERIC',
-        product_type: row.product_type || 'OWN_BRAND',
-        unit: row.unit || '',
-        mrp: parseFloat(row.mrp) || 0,
-        sell_price: parseFloat(row.sell_price) || 0,
-        min_order_qty: row.min_order_qty ? parseFloat(row.min_order_qty) : null,
+        title: row.title.trim(),
+        sku: productType === 'OWN_BRAND' ? (row.sku || null) : null,
+        barcode: productType === 'PACKED_ITEM' ? (row.barcode || null) : null,
+        brand_tag: productType !== 'LOOSE_WEIGHT' ? (row.brand_tag || null) : null,
+        product_type: productType,
+        category_id: categoryId,
+        unit: row.unit ? row.unit.trim() : defaultUnit,
+        mrp: mrp,
+        sell_price: sellPrice,
+        min_order_qty: row.min_order_qty ? parseFloat(row.min_order_qty) : 1,
         allowed_buyers: row.allowed_buyers || 'ALL',
         approval_status: 'DRAFT',
         is_active: true,

@@ -51,6 +51,15 @@ class ListingController {
     }
   }
 
+  async getCategories(req, res) {
+    try {
+      const categories = await ListingService.getCategories();
+      res.json(categories);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+
   async getListingById(req, res) {
     try {
       const { storeId } = getAuthenticatedSellerContext(req);
@@ -82,6 +91,19 @@ class ListingController {
 
       await ListingService.deleteListing(storeId, req.params.id);
       res.json({ success: true });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+
+  async batchDeleteListings(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      if (!storeId) return res.status(401).json({ error: 'Missing store context' });
+
+      const { ids } = req.body;
+      const deleted = await ListingService.batchDeleteListings(storeId, ids);
+      res.json({ success: true, count: deleted.length });
     } catch (err) {
       res.status(400).json({ error: err.message });
     }

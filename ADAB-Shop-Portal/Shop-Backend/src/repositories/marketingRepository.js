@@ -3,7 +3,44 @@ const eventService = require('../services/eventService');
 
 module.exports = {
   getPromotionsByStore: async (storeId) => {
-    const res = await pool.query("SELECT * FROM promotions WHERE store_id = $1 AND promo_type != 'PRICE_SCHEDULE' ORDER BY created_at DESC", [storeId]);
+    const res = await pool.query(
+      `SELECT p.*,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'listing_id', pp.listing_id,
+              'promo_price', pp.promo_price,
+              'title', sl.title,
+              'mrp', sl.mrp,
+              'sell_price', sl.sell_price
+            )
+          ) FILTER (WHERE pp.listing_id IS NOT NULL),
+          '[]'
+        ) AS products
+       FROM promotions p
+       LEFT JOIN promotion_products pp ON p.id = pp.promotion_id
+       LEFT JOIN seller_listings sl ON pp.listing_id = sl.id
+       WHERE p.store_id = $1 AND p.promo_type != 'PRICE_SCHEDULE'
+       GROUP BY p.id
+       ORDER BY p.created_at DESC`,
+      [storeId]
+    );
+    return res.rows;
+  },
+  checkOverlappingDeals: async (storeId, listingIds, startDate, endDate, excludePromoId = null) => {
+    if (!listingIds || listingIds.length === 0) return [];
+    const query = `
+      SELECT pp.listing_id, sl.title, p.id as promo_id, p.title as promo_title, p.promo_type, p.start_date, p.end_date, pp.promo_price
+      FROM promotion_products pp
+      JOIN promotions p ON pp.promotion_id = p.id
+      JOIN seller_listings sl ON pp.listing_id = sl.id
+      WHERE p.store_id = $1
+        AND p.is_active = true
+        AND pp.listing_id = ANY($2::uuid[])
+        AND ($3::uuid IS NULL OR p.id != $3::uuid)
+        AND (p.start_date < $5 AND p.end_date > $4)
+    `;
+    const res = await pool.query(query, [storeId, listingIds, excludePromoId, startDate, endDate]);
     return res.rows;
   },
   createPromotion: async (storeId, data) => {
@@ -13,11 +50,26 @@ module.exports = {
       const res = await client.query(
         `INSERT INTO promotions (store_id, title, promo_type, start_date, end_date, banner_url, is_active)
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-        [storeId, data.title, data.promo_type, data.start_date, data.end_date, data.banner_url || null, true]
+        [storeId, data.title, data.promo_type, data.start_date, data.end_date, data.banner_url || null, data.is_active !== undefined ? data.is_active : true]
       );
-      await eventService.emitEvent('promotion', res.rows[0].id, 'PROMOTION_CHANGED', res.rows[0], client);
+      const promo = res.rows[0];
+
+      if (Array.isArray(data.products) && data.products.length > 0) {
+        for (const item of data.products) {
+          if (item.listing_id && item.promo_price !== undefined) {
+            await client.query(
+              `INSERT INTO promotion_products (promotion_id, listing_id, promo_price)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (promotion_id, listing_id) DO UPDATE SET promo_price = EXCLUDED.promo_price`,
+              [promo.id, item.listing_id, parseFloat(item.promo_price)]
+            );
+          }
+        }
+      }
+
+      await eventService.emitEvent('promotion', promo.id, 'PROMOTION_CHANGED', promo, client);
       await client.query('COMMIT');
-      return res.rows[0];
+      return promo;
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;
@@ -35,23 +87,42 @@ module.exports = {
              promo_type = COALESCE($2, promo_type), 
              start_date = COALESCE($3, start_date), 
              end_date = COALESCE($4, end_date), 
-             is_active = COALESCE($5, is_active)
-         WHERE id = $6 AND store_id = $7 RETURNING *`,
+             banner_url = COALESCE($5, banner_url),
+             is_active = COALESCE($6, is_active)
+         WHERE id = $7 AND store_id = $8 RETURNING *`,
         [
           data.title === undefined ? null : data.title,
           data.promo_type === undefined ? null : data.promo_type,
           data.start_date === undefined ? null : data.start_date,
           data.end_date === undefined ? null : data.end_date,
+          data.banner_url === undefined ? null : data.banner_url,
           data.is_active === undefined ? null : data.is_active,
           id,
           storeId
         ]
       );
-      if (res.rows.length > 0) {
-        await eventService.emitEvent('promotion', res.rows[0].id, 'PROMOTION_CHANGED', res.rows[0], client);
+      if (res.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return null;
       }
+      const promo = res.rows[0];
+
+      if (Array.isArray(data.products)) {
+        await client.query('DELETE FROM promotion_products WHERE promotion_id = $1', [id]);
+        for (const item of data.products) {
+          if (item.listing_id && item.promo_price !== undefined) {
+            await client.query(
+              `INSERT INTO promotion_products (promotion_id, listing_id, promo_price)
+               VALUES ($1, $2, $3)`,
+              [id, item.listing_id, parseFloat(item.promo_price)]
+            );
+          }
+        }
+      }
+
+      await eventService.emitEvent('promotion', promo.id, 'PROMOTION_CHANGED', promo, client);
       await client.query('COMMIT');
-      return res.rows[0];
+      return promo;
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;

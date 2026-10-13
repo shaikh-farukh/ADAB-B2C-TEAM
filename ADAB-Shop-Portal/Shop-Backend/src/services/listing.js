@@ -7,6 +7,10 @@ class ListingService {
     return await ListingRepository.createListing(storeId, validatedData);
   }
 
+  async getCategories() {
+    return await ListingRepository.getCategories();
+  }
+
   async getListings(storeId, filters) {
     return await ListingRepository.getListings(storeId, filters);
   }
@@ -19,12 +23,29 @@ class ListingService {
 
   async updateListing(storeId, id, data) {
     const existing = await this.getListingById(storeId, id);
-    if (!['DRAFT', 'CHANGES_REQUIRED'].includes(existing.approval_status)) {
-      throw new Error(`Cannot edit listing while it is in ${existing.approval_status} state. It must be in DRAFT or CHANGES_REQUIRED.`);
+    if (!['DRAFT', 'CHANGES_REQUIRED', 'APPROVED'].includes(existing.approval_status)) {
+      throw new Error(`Cannot edit listing while it is in ${existing.approval_status} state. It must be in DRAFT, CHANGES_REQUIRED, or APPROVED.`);
     }
     const validatedData = updateListingSchema.parse(data);
+
+    // If an approved listing is edited, transition its status to SUBMITTED for admin re-review
+    if (existing.approval_status === 'APPROVED') {
+      validatedData.approval_status = 'SUBMITTED';
+    }
+
     const listing = await ListingRepository.updateListing(storeId, id, validatedData);
     if (!listing) throw new Error('Listing not found');
+
+    if (existing.approval_status === 'APPROVED') {
+      const pool = require('../../db');
+      await pool.query(
+        `INSERT INTO product_approval_history (listing_id, previous_status, new_status, rejection_reason) VALUES ($1, $2, $3, $4)`,
+        [id, 'APPROVED', 'SUBMITTED', 'Seller edited approved listing and re-submitted for review']
+      );
+      const notificationProducer = require('./notificationProducer');
+      await notificationProducer.listingSubmitted(storeId, listing.title);
+    }
+
     return listing;
   }
 
@@ -34,9 +55,16 @@ class ListingService {
     return listing;
   }
 
+  async batchDeleteListings(storeId, ids) {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new Error('No listing IDs provided for deletion');
+    }
+    return await ListingRepository.batchDeleteListings(storeId, ids);
+  }
+
   async submitListing(storeId, id) {
     const listing = await this.getListingById(storeId, id);
-    if (listing.approval_status !== 'DRAFT' && listing.approval_status !== 'CHANGES_REQUIRED') {
+    if (!['DRAFT', 'CHANGES_REQUIRED', 'APPROVED'].includes(listing.approval_status)) {
       throw new Error(`Cannot submit listing from state: ${listing.approval_status}`);
     }
     
@@ -44,7 +72,7 @@ class ListingService {
     const pool = require('../../db');
     await pool.query(
       `INSERT INTO product_approval_history (listing_id, previous_status, new_status, rejection_reason) VALUES ($1, $2, $3, $4)`,
-      [id, listing.approval_status, 'SUBMITTED', 'Seller submitted for review']
+      [id, listing.approval_status, 'SUBMITTED', listing.approval_status === 'APPROVED' ? 'Seller edited approved listing and re-submitted for review' : 'Seller submitted for review']
     );
 
     const updated = await ListingRepository.updateListing(storeId, id, { approval_status: 'SUBMITTED' });

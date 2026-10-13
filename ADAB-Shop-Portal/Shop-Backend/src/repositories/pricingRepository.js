@@ -1,15 +1,108 @@
 const pool = require('../../db');
 const eventService = require('../services/eventService');
 
+function computePriceWaterfall(listing, activePromos = [], activeCoupons = []) {
+  const baseSellPrice = parseFloat(listing.sell_price) || 0;
+  const mrp = parseFloat(listing.mrp) || baseSellPrice;
+
+  // 1. Promo / Flash Sale discount
+  const listingPromos = activePromos.filter(p => String(p.listing_id) === String(listing.id));
+  let promoPrice = null;
+  let promoTitle = null;
+  let promoType = null;
+  let promoDiscount = 0;
+
+  if (listingPromos.length > 0) {
+    listingPromos.sort((a, b) => parseFloat(a.promo_price) - parseFloat(b.promo_price));
+    const bestPromo = listingPromos[0];
+    const candidatePrice = parseFloat(bestPromo.promo_price);
+    if (!isNaN(candidatePrice) && candidatePrice < baseSellPrice) {
+      promoPrice = candidatePrice;
+      promoTitle = bestPromo.promo_title;
+      promoType = bestPromo.promo_type;
+      promoDiscount = Math.max(0, baseSellPrice - promoPrice);
+    }
+  }
+
+  const priceAfterPromo = promoPrice !== null ? promoPrice : baseSellPrice;
+
+  // 2. Active Coupons
+  const applicableCoupons = activeCoupons.filter(c => {
+    if (c.applies_to === 'ENTIRE_SHOP') return true;
+    if (c.applies_to === 'SPECIFIC_PRODUCTS' && String(c.target_value) === String(listing.id)) return true;
+    return false;
+  });
+
+  let bestCoupon = null;
+  let maxCouponDiscount = 0;
+
+  for (const c of applicableCoupons) {
+    const minOrder = parseFloat(c.min_order_value) || 0;
+    if (minOrder > 0 && priceAfterPromo < minOrder) {
+      continue;
+    }
+
+    const val = parseFloat(c.discount_value) || 0;
+    let discount = 0;
+    if (c.discount_type === 'PERCENTAGE') {
+      discount = (priceAfterPromo * val) / 100;
+    } else {
+      discount = val;
+    }
+
+    if (c.max_discount_cap && parseFloat(c.max_discount_cap) > 0) {
+      discount = Math.min(discount, parseFloat(c.max_discount_cap));
+    }
+
+    discount = Math.min(discount, priceAfterPromo);
+
+    if (discount > maxCouponDiscount) {
+      maxCouponDiscount = discount;
+      bestCoupon = c;
+    }
+  }
+
+  const finalCustomerPrice = Math.max(0, priceAfterPromo - maxCouponDiscount);
+  const totalDiscount = Math.max(0, baseSellPrice - finalCustomerPrice);
+  const totalDiscountPct = baseSellPrice > 0 ? ((totalDiscount / baseSellPrice) * 100).toFixed(1) : '0';
+
+  return {
+    listing_id: listing.id,
+    sku: listing.sku,
+    title: listing.title,
+    mrp: mrp.toFixed(2),
+    base_sell_price: baseSellPrice.toFixed(2),
+    promo_title: promoTitle,
+    promo_type: promoType,
+    promo_price: promoPrice !== null ? promoPrice.toFixed(2) : null,
+    promo_discount: promoDiscount.toFixed(2),
+    coupon_code: bestCoupon ? bestCoupon.code : null,
+    coupon_type: bestCoupon ? bestCoupon.discount_type : null,
+    coupon_value: bestCoupon ? bestCoupon.discount_value : null,
+    coupon_discount: maxCouponDiscount.toFixed(2),
+    final_customer_price: finalCustomerPrice.toFixed(2),
+    seller_realized_price: finalCustomerPrice.toFixed(2), // Realized revenue (stops before platform fees)
+    total_discount_amount: totalDiscount.toFixed(2),
+    total_discount_pct: totalDiscountPct,
+    has_offers: promoPrice !== null || maxCouponDiscount > 0
+  };
+}
+
 module.exports = {
   getPricingSchedules: async (storeId) => {
     const res = await pool.query(
       `SELECT p.id as promotion_id, pp.listing_id, pp.promo_price as scheduled_price, p.start_date, p.end_date, 
-       'PENDING' as status, sl.sku, sl.title, p.created_at
+       p.promo_type, p.title as promo_title,
+       CASE 
+         WHEN p.end_date < NOW() THEN 'EXPIRED'
+         WHEN p.start_date <= NOW() AND p.end_date >= NOW() THEN 'ACTIVE'
+         ELSE 'SCHEDULED'
+       END as status,
+       sl.sku, sl.title, p.created_at
        FROM promotions p
        JOIN promotion_products pp ON p.id = pp.promotion_id
        JOIN seller_listings sl ON pp.listing_id = sl.id
-       WHERE p.store_id = $1 AND p.promo_type = 'PRICE_SCHEDULE'
+       WHERE p.store_id = $1
        ORDER BY p.created_at DESC`,
       [storeId]
     );
@@ -78,68 +171,100 @@ module.exports = {
     return res.rows;
   },
 
-  previewPricing: async (storeId, listingId) => {
-    // Return the final customer-visible price considering active promotions and seller_listings sell_price
-    const res = await pool.query(
-      `SELECT 
-         sl.mrp, 
-         sl.sell_price as base_sell_price,
-         p.title as promo_title,
-         pp.promo_price as active_promo_price,
-         c.code as coupon_code,
-         c.discount_value as active_coupon_discount,
-         c.discount_type as active_coupon_type
-       FROM seller_listings sl
-       LEFT JOIN promotion_products pp ON sl.id = pp.listing_id
-       LEFT JOIN promotions p ON pp.promotion_id = p.id 
-         AND p.store_id = $1 
-         AND p.is_active = true 
+  getAllPreviews: async (storeId) => {
+    // 1. Fetch active promotions & flash sales for this store
+    const promosRes = await pool.query(
+      `SELECT pp.listing_id, pp.promo_price, p.title as promo_title, p.promo_type
+       FROM promotion_products pp
+       JOIN promotions p ON pp.promotion_id = p.id
+       WHERE p.store_id = $1
+         AND p.is_active = true
          AND (p.start_date IS NULL OR p.start_date <= NOW())
          AND (p.end_date IS NULL OR p.end_date >= NOW())
-       LEFT JOIN coupons c ON c.store_id = $1
-         AND c.is_active = true
-         AND (c.applies_to = 'ENTIRE_SHOP' OR c.target_value = $2)
-         AND (c.valid_from IS NULL OR c.valid_from <= NOW())
-         AND (c.valid_until IS NULL OR c.valid_until >= NOW())
-       WHERE sl.id = $2 AND sl.store_id = $1
-       ORDER BY pp.promo_price ASC, c.discount_value DESC
-       LIMIT 1`,
+       ORDER BY pp.promo_price ASC`,
+      [storeId]
+    );
+
+    // 2. Fetch active coupons for this store
+    const couponsRes = await pool.query(
+      `SELECT id, code, discount_type, discount_value, min_order_value, max_discount_cap, applies_to, target_value
+       FROM coupons
+       WHERE store_id = $1
+         AND is_active = true
+         AND (valid_from IS NULL OR valid_from <= NOW())
+         AND (valid_until IS NULL OR valid_until >= NOW())
+       ORDER BY discount_value DESC`,
+      [storeId]
+    );
+
+    // 3. Fetch all listings for this store
+    const listingsRes = await pool.query(
+      `SELECT id, mrp, sell_price, title, sku
+       FROM seller_listings
+       WHERE store_id = $1`,
+      [storeId]
+    );
+
+    const previews = {};
+    for (const listing of listingsRes.rows) {
+      previews[listing.id] = computePriceWaterfall(listing, promosRes.rows, couponsRes.rows);
+    }
+
+    return {
+      previews,
+      activeCoupons: couponsRes.rows,
+      activePromosCount: promosRes.rows.length
+    };
+  },
+
+  previewPricing: async (storeId, listingId) => {
+    const listingRes = await pool.query(
+      `SELECT id, mrp, sell_price, title, sku FROM seller_listings WHERE id = $1 AND store_id = $2`,
+      [listingId, storeId]
+    );
+    if (!listingRes.rows[0]) return null;
+
+    const promosRes = await pool.query(
+      `SELECT pp.listing_id, pp.promo_price, p.title as promo_title, p.promo_type
+       FROM promotion_products pp
+       JOIN promotions p ON pp.promotion_id = p.id
+       WHERE p.store_id = $1 AND pp.listing_id = $2
+         AND p.is_active = true
+         AND (p.start_date IS NULL OR p.start_date <= NOW())
+         AND (p.end_date IS NULL OR p.end_date >= NOW())
+       ORDER BY pp.promo_price ASC`,
       [storeId, listingId]
     );
 
-    const row = res.rows[0];
-    if (!row) return null;
+    const couponsRes = await pool.query(
+      `SELECT id, code, discount_type, discount_value, min_order_value, max_discount_cap, applies_to, target_value
+       FROM coupons
+       WHERE store_id = $1
+         AND is_active = true
+         AND (valid_from IS NULL OR valid_from <= NOW())
+         AND (valid_until IS NULL OR valid_until >= NOW())
+       ORDER BY discount_value DESC`,
+      [storeId]
+    );
 
-    let finalPrice = row.active_promo_price ? parseFloat(row.active_promo_price) : parseFloat(row.base_sell_price);
-
-    // Apply coupon
-    if (row.active_coupon_discount) {
-      const discount = parseFloat(row.active_coupon_discount);
-      if (row.active_coupon_type === 'PERCENTAGE') {
-        finalPrice = finalPrice - (finalPrice * (discount / 100));
-      } else {
-        finalPrice = finalPrice - discount;
-      }
-    }
-
-    if (finalPrice < 0) finalPrice = 0;
-
-    return {
-      mrp: row.mrp,
-      base_sell_price: row.base_sell_price,
-      active_promo_price: row.active_promo_price || null,
-      promo_title: row.promo_title || null,
-      coupon_code: row.coupon_code || null,
-      coupon_discount: row.active_coupon_discount || null,
-      coupon_type: row.active_coupon_type || null,
-      final_price: finalPrice.toFixed(2)
-    };
+    return computePriceWaterfall(listingRes.rows[0], promosRes.rows, couponsRes.rows);
   },
 
   schedulePricing: async (storeId, listingId, data) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      // Remove any prior price schedule for this listing to avoid overlap collisions
+      await client.query(
+        `DELETE FROM promotions p 
+         USING promotion_products pp 
+         WHERE p.id = pp.promotion_id 
+         AND pp.listing_id = $1 
+         AND p.store_id = $2 
+         AND p.promo_type = 'PRICE_SCHEDULE'`, 
+        [listingId, storeId]
+      );
       
       const promoRes = await client.query(
         `INSERT INTO promotions (store_id, title, promo_type, start_date, end_date, is_active)
@@ -156,7 +281,7 @@ module.exports = {
       
       await eventService.emitEvent('promotion', promoId, 'PROMOTION_CHANGED', { promoId, listingId, ...data }, client);
       await client.query('COMMIT');
-      return { listing_id: listingId, scheduled_price: data.scheduled_price, start_date: data.start_date, end_date: data.end_date, status: 'PENDING' };
+      return { listing_id: listingId, scheduled_price: data.scheduled_price, start_date: data.start_date, end_date: data.end_date, status: 'SCHEDULED' };
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;

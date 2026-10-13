@@ -2,17 +2,22 @@ const pool = require('../../db');
 
 class ListingRepository {
   async createListing(storeId, data) {
+    const effectiveUnit = data.unit || (
+      data.product_type === 'LOOSE_WEIGHT' ? 'kg' :
+      data.product_type === 'PACKED_ITEM' ? 'pack' : 'pcs'
+    );
     const query = `
       INSERT INTO seller_listings (
         store_id, title, sku, barcode, brand_tag, product_type, unit, 
-        mrp, sell_price, min_order_qty, allowed_buyers, approval_status, is_active, stock_qty
+        mrp, sell_price, min_order_qty, allowed_buyers, approval_status, is_active, stock_qty, category_id
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
       ) RETURNING *;
     `;
     const values = [
-      storeId, data.title, data.sku, data.barcode, data.brand_tag, data.product_type, data.unit,
-      data.mrp, data.sell_price, data.min_order_qty, data.allowed_buyers, data.approval_status, data.is_active, data.stock_qty || 0
+      storeId, data.title, data.sku || null, data.barcode || null, data.brand_tag || null, data.product_type, effectiveUnit,
+      data.mrp, data.sell_price, data.min_order_qty || 1, data.allowed_buyers || 'ALL', data.approval_status || 'DRAFT', data.is_active !== undefined ? data.is_active : true, data.stock_qty || 0,
+      data.category_id ? parseInt(data.category_id, 10) : null
     ];
     
     const result = await pool.query(query, values);
@@ -28,6 +33,13 @@ class ListingRepository {
     }
 
     return listing;
+  }
+
+  async getCategories() {
+    const result = await pool.query(
+      'SELECT id, name, slug FROM categories WHERE is_active = true OR is_active IS NULL ORDER BY display_order ASC, name ASC'
+    );
+    return result.rows;
   }
 
   async getListings(storeId, filters = {}) {
@@ -68,10 +80,12 @@ class ListingRepository {
     const whereClause = conditions.join(' AND ');
 
     let query = `
-      SELECT sl.*, pi.image_url, COALESCE(sl.stock_qty, i.available_quantity::integer, 0) as stock_qty
+      SELECT sl.*, pi.image_url, COALESCE(sl.stock_qty, i.available_quantity::integer, 0) as stock_qty,
+             c.name as category_name
       FROM seller_listings sl
       LEFT JOIN product_images pi ON sl.id = pi.product_id AND pi.is_primary = true
       LEFT JOIN inventory i ON sl.id = i.listing_id
+      LEFT JOIN categories c ON sl.category_id = c.id
       WHERE ${whereClause}
       ORDER BY sl.created_at DESC
     `;
@@ -106,8 +120,9 @@ class ListingRepository {
 
   async getListingById(storeId, id) {
     const result = await pool.query(
-      `SELECT sl.*, pi.image_url FROM seller_listings sl 
+      `SELECT sl.*, pi.image_url, c.name as category_name FROM seller_listings sl 
        LEFT JOIN product_images pi ON sl.id = pi.product_id AND pi.is_primary = true 
+       LEFT JOIN categories c ON sl.category_id = c.id
        WHERE sl.id = $1 AND sl.store_id = $2`, 
       [id, storeId]
     );
@@ -171,6 +186,13 @@ class ListingRepository {
     const query = `DELETE FROM seller_listings WHERE id = $1 AND store_id = $2 RETURNING *;`;
     const result = await pool.query(query, [id, storeId]);
     return result.rows[0];
+  }
+
+  async batchDeleteListings(storeId, ids) {
+    if (!ids || ids.length === 0) return [];
+    const query = `DELETE FROM seller_listings WHERE store_id = $1 AND id = ANY($2::uuid[]) RETURNING id;`;
+    const result = await pool.query(query, [storeId, ids]);
+    return result.rows;
   }
   async getApprovalHistory(id) {
     const query = `

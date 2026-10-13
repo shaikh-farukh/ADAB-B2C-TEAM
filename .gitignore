@@ -110,6 +110,12 @@ fix*.js
 fix*.cjs
 patch*.js
 *.local.md
+POST_PULL_FIXES_SUMMARY.md
+**/POST_PULL_FIXES_SUMMARY.md
+*_SUMMARY.md
+*_summary.md
+*SUMMARY.md
+*.summary.md
 
 # ==============================================================================
 # PORTAL SPECIFIC EXPLICIT RULES & SCRIPTS

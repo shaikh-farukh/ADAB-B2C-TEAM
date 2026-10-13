@@ -3,6 +3,7 @@ import client from './client';
 export const marketingApi = {
   fetchPromotions: () => client.get('/promotions'),
   createPromotion: (data) => client.post('/promotions', data),
+  checkOverlap: (data) => client.post('/promotions/check-overlap', data),
   updatePromotion: (id, data) => client.patch(`/promotions/${id}`, data),
   deletePromotion: (id) => client.delete(`/promotions/${id}`),
   

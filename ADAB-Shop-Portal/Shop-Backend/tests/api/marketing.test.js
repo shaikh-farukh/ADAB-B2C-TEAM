@@ -28,6 +28,7 @@ jest.mock('../../src/middlewares/auth', () => ({
 jest.mock('../../src/controllers/marketingController', () => ({
   getPromotions: (req, res) => res.json([{ id: '1', title: 'Promo 1' }]),
   createPromotion: (req, res) => res.status(201).json({ id: '1', title: req.body.title }),
+  checkOverlap: (req, res) => res.json({ overlaps: [], hasOverlap: false }),
   updatePromotion: (req, res) => res.json({ id: '1', title: req.body.title }),
   deletePromotion: (req, res) => res.json({ success: true }),
   getCoupons: (req, res) => res.json([{ id: '1', code: 'CODE1' }]),

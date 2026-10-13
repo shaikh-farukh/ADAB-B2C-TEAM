@@ -67,6 +67,17 @@ module.exports = {
     }
   },
 
+  getAllPreviews: async (req, res) => {
+    try {
+      const storeId = getAuthorizedStoreId(req);
+      const data = await pricingService.getAllPreviews(storeId);
+      res.json(data);
+    } catch (err) {
+      const status = err.statusCode || (err.message.startsWith('Forbidden') ? 403 : 500);
+      res.status(status).json({ error: err.message });
+    }
+  },
+
   previewPricing: async (req, res) => {
     try {
       const storeId = getAuthorizedStoreId(req);

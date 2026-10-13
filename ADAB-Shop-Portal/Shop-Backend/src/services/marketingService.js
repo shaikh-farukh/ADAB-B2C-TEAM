@@ -15,6 +15,16 @@ module.exports = {
     return result;
   },
 
+  checkOverlap: async (storeId, data) => {
+    return await marketingRepo.checkOverlappingDeals(
+      storeId, 
+      data.listing_ids || [], 
+      data.start_date, 
+      data.end_date, 
+      data.exclude_promo_id || null
+    );
+  },
+
   editPromotion: async (storeId, id, data) => {
     return await marketingRepo.updatePromotion(storeId, id, data);
   },
