@@ -48,7 +48,7 @@ class SellerRepository {
   async getStore(userId) {
     const query = `
       SELECT s.id, s.seller_id as owner_id, s.store_name, s.city, s.state, s.pincode, s.address_line, 
-             s.ui_mode, s.is_online, s.delivery_radius_km, s.rating, s.phone, s.category,
+             s.ui_mode, s.is_online, s.delivery_radius_km, s.rating, s.phone, s.email, s.category,
              s.latitude, s.longitude
       FROM stores s
       JOIN seller_profiles sp ON s.seller_id = sp.id
@@ -72,6 +72,21 @@ class SellerRepository {
           ).catch(() => {});
         }
       }).catch(() => {});
+    }
+
+    // Ensure store.email is synced with users.email if previously empty
+    if (store && (!store.email || store.email === '')) {
+      try {
+        const uRes = await pool.query('SELECT email FROM users WHERE id = $1', [userId]);
+        const userEmail = uRes.rows[0]?.email;
+        if (userEmail) {
+          store.email = userEmail;
+          pool.query(
+            'UPDATE stores SET email = $1 WHERE id = $2 AND (email IS NULL OR email = \'\')',
+            [userEmail, store.id]
+          ).catch(() => {});
+        }
+      } catch (_) {}
     }
 
     return store;
@@ -112,7 +127,7 @@ class SellerRepository {
     const store = await this.getStore(userId);
     if (!store) throw new Error("Store not found");
 
-    const allowedFields = ['store_name', 'city', 'state', 'pincode', 'address_line', 'phone', 'category', 'latitude', 'longitude'];
+    const allowedFields = ['store_name', 'city', 'state', 'pincode', 'address_line', 'phone', 'email', 'category', 'latitude', 'longitude'];
     const updatePayload = { ...data };
 
     const addressChanged = (updatePayload.address_line !== undefined && updatePayload.address_line !== store.address_line) ||
@@ -1205,6 +1220,7 @@ class SellerRepository {
           s.pincode,
           s.address_line,
           s.phone,
+          s.email,
           COALESCE(s.delivery_radius_km, 10.0) as delivery_radius_km,
           COALESCE(s.is_online, false) as is_online,
           COALESCE(s.rating, 5.0) as rating,
@@ -2074,6 +2090,18 @@ class SellerRepository {
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
+    try {
+      // Sync stores.email from users.email if store email column was previously null
+      await pool.query(`
+        UPDATE stores s
+        SET email = u.email
+        FROM seller_profiles sp
+        JOIN users u ON sp.user_id = u.id
+        WHERE s.seller_id = sp.id
+          AND (s.email IS NULL OR s.email = '')
+          AND u.email IS NOT NULL AND u.email != '';
+      `);
+    } catch (_) {}
     this._onboardingTableReady = true;
   }
 
@@ -2182,9 +2210,13 @@ class SellerRepository {
       const spId = spRes.rows[0]?.id;
       if (spId && !onboarding.store?.id) {
         await pool.query(`
-          INSERT INTO stores (seller_id, store_name, category, city, state, pincode, address_line, phone, delivery_radius_km, is_online)
-          VALUES ($1, $2, 'Grocery & Supermarket', 'Surat', 'Gujarat', '395007', '', $3, 10, false)
-        `, [spId, defaultStoreName, user.phone || '']);
+          INSERT INTO stores (seller_id, store_name, category, city, state, pincode, address_line, phone, email, delivery_radius_km, is_online)
+          VALUES ($1, $2, 'Grocery & Supermarket', 'Surat', 'Gujarat', '395007', '', $3, $4, 10, false)
+        `, [spId, defaultStoreName, user.phone || '', user.email || null]);
+      } else if (onboarding.store?.id && (!onboarding.store.email || onboarding.store.email === '') && user.email) {
+        await pool.query(`
+          UPDATE stores SET email = $1 WHERE id = $2 AND (email IS NULL OR email = '')
+        `, [user.email, onboarding.store.id]).catch(() => {});
       }
       onboarding = await this.getOnboardingData(user.id);
     }
@@ -2254,9 +2286,9 @@ class SellerRepository {
         RETURNING id, legal_name, entity_type, gstin, pan, fssai_license, udhyam_msme, kyc_status, onboarding_step, rejection_reason, submitted_at, verified_at
       ),
       new_store AS (
-        INSERT INTO stores (seller_id, store_name, category, city, state, pincode, address_line, phone, delivery_radius_km, is_online)
-        SELECT id, $4, 'Grocery & Supermarket', 'Surat', 'Gujarat', '395007', '', $1, 10, false FROM new_profile
-        RETURNING id, seller_id AS owner_id, store_name, city, state, pincode, address_line, ui_mode, is_online, open_time, close_time, delivery_radius_km, rating, phone, category, latitude, longitude
+        INSERT INTO stores (seller_id, store_name, category, city, state, pincode, address_line, phone, email, delivery_radius_km, is_online)
+        SELECT id, $4, 'Grocery & Supermarket', 'Surat', 'Gujarat', '395007', '', $1, $5, 10, false FROM new_profile
+        RETURNING id, seller_id AS owner_id, store_name, city, state, pincode, address_line, ui_mode, is_online, open_time, close_time, delivery_radius_km, rating, phone, email, category, latitude, longitude
       ),
       new_steps AS (
         INSERT INTO seller_onboarding_steps (user_id, step1, step2, step3, step4, step5, step6, step7)
@@ -2458,6 +2490,15 @@ class SellerRepository {
       }).catch(() => {});
     }
 
+    // Ensure store.email is synced with users.email if store email is missing
+    if (store && (!store.email || store.email === '') && profile?.email) {
+      pool.query(
+        'UPDATE stores SET email = $1 WHERE id = $2 AND (email IS NULL OR email = \'\')',
+        [profile.email, store.id]
+      ).catch(() => {});
+      store.email = profile.email;
+    }
+
     return {
       profile,
       store,
@@ -2550,9 +2591,10 @@ class SellerRepository {
         await pool.query(`
           UPDATE stores
           SET store_name = $1, category = $2, address_line = $3, city = $4, state = $5, pincode = $6, phone = $7,
-              latitude = COALESCE($8, latitude), longitude = COALESCE($9, longitude)
-          WHERE id = $10
-        `, [storeName, category, addressLine, city, stateVal, pincodeVal, phoneToUpdate, storeLat, storeLng, store.id]);
+              latitude = COALESCE($8, latitude), longitude = COALESCE($9, longitude),
+              email = COALESCE($10, email)
+          WHERE id = $11
+        `, [storeName, category, addressLine, city, stateVal, pincodeVal, phoneToUpdate, storeLat, storeLng, email, store.id]);
       } else {
         await pool.query(`
           UPDATE users SET full_name = $1, email = COALESCE($2, email), updated_at = NOW()
@@ -2562,9 +2604,10 @@ class SellerRepository {
         await pool.query(`
           UPDATE stores
           SET store_name = $1, category = $2, address_line = $3, city = $4, state = $5, pincode = $6,
-              latitude = COALESCE($7, latitude), longitude = COALESCE($8, longitude)
-          WHERE id = $9
-        `, [storeName, category, addressLine, city, stateVal, pincodeVal, storeLat, storeLng, store.id]);
+              latitude = COALESCE($7, latitude), longitude = COALESCE($8, longitude),
+              email = COALESCE($9, email)
+          WHERE id = $10
+        `, [storeName, category, addressLine, city, stateVal, pincodeVal, storeLat, storeLng, email, store.id]);
       }
 
       await pool.query(`

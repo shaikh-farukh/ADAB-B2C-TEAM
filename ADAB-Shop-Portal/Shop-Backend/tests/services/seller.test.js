@@ -100,4 +100,24 @@ describe('Seller Service', () => {
     }));
     expect(res).toEqual(mockStepResult);
   });
+
+  it('should forward saveOnboardingStep with email data to repository for stores table', async () => {
+    const mockStepResult = {
+      profile: { id: 'user-1', email: 'merchant@adab.com' },
+      store: { id: 'store-1', email: 'merchant@adab.com' }
+    };
+    sellerRepository.saveOnboardingStep.mockResolvedValue(mockStepResult);
+
+    const res = await sellerService.saveOnboardingStep('user-1', 1, {
+      store_name: 'Test Store',
+      owner_name: 'Owner',
+      address_line: 'Ring Road',
+      email: 'merchant@adab.com'
+    });
+
+    expect(sellerRepository.saveOnboardingStep).toHaveBeenCalledWith('user-1', 1, expect.objectContaining({
+      email: 'merchant@adab.com'
+    }));
+    expect(res.store.email).toBe('merchant@adab.com');
+  });
 });
