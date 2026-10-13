@@ -47,18 +47,28 @@ export default function BuyNearbyPage() {
         sellerApi.getPurchaseOrders()
       ]);
 
+      let loadedProducts = [];
       if (catRes.status === 'fulfilled') {
         const raw = catRes.value?.data !== undefined ? catRes.value.data : catRes.value;
-        setProducts(Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []));
+        loadedProducts = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
+        setProducts(loadedProducts);
       } else {
         setProducts([]);
       }
 
+      let loadedStores = [];
       if (storeRes.status === 'fulfilled') {
         const raw = storeRes.value?.data !== undefined ? storeRes.value.data : storeRes.value;
-        setStores(Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []));
+        loadedStores = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
+        setStores(loadedStores);
       } else {
         setStores([]);
+      }
+
+      // If no products have been listed yet, but partner stores exist in the database,
+      // default the view to 'stores' so user immediately sees registered partner shops
+      if (loadedProducts.length === 0 && loadedStores.length > 0) {
+        setViewMode('stores');
       }
 
       if (creditRes.status === 'fulfilled') {
@@ -370,36 +380,90 @@ export default function BuyNearbyPage() {
                 /* Production-Grade Real Empty State */
                 <div className="card p-10 sm:p-14 text-center border-dashed border-2 border-gray-200 space-y-4 max-w-2xl mx-auto my-6">
                   <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center mx-auto text-2xl shadow-inner">
-                    <i className="fa-solid fa-store-slash"></i>
+                    <i className="fa-solid fa-boxes-stacked"></i>
                   </div>
                   <div>
-                    <h3 className="text-lg font-extrabold text-gray-900">No Other Stores in Your Local Radius Yet</h3>
-                    <p className="text-xs sm:text-sm text-gray-500 mt-1 max-w-md mx-auto leading-relaxed">
-                      You are currently logged in as <span className="font-bold text-gray-700">{store?.store_name || 'your store'}</span>. In B2B restocking, your own store is excluded from the supplier list.
-                    </p>
+                    {storeFilter ? (
+                      <>
+                        <h3 className="text-lg font-extrabold text-gray-900">
+                          {stores.find((st) => st.id === storeFilter)?.store_name || 'Selected Store'} Has No Products Yet
+                        </h3>
+                        <p className="text-xs sm:text-sm text-gray-500 mt-1 max-w-md mx-auto leading-relaxed">
+                          This partner store is registered in the directory, but has not published any items in their wholesale catalog yet.
+                        </p>
+                      </>
+                    ) : stores.length > 0 ? (
+                      <>
+                        <h3 className="text-lg font-extrabold text-gray-900">No Wholesale Products Listed Yet</h3>
+                        <p className="text-xs sm:text-sm text-gray-500 mt-1 max-w-md mx-auto leading-relaxed">
+                          There are <span className="font-bold text-gray-800">{stores.length} registered partner stores</span> in your directory, but none have published wholesale products yet. You can view their profiles and terms in the Shops directory.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <h3 className="text-lg font-extrabold text-gray-900">No Other Stores in Your Local Radius Yet</h3>
+                        <p className="text-xs sm:text-sm text-gray-500 mt-1 max-w-md mx-auto leading-relaxed">
+                          You are currently logged in as <span className="font-bold text-gray-700">{store?.store_name || 'your store'}</span>. In B2B restocking, your own store is excluded from the supplier list.
+                        </p>
+                      </>
+                    )}
                   </div>
 
                   <div className="p-3.5 bg-gray-50 rounded-xl text-left border border-gray-200 text-xs text-gray-600 space-y-2">
                     <div className="font-bold text-gray-800 flex items-center gap-1.5">
-                      <i className="fa-solid fa-circle-info text-blue-600"></i> How multi-seller testing works:
+                      <i className="fa-solid fa-circle-info text-blue-600"></i> How multi-seller restocking works:
                     </div>
                     <ul className="list-disc list-inside space-y-1 text-gray-500 pl-1">
-                      <li>When you register a <strong>2nd seller account</strong> or onboard another store, their verified listings will appear here automatically.</li>
-                      <li>Their credit policy (e.g. 14 days credit) and delivery zones (Porter / Express) will be loaded live from PostgreSQL.</li>
+                      {stores.length > 0 ? (
+                        <>
+                          <li>
+                            <strong>{stores.length} partner stores found:</strong> {stores.map((s) => s.store_name).join(', ')}.
+                          </li>
+                          <li>
+                            When these sellers list inventory or when a new seller lists products, their live items will automatically appear here.
+                          </li>
+                        </>
+                      ) : (
+                        <>
+                          <li>When you register a <strong>2nd seller account</strong> or onboard another store, their verified listings will appear here automatically.</li>
+                          <li>Their credit policy (e.g. 14 days credit) and delivery zones (Porter / Express) will be loaded live from PostgreSQL.</li>
+                        </>
+                      )}
                     </ul>
                   </div>
 
                   <div className="flex gap-2 justify-center pt-2 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => setViewMode('stores')}
-                      className="btn-soft !text-xs !py-2.5 !px-4 flex items-center gap-1.5"
-                    >
-                      <i className="fa-solid fa-store"></i> Check Store Directory
-                    </button>
+                    {storeFilter ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStoreFilter(null);
+                          setViewMode('stores');
+                        }}
+                        className="btn-primary !text-xs !py-2.5 !px-4 flex items-center gap-1.5"
+                      >
+                        <i className="fa-solid fa-arrow-left"></i> Return to All Shops ({stores.length})
+                      </button>
+                    ) : stores.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setViewMode('stores')}
+                        className="btn-primary !text-xs !py-2.5 !px-4 flex items-center gap-1.5"
+                      >
+                        <i className="fa-solid fa-store"></i> View {stores.length} Registered Shops
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setViewMode('stores')}
+                        className="btn-soft !text-xs !py-2.5 !px-4 flex items-center gap-1.5"
+                      >
+                        <i className="fa-solid fa-store"></i> Check Store Directory
+                      </button>
+                    )}
                     <Link
                       to="/mastersearch"
-                      className="btn-primary !text-xs !py-2.5 !px-4 flex items-center gap-1.5"
+                      className="btn-soft !text-xs !py-2.5 !px-4 flex items-center gap-1.5"
                     >
                       <i className="fa-solid fa-magnifying-glass"></i> Search National FMCG Catalog
                     </Link>
