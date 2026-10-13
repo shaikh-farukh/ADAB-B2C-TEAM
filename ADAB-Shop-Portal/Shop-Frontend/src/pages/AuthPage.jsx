@@ -24,7 +24,7 @@ export default function AuthPage() {
   const phoneInputRef = useRef(null);
   const emailInputRef = useRef(null);
 
-  const { login } = useSeller();
+  const { login, signup } = useSeller();
   const navigate = useNavigate();
 
   const selectIdMode = (mode) => {
@@ -159,11 +159,28 @@ export default function AuthPage() {
 
     try {
       setSubmitting(true);
-      const data = await login(phone, password, {
-        email: email.trim(),
-        password,
-        idMode
-      });
+      let data;
+      try {
+        data = await login(phone, password, {
+          email: email.trim(),
+          password,
+          idMode
+        });
+      } catch (loginErr) {
+        const errorMsg = String(loginErr?.response?.data?.error || loginErr?.message || '').toLowerCase();
+        if (errorMsg.includes('account not found') || errorMsg.includes('register first')) {
+          const namePart = email.trim() ? email.trim().split('@')[0] : 'Merchant';
+          const defaultName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+          data = await signup(phone, password, {
+            email: email.trim() || undefined,
+            full_name: defaultName,
+            store_name: `${defaultName} Store`,
+            idMode
+          });
+        } else {
+          throw loginErr;
+        }
+      }
       const steps = data?.kycSteps;
       const prof = data?.profile;
       const rawKyc = String(prof?.kyc_status || '').trim().toUpperCase();

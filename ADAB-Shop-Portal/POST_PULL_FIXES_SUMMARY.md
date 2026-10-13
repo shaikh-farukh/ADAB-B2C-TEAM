@@ -146,6 +146,18 @@ All issues were systematically identified, fixed, and verified with automated te
 
 ---
 
+### 2.8. Unified First-Time Login Auto-Provisioning & Registration
+* **Affected Files:**
+  * [`Shop-Backend/src/repositories/seller.js`](file:///c:/Users/SHABBIR%20G/Desktop/ADAB-B2C-TEAM/ADAB-Shop-Portal/Shop-Backend/src/repositories/seller.js)
+  * [`Shop-Frontend/src/pages/AuthPage.jsx`](file:///c:/Users/SHABBIR%20G/Desktop/ADAB-B2C-TEAM/ADAB-Shop-Portal/Shop-Frontend/src/pages/AuthPage.jsx)
+* **Problem:** `AuthPage.jsx` was designed as a single "Start the Portal" screen with no separate registration tab or button. However, the backend login endpoint threw `Account not found` when entering credentials for the first time, preventing new sellers from registering through the UI.
+* **Resolution:**
+  1. Updated `sellerRepository.loginWithPassword` to detect when a seller account does not exist and automatically provision the `users`, `seller_profiles`, `stores`, and `seller_onboarding_steps` records atomically via `signupWithPassword`.
+  2. In `AuthPage.jsx`, added fallback registration handling that captures new user credentials and seamlessly routes new sellers into Step 1 of the KYC Onboarding wizard.
+  3. Existing registered users are strictly authenticated against their hashed password/PIN; wrong passwords are rejected with `400 Invalid credentials`.
+
+---
+
 ## 3. Summary of Files Changed
 
 | File Path | Component | Changes Made |

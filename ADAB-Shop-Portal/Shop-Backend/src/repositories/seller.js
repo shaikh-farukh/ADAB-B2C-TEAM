@@ -1722,7 +1722,23 @@ class SellerRepository {
     }
 
     if (userRes.rows.length === 0) {
-      throw new Error('Account not found. Please register first or verify your credentials.');
+      // Auto-register new seller on first login
+      let signupPhone = cleanDigits;
+      if (!signupPhone || signupPhone.length < 10) {
+        if (rawEmail) {
+          signupPhone = '9' + Math.floor(100000000 + Math.random() * 900000000).toString().slice(0, 9);
+        } else {
+          throw new Error('Please enter a valid 10-digit mobile number');
+        }
+      }
+      const namePart = rawEmail ? rawEmail.split('@')[0] : 'Merchant';
+      const defaultName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+      return await this.signupWithPassword(signupPhone, rawPassword, {
+        email: rawEmail || undefined,
+        full_name: extra.full_name || defaultName,
+        store_name: extra.store_name || `${defaultName} Store`,
+        idMode
+      }, true);
     }
 
     const user = userRes.rows[0];
