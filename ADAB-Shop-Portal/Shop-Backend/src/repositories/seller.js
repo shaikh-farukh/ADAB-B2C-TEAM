@@ -1136,9 +1136,23 @@ class SellerRepository {
           COALESCE(sl.stock_qty, 0) as stock_qty,
           sl.barcode,
           sl.brand_tag,
+          (
+            SELECT pi.image_url 
+            FROM product_images pi 
+            WHERE pi.product_id = sl.id 
+            ORDER BY pi.is_primary DESC, pi.display_order ASC 
+            LIMIT 1
+          ) AS image_url,
+          (
+            SELECT json_agg(pi.image_url ORDER BY pi.is_primary DESC, pi.display_order ASC)
+            FROM product_images pi
+            WHERE pi.product_id = sl.id
+          ) AS images,
           s.store_name,
           s.city as store_city,
           s.phone as store_phone,
+          s.latitude as store_latitude,
+          s.longitude as store_longitude,
           COALESCE(s.rating, 5.0) as store_rating,
           COALESCE(s.is_online, false) as store_is_online,
           CASE 
@@ -1221,6 +1235,8 @@ class SellerRepository {
           s.address_line,
           s.phone,
           s.email,
+          s.latitude,
+          s.longitude,
           COALESCE(s.delivery_radius_km, 10.0) as delivery_radius_km,
           COALESCE(s.is_online, false) as is_online,
           COALESCE(s.rating, 5.0) as rating,
@@ -1276,29 +1292,62 @@ class SellerRepository {
 
   async getBuyerCreditInfo(userId, storeId) {
     try {
+      let limit = 0;
+      let ledgerUtilized = 0;
+      let hasLedger = false;
+
+      // 1. Check credit_ledgers for user OR store ID
       const ledgerRes = await pool.query(
-        `SELECT total_limit, utilized_amount, available_amount FROM credit_ledgers WHERE applicant_id = $1 LIMIT 1`,
-        [userId]
+        `SELECT total_limit, utilized_amount, available_amount FROM credit_ledgers WHERE applicant_id = $1 OR applicant_id = $2 LIMIT 1`,
+        [userId, storeId]
       );
       if (ledgerRes.rows.length > 0) {
-        return ledgerRes.rows[0];
+        hasLedger = true;
+        limit = Number(ledgerRes.rows[0].total_limit) || 0;
+        ledgerUtilized = Number(ledgerRes.rows[0].utilized_amount) || 0;
+      } else {
+        // 2. Check approved credit_applications
+        const appRes = await pool.query(
+          `SELECT approved_amount FROM credit_applications WHERE (applicant_id = $1 OR applicant_id = $2) AND status = 'APPROVED' ORDER BY created_at DESC LIMIT 1`,
+          [userId, storeId]
+        );
+        if (appRes.rows.length > 0) {
+          limit = Number(appRes.rows[0].approved_amount) || 0;
+        } else {
+          // 3. Fallback to onboarding credit configuration
+          const onbRes = await pool.query(
+            `SELECT credit_config FROM seller_onboarding_steps WHERE user_id = $1 LIMIT 1`,
+            [userId]
+          );
+          if (onbRes.rows.length > 0 && onbRes.rows[0].credit_config) {
+            const cfg = onbRes.rows[0].credit_config;
+            limit = Number(cfg.buyerCreditLimit || cfg.creditLimit) || 0;
+          }
+        }
       }
 
-      const onbRes = await pool.query(
-        `SELECT credit_config FROM seller_onboarding_steps WHERE user_id = $1 LIMIT 1`,
-        [userId]
-      );
-      if (onbRes.rows.length > 0 && onbRes.rows[0].credit_config) {
-        const cfg = onbRes.rows[0].credit_config;
-        const limit = Number(cfg.buyerCreditLimit) || 0;
-        return {
-          total_limit: limit,
-          utilized_amount: 0,
-          available_amount: limit
-        };
+      // Calculate real utilized amount from active purchase orders
+      let poUtilized = 0;
+      if (storeId) {
+        const poRes = await pool.query(
+          `SELECT COALESCE(SUM(total_amount), 0) as utilized 
+           FROM b2b_purchase_orders 
+           WHERE buyer_store_id = $1 
+             AND payment_terms LIKE '%CREDIT%' 
+             AND status NOT IN ('CANCELLED', 'PAID')`,
+          [storeId]
+        );
+        poUtilized = Number(poRes.rows[0]?.utilized) || 0;
       }
 
-      return { total_limit: 0, utilized_amount: 0, available_amount: 0 };
+      const totalUtilized = hasLedger ? Math.max(ledgerUtilized, poUtilized) : poUtilized;
+      const available = Math.max(0, limit - totalUtilized);
+
+      return {
+        total_limit: limit,
+        utilized_amount: totalUtilized,
+        available_amount: available
+      };
     } catch (e) {
       console.error('getBuyerCreditInfo Error:', e);
       return { total_limit: 0, utilized_amount: 0, available_amount: 0 };
@@ -1311,33 +1360,157 @@ class SellerRepository {
         SELECT 
           po.id,
           po.po_number,
-          po.supplier_id,
+          po.supplier_store_id,
           s.store_name as supplier_name,
+          s.phone as supplier_phone,
+          s.city as supplier_city,
           po.total_amount,
-          po.payment_mode,
+          po.payment_terms,
           po.status,
           po.created_at,
           (
             SELECT json_agg(json_build_object(
-              'item_name', poi.item_name,
-              'quantity', poi.quantity_ordered,
-              'price', poi.unit_purchase_price,
-              'total', poi.total_cost
+              'id', poi.id,
+              'listing_id', poi.listing_id,
+              'item_name', COALESCE(sl.title, 'Wholesale Product'),
+              'quantity', poi.quantity,
+              'price', poi.unit_price,
+              'total', poi.total_price,
+              'unit', COALESCE(sl.unit, 'pcs'),
+              'brand', sl.brand_tag
             ))
-            FROM stock_purchase_order_items poi
+            FROM b2b_purchase_items poi
+            LEFT JOIN seller_listings sl ON poi.listing_id = sl.id
             WHERE poi.purchase_order_id = po.id
           ) as items
-        FROM stock_purchase_orders po
-        LEFT JOIN stores s ON po.supplier_id = s.id
-        WHERE po.store_id = $1
+        FROM b2b_purchase_orders po
+        LEFT JOIN stores s ON po.supplier_store_id = s.id
+        WHERE po.buyer_store_id = $1
         ORDER BY po.created_at DESC
-        LIMIT 20;
+        LIMIT 50;
       `;
       const res = await pool.query(query, [storeId]);
       return res.rows;
     } catch (e) {
       console.error('getPurchaseOrders Error:', e);
       return [];
+    }
+  }
+
+  async createPurchaseOrder(buyerStoreId, userId, orderData) {
+    const { items, payment_terms = 'CREDIT_14D', delivery_method, delivery_fee = 0, notes } = orderData;
+    if (!buyerStoreId) {
+      const err = new Error('Buyer store ID is required');
+      err.statusCode = 400;
+      throw err;
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      const err = new Error('Cart is empty. Please add items to place a purchase order.');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // Group items by supplier store_id
+    const groupedBySupplier = {};
+    for (const item of items) {
+      const sId = item.store_id;
+      if (!sId) {
+        const err = new Error(`Item ${item.name || item.id} is missing supplier store reference`);
+        err.statusCode = 400;
+        throw err;
+      }
+      if (sId === buyerStoreId) {
+        const err = new Error('Cannot purchase items from your own store.');
+        err.statusCode = 400;
+        throw err;
+      }
+      if (!groupedBySupplier[sId]) {
+        groupedBySupplier[sId] = [];
+      }
+      groupedBySupplier[sId].push(item);
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const createdOrders = [];
+
+      for (const [supplierStoreId, supplierItems] of Object.entries(groupedBySupplier)) {
+        let subtotal = 0;
+        for (const it of supplierItems) {
+          const qty = Number(it.quantity) || 1;
+          const price = Number(it.price) || 0;
+          subtotal += qty * price;
+        }
+
+        const fee = Number(delivery_fee) || 0;
+        const totalAmount = subtotal + fee;
+        const poNumber = `PO-B2B-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+
+        const poRes = await client.query(
+          `INSERT INTO b2b_purchase_orders (
+            po_number,
+            buyer_store_id,
+            supplier_store_id,
+            total_amount,
+            payment_terms,
+            status,
+            created_at
+          ) VALUES ($1, $2, $3, $4, $5, 'PLACED', NOW())
+          RETURNING *`,
+          [poNumber, buyerStoreId, supplierStoreId, totalAmount, payment_terms]
+        );
+
+        const newPo = poRes.rows[0];
+
+        // Insert items
+        for (const it of supplierItems) {
+          const qty = Number(it.quantity) || 1;
+          const price = Number(it.price) || 0;
+          const itemTotal = qty * price;
+
+          await client.query(
+            `INSERT INTO b2b_purchase_items (
+              purchase_order_id,
+              listing_id,
+              quantity,
+              unit_price,
+              total_price
+            ) VALUES ($1, $2, $3, $4, $5)`,
+            [newPo.id, it.id, qty, price, itemTotal]
+          );
+
+          // Deduct stock if listing exists
+          await client.query(
+            `UPDATE seller_listings 
+             SET stock_qty = GREATEST(0, stock_qty - $1)
+             WHERE id = $2`,
+            [qty, it.id]
+          );
+        }
+
+        // If credit payment, update credit_ledgers if row exists
+        if (payment_terms.toUpperCase().includes('CREDIT')) {
+          await client.query(
+            `UPDATE credit_ledgers 
+             SET utilized_amount = utilized_amount + $1,
+                 updated_at = NOW()
+             WHERE applicant_id = $2 OR applicant_id = $3`,
+            [totalAmount, userId, buyerStoreId]
+          );
+        }
+
+        createdOrders.push(newPo);
+      }
+
+      await client.query('COMMIT');
+      return createdOrders;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      console.error('createPurchaseOrder Error:', e);
+      throw e;
+    } finally {
+      client.release();
     }
   }
 

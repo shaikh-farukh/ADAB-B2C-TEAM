@@ -61,6 +61,12 @@ export const sellerApi = {
   getNearbyStores: (params) => apiClient.get('/nearby-stores', { params }),
   getBuyerCreditBalance: () => apiClient.get('/credit-balance'),
   getPurchaseOrders: () => apiClient.get('/purchase-orders'),
+  createPurchaseOrder: (orderData) =>
+    apiClient.post(
+      '/purchase-orders',
+      orderData,
+      buildIdempotencyHeaders(`po-create-${Date.now()}`)
+    ),
   getOtherStoreBrands: (params) => apiClient.get('/other-store-brands', { params }),
   addOtherStoreBrandToMyStore: (data) => apiClient.post('/other-store-brands/add-to-store', data),
   getMyAddedOtherStoreBrands: () => apiClient.get('/other-store-brands/my-added'),

@@ -134,6 +134,25 @@ export default function HomePage() {
             </Link>
           </div>
 
+          {/* Smart AI Restock Demand Callout (Easy Mode) */}
+          <Link to="/recommendations" className="card p-4 bg-gradient-to-r from-purple-50 via-indigo-50 to-white border-2 border-dashed border-purple-200 hover:border-purple-400 hover:shadow-md transition-all flex items-center justify-between gap-4 block">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 text-white flex items-center justify-center text-xl shadow-md shrink-0">
+                <i className="fa-solid fa-wand-magic-sparkles"></i>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-gray-900 text-base">Smart AI Restock Demand &amp; Product Ideas</h3>
+                  <span className="bg-purple-100 text-purple-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">AI DRIVEN</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">Discover what items are in high demand nearby, what to restock, and buyer opportunities.</p>
+              </div>
+            </div>
+            <div className="btn-primary !bg-purple-600 hover:!bg-purple-700 !text-xs !py-2 !px-4 flex items-center gap-1.5 shrink-0 hidden sm:flex">
+              <span>Open AI Ideas</span> <i className="fa-solid fa-arrow-right text-[10px]"></i>
+            </div>
+          </Link>
+
           {/* Easy Mode Metrics - Simple & Friendly */}
           <div className="grid grid-cols-2 gap-4">
             <div className="card p-5 bg-gradient-to-br from-green-50 to-emerald-50 border border-green-100 hover:shadow-md transition-all">
@@ -275,7 +294,7 @@ export default function HomePage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               <Link to="/products" className="card p-4 text-left hover:border-green-300 hover:shadow-md transition-all block"><i className="fa-solid fa-plus text-green-600 text-lg mb-2"></i><div className="font-bold text-sm">Manage Products</div><div className="text-xs text-gray-500">Own brand, stock, or listings</div></Link>
               <Link to="/mastersearch" className="card p-4 text-left hover:border-blue-300 hover:shadow-md transition-all border-blue-100 bg-blue-50/30 block"><i className="fa-solid fa-magnifying-glass text-blue-600 text-lg mb-2"></i><div className="font-bold text-sm">Search &amp; Buy</div><div className="text-xs text-gray-500">Find anything from any store</div></Link>
-              <Link to="/recommendations" className="card p-4 text-left hover:border-indigo-300 hover:shadow-md transition-all block"><i className="fa-solid fa-wand-magic-sparkles text-indigo-600 text-lg mb-2"></i><div className="font-bold text-sm">Product Ideas</div><div className="text-xs text-gray-500">What to sell &amp; what to buy</div></Link>
+              <Link to="/recommendations" className="card p-4 text-left hover:border-purple-300 hover:shadow-md transition-all border-purple-100 bg-purple-50/20 block"><i className="fa-solid fa-wand-magic-sparkles text-purple-600 text-lg mb-2"></i><div className="font-bold text-sm">Smart AI Restock Demand</div><div className="text-xs text-gray-500">Product ideas · what to sell &amp; buy</div></Link>
               <Link to="/pos" className="card p-4 text-left hover:border-indigo-300 hover:shadow-md transition-all border-indigo-100 bg-indigo-50/30 block"><i className="fa-solid fa-cash-register text-indigo-600 text-lg mb-2"></i><div className="font-bold text-sm">Bill Counter</div><div className="text-xs text-gray-500">POS • customer or store</div></Link>
               <Link to="/orders" className="card p-4 text-left hover:border-green-300 hover:shadow-md transition-all block"><i className="fa-solid fa-bell text-orange-500 text-lg mb-2"></i><div className="font-bold text-sm">Check Orders</div><div className="text-xs text-gray-500">{totalOrdersCount} total • {pendingCount} need action</div></Link>
               <Link to="/buy" className="card p-4 text-left hover:border-green-300 hover:shadow-md transition-all block"><i className="fa-solid fa-cart-shopping text-blue-600 text-lg mb-2"></i><div className="font-bold text-sm">Restock Nearby</div><div className="text-xs text-gray-500">Buy from nearby stores</div></Link>

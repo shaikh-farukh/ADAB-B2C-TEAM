@@ -233,7 +233,7 @@ class SellerController {
 
   async getBuyerCreditInfo(req, res) {
     try {
-      const { storeId, userId } = getAuthenticatedSellerContext(req);
+      const { storeId, userId } = await resolveSellerStoreId(req);
       const credit = await sellerService.getBuyerCreditInfo(userId, storeId);
       res.json({ success: true, data: credit });
     } catch (error) {
@@ -243,9 +243,19 @@ class SellerController {
 
   async getPurchaseOrders(req, res) {
     try {
-      const { storeId } = getAuthenticatedSellerContext(req);
+      const { storeId } = await resolveSellerStoreId(req);
       const orders = await sellerService.getPurchaseOrders(storeId);
       res.json({ success: true, data: orders });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async createPurchaseOrder(req, res) {
+    try {
+      const { storeId, userId } = await resolveSellerStoreId(req);
+      const orders = await sellerService.createPurchaseOrder(storeId, userId, req.body);
+      res.status(201).json({ success: true, data: orders });
     } catch (error) {
       handleError(res, error);
     }

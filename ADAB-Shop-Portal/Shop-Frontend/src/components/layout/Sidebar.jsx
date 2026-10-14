@@ -265,6 +265,10 @@ export default function Sidebar() {
         <NavLink to="/partnerbrands" className={navClass}>
           <i className="fa-solid fa-handshake w-4 text-amber-600"></i> <span data-i18n="navPartnerPack">Other Store Brands</span>
         </NavLink>
+        <NavLink to="/recommendations" className={navClass}>
+          <i className="fa-solid fa-wand-magic-sparkles w-4 text-purple-600"></i> <span>Smart AI Restock</span>
+          <span className="ml-auto bg-purple-100 text-purple-800 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">AI</span>
+        </NavLink>
         <NavLink to="/buycart" className={navClass}>
           <i className="fa-solid fa-cart-shopping w-4 text-blue-600"></i> <span>Purchase Cart</span>
           <span id="navBuyCartBadge" className="ml-auto bg-blue-600 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">{buyCartCount}</span>

@@ -49,6 +49,7 @@ router.get('/nearby-catalog', sellerController.getNearbyCatalog);
 router.get('/nearby-stores', sellerController.getNearbyStores);
 router.get('/credit-balance', sellerController.getBuyerCreditInfo);
 router.get('/purchase-orders', sellerController.getPurchaseOrders);
+router.post('/purchase-orders', idempotencyMiddleware, sellerController.createPurchaseOrder);
 router.get('/other-store-brands', sellerController.getOtherStoreBrands);
 router.post('/other-store-brands/add-to-store', sellerController.addOtherStoreBrandToMyStore);
 router.get('/other-store-brands/my-added', sellerController.getMyAddedOtherStoreBrands);

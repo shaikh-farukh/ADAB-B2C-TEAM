@@ -102,6 +102,10 @@ class SellerService {
     return await sellerRepository.getPurchaseOrders(storeId);
   }
 
+  async createPurchaseOrder(storeId, userId, orderData) {
+    return await sellerRepository.createPurchaseOrder(storeId, userId, orderData);
+  }
+
   async getOtherStoreBrands(storeId, options) {
     return await sellerRepository.getOtherStoreBrands(storeId, options);
   }
