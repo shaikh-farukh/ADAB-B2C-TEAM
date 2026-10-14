@@ -12,7 +12,7 @@ export default function ShopsPage({ onNavigate }) {
     const fetchStores = async () => {
       setLoading(true);
       try {
-        const res = await api.get('/catalog/stores');
+        const res = await api.get('/catalog/sellers');
         setStores(res.data?.data || res.data || []);
       } catch (err) {
         console.error('Error fetching stores:', err);
@@ -42,38 +42,38 @@ export default function ShopsPage({ onNavigate }) {
 
   return (
     <div className="animate-fade-in pb-16">
-      {/* Top Header Banner - Clean, Production-Level Aesthetic */}
-      <div className="mb-6 bg-gradient-to-br from-emerald-50/80 via-white to-slate-50 border border-emerald-100/80 rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-xs">
+      {/* Top Header Banner - Rich Emerald Gradient matching app-header in App.jsx */}
+      <div className="mb-6 app-header rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-md text-white">
         {/* Subtle decorative background accents */}
-        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-emerald-500/5 -skew-x-12 pointer-events-none"></div>
-        <div className="absolute -right-10 -bottom-10 w-44 h-44 bg-emerald-400/10 rounded-full blur-2xl pointer-events-none"></div>
+        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-white/5 -skew-x-12 pointer-events-none"></div>
+        <div className="absolute -right-10 -bottom-10 w-44 h-44 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
 
         <div className="relative z-10 max-w-2xl">
           <div className="flex items-center gap-2 mb-2.5 flex-wrap">
-            <span className="bg-emerald-100/80 text-emerald-800 border border-emerald-200/90 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider flex items-center gap-1.5 shadow-2xs">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" /> Verified Merchant Directory
+            <span className="glass px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider flex items-center gap-1.5 shadow-2xs">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-200" /> Verified Merchant Directory
             </span>
-            <span className="bg-amber-100 text-amber-900 border border-amber-300/80 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
+            <span className="bg-amber-400 text-gray-950 font-black px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider shadow-2xs">
               Hyperlocal Delivery
             </span>
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-gray-900">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
             Local Neighborhood Stores
           </h1>
-          <p className="text-xs sm:text-sm text-gray-600 mt-1.5 font-medium leading-relaxed">
+          <p className="text-xs sm:text-sm text-emerald-100 mt-1.5 font-medium leading-relaxed">
             Discover verified merchant partners delivering authentic groceries & essentials directly to your door in 15–30 minutes. Click any store to browse their live catalog.
           </p>
 
           {/* Search bar inside header */}
           <div className="mt-5 relative max-w-md">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-emerald-700 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input 
               type="text"
               placeholder="Search shops by name, specialty or locality..."
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
-              className="w-full bg-white text-gray-900 border border-gray-200/90 rounded-2xl pl-10 pr-9 py-2.5 text-xs font-semibold placeholder-gray-400 shadow-xs outline-none focus:border-[#18753C] focus:ring-2 focus:ring-emerald-500/20 transition-all"
+              className="w-full bg-white text-gray-900 border-0 rounded-2xl pl-10 pr-9 py-2.5 text-xs font-semibold placeholder-gray-400 shadow-md outline-none focus:ring-2 focus:ring-emerald-300 transition-all"
             />
             {searchFilter && (
               <button 

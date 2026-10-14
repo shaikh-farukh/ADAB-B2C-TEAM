@@ -1,5 +1,4 @@
 import axios from 'axios';
-import MockAdapter from 'axios-mock-adapter';
 
 // Create an Axios instance pointing to the API baseline
 export const api = axios.create({
@@ -9,31 +8,67 @@ export const api = axios.create({
   },
 });
 
+// Request interceptor to automatically attach live authentication credentials
+api.interceptors.request.use((config) => {
+  // 1. Bearer Token (from signup/login)
+  const token = localStorage.getItem('token') || 
+                localStorage.getItem('access_token') || 
+                localStorage.getItem('adab_token') || 
+                localStorage.getItem('jwt');
 
+  // 2. User ID (from localStorage user profile or direct id)
+  let userId = localStorage.getItem('userId') || 
+               localStorage.getItem('user_id') || 
+               localStorage.getItem('adab_user_id');
 
-// Setup mock adapter
-const mock = new MockAdapter(api, { delayResponse: 500, onNoMatch: 'passthrough' });
-const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'; // Enable via env variable if needed
+  if (!userId) {
+    try {
+      const rawUser = localStorage.getItem('user') || localStorage.getItem('adab_user');
+      if (rawUser) {
+        const parsed = JSON.parse(rawUser);
+        userId = parsed.id || parsed.userId || parsed._id;
+      }
+    } catch (e) {
+      // Ignore JSON parse errors
+    }
+  }
 
-if (USE_MOCK) {
-  // Mock Customer Profile
-  mock.onGet('/customers/me').reply(200, {
-    success: true,
-    data: { id: 'cust-001', name: 'Mahi Customer', email: 'mahi@example.com' }
-  });
+  // 3. Fallback: decode JWT payload if present
+  if (!userId && token && token.includes('.')) {
+    try {
+      const payloadBase64 = token.split('.')[1];
+      const decoded = JSON.parse(atob(payloadBase64));
+      userId = decoded.id || decoded.userId || decoded.customerId || decoded.sub;
+    } catch (e) {
+      // Ignore JWT decode errors
+    }
+  }
 
-  // Mock Recommended Catalog
-  mock.onGet('/catalog/recommended').reply(200, {
-    success: true,
-    data: [
-      { id: '1', name: 'Mock Product', price: 99, mrp: 150, rating: 4.5, sellerName: 'Mock Seller', image: 'https://via.placeholder.com/150', status: 'PUBLISHED' }
-    ]
-  });
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (userId && !UUID_REGEX.test(userId)) {
+    if (userId === '1' || userId === 'user-1') {
+      localStorage.removeItem('userId');
+      localStorage.removeItem('user_id');
+      localStorage.removeItem('adab_user_id');
+    }
+    userId = null;
+  }
 
-  // Pass through other requests
-  mock.onAny().passThrough();
-} else {
-  mock.onAny().passThrough();
-}
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`;
+  }
+  if (userId) {
+    config.headers['x-user-id'] = userId;
+    config.headers['x-customer-id'] = userId;
+  }
+
+  // 4. Session Token for guest cart coordination
+  const sessionToken = localStorage.getItem('adab_session_token');
+  if (sessionToken) {
+    config.headers['x-session-token'] = sessionToken;
+  }
+
+  return config;
+});
 
 export default api;

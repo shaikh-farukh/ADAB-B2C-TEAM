@@ -13,7 +13,8 @@ import WishlistPage from './pages/WishlistPage';
 import AccountPage from './pages/AccountPage';
 import NotificationsPage from './pages/NotificationsPage';
 import ShopsPage from './pages/ShopsPage';
-import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI } from './services/api';
+import CategoriesPage from './pages/CategoriesPage';
+import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI, getCurrentUserId } from './services/api';
 import { api } from './api/api';
 
 export default function App() {
@@ -26,7 +27,7 @@ export default function App() {
   const [storeCount, setStoreCount] = useState(48); // default mock, replaced by API
 
   useEffect(() => {
-    api.get('/catalog/stores').then(res => {
+    api.get('/catalog/sellers').then(res => {
       if (res.data?.success && res.data?.data) {
         setStoreCount(res.data.data.length || 48);
       }
@@ -44,7 +45,6 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState(null);
   const [validationIssues, setValidationIssues] = useState([]);
   const [wishlist, setWishlist] = useState([]);
-  const mockUserId = "11111111-1111-1111-1111-111111111111"; // Using a valid mock UUID since database expects UUID
 
   // Search autocomplete state from Day 1
   const [searchQuery, setSearchQuery] = useState('');
@@ -55,7 +55,7 @@ export default function App() {
     const fetchSuggestions = async () => {
       if (searchQuery.trim().length > 1) {
         try {
-          const res = await api.get(`/catalog/suggest?q=${encodeURIComponent(searchQuery)}`);
+          const res = await api.get(`/catalog/search/suggestions?q=${encodeURIComponent(searchQuery)}`);
           setSuggestions(res.data?.data || []);
           setShowSuggestions(true);
         } catch (err) {
@@ -100,8 +100,13 @@ export default function App() {
   };
 
   const refreshOrders = async () => {
+    const uid = getCurrentUserId();
+    if (!uid) {
+      setOrdersList([]);
+      return;
+    }
     try {
-      const res = await OrderAPI.getOrders(mockUserId);
+      const res = await OrderAPI.getOrders(uid);
       if (res.status === 'success' && res.data) {
         setOrdersList(res.data);
         if (res.data.length > 0 && !activeOrder) {
@@ -121,7 +126,7 @@ export default function App() {
 
   const refreshWishlist = async () => {
     try {
-      const res = await WishlistAPI.getWishlist(mockUserId);
+      const res = await WishlistAPI.getWishlist();
       if (res.success) {
         setWishlist(res.wishlist || []);
       }
@@ -134,11 +139,11 @@ export default function App() {
     try {
       const isWishlisted = wishlist.includes(listingId);
       if (isWishlisted) {
-        await WishlistAPI.removeItem(mockUserId, listingId);
+        await WishlistAPI.removeItem(listingId);
         setWishlist(wishlist.filter(id => id !== listingId));
         showToast(`Removed from wishlist`);
       } else {
-        await WishlistAPI.addItem(mockUserId, listingId);
+        await WishlistAPI.addItem(listingId);
         setWishlist([...wishlist, listingId]);
         showToast(`Added to wishlist`);
       }
@@ -355,7 +360,7 @@ export default function App() {
             <button
               type="button"
               className={`site-link ${activeTab === 'categories' ? 'on' : ''}`}
-              onClick={() => setActiveTab('browse')}
+              onClick={() => setActiveTab('categories')}
             >
               Categories
             </button>
@@ -614,6 +619,8 @@ export default function App() {
               ? 'Local Verified Shops'
               : activeTab === 'browse'
               ? 'Browse Products'
+              : activeTab === 'categories'
+              ? 'Shop by Category'
               : activeTab === 'notifications'
               ? 'Notifications'
               : activeTab.startsWith('product/')
@@ -673,6 +680,15 @@ export default function App() {
         {/* Browse Products Screen (Mahi's BrowsePage) */}
         {activeTab === 'browse' && (
           <BrowsePage
+            onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
+            onToggleWishlist={handleToggleWishlist}
+            wishlist={wishlist}
+          />
+        )}
+
+        {/* Categories Explorer Screen (Blinkit/Zepto/Flipkart Style by Mahi) */}
+        {activeTab === 'categories' && (
+          <CategoriesPage
             onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
             onToggleWishlist={handleToggleWishlist}
             wishlist={wishlist}
@@ -914,8 +930,10 @@ export default function App() {
           activeTab !== 'search' &&
           activeTab !== 'stores' &&
           activeTab !== 'browse' &&
+          activeTab !== 'categories' &&
           activeTab !== 'wishlist' &&
           activeTab !== 'account' &&
+          activeTab !== 'notifications' &&
           !activeTab.startsWith('product/') && (
             <div className="bg-white rounded-2xl p-6 text-center border border-gray-200">
               <h2 className="font-extrabold text-lg capitalize">{activeTab} Section</h2>

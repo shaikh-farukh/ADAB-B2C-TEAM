@@ -14,20 +14,22 @@ function normalizeDeliverySpeed(speed) {
 }
 
 const crypto = require('crypto');
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Helper to find, create, or merge a cart for a customer or session token
 async function getOrCreateCart({ customerId, sessionToken }) {
   let cart = null;
+  const validCustomerId = customerId && UUID_REGEX.test(customerId) ? customerId : null;
 
   // Case A: Both customerId and sessionToken are provided (e.g. guest signs in or authenticated user with session)
-  if (customerId && sessionToken) {
+  if (validCustomerId && sessionToken) {
     const custRes = await pool.query(
       `SELECT * FROM carts WHERE customer_id = $1 LIMIT 1`,
-      [customerId]
+      [validCustomerId]
     );
     const guestRes = await pool.query(
       `SELECT * FROM carts WHERE session_token = $1 AND (customer_id IS NULL OR customer_id != $2) LIMIT 1`,
-      [sessionToken, customerId]
+      [sessionToken, validCustomerId]
     );
 
     const custCart = custRes.rows[0] || null;
@@ -62,7 +64,7 @@ async function getOrCreateCart({ customerId, sessionToken }) {
       // Claim guest cart for this customer
       const claimRes = await pool.query(
         `UPDATE carts SET customer_id = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
-        [customerId, guestCart.id]
+        [validCustomerId, guestCart.id]
       );
       return claimRes.rows[0];
     } else if (custCart) {
@@ -70,11 +72,11 @@ async function getOrCreateCart({ customerId, sessionToken }) {
     }
   }
 
-  // Case B: Only customerId provided
-  if (customerId) {
+  // Case B: Only validCustomerId provided
+  if (validCustomerId) {
     const res = await pool.query(
       `SELECT * FROM carts WHERE customer_id = $1 LIMIT 1`,
-      [customerId]
+      [validCustomerId]
     );
     if (res.rows.length > 0) cart = res.rows[0];
   }
@@ -94,7 +96,7 @@ async function getOrCreateCart({ customerId, sessionToken }) {
       `INSERT INTO carts (customer_id, session_token, delivery_speed, updated_at)
        VALUES ($1, $2, 'EXPRESS_30M', NOW())
        RETURNING *`,
-      [customerId || null, token]
+      [validCustomerId || null, token]
     );
     cart = insertRes.rows[0];
   }

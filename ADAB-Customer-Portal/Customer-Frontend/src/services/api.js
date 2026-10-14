@@ -17,13 +17,86 @@ export function getSessionToken() {
   return token;
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Dynamically extracts the authenticated user ID from localStorage or JWT
+export function getCurrentUserId() {
+  let userId = localStorage.getItem('userId') || 
+               localStorage.getItem('user_id') || 
+               localStorage.getItem('adab_user_id');
+
+  if (!userId) {
+    try {
+      const rawUser = localStorage.getItem('user') || localStorage.getItem('adab_user');
+      if (rawUser) {
+        const parsed = JSON.parse(rawUser);
+        userId = parsed.id || parsed.userId || parsed._id;
+      }
+    } catch {
+      // Ignore JSON parse errors
+    }
+  }
+
+  // Fallback: decode JWT payload if present
+  if (!userId) {
+    const token = localStorage.getItem('token') || 
+                  localStorage.getItem('access_token') || 
+                  localStorage.getItem('adab_token') || 
+                  localStorage.getItem('jwt');
+    if (token && token.includes('.')) {
+      try {
+        const payloadBase64 = token.split('.')[1];
+        const decoded = JSON.parse(atob(payloadBase64));
+        userId = decoded.id || decoded.userId || decoded.customerId || decoded.sub;
+      } catch {
+        // Ignore JWT decode errors
+      }
+    }
+  }
+
+  // If userId is not a valid UUID (e.g. legacy mock "1"), clear and ignore it
+  if (userId && !UUID_REGEX.test(userId)) {
+    if (userId === '1' || userId === 'user-1') {
+      localStorage.removeItem('userId');
+      localStorage.removeItem('user_id');
+      localStorage.removeItem('adab_user_id');
+    }
+    return null;
+  }
+
+  return userId || null;
+}
+
+// Dynamically prepares auth headers for live requests
+export function getAuthHeaders() {
+  const token = localStorage.getItem('token') || 
+                localStorage.getItem('access_token') || 
+                localStorage.getItem('adab_token') || 
+                localStorage.getItem('jwt');
+
+  const userId = getCurrentUserId();
+  const headers = {};
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  if (userId) {
+    headers['x-user-id'] = userId;
+    headers['x-customer-id'] = userId;
+  }
+  return headers;
+}
+
 const pendingRequests = new Map();
 
 export async function apiRequest(endpoint, options = {}) {
   const sessionToken = getSessionToken();
+  const authHeaders = getAuthHeaders();
+
   const headers = {
     'Content-Type': 'application/json',
     'x-session-token': sessionToken,
+    ...authHeaders,
     ...(options.headers || {})
   };
 
@@ -41,10 +114,9 @@ export async function apiRequest(endpoint, options = {}) {
     data: options.body ? (typeof options.body === 'string' ? JSON.parse(options.body) : options.body) : undefined,
   })
     .then((response) => {
-      return response.data; // axios already parses JSON, and our backend returns { success: true, data: ... } 
+      return response.data; 
     })
     .catch((error) => {
-      // Re-throw in the format the app expects
       const err = new Error(error.response?.data?.message || error.message || 'API request failed');
       err.status = error.response?.status;
       err.code = error.response?.data?.code || (error.response?.data?.data && error.response?.data?.data.coupon_status);
@@ -119,25 +191,47 @@ export const CheckoutAPI = {
 };
 
 export const OrderAPI = {
-  getOrders: (userId) => apiRequest(`/orders?customer_id=${userId}`),
+  getOrders: (userId) => {
+    const validId = userId && UUID_REGEX.test(userId) ? userId : null;
+    return apiRequest(validId ? `/orders?customer_id=${validId}` : '/orders');
+  },
   getOrderById: (orderId) => apiRequest(`/orders/${orderId}`)
 };
 
-// Wishlist APIs
+// Wishlist APIs (Canonical Mahi Spec - Dynamic auth, zero hardcoded IDs)
 export const WishlistAPI = {
-  getWishlist: (userId) => apiRequest(`/wishlist/${userId}`),
-  addItem: (userId, listingId) =>
-    apiRequest('/wishlist', {
+  getWishlist: async () => {
+    try {
+      const res = await apiRequest('/customers/me/wishlist');
+      const items = res.data || [];
+      return {
+        success: true,
+        wishlist: Array.isArray(items) ? items.map(item => item.productId || item.id) : [],
+        items: items
+      };
+    } catch (err) {
+      return { success: false, wishlist: [], items: [] };
+    }
+  },
+  getCount: () => apiRequest('/customers/me/wishlist/count'),
+  getItem: (id) => apiRequest(`/customers/me/wishlist/items/${id}`),
+  addItem: (arg1, arg2) => {
+    const listingId = arg2 !== undefined ? arg2 : arg1;
+    return apiRequest('/customers/me/wishlist/items', {
       method: 'POST',
-      body: JSON.stringify({ userId, listingId })
-    }),
-  removeItem: (userId, listingId) =>
-    apiRequest('/wishlist', {
-      method: 'DELETE',
-      body: JSON.stringify({ userId, listingId })
-    }),
-  moveToCart: (userId, listingId) => 
-    apiRequest(`/wishlist/items/${listingId}/move-to-cart/${userId}`, {
+      body: JSON.stringify({ productId: listingId, listingId })
+    });
+  },
+  removeItem: (arg1, arg2) => {
+    const listingId = arg2 !== undefined ? arg2 : arg1;
+    return apiRequest(`/customers/me/wishlist/items/${listingId}`, {
+      method: 'DELETE'
+    });
+  },
+  moveToCart: (arg1, arg2) => {
+    const listingId = arg2 !== undefined ? arg2 : arg1;
+    return apiRequest(`/customers/me/wishlist/items/${listingId}/move-to-cart`, {
       method: 'POST'
-    })
+    });
+  }
 };

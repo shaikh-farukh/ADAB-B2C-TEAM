@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { api } from '../api/api';
 
 /**
  * Checkout Screen Component (sec-checkout)
@@ -12,14 +13,42 @@ export default function CheckoutView({
 }) {
   const [deliverySpeed, setDeliverySpeed] = useState('fast'); // 'fast', 'same', 'pickup'
   const [paymentMethod, setPaymentMethod] = useState('upi'); // 'upi', 'card', 'cod', 'wallet', 'bnpl'
-  const [address, setAddress] = useState({
-    full_name: 'Pooja Sharma',
-    phone: '+91 98765 12340',
-    address_line: 'Flat 402, Green Valley Apt, Ring Road',
-    city: 'Surat',
-    state: 'Gujarat',
-    pincode: '395002'
+  const [address, setAddress] = useState(() => {
+    let savedUser = null;
+    try {
+      const raw = localStorage.getItem('user') || localStorage.getItem('adab_user');
+      if (raw) savedUser = JSON.parse(raw);
+    } catch (e) {}
+
+    return {
+      full_name: savedUser?.name || savedUser?.full_name || '',
+      phone: savedUser?.phone || '',
+      address_line: '',
+      city: 'Surat',
+      state: 'Gujarat',
+      pincode: '395002'
+    };
   });
+
+  useEffect(() => {
+    // Attempt to load customer's real saved address from backend
+    api.get('/customers/me/addresses')
+      .then(res => {
+        if (res.data?.success && res.data.data?.length > 0) {
+          const defaultAddr = res.data.data.find(a => a.isDefault) || res.data.data[0];
+          setAddress(prev => ({
+            full_name: defaultAddr.recipientName || prev.full_name || '',
+            phone: defaultAddr.phone || prev.phone || '',
+            address_line: defaultAddr.address || defaultAddr.address_line || prev.address_line,
+            city: defaultAddr.city || prev.city,
+            state: defaultAddr.state || prev.state,
+            pincode: defaultAddr.pincode || defaultAddr.zip || prev.pincode
+          }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
 

@@ -5,9 +5,12 @@ const { formatError } = require('../utils/errorHandler');
  * Order Controller handling customer order retrieval and status
  */
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function getOrders(req, res) {
   try {
-    const customerId = req.query.customer_id || null;
+    const rawCustomerId = req.query.customer_id || req.headers['x-customer-id'] || req.headers['x-user-id'] || null;
+    const customerId = rawCustomerId && UUID_REGEX.test(rawCustomerId) ? rawCustomerId : null;
     const orders = await orderService.getCustomerOrders(customerId);
 
     return res.json({

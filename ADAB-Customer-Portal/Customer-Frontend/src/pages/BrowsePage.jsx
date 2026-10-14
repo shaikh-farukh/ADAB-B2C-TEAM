@@ -17,8 +17,30 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
   // Read URL State
   const q = searchParams.get('q') || '';
   const category = searchParams.get('category') || '';
+  const categoryNameParam = searchParams.get('categoryName') || '';
   const categoriesParam = searchParams.get('categories') || '';
-  const selectedCategories = categoriesParam ? categoriesParam.split(',').filter(Boolean) : [];
+  const rawCategories = categoriesParam ? categoriesParam.split(',').filter(Boolean) : [];
+
+  // Derive active selected category names across ?categories=..., ?category=..., and ?categoryName=...
+  // Automatically activates and checks the category checkbox when redirected from CategoriesPage or HomePage
+  const selectedCategories = React.useMemo(() => {
+    if (rawCategories.length > 0) {
+      return rawCategories;
+    }
+    if (categoryNameParam) {
+      return [categoryNameParam];
+    }
+    if (category && categoriesList.length > 0) {
+      const match = categoriesList.find(c => 
+        String(c.id) === String(category) || 
+        c.slug === category || 
+        c.name.toLowerCase() === category.toLowerCase()
+      );
+      if (match) return [match.name];
+    }
+    return [];
+  }, [rawCategories.join(','), categoryNameParam, category, categoriesList]);
+
   const storeId = searchParams.get('storeId') || searchParams.get('store') || '';
   const storeName = searchParams.get('storeName') || '';
   const sortBy = searchParams.get('sortBy') || searchParams.get('sortOrder') || 'relevance';
@@ -50,8 +72,14 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
       try {
         const params = new URLSearchParams();
         if (q) params.append('q', q);
-        if (category) params.append('category', category);
-        if (selectedCategories.length > 0) params.append('categories', selectedCategories.join(','));
+        
+        // Pass category filters: prioritize selectedCategories (names) or fallback to single category
+        if (selectedCategories.length > 0) {
+          params.append('categories', selectedCategories.join(','));
+        } else if (category) {
+          params.append('category', category);
+        }
+
         if (storeId) params.append('storeId', storeId);
         if (storeName) params.append('storeName', storeName);
         if (minPrice) params.append('minPrice', minPrice);
@@ -86,7 +114,7 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
     return () => {
       isCurrent = false;
     };
-  }, [q, category, categoriesParam, storeId, storeName, minPrice, maxPrice, sortBy, page]);
+  }, [q, category, categoryNameParam, categoriesParam, selectedCategories.join(','), storeId, storeName, minPrice, maxPrice, sortBy, page]);
 
   // Handlers for Filter changes
   const updateFilter = (key, value) => {
@@ -112,7 +140,19 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
     const next = selectedCategories.includes(catName)
       ? selectedCategories.filter(c => c !== catName)
       : [...selectedCategories, catName];
-    updateFilter('categories', next.join(','));
+
+    const newParams = new URLSearchParams(searchParams);
+    // Clean up single category query parameters to prevent query conflicts
+    newParams.delete('category');
+    newParams.delete('categoryName');
+
+    if (next.length > 0) {
+      newParams.set('categories', next.join(','));
+    } else {
+      newParams.delete('categories');
+    }
+    newParams.set('page', 1);
+    setSearchParams(newParams);
   };
 
   const clearStoreFilter = () => {
@@ -137,7 +177,7 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
           <Filter className="w-4 h-4 text-gray-500" />
           <h2 className="font-black text-gray-900 text-sm">Filters & Facets</h2>
         </div>
-        {(selectedCategories.length > 0 || minPrice || maxPrice || storeId) && (
+        {(selectedCategories.length > 0 || minPrice || maxPrice || storeId || category || categoryNameParam) && (
           <button
             onClick={clearAllFilters}
             className="text-[11px] font-bold text-brand-green hover:underline cursor-pointer"
@@ -172,7 +212,13 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
         <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
           {categoriesList.map(cat => {
             const catName = cat.name || cat;
-            const isChecked = selectedCategories.includes(catName);
+            const isChecked = selectedCategories.includes(catName) ||
+              (selectedCategories.length === 0 && (
+                category === String(cat.id) ||
+                category === cat.slug ||
+                category === catName ||
+                categoryNameParam === catName
+              ));
             return (
               <label key={cat.id || catName} className="flex items-center gap-2.5 text-xs cursor-pointer select-none py-1 hover:text-brand-green transition">
                 <input 
@@ -181,7 +227,7 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
                   checked={isChecked}
                   onChange={() => toggleCategoryName(catName)}
                 /> 
-                <span className={isChecked ? 'font-bold text-gray-900' : 'text-gray-600'}>{catName}</span>
+                <span className={isChecked ? 'font-bold text-emerald-800' : 'text-gray-600'}>{catName}</span>
               </label>
             );
           })}
@@ -346,6 +392,58 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
             </div>
           </div>
         </div>
+
+        {/* Active Filter Chips */}
+        {(selectedCategories.length > 0 || minPrice || maxPrice) && (
+          <div className="flex flex-wrap items-center gap-2 mb-5 bg-emerald-50/60 p-3 rounded-2xl border border-emerald-100/80">
+            <span className="text-[11px] font-extrabold text-emerald-900 uppercase tracking-wider flex items-center gap-1">
+              <Filter className="w-3 h-3 text-emerald-700" />
+              Active:
+            </span>
+            {selectedCategories.map(catName => (
+              <span
+                key={catName}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white text-emerald-800 border border-emerald-200 shadow-2xs"
+              >
+                <span>{catName}</span>
+                <button
+                  type="button"
+                  onClick={() => toggleCategoryName(catName)}
+                  className="hover:text-red-600 font-bold cursor-pointer text-xs leading-none ml-0.5"
+                  title={`Remove ${catName}`}
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+            {(minPrice || maxPrice) && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white text-gray-700 border border-gray-200 shadow-2xs">
+                <span>Price: ₹{minPrice || 0} - ₹{maxPrice || '∞'}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newParams = new URLSearchParams(searchParams);
+                    newParams.delete('minPrice');
+                    newParams.delete('maxPrice');
+                    newParams.set('page', 1);
+                    setSearchParams(newParams);
+                  }}
+                  className="hover:text-red-600 font-bold cursor-pointer text-xs leading-none ml-0.5"
+                  title="Remove Price Filter"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={clearAllFilters}
+              className="text-xs font-extrabold text-emerald-700 hover:text-emerald-950 hover:underline cursor-pointer ml-auto"
+            >
+              Clear All
+            </button>
+          </div>
+        )}
 
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

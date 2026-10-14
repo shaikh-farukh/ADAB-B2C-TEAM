@@ -23,7 +23,9 @@ export default function AccountPage({ onNavigate }) {
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
-  };  // Edit forms
+  };
+
+  // Edit forms
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({ name: accountDataCache?.profile?.name || '', phone: accountDataCache?.profile?.phone || '', email: accountDataCache?.profile?.email || '' });
 
@@ -33,10 +35,37 @@ export default function AccountPage({ onNavigate }) {
     type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false
   });
   const [serviceabilityResults, setServiceabilityResults] = useState({});
+  const [mapPreviews, setMapPreviews] = useState({});
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  const handleUpdateAvatar = async (avatarUrl) => {
+    try {
+      const res = await api.post('/customers/me/profile/avatar', { avatarUrl });
+      if (res.data?.success) {
+        setProfile(prev => ({ ...prev, profile_picture_url: avatarUrl }));
+        if (accountDataCache?.profile) {
+          accountDataCache.profile.profile_picture_url = avatarUrl;
+        }
+        showToast('Profile avatar updated successfully!');
+      }
+    } catch (e) {
+      showToast('Failed to update avatar', 'error');
+    }
+  };
+
+  const checkMapPreview = async (addressId) => {
+    try {
+      const res = await api.get(`/customers/me/addresses/${addressId}/map-preview`);
+      if (res.data?.success && res.data.data) {
+        setMapPreviews(prev => ({ ...prev, [addressId]: res.data.data }));
+      }
+    } catch (err) {
+      console.warn('Map preview check error:', err);
+    }
+  };
 
   const fetchData = async (force = false) => {
     if (accountDataCache && !force) {
@@ -51,7 +80,7 @@ export default function AccountPage({ onNavigate }) {
       const [profRes, addrRes, notifRes] = await Promise.all([
         api.get('/customers/me'),
         api.get('/customers/me/addresses'),
-        api.get('/customers/me/notifications')
+        api.get('/customers/me/notification-preferences')
       ]);
       
       const newCache = { profile: null, addresses: [], notifications: notificationPrefs };
@@ -82,7 +111,7 @@ export default function AccountPage({ onNavigate }) {
     e.preventDefault();
     try {
       const res = await api.patch('/customers/me', profileForm);
-      const notifRes = await api.patch('/customers/me/notifications', notificationPrefs);
+      const notifRes = await api.patch('/customers/me/notification-preferences', notificationPrefs);
       if (res.data?.success && notifRes.data?.success) {
         setProfile(res.data.data);
         if (accountDataCache) {
@@ -150,13 +179,17 @@ export default function AccountPage({ onNavigate }) {
       <div className="bg-[#18753C] rounded-2xl p-6 text-white shadow-sm flex flex-col gap-6 relative overflow-hidden">
         <div className="flex justify-between items-start z-10">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-[#519468] rounded-xl flex items-center justify-center text-3xl font-extrabold text-white">
-              {profile?.name ? profile.name.charAt(0).toUpperCase() : 'P'}
+            <div className="w-16 h-16 bg-[#519468] rounded-xl flex items-center justify-center text-3xl font-extrabold text-white overflow-hidden shadow-inner shrink-0">
+              {profile?.profile_picture_url ? (
+                <img src={profile.profile_picture_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                profile?.name ? profile.name.charAt(0).toUpperCase() : 'U'
+              )}
             </div>
             <div>
-              <h2 className="text-xl font-bold">{profile?.name || 'Pooja Sharma'}</h2>
+              <h2 className="text-xl font-bold">{profile?.name || 'Customer Account'}</h2>
               <p className="text-xs text-green-100 mt-1">
-                {profile?.phone || '+91 98765 12340'} &bull; {profile?.email || 'pooja.s@email.com'}
+                {profile?.phone || 'No phone set'} &bull; {profile?.email || 'No email set'}
               </p>
             </div>
           </div>
@@ -343,8 +376,8 @@ export default function AccountPage({ onNavigate }) {
                 <p className="text-gray-700 text-sm">{addr.address}, {addr.city}, {addr.state} - <span className="font-bold text-gray-900">{addr.zip}</span></p>
                 <p className="text-gray-500 text-xs">{addr.recipientName || profile?.name || 'Customer'} &bull; {addr.phone || profile?.phone || '+91 98765 12340'}</p>
 
-                {/* Serviceability Check Result / Button */}
-                <div className="pt-2">
+                {/* Serviceability & Map Preview */}
+                <div className="pt-2 flex flex-wrap items-center gap-3">
                   {serviceInfo ? (
                     <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-emerald-200">
                       <i className="fa-solid fa-bolt text-emerald-600"></i>
@@ -356,6 +389,26 @@ export default function AccountPage({ onNavigate }) {
                       className="text-[11px] font-bold text-brand-green hover:underline flex items-center gap-1 cursor-pointer"
                     >
                       <i className="fa-solid fa-location-crosshairs"></i> Check Delivery Serviceability
+                    </button>
+                  )}
+
+                  {mapPreviews[addr.id] ? (
+                    <a
+                      href={mapPreviews[addr.id].googleMapsUrl || `https://maps.google.com/?q=${encodeURIComponent(addr.address + ', ' + addr.city)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-blue-200 transition"
+                    >
+                      <i className="fa-solid fa-map-location-dot text-blue-600"></i>
+                      <span>Open in Maps</span>
+                      <i className="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+                    </a>
+                  ) : (
+                    <button
+                      onClick={() => checkMapPreview(addr.id)}
+                      className="text-[11px] font-bold text-blue-600 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <i className="fa-solid fa-map"></i> View Map Preview
                     </button>
                   )}
                 </div>
@@ -471,6 +524,40 @@ export default function AccountPage({ onNavigate }) {
     <div className="max-w-4xl mx-auto w-full">
       <div className="flex items-center gap-2 mb-6">
         <h2 className="text-2xl font-black text-[#111827]">Settings</h2>
+      </div>
+
+      {/* Profile Avatar Selector */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
+        <h3 className="text-lg font-bold text-gray-900 mb-2">Profile Avatar</h3>
+        <p className="text-xs text-gray-500 mb-4">Select an avatar or paste a custom URL to customize your customer profile.</p>
+        <div className="flex flex-wrap items-center gap-4">
+          <img
+            src={profile?.profile_picture_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+            alt="Current Avatar"
+            className="w-16 h-16 rounded-full object-cover border-2 border-brand-green shadow-sm"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            {[
+              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+              'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+              'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
+              'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
+              'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150'
+            ].map((url, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleUpdateAvatar(url)}
+                className={`w-10 h-10 rounded-full overflow-hidden border-2 transition hover:scale-105 cursor-pointer ${
+                  profile?.profile_picture_url === url ? 'border-brand-green ring-2 ring-brand-green/30' : 'border-gray-200'
+                }`}
+                title={`Select Avatar ${idx + 1}`}
+              >
+                <img src={url} alt={`Preset ${idx + 1}`} className="w-full h-full object-cover" />
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">

@@ -241,6 +241,9 @@ async function createOrderFromCart({
 
 // Fetch all orders for a customer
 async function getCustomerOrders(customerId = null) {
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const validCustomerId = customerId && UUID_REGEX.test(customerId) ? customerId : null;
+
   let query = `
     SELECT 
       o.*,
@@ -261,9 +264,9 @@ async function getCustomerOrders(customerId = null) {
     WHERE 1=1
   `;
   const params = [];
-  if (customerId) {
+  if (validCustomerId) {
     query += ` AND o.customer_id = $1`;
-    params.push(customerId);
+    params.push(validCustomerId);
   }
   query += ` GROUP BY o.id ORDER BY o.created_at DESC LIMIT 20`;
 

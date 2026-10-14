@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api/api';
 import { ShoppingCart, Star, ChevronRight, ArrowLeft, ShieldCheck, Truck, RotateCcw, Award, CheckCircle2, ChevronDown, ChevronUp, Store } from 'lucide-react';
@@ -17,6 +17,9 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
   const [selectedVariant, setSelectedVariant] = useState(0);
   const [sellers, setSellers] = useState([]);
   const [related, setRelated] = useState([]);
+  const [frequentlyBought, setFrequentlyBought] = useState(null);
+  const [recentlyViewed, setRecentlyViewed] = useState([]);
+  const [addedBundleSuccess, setAddedBundleSuccess] = useState(false);
   
   // Review filters & state
   const [reviewFilter, setReviewFilter] = useState('ALL'); // 'ALL' | 5 | 4 | 'VERIFIED'
@@ -32,11 +35,16 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
           productDataPromise = Promise.all([
             api.get(`/catalog/products/${id}`),
             api.get(`/catalog/products/${id}/sellers`).catch(() => ({ data: { data: [] } })),
-            api.get(`/catalog/products/${id}/related`).catch(() => ({ data: { data: [] } }))
+            api.get(`/catalog/products/${id}/related`).catch(() => ({ data: { data: [] } })),
+            api.get(`/catalog/products/${id}/frequently-bought-together`).catch(() => ({ data: { data: null } })),
+            api.get(`/customers/me/recently-viewed`).catch(() => ({ data: { data: [] } }))
           ]);
         }
 
-        const [productRes, sellersRes, relatedRes] = await productDataPromise;
+        // Record recently viewed product
+        api.post('/customers/me/recently-viewed', { productId: id }).catch(() => {});
+
+        const [productRes, sellersRes, relatedRes, freqRes, recentRes] = await productDataPromise;
 
         if (productRes.data.success && productRes.data.data) {
           const fetchedProduct = productRes.data.data;
@@ -63,6 +71,12 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
         }
         if (relatedRes?.data?.data) {
           setRelated(relatedRes.data.data);
+        }
+        if (freqRes?.data?.data) {
+          setFrequentlyBought(freqRes.data.data);
+        }
+        if (recentRes?.data?.data && Array.isArray(recentRes.data.data)) {
+          setRecentlyViewed(recentRes.data.data.filter(p => p.id !== id));
         }
       } catch (err) {
         console.error("Error fetching product details:", err);
@@ -231,9 +245,19 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
               {totalReviews} verified {totalReviews === 1 ? 'review' : 'reviews'}
             </a>
             <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
-            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-              In Stock & Ready to Ship
-            </span>
+            {product.stock_qty !== undefined && product.stock_qty <= 0 ? (
+              <span className="text-xs font-extrabold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                Out of Stock
+              </span>
+            ) : product.stock_qty !== undefined && product.stock_qty <= 10 ? (
+              <span className="text-xs font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                Only {product.stock_qty} left — order soon!
+              </span>
+            ) : (
+              <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                In Stock ({product.stock_qty || 'Available'}) & Ready to Ship
+              </span>
+            )}
           </div>
 
           {/* Pricing Details */}
@@ -281,24 +305,36 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
 
           {/* Desktop Action Buttons */}
           <div className="hidden md:flex gap-3 mb-6">
-            <button 
-              type="button"
-              onClick={() => onAddToCart && onAddToCart(product.id, product.name)}
-              className="flex-1 bg-brand-green hover:bg-green-700 text-white font-extrabold text-base rounded-2xl py-3.5 shadow-lg shadow-brand-green/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <ShoppingCart className="w-5 h-5" />
-              Add to Cart
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (onAddToCart) onAddToCart(product.id, product.name);
-                navigate('/checkout');
-              }}
-              className="flex-1 bg-gray-900 hover:bg-black text-white font-extrabold text-base rounded-2xl py-3.5 shadow-lg shadow-gray-900/10 active:scale-[0.98] transition-all cursor-pointer"
-            >
-              Buy Now
-            </button>
+            {product.stock_qty !== undefined && product.stock_qty <= 0 ? (
+              <button 
+                type="button"
+                disabled
+                className="w-full bg-gray-200 text-gray-500 font-extrabold text-base rounded-2xl py-3.5 cursor-not-allowed text-center"
+              >
+                Out of Stock
+              </button>
+            ) : (
+              <>
+                <button 
+                  type="button"
+                  onClick={() => onAddToCart && onAddToCart(product.id, product.name)}
+                  className="flex-1 bg-brand-green hover:bg-green-700 text-white font-extrabold text-base rounded-2xl py-3.5 shadow-lg shadow-brand-green/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <ShoppingCart className="w-5 h-5" />
+                  Add to Cart
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onAddToCart) onAddToCart(product.id, product.name);
+                    navigate('/checkout');
+                  }}
+                  className="flex-1 bg-gray-900 hover:bg-black text-white font-extrabold text-base rounded-2xl py-3.5 shadow-lg shadow-gray-900/10 active:scale-[0.98] transition-all cursor-pointer"
+                >
+                  Buy Now
+                </button>
+              </>
+            )}
           </div>
 
           {/* Transparency: Delivery & Return Commitments */}
@@ -403,6 +439,95 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
                 </button>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Frequently Bought Together Bundle */}
+      {frequentlyBought && frequentlyBought.bundleItems && frequentlyBought.bundleItems.length > 0 && (
+        <div className="pt-6 border-t border-gray-100">
+          <div className="bg-gradient-to-br from-emerald-50/70 via-white to-gray-50 border border-emerald-200/80 rounded-3xl p-5 md:p-6 shadow-sm">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+              <div className="space-y-3 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
+                    Combo Savings
+                  </span>
+                  <h3 className="text-lg font-black text-gray-900">Frequently Bought Together</h3>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Customers frequently combine this item with these local essentials for additional combo savings
+                </p>
+
+                {/* Bundle Item Previews Connected with + sign */}
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  {/* Main Product */}
+                  <div className="flex items-center gap-2.5 bg-white border border-gray-200/90 rounded-2xl p-2.5 pr-3.5 shadow-2xs">
+                    <img src={product.image} alt={product.name} className="w-12 h-12 object-contain rounded-xl bg-gray-50" />
+                    <div>
+                      <div className="text-[10px] font-extrabold text-emerald-700 uppercase">This Item</div>
+                      <div className="text-xs font-bold text-gray-900 truncate max-w-[130px]">{product.name}</div>
+                      <div className="text-xs font-black text-gray-900">₹{product.price}</div>
+                    </div>
+                  </div>
+
+                  {frequentlyBought.bundleItems.map((item) => (
+                    <React.Fragment key={item.id}>
+                      <span className="text-emerald-700 font-black text-lg">+</span>
+                      <div className="flex items-center gap-2.5 bg-white border border-gray-200/90 rounded-2xl p-2.5 pr-3.5 shadow-2xs">
+                        <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-700 font-black text-sm shrink-0">
+                          <ShoppingCart className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-extrabold text-gray-400 uppercase">Addon</div>
+                          <div className="text-xs font-bold text-gray-900 truncate max-w-[130px]">{item.name}</div>
+                          <div className="text-xs font-black text-gray-900">₹{item.price}</div>
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bundle Checkout Box */}
+              <div className="bg-white border border-emerald-200 rounded-2xl p-4 sm:p-5 flex flex-col justify-center gap-3 min-w-[240px] shadow-sm">
+                <div>
+                  <div className="text-[10px] font-bold text-gray-400 uppercase">Bundle Total</div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-black text-gray-900">₹{frequentlyBought.comboPrice}</span>
+                    <span className="text-xs text-gray-400 line-through">₹{frequentlyBought.regularTotal}</span>
+                  </div>
+                  {frequentlyBought.savings > 0 && (
+                    <div className="text-[11px] font-extrabold text-emerald-700 mt-0.5">
+                      Save ₹{frequentlyBought.savings} (5% Instant Combo Discount)
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onAddToCart && product) {
+                      onAddToCart(product.id, product.name);
+                      if (Array.isArray(frequentlyBought.bundleItems)) {
+                        frequentlyBought.bundleItems.forEach(b => onAddToCart(b.id, b.name));
+                      }
+                      setAddedBundleSuccess(true);
+                      setTimeout(() => setAddedBundleSuccess(false), 3000);
+                    }
+                  }}
+                  className={`py-3 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm ${
+                    addedBundleSuccess
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-emerald-800 hover:bg-emerald-900 text-white'
+                  }`}
+                >
+                  <ShoppingCart className="w-4 h-4" />
+                  <span>{addedBundleSuccess ? 'Added Combo to Cart! ✓' : 'Add Both / All to Cart'}</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -557,6 +682,48 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
         </div>
       )}
 
+      {/* Recently Viewed Products */}
+      {recentlyViewed.length > 0 && (
+        <div className="pt-6 border-t border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-black text-gray-900">Recently Viewed</h2>
+              <p className="text-xs text-gray-500">Pick up where you left off</p>
+            </div>
+            <button
+              onClick={() => navigate('/browse')}
+              className="text-xs font-bold text-brand-green hover:underline cursor-pointer"
+            >
+              Browse Catalog →
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {recentlyViewed.slice(0, 4).map((item) => (
+              <div
+                key={item.id}
+                onClick={() => {
+                  navigate(`/product/${item.id}`);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="bg-white border border-gray-100 rounded-2xl p-3.5 shadow-2xs hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer group flex flex-col justify-between"
+              >
+                <div className="aspect-square bg-gray-50 rounded-xl mb-2 flex items-center justify-center p-2 overflow-hidden">
+                  <img
+                    src={item.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80'}
+                    alt={item.name}
+                    className="w-full h-full object-contain group-hover:scale-105 transition-transform"
+                  />
+                </div>
+                <div>
+                  <h4 className="font-bold text-xs text-gray-900 truncate mb-1">{item.name}</h4>
+                  <div className="font-black text-sm text-gray-900">₹{item.price}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Pillar 5: Mobile Fixed Bottom Sticky Action Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-200 p-3 px-4 flex items-center justify-between gap-3 md:hidden z-40 shadow-2xl">
         <div>
@@ -564,24 +731,36 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
           <div className="text-lg font-black text-gray-900 leading-tight">₹{displayPrice}</div>
         </div>
         <div className="flex items-center gap-2 flex-1 max-w-[240px]">
-          <button
-            type="button"
-            onClick={() => onAddToCart && onAddToCart(product.id, product.name)}
-            className="flex-1 bg-brand-green text-white font-extrabold text-xs py-3 px-3 rounded-xl flex items-center justify-center gap-1 active:scale-95 shadow-md shadow-brand-green/20"
-          >
-            <ShoppingCart className="w-3.5 h-3.5" />
-            Add
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (onAddToCart) onAddToCart(product.id, product.name);
-              navigate('/checkout');
-            }}
-            className="flex-1 bg-gray-900 text-white font-extrabold text-xs py-3 px-3 rounded-xl flex items-center justify-center active:scale-95 shadow-md shadow-black/10"
-          >
-            Buy Now
-          </button>
+          {product.stock_qty !== undefined && product.stock_qty <= 0 ? (
+            <button
+              type="button"
+              disabled
+              className="w-full bg-gray-200 text-gray-500 font-extrabold text-xs py-3 px-3 rounded-xl cursor-not-allowed text-center"
+            >
+              Out of Stock
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => onAddToCart && onAddToCart(product.id, product.name)}
+                className="flex-1 bg-brand-green text-white font-extrabold text-xs py-3 px-3 rounded-xl flex items-center justify-center gap-1 active:scale-95 shadow-md shadow-brand-green/20"
+              >
+                <ShoppingCart className="w-3.5 h-3.5" />
+                Add
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onAddToCart) onAddToCart(product.id, product.name);
+                  navigate('/checkout');
+                }}
+                className="flex-1 bg-gray-900 text-white font-extrabold text-xs py-3 px-3 rounded-xl flex items-center justify-center active:scale-95 shadow-md shadow-black/10"
+              >
+                Buy Now
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
