@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/api';
 import ProductCard from '../components/ProductCard';
@@ -9,7 +9,6 @@ import {
   SlidersHorizontal,
   Layers,
   PackageSearch,
-  Filter,
   CheckCircle2,
   Store
 } from 'lucide-react';
@@ -36,7 +35,6 @@ export default function CategoriesPage({ onAddToCart, onToggleWishlist, wishlist
   const [products, setProducts] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [loadingProducts, setLoadingProducts] = useState(false);
-  const [activeFilter, setActiveFilter] = useState('ALL');
 
   // 1. Load Categories via Category Tree API (Mahi's API #20)
   useEffect(() => {
@@ -49,7 +47,7 @@ export default function CategoriesPage({ onAddToCart, onToggleWishlist, wishlist
         if (list.length > 0) {
           const requestedSlug = searchParams.get('category') || searchParams.get('slug');
           const matched = list.find(c => c.slug === requestedSlug || String(c.id) === requestedSlug);
-          setSelectedCategory(matched || list[0]);
+          setSelectedCategory(matched || list.find(c => c.slug === 'snacks-packaged-food') || list[0]);
         }
       })
       .catch(() => {
@@ -58,7 +56,9 @@ export default function CategoriesPage({ onAddToCart, onToggleWishlist, wishlist
           if (!isCurrent) return;
           const flatList = flatRes.data?.data || flatRes.data || [];
           setCategories(flatList);
-          if (flatList.length > 0) setSelectedCategory(flatList[0]);
+          if (flatList.length > 0) {
+            setSelectedCategory(flatList.find(c => c.slug === 'snacks-packaged-food') || flatList[0]);
+          }
         });
       })
       .finally(() => {
@@ -73,7 +73,6 @@ export default function CategoriesPage({ onAddToCart, onToggleWishlist, wishlist
     if (!selectedCategory) return;
     let isCurrent = true;
     setLoadingProducts(true);
-    setActiveFilter('ALL');
 
     // Use Mahi's canonical endpoint: /catalog/categories/:slug/products
     api.get(`/catalog/categories/${selectedCategory.slug}/products`)
@@ -108,94 +107,7 @@ export default function CategoriesPage({ onAddToCart, onToggleWishlist, wishlist
     setSearchParams({ category: cat.slug });
   };
 
-  // 3. Dynamic Production-Level Filter Generation
-  // If the DB has real subcategories (cat.children.length > 0), use DB subcategories.
-  // Otherwise, dynamically derive real brand and price pills from the actual live products!
-  const filterOptions = useMemo(() => {
-    // Case A: Real DB subcategories exist
-    if (selectedCategory?.children && selectedCategory.children.length > 0) {
-      return [
-        { id: 'ALL', label: `All in ${selectedCategory.name.split(' ')[0]}`, count: products.length, type: 'all' },
-        ...selectedCategory.children.map(child => ({
-          id: `child_${child.id}`,
-          label: child.name,
-          slug: child.slug,
-          type: 'child_category'
-        }))
-      ];
-    }
 
-    // Case B: No subcategories in DB yet -> Dynamically generate from live products!
-    const options = [
-      { id: 'ALL', label: `All Items (${products.length})`, type: 'all' }
-    ];
-
-    if (products.length === 0) return options;
-
-    // Extract unique brands / store names from live products
-    const brandsSet = new Set();
-    products.forEach(p => {
-      const brand = p.brand_tag || (p.name ? p.name.split(' ')[0] : null);
-      if (brand && brand.length > 2 && !['Pack', '1kg', '500g'].includes(brand)) {
-        brandsSet.add(brand);
-      }
-    });
-
-    brandsSet.forEach(brand => {
-      const count = products.filter(p => 
-        (p.name || '').toLowerCase().includes(brand.toLowerCase()) ||
-        (p.brand_tag || '').toLowerCase() === brand.toLowerCase()
-      ).length;
-      if (count > 0) {
-        options.push({ id: `brand_${brand}`, label: `${brand} (${count})`, brandName: brand, type: 'brand' });
-      }
-    });
-
-    // Check for Under ₹50 quick filter
-    const under50Count = products.filter(p => (p.price || p.sell_price || 0) <= 50).length;
-    if (under50Count > 0 && under50Count < products.length) {
-      options.push({ id: 'price_under_50', label: `Under ₹50 (${under50Count})`, maxPrice: 50, type: 'price' });
-    }
-
-    // Check for In-Stock filter
-    const inStockCount = products.filter(p => (p.stock_qty || 0) > 0).length;
-    if (inStockCount > 0 && inStockCount < products.length) {
-      options.push({ id: 'in_stock_only', label: `In Stock Only (${inStockCount})`, type: 'stock' });
-    }
-
-    return options;
-  }, [selectedCategory, products]);
-
-  // 4. Apply selected dynamic filter
-  const displayedProducts = useMemo(() => {
-    if (activeFilter === 'ALL') return products;
-
-    const selectedOpt = filterOptions.find(opt => opt.id === activeFilter);
-    if (!selectedOpt) return products;
-
-    if (selectedOpt.type === 'brand') {
-      return products.filter(p => 
-        (p.name || '').toLowerCase().includes(selectedOpt.brandName.toLowerCase()) ||
-        (p.brand_tag || '').toLowerCase() === selectedOpt.brandName.toLowerCase()
-      );
-    }
-
-    if (selectedOpt.type === 'price') {
-      return products.filter(p => (p.price || p.sell_price || 0) <= selectedOpt.maxPrice);
-    }
-
-    if (selectedOpt.type === 'stock') {
-      return products.filter(p => (p.stock_qty || 0) > 0);
-    }
-
-    if (selectedOpt.type === 'child_category') {
-      return products.filter(p => 
-        (p.name || '').toLowerCase().includes(selectedOpt.label.toLowerCase())
-      );
-    }
-
-    return products;
-  }, [products, activeFilter, filterOptions]);
 
   const styleMeta = selectedCategory ? (CATEGORY_STYLES[selectedCategory.slug] || {
     icon: '🏷️',
@@ -304,35 +216,6 @@ export default function CategoriesPage({ onAddToCart, onToggleWishlist, wishlist
                 </button>
               </div>
 
-              {/* Dynamic Quick Filters (Real Data: Subcategories if available, or Brands & Price) */}
-              {filterOptions.length > 1 && (
-                <div className="bg-white border border-gray-200/80 rounded-2xl p-3 shadow-2xs">
-                  <div className="text-[11px] font-extrabold uppercase tracking-wider text-gray-400 mb-2 px-1 flex items-center gap-1.5">
-                    <Filter className="w-3 h-3 text-emerald-600" />
-                    <span>Quick Filter</span>
-                  </div>
-                  <div className="flex items-center gap-2 overflow-x-auto hide-scroll pb-1">
-                    {filterOptions.map(opt => {
-                      const isActive = activeFilter === opt.id;
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => setActiveFilter(opt.id)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border ${
-                            isActive
-                              ? 'bg-emerald-800 border-emerald-800 text-white shadow-xs font-extrabold'
-                              : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
               {/* Products Grid */}
               <div>
                 {loadingProducts ? (
@@ -345,54 +228,40 @@ export default function CategoriesPage({ onAddToCart, onToggleWishlist, wishlist
                       </div>
                     ))}
                   </div>
-                ) : displayedProducts.length === 0 ? (
+                ) : products.length === 0 ? (
                   <div className="bg-white border border-gray-200/80 rounded-3xl p-10 text-center space-y-3 shadow-xs">
                     <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center text-2xl mx-auto">
                       <PackageSearch className="w-8 h-8" />
                     </div>
                     <h3 className="font-extrabold text-base text-gray-900">
-                      No Products Found for this Selection
+                      No Products Found in this Department
                     </h3>
                     <p className="text-xs text-gray-500 max-w-md mx-auto">
-                      {activeFilter !== 'ALL'
-                        ? 'Try clearing the active filter pill above to view all items in this department.'
-                        : 'Local shops are restocking items in this department. Explore other departments or browse the complete marketplace catalog.'}
+                      Local shops are restocking items in this department. Explore other departments or browse the complete marketplace catalog.
                     </p>
                     <div className="pt-2 flex justify-center gap-2">
-                      {activeFilter !== 'ALL' ? (
-                        <button
-                          type="button"
-                          onClick={() => setActiveFilter('ALL')}
-                          className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
-                        >
-                          Show All in {selectedCategory.name}
-                        </button>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const snacks = categories.find(c => c.slug === 'snacks-packaged-food');
-                              if (snacks) handleSelectCategory(snacks);
-                            }}
-                            className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
-                          >
-                            Explore Snacks & Food
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => navigate('/browse')}
-                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
-                          >
-                            Browse All Catalog
-                          </button>
-                        </>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const snacks = categories.find(c => c.slug === 'snacks-packaged-food');
+                          if (snacks) handleSelectCategory(snacks);
+                        }}
+                        className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+                      >
+                        Explore Snacks & Food
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/browse')}
+                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
+                      >
+                        Browse All Catalog
+                      </button>
                     </div>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {displayedProducts.map(prod => (
+                    {products.map(prod => (
                       <ProductCard
                         key={prod.id}
                         product={prod}

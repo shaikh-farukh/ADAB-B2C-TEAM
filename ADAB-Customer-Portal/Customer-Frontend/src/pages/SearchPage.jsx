@@ -2,18 +2,28 @@ import { useState, useEffect } from 'react';
 import { api } from '../api/api';
 import ProductCard from '../components/ProductCard';
 import { Search, ArrowLeft, Flame, ThumbsUp, ThumbsDown, CheckCircle2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 let searchRecommendedCache = null;
 
 export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) {
-  const [query, setQuery] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlQuery = searchParams.get('q') || '';
+  const [query, setQuery] = useState(urlQuery);
   const [products, setProducts] = useState([]);
   const [recommended, setRecommended] = useState([]);
   const [popularSearches, setPopularSearches] = useState([]);
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  // Sync URL query if user navigates with a new ?q= search param
+  useEffect(() => {
+    const qParam = searchParams.get('q');
+    if (qParam !== null && qParam !== query) {
+      setQuery(qParam);
+    }
+  }, [searchParams]);
 
   const [filters, setFilters] = useState({
     brand: '',
@@ -100,9 +110,10 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
         if (filters.inStockOnly) queryParams.append('inStockOnly', 'true');
 
         const res = await api.get(`/catalog/search?${queryParams.toString()}`);
-        setProducts(res.data.data);
+        setProducts(Array.isArray(res.data?.data) ? res.data.data : []);
       } catch (err) {
-        console.error(err);
+        console.error("Error in SearchPage fetchProducts:", err);
+        setProducts([]);
       } finally {
         setLoading(false);
       }

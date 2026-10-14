@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api/api';
 import ProductCard from '../components/ProductCard';
@@ -23,7 +23,7 @@ export default function BrowsePage({ onAddToCart, onToggleWishlist, wishlist }) 
 
   // Derive active selected category names across ?categories=..., ?category=..., and ?categoryName=...
   // Automatically activates and checks the category checkbox when redirected from CategoriesPage or HomePage
-  const selectedCategories = React.useMemo(() => {
+  const selectedCategories = useMemo(() => {
     if (rawCategories.length > 0) {
       return rawCategories;
     }

@@ -1,10 +1,7 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api/api';
 import { ShoppingCart, Star, ChevronRight, ArrowLeft, ShieldCheck, Truck, RotateCcw, Award, CheckCircle2, ChevronDown, ChevronUp, Store } from 'lucide-react';
-
-let productDataPromise = null;
-let currentProductId = null;
 
 export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishlist }) {
   const location = useLocation();
@@ -26,25 +23,26 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
   const [expandedSection, setExpandedSection] = useState({ specs: true, seller: true, returns: true });
 
   useEffect(() => {
+    let isCurrent = true;
+
     const fetchProductDetails = async () => {
       try {
         setLoading(true);
         setErrorStatus(null);
-        if (currentProductId !== id || !productDataPromise) {
-          currentProductId = id;
-          productDataPromise = Promise.all([
-            api.get(`/catalog/products/${id}`),
-            api.get(`/catalog/products/${id}/sellers`).catch(() => ({ data: { data: [] } })),
-            api.get(`/catalog/products/${id}/related`).catch(() => ({ data: { data: [] } })),
-            api.get(`/catalog/products/${id}/frequently-bought-together`).catch(() => ({ data: { data: null } })),
-            api.get(`/customers/me/recently-viewed`).catch(() => ({ data: { data: [] } }))
-          ]);
-        }
 
-        // Record recently viewed product
+        const fetchPromise = Promise.all([
+          api.get(`/catalog/products/${id}`),
+          api.get(`/catalog/products/${id}/sellers`).catch(() => ({ data: { data: [] } })),
+          api.get(`/catalog/products/${id}/related`).catch(() => ({ data: { data: [] } })),
+          api.get(`/catalog/products/${id}/frequently-bought-together`).catch(() => ({ data: { data: null } })),
+          api.get(`/customers/me/recently-viewed`).catch(() => ({ data: { data: [] } }))
+        ]);
+
+        // Record recently viewed product in background
         api.post('/customers/me/recently-viewed', { productId: id }).catch(() => {});
 
-        const [productRes, sellersRes, relatedRes, freqRes, recentRes] = await productDataPromise;
+        const [productRes, sellersRes, relatedRes, freqRes, recentRes] = await fetchPromise;
+        if (!isCurrent) return;
 
         if (productRes.data.success && productRes.data.data) {
           const fetchedProduct = productRes.data.data;
@@ -89,6 +87,9 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
     if (id) {
       fetchProductDetails();
     }
+    return () => {
+      isCurrent = false;
+    };
   }, [id]);
 
   if (loading) {

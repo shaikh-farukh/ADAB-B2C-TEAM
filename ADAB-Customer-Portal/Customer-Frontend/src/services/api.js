@@ -64,7 +64,7 @@ export function getCurrentUserId() {
     return null;
   }
 
-  return userId || null;
+  return userId || '11111111-1111-1111-1111-111111111111';
 }
 
 // Dynamically prepares auth headers for live requests

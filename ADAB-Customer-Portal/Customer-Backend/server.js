@@ -32,7 +32,9 @@ const wishlistRoutes = require('./routes/wishlist');
 app.use('/api/v1/catalog', catalogRoutes);
 app.use('/api/catalog', catalogRoutes);
 app.use('/api/v1/customers', customerRoutes);
+app.use('/api/customers', customerRoutes);
 app.use('/api/v1/wishlist', wishlistRoutes);
+app.use('/api/wishlist', wishlistRoutes);
 
 // Health / Sample API Route with DB check
 app.get('/api/health', async (req, res) => {

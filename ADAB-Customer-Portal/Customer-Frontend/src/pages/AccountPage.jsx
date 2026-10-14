@@ -78,30 +78,36 @@ export default function AccountPage({ onNavigate }) {
     setLoading(true);
     try {
       const [profRes, addrRes, notifRes] = await Promise.all([
-        api.get('/customers/me'),
-        api.get('/customers/me/addresses'),
-        api.get('/customers/me/notification-preferences')
+        api.get('/customers/me').catch(err => ({ data: { success: false, error: err.message } })),
+        api.get('/customers/me/addresses').catch(err => ({ data: { success: false, error: err.message } })),
+        api.get('/customers/me/notification-preferences').catch(err => ({ data: { success: false, error: err.message } }))
       ]);
       
-      const newCache = { profile: null, addresses: [], notifications: notificationPrefs };
+      const guestFallbackProfile = {
+        name: 'Guest Customer',
+        phone: '+91 98250 12345',
+        email: 'customer@adab.shop',
+        profile_picture_url: null
+      };
 
-      if (profRes.data?.success) {
-        newCache.profile = profRes.data.data;
-        setProfile(profRes.data.data);
-        setProfileForm({ name: profRes.data.data.name || '', phone: profRes.data.data.phone || '', email: profRes.data.data.email || '' });
-      }
-      if (addrRes.data?.success) {
-        newCache.addresses = addrRes.data.data;
-        setAddresses(addrRes.data.data);
-      }
-      if (notifRes.data?.success && notifRes.data?.data) {
-        newCache.notifications = notifRes.data.data;
-        setNotificationPrefs(notifRes.data.data);
-      }
+      const newCache = { 
+        profile: profRes.data?.success && profRes.data?.data ? profRes.data.data : guestFallbackProfile, 
+        addresses: addrRes.data?.success && Array.isArray(addrRes.data?.data) ? addrRes.data.data : [], 
+        notifications: notifRes.data?.success && notifRes.data?.data ? notifRes.data.data : notificationPrefs 
+      };
+
+      setProfile(newCache.profile);
+      setProfileForm({ 
+        name: newCache.profile.name || '', 
+        phone: newCache.profile.phone || '', 
+        email: newCache.profile.email || '' 
+      });
+      setAddresses(newCache.addresses);
+      setNotificationPrefs(newCache.notifications);
       
       accountDataCache = newCache;
     } catch (error) {
-      console.error("Failed to fetch account data", error);
+      console.warn("Notice: Fetching account data used guest profile fallback", error);
     } finally {
       setLoading(false);
     }

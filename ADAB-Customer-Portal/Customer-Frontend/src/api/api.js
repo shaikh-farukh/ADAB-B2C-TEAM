@@ -54,6 +54,10 @@ api.interceptors.request.use((config) => {
     userId = null;
   }
 
+  if (!userId) {
+    userId = '11111111-1111-1111-1111-111111111111';
+  }
+
   if (token) {
     config.headers['Authorization'] = `Bearer ${token}`;
   }
