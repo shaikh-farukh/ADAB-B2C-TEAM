@@ -121,7 +121,7 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
 
     const delayDebounceFn = setTimeout(() => {
       fetchProducts();
-    }, 500);
+    }, 250);
 
     return () => clearTimeout(delayDebounceFn);
   }, [query, filters]);
@@ -141,7 +141,10 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
               className="w-full bg-transparent border-none focus:outline-none text-sm font-medium text-gray-900 placeholder-gray-400"
               placeholder="Search shops, products, brands..." 
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setSearchParams(e.target.value.trim() ? { q: e.target.value } : {});
+              }}
               onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
             />
@@ -161,6 +164,7 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
                   onMouseDown={(e) => {
                     e.preventDefault();
                     setQuery(suggestion);
+                    setSearchParams({ q: suggestion });
                     setShowSuggestions(false);
                   }}
                   className="px-4 py-3 hover:bg-green-50 cursor-pointer text-sm font-semibold text-gray-700 flex items-center gap-3 transition-colors border-b border-gray-50 last:border-0"
@@ -232,7 +236,10 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
               <button
                 key={idx}
                 type="button"
-                onClick={() => setQuery(term)}
+                onClick={() => {
+                  setQuery(term);
+                  setSearchParams({ q: term });
+                }}
                 className="px-3 py-1 bg-white hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 text-gray-700 text-xs font-bold rounded-full border border-gray-200 transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
               >
                 {term}

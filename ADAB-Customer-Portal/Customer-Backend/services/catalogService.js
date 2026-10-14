@@ -479,7 +479,8 @@ exports.searchProducts = async (qOrFilters = {}, pageArg = 1, limitArg = 20, fil
   let paramIdx = 1;
 
   if (q) {
-    whereClause += ` AND sl.title ILIKE $${paramIdx++}`;
+    whereClause += ` AND (sl.title ILIKE $${paramIdx} OR c.name ILIKE $${paramIdx} OR c.slug ILIKE $${paramIdx} OR st.store_name ILIKE $${paramIdx} OR sl.brand_tag ILIKE $${paramIdx})`;
+    paramIdx++;
     params.push(`%${q}%`);
   }
 
@@ -629,6 +630,10 @@ exports.getSearchSuggestions = async (q = '') => {
     WHERE is_active = true 
       AND (approval_status = 'APPROVED' OR approval_status IS NULL)
       AND title ILIKE $1 
+    UNION
+    SELECT DISTINCT name as suggestion
+    FROM categories
+    WHERE name ILIKE $1 OR slug ILIKE $1
     LIMIT 6
   `, [`%${queryText}%`]);
 
