@@ -9,6 +9,29 @@ export const api = axios.create({
   },
 });
 
+// Attach authenticated user and session headers dynamically
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('adab_auth_token');
+  const userStr = localStorage.getItem('adab_user');
+  const sessionToken = localStorage.getItem('adab_session_token');
+
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`;
+  }
+  if (userStr) {
+    try {
+      const u = JSON.parse(userStr);
+      if (u?.id) {
+        config.headers['x-user-id'] = u.id;
+      }
+    } catch {}
+  }
+  if (sessionToken) {
+    config.headers['x-session-token'] = sessionToken;
+  }
+  return config;
+});
+
 const pendingAxiosRequests = new Map();
 
 // Wrap api.get to deduplicate

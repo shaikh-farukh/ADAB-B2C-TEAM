@@ -3,14 +3,17 @@ const { formatError } = require('../utils/errorHandler');
 
 const getUserId = (req) =>
   req.headers['x-user-id'] ||
-  req.headers['x-session-token'] ||
   (req.query && req.query.customer_id) ||
   (req.body && req.body.customer_id) ||
   null;
 
 exports.getProfile = async (req, res) => {
   try {
-    const data = await customerService.getProfile(getUserId(req));
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.json({ status: 'success', success: true, data: null });
+    }
+    const data = await customerService.getProfile(userId);
     res.json({ status: 'success', success: true, data });
   } catch (error) {
     const { statusCode, response } = formatError(error);
@@ -20,7 +23,11 @@ exports.getProfile = async (req, res) => {
 
 exports.updateProfile = async (req, res) => {
   try {
-    const data = await customerService.updateProfile(getUserId(req), req.body);
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.status(401).json({ status: 'error', success: false, message: 'Please log in to update your profile.' });
+    }
+    const data = await customerService.updateProfile(userId, req.body);
     res.json({ status: 'success', success: true, data });
   } catch (error) {
     const { statusCode, response } = formatError(error);
@@ -30,7 +37,11 @@ exports.updateProfile = async (req, res) => {
 
 exports.getNotificationPreferences = async (req, res) => {
   try {
-    const data = await customerService.getNotificationPreferences(getUserId(req));
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.json({ success: true, data: null });
+    }
+    const data = await customerService.getNotificationPreferences(userId);
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -39,7 +50,11 @@ exports.getNotificationPreferences = async (req, res) => {
 
 exports.updateNotificationPreferences = async (req, res) => {
   try {
-    const data = await customerService.updateNotificationPreferences(getUserId(req), req.body);
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Please log in.' });
+    }
+    const data = await customerService.updateNotificationPreferences(userId, req.body);
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -48,8 +63,13 @@ exports.updateNotificationPreferences = async (req, res) => {
 
 exports.getAddresses = async (req, res) => {
   try {
-    const data = await customerService.getAddresses(getUserId(req));
-    res.json({ status: 'success', success: true, data });
+    const userId = getUserId(req);
+    if (!userId) {
+      // If user is not logged in or registered, return empty array (no address)
+      return res.json({ status: 'success', success: true, data: [] });
+    }
+    const data = await customerService.getAddresses(userId);
+    res.json({ status: 'success', success: true, data: data || [] });
   } catch (error) {
     const { statusCode, response } = formatError(error);
     res.status(statusCode).json(response);
@@ -145,7 +165,22 @@ exports.deletePaymentMethod = async (req, res) => {
 
 exports.getWallet = async (req, res) => {
   try {
-    const data = await customerService.getWallet(getUserId(req));
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.json({
+        status: 'success',
+        success: true,
+        data: {
+          wallet_id: null,
+          balance: 0,
+          currency: 'INR',
+          bnpl_limit: 0,
+          bnpl_available: 0,
+          bnpl_due_date: 'N/A'
+        }
+      });
+    }
+    const data = await customerService.getWallet(userId);
     res.json({ status: 'success', success: true, data });
   } catch (error) {
     const { statusCode, response } = formatError(error);
@@ -155,9 +190,13 @@ exports.getWallet = async (req, res) => {
 
 exports.getNotifications = async (req, res) => {
   try {
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.json({ status: 'success', success: true, data: [] });
+    }
     const limit = parseInt(req.query.limit, 10) || 50;
     const offset = parseInt(req.query.offset, 10) || 0;
-    const data = await customerService.getNotifications(getUserId(req), { limit, offset });
+    const data = await customerService.getNotifications(userId, { limit, offset });
     res.json({ status: 'success', success: true, data });
   } catch (error) {
     const { statusCode, response } = formatError(error);
@@ -167,7 +206,11 @@ exports.getNotifications = async (req, res) => {
 
 exports.getUnreadNotificationCount = async (req, res) => {
   try {
-    const count = await customerService.getUnreadNotificationCount(getUserId(req));
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.json({ status: 'success', success: true, data: { unread_count: 0 } });
+    }
+    const count = await customerService.getUnreadNotificationCount(userId);
     res.json({ status: 'success', success: true, data: { unread_count: count } });
   } catch (error) {
     const { statusCode, response } = formatError(error);

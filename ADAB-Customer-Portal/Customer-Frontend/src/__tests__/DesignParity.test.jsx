@@ -65,7 +65,7 @@ describe('Day 2 Frontend Task 4: UI Design Parity with unified-customer-portal-d
     expect(html).toContain('site-actions');
     expect(html).toContain('id="navPoints"');
     expect(html).toContain('id="navAuth"');
-    expect(html).toContain('Sign In');
+    expect(html).toContain('Login');
   });
 
   it('2. Renders Hero Copy and Hero Stats in App Header matching updated demo UI', () => {

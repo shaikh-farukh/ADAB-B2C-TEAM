@@ -14,7 +14,8 @@ export default function CheckoutView({
   onBackToCart,
   loading = false,
   selectedDeliveryAddress = null,
-  onSelectDeliveryAddress = null
+  onSelectDeliveryAddress = null,
+  currentUser = null
 }) {
   const [deliverySpeed, setDeliverySpeed] = useState('fast'); // 'fast', 'same', 'pickup'
   const [paymentMethod, setPaymentMethod] = useState('card'); // 'card' (Pay Online) | 'cod'
@@ -42,6 +43,8 @@ export default function CheckoutView({
     city: 'Surat',
     state: 'Gujarat',
     pincode: '395002',
+    latitude: null,
+    longitude: null,
     is_default: false
   });
 
@@ -88,7 +91,7 @@ export default function CheckoutView({
   const [vpaVerified, setVpaVerified] = useState(true);
 
   // ADAB 0% Pay Later & Digital Wallet states
-  const [walletData, setWalletData] = useState({ balance: 500, bnpl_limit: 10000, bnpl_available: 8450 });
+  const [walletData, setWalletData] = useState({ balance: 0, bnpl_limit: 0, bnpl_available: 0 });
   const [loadingWallet, setLoadingWallet] = useState(false);
   const [useWalletBalance, setUseWalletBalance] = useState(false);
 
@@ -124,6 +127,24 @@ export default function CheckoutView({
         selectAddress(currentMatch || defaultAddr);
       } else {
         setSavedAddresses([]);
+        try {
+          const userStr = localStorage.getItem('adab_user');
+          if (userStr) {
+            const u = JSON.parse(userStr);
+            const name = u?.name || u?.full_name || '';
+            const phone = u?.phone || '';
+            setAddress(prev => ({
+              ...prev,
+              full_name: prev.full_name || name,
+              phone: prev.phone || phone
+            }));
+            setAddressForm(prev => ({
+              ...prev,
+              recipient_name: prev.recipient_name || name,
+              phone: prev.phone || phone
+            }));
+          }
+        } catch {}
       }
     } catch (err) {
       console.warn('Could not load saved addresses from database:', err.message);
@@ -180,7 +201,7 @@ export default function CheckoutView({
       setLoadingWallet(true);
       const [cardsRes, walletRes] = await Promise.all([
         CustomerAPI.getPaymentMethods().catch(() => ({ data: [] })),
-        CustomerAPI.getWallet().catch(() => ({ data: { balance: 500, bnpl_limit: 10000, bnpl_available: 8450 } }))
+        CustomerAPI.getWallet().catch(() => ({ data: { balance: 0, bnpl_limit: 0, bnpl_available: 0 } }))
       ]);
 
       if (cardsRes?.data && Array.isArray(cardsRes.data)) {
@@ -257,10 +278,10 @@ export default function CheckoutView({
 
   // If parent provided a selected delivery address, use it
   useEffect(() => {
-    if (selectedDeliveryAddress && selectedDeliveryAddress.id) {
+    if (selectedDeliveryAddress && (selectedDeliveryAddress.id || selectedDeliveryAddress.address_line || selectedDeliveryAddress.address)) {
       selectAddress(selectedDeliveryAddress);
     }
-  }, [selectedDeliveryAddress?.id]);
+  }, [selectedDeliveryAddress?.id, selectedDeliveryAddress?.address_line, selectedDeliveryAddress?.address]);
 
   const selectAddress = (addr) => {
     if (!addr) return;
@@ -275,6 +296,8 @@ export default function CheckoutView({
       city: addr.city || 'Surat',
       state: addr.state || 'Gujarat',
       pincode: addr.pincode || addr.zip || '395002',
+      latitude: addr.latitude !== undefined && addr.latitude !== null && !isNaN(Number(addr.latitude)) ? Number(addr.latitude) : null,
+      longitude: addr.longitude !== undefined && addr.longitude !== null && !isNaN(Number(addr.longitude)) ? Number(addr.longitude) : null,
       is_default: !!addr.is_default
     };
     setAddress(chosen);
@@ -454,12 +477,27 @@ export default function CheckoutView({
         retryCount: 0
       });
 
+      const userFromStorage = (() => {
+        try {
+          const raw = localStorage.getItem('adab_user');
+          return raw ? JSON.parse(raw) : null;
+        } catch {
+          return null;
+        }
+      })();
+      const effectiveUser = currentUser || userFromStorage;
+      const effectiveName = address.recipient_name || address.full_name || effectiveUser?.name || effectiveUser?.full_name || 'Customer';
+      const effectivePhone = address.phone || effectiveUser?.phone || '+919876512340';
+      const effectiveEmail = effectiveUser?.email || address.email || 'customer@adab.com';
+      const effectiveCustomerId = effectiveUser?.id || undefined;
+
       const orderIdempotencyKey = generateIdempotencyKey('ord');
       const orderPayload = {
         cart_id: cartData.cart ? cartData.cart.id : undefined,
-        customer_name: address.full_name,
-        customer_phone: address.phone,
-        customer_email: 'customer@adab.com',
+        customer_id: effectiveCustomerId,
+        customer_name: effectiveName,
+        customer_phone: effectivePhone,
+        customer_email: effectiveEmail,
         delivery_address: {
           ...address,
           delivery_slot: deliverySpeed === 'same' ? selectedSlot : null,
@@ -542,9 +580,9 @@ export default function CheckoutView({
         orderNumber: placedOrder.order_number,
         method: activeChannel,
         prefill: {
-          name: address.recipient_name || address.full_name,
-          phone: address.phone,
-          email: address.email || 'customer@adab.com',
+          name: effectiveName,
+          phone: effectivePhone,
+          email: effectiveEmail,
           method: activeChannel
         },
         onSuccess: async (razorpayResponse) => {
@@ -690,9 +728,9 @@ export default function CheckoutView({
         orderNumber: currentOrder.order_number,
         method: selectedOnlineChannel || 'upi',
         prefill: {
-          name: address.recipient_name || address.full_name,
-          phone: address.phone,
-          email: address.email || 'customer@adab.com',
+          name: address.recipient_name || address.full_name || effectiveUser?.name || effectiveUser?.full_name || 'Customer',
+          phone: address.phone || effectiveUser?.phone || '9876512340',
+          email: effectiveUser?.email || address.email || 'customer@adab.com',
           method: selectedOnlineChannel || 'upi'
         },
         onSuccess: async (razorpayResponse) => {

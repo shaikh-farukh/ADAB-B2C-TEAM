@@ -5,16 +5,18 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/razorpaySecurity.test.js && node tests/day4Backend.test.js"
+    "test": "node tests/razorpaySecurity.test.js && node tests/day4Backend.test.js && node tests/checkoutUniqueUser.test.js && node tests/exactAddressGeocoding.test.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^18.0.5",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.1",
     "razorpay": "^2.9.8"
   }

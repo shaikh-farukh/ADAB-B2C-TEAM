@@ -20,8 +20,11 @@ app.use(express.json({
 const catalogRoutes = require('./routes/catalog');
 const customerRoutes = require('./routes/customer');
 const wishlistRoutes = require('./routes/wishlist');
+const authRoutes = require('./routes/authRoutes');
 
 // API V1 Mounting
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/v1/catalog', catalogRoutes);
 app.use('/api/catalog', catalogRoutes);
 app.use('/api/v1/customers', customerRoutes);

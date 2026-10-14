@@ -1,5 +1,6 @@
 const pool = require('../db');
 const { calculateCheckoutPreview } = require('./checkoutService');
+const { smartGeocode, resolveCoordinatesSync } = require('./geocodingService');
 
 /**
  * Normalizes payment methods to match orders_payment_method_check constraint
@@ -27,30 +28,102 @@ function normalizeDeliveryMode(mode) {
 
 // Find or create customer user (to satisfy orders.customer_id FK to users)
 async function getOrCreateCustomerUser(client, { customerId, customerName, customerPhone, customerEmail }) {
+  // 1. Look for existing user by UUID if provided
   if (customerId) {
-    const res = await client.query(`SELECT id, full_name, phone FROM users WHERE id = $1`, [customerId]);
+    const res = await client.query(`SELECT id, full_name, phone, email FROM users WHERE id = $1 LIMIT 1`, [customerId]);
     if (res.rows.length > 0) return res.rows[0];
   }
 
-  const phone = customerPhone || '+919876512340';
-  const name = customerName || 'Pooja Sharma';
-  const email = customerEmail || `customer_${Date.now()}@adab.com`;
-
-  // Look for existing user by phone
-  const existingByPhone = await client.query(`SELECT id, full_name, phone FROM users WHERE phone = $1 LIMIT 1`, [phone]);
-  if (existingByPhone.rows.length > 0) {
-    return existingByPhone.rows[0];
+  // 2. Look for existing user by email if provided
+  const emailCandidate = (customerEmail || '').trim().toLowerCase();
+  if (emailCandidate) {
+    const resByEmail = await client.query(
+      `SELECT id, full_name, phone, email FROM users WHERE LOWER(email) = $1 LIMIT 1`,
+      [emailCandidate]
+    );
+    if (resByEmail.rows.length > 0) {
+      return resByEmail.rows[0];
+    }
   }
 
-  // Insert a new user of type 'CUSTOMER'
-  const insertUser = await client.query(
-    `INSERT INTO users (email, phone, password_hash, full_name, user_type, status, is_phone_verified, is_email_verified)
-     VALUES ($1, $2, 'otp_verified_guest', $3, 'CUSTOMER', 'ACTIVE', true, false)
-     RETURNING id, full_name, phone`,
-    [email, phone, name]
-  );
+  // 3. Look for existing user by phone (with flexible matching for +91 / 10 digits)
+  const rawPhone = (customerPhone || '').trim();
+  const digits = rawPhone ? rawPhone.replace(/[^0-9]/g, '') : '';
+  const last10 = digits.slice(-10);
 
-  return insertUser.rows[0];
+  if (rawPhone) {
+    const resByPhone = await client.query(
+      `SELECT id, full_name, phone, email FROM users
+       WHERE phone = $1
+          OR phone = $2
+          OR phone = $3
+          OR (LENGTH($4) >= 10 AND phone LIKE $5)
+       LIMIT 1`,
+      [rawPhone, `+91${last10}`, last10, last10, `%${last10}`]
+    );
+    if (resByPhone.rows.length > 0) {
+      return resByPhone.rows[0];
+    }
+  }
+
+  // 4. Fallback to existing default customer if email is default customer@adab.com or general guest
+  const defaultUserRes = await client.query(
+    `SELECT id, full_name, phone, email FROM users
+     WHERE LOWER(email) = 'customer@adab.com' OR user_type = 'CUSTOMER'
+     ORDER BY created_at ASC LIMIT 1`
+  );
+  if (defaultUserRes.rows.length > 0 && (!emailCandidate || emailCandidate === 'customer@adab.com')) {
+    return defaultUserRes.rows[0];
+  }
+
+  // 5. If truly a new customer without matching record, create a guest user
+  const name = customerName || 'Adab Customer';
+  const phoneToInsert = rawPhone && rawPhone.startsWith('+') ? rawPhone : (last10 ? `+91${last10}` : `+91${Math.floor(1000000000 + Math.random() * 9000000000)}`);
+  
+  let emailToInsert = emailCandidate;
+  if (!emailToInsert || emailToInsert === 'customer@adab.com') {
+    emailToInsert = `guest_${Date.now()}_${Math.random().toString(36).slice(2, 7)}@adab.com`;
+  }
+
+  try {
+    const insertUser = await client.query(
+      `INSERT INTO users (email, phone, password_hash, full_name, user_type, status, is_phone_verified, is_email_verified)
+       VALUES ($1, $2, 'otp_verified_guest', $3, 'CUSTOMER', 'ACTIVE', true, false)
+       RETURNING id, full_name, phone, email`,
+      [emailToInsert, phoneToInsert, name]
+    );
+
+    const createdUser = insertUser.rows[0];
+
+    // Ensure customer profile exists
+    try {
+      await client.query(
+        `INSERT INTO customer_profiles (user_id, loyalty_tier, preferred_language)
+         VALUES ($1, 'BRONZE', 'en')
+         ON CONFLICT (user_id) DO NOTHING`,
+        [createdUser.id]
+      );
+    } catch {}
+
+    return createdUser;
+  } catch (err) {
+    if (err.code === '23505') {
+      // Conflict on email or phone: retrieve the conflicting user record
+      const conflictRes = await client.query(
+        `SELECT id, full_name, phone, email FROM users
+         WHERE LOWER(email) = LOWER($1) OR phone = $2 OR (LENGTH($3) >= 10 AND phone LIKE $4)
+         LIMIT 1`,
+        [emailToInsert, phoneToInsert, last10, `%${last10}`]
+      );
+      if (conflictRes.rows.length > 0) {
+        return conflictRes.rows[0];
+      }
+      if (defaultUserRes.rows.length > 0) {
+        return defaultUserRes.rows[0];
+      }
+    }
+    throw err;
+  }
 }
 
 // Place a new order from an existing cart inside a hardened transactional boundary
@@ -154,11 +227,23 @@ async function createOrderFromCart({
 
     // 4. Generate guaranteed-unique order number & normalize parameters
     const orderNumber =
-      'ORD-' + Date.now().toString().slice(-6) + '-' + Math.floor(100 + Math.random() * 900);
+      'ORD-' + Date.now() + '-' + Math.floor(1000 + Math.random() * 9000);
     const dbDeliveryMode = normalizeDeliveryMode(deliverySpeed);
     const dbPaymentMethod = normalizePaymentMethod(paymentMethod);
-    const etaMinutes = dbDeliveryMode === 'EXPRESS_30M' ? 25 : dbDeliveryMode === 'SAME_DAY' ? 180 : 1440;
+    const etaMinutes = dbDeliveryMode === 'STORE_PICKUP' ? 15 : (dbDeliveryMode === 'SAME_DAY' ? 60 : 25);
     const isCod = dbPaymentMethod === 'CASH_ON_DELIVERY';
+
+    // Ensure delivery address has exact physical coordinates before saving
+    let finalDeliveryAddress = { ...(deliveryAddress || {}) };
+    if (!finalDeliveryAddress.latitude || !finalDeliveryAddress.longitude || isNaN(Number(finalDeliveryAddress.latitude)) || isNaN(Number(finalDeliveryAddress.longitude))) {
+      try {
+        const resolvedGeo = await smartGeocode(finalDeliveryAddress);
+        finalDeliveryAddress.latitude = resolvedGeo.latitude;
+        finalDeliveryAddress.longitude = resolvedGeo.longitude;
+      } catch (geoErr) {
+        console.warn('Geocoding in createOrderFromCart fallback:', geoErr.message);
+      }
+    }
 
     // 5. Parent order creation in orders
     const orderInsertQuery = `
@@ -185,7 +270,7 @@ async function createOrderFromCart({
     const orderValues = [
       orderNumber,
       customerUser.id,
-      JSON.stringify(deliveryAddress),
+      JSON.stringify(finalDeliveryAddress),
       dbDeliveryMode,
       preview.pricing.total_mrp,
       preview.pricing.discount,
@@ -407,6 +492,26 @@ async function createOrderFromCart({
       );
     }
 
+    // 9. Generate Order Placed Notification for Customer
+    if (customerUser.id) {
+      const modeLabel = dbDeliveryMode === 'STORE_PICKUP' ? 'Store Pickup' : 'Delivery';
+      const notificationMessage = `Your order #${orderNumber} for ₹${preview.pricing.grand_total} has been confirmed (${modeLabel} - ${etaMinutes} mins).`;
+      try {
+        await client.query(
+          `INSERT INTO notifications (
+            user_id, title, message, type, is_read, action_url, created_at
+          ) VALUES ($1, $2, $3, 'ORDER_STATUS', false, '/track', NOW())`,
+          [
+            customerUser.id,
+            'Order Placed Successfully! 🎉',
+            notificationMessage
+          ]
+        );
+      } catch (notifErr) {
+        console.warn('Could not insert order placed notification:', notifErr.message);
+      }
+    }
+
     // Commit all changes atomically
     await client.query('COMMIT');
 
@@ -425,7 +530,7 @@ async function createOrderFromCart({
   }
 }
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function queryOrdersList(customerId = null) {
   let query = `
@@ -492,7 +597,7 @@ async function queryOrdersList(customerId = null) {
   return res.rows;
 }
 
-// Fetch all orders for a customer with smart resolution for guest sessions
+// Fetch all orders for a customer with smart resolution
 async function getCustomerOrders(rawCustomerId = null) {
   let customerId = null;
 
@@ -509,26 +614,13 @@ async function getCustomerOrders(rawCustomerId = null) {
     }
   }
 
-  // 1. Try querying orders for specific resolved customer ID if available
-  let orders = [];
+  // If a specific customer is resolved, return only their orders
   if (customerId) {
-    orders = await queryOrdersList(customerId);
+    return await queryOrdersList(customerId);
   }
 
-  // 2. For guest/browser sessions or if customer orders are sparse,
-  // supplement with recent marketplace database orders so customer portal has full active & past orders
-  if (!rawCustomerId || !UUID_REGEX.test(rawCustomerId) || !orders || orders.length === 0) {
-    const marketOrders = await queryOrdersList(null);
-    const existingIds = new Set((orders || []).map((o) => o.id));
-    for (const mo of marketOrders) {
-      if (!existingIds.has(mo.id)) {
-        orders.push(mo);
-        existingIds.add(mo.id);
-      }
-    }
-  }
-
-  return orders;
+  // Guests or unauthenticated sessions have 0 orders
+  return [];
 }
 
 // Fetch single order details with items, seller orders, invoice, and status history
@@ -835,6 +927,11 @@ async function getOrderShipments(orderId) {
   }));
 }
 
+// Helper to resolve realistic city coordinates based on pincode / locality
+function resolveLocationCoordinates(loc = {}, fallbackCity = 'Surat') {
+  return resolveCoordinatesSync(loc, fallbackCity);
+}
+
 // Fetch live GPS tracking, rider info, and waypoints
 async function getOrderTracking(orderId) {
   const orderRes = await pool.query(`SELECT * FROM orders WHERE id = $1`, [orderId]);
@@ -847,7 +944,7 @@ async function getOrderTracking(orderId) {
 
   // Store information
   const storeRes = await pool.query(
-    `SELECT s.id, s.store_name, s.address_line, s.latitude, s.longitude, s.phone
+    `SELECT s.id, s.store_name, s.address_line, s.city, s.pincode, s.latitude, s.longitude, s.phone
      FROM seller_orders so
      JOIN stores s ON so.store_id = s.id
      WHERE so.parent_order_id = $1
@@ -856,6 +953,7 @@ async function getOrderTracking(orderId) {
   );
   const store = storeRes.rows[0] || {
     store_name: 'ADAB Local Mart',
+    city: 'Surat',
     latitude: 21.1702,
     longitude: 72.8311,
     address_line: 'Ring Road, Surat'
@@ -863,11 +961,28 @@ async function getOrderTracking(orderId) {
 
   // Delivery destination coordinates
   const addr = order.delivery_address || {};
-  const destLat = parseFloat(addr.latitude) || 21.1950;
-  const destLng = parseFloat(addr.longitude) || 72.8194;
 
-  const storeLat = parseFloat(store.latitude) || 21.1702;
-  const storeLng = parseFloat(store.longitude) || 72.8311;
+  // Resolve realistic geographic coordinates with high-precision smart geocoding
+  const storeCoords = await smartGeocode(store);
+  const destCoords = await smartGeocode(addr);
+
+  const storeLat = storeCoords.latitude;
+  const storeLng = storeCoords.longitude;
+  let destLat = destCoords.latitude;
+  let destLng = destCoords.longitude;
+
+  // If order delivery address lacks coordinates in DB, backfill so it stays permanently accurate
+  if (!addr.latitude || !addr.longitude) {
+    addr.latitude = destLat;
+    addr.longitude = destLng;
+    pool.query(`UPDATE orders SET delivery_address = $1 WHERE id = $2`, [JSON.stringify(addr), orderId]).catch(() => {});
+  }
+
+  // If store and destination coordinates are too close (< 100 meters), add small offset so pins don't overlap completely
+  if (Math.abs(storeLat - destLat) < 0.001 && Math.abs(storeLng - destLng) < 0.001) {
+    destLat = Math.round((destLat + 0.004) * 10000) / 10000;
+    destLng = Math.round((destLng - 0.003) * 10000) / 10000;
+  }
 
   // Real rider info or assigned default fleet driver
   const rider = {
@@ -878,11 +993,20 @@ async function getOrderTracking(orderId) {
     avatar: null
   };
 
-  // Calculate live intermediate rider position based on ETA and progress
-  const etaMinutes = order.eta_minutes || 18;
-  const progressRatio = order.order_status === 'DELIVERED' ? 1.0 : (order.order_status === 'OUT_FOR_DELIVERY' ? 0.72 : (order.order_status === 'PREPARING' ? 0.25 : 0.05));
-  const riderLat = storeLat + (destLat - storeLat) * progressRatio;
-  const riderLng = storeLng + (destLng - storeLng) * progressRatio;
+  // Calculate live intermediate rider position based on progress
+  const isPickup = order.delivery_mode === 'STORE_PICKUP';
+  const defaultEta = isPickup ? 15 : 25;
+  const etaMinutes = order.eta_minutes && Number(order.eta_minutes) > 0 && Number(order.eta_minutes) < 180
+    ? Number(order.eta_minutes)
+    : defaultEta;
+
+  const progressRatio =
+    order.order_status === 'DELIVERED' ? 0.85 :
+    order.order_status === 'OUT_FOR_DELIVERY' ? 0.72 :
+    order.order_status === 'PACKED' || order.order_status === 'PREPARING' ? 0.25 : 0.08;
+
+  const riderLat = Math.round((storeLat + (destLat - storeLat) * progressRatio) * 10000) / 10000;
+  const riderLng = Math.round((storeLng + (destLng - storeLng) * progressRatio) * 10000) / 10000;
 
   // Retrieve existing tracking events
   const teRes = await pool.query(
@@ -913,6 +1037,7 @@ async function getOrderTracking(orderId) {
     order_id: order.id,
     order_number: order.order_number,
     order_status: order.order_status,
+    delivery_mode: order.delivery_mode,
     eta_minutes: etaMinutes,
     progress_percentage: Math.round(progressRatio * 100),
     rider,
@@ -920,17 +1045,24 @@ async function getOrderTracking(orderId) {
       id: store.id,
       name: store.store_name,
       address: store.address_line,
+      city: store.city,
       latitude: storeLat,
       longitude: storeLng,
       phone: store.phone
     },
     destination: {
       address: addr.address_line || addr.address || 'Ring Road, Surat',
+      city: addr.city || store.city,
+      pincode: addr.pincode,
       latitude: destLat,
       longitude: destLng,
       recipient_name: addr.recipient_name || addr.full_name || 'Customer'
     },
     current_location: {
+      latitude: riderLat,
+      longitude: riderLng
+    },
+    rider_telemetry: {
       latitude: riderLat,
       longitude: riderLng
     },

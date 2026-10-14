@@ -4,7 +4,20 @@ import { lookupPincode, getOfflinePincodeHint } from '../utils/pincode';
 
 let accountDataCache = null;
 
-export default function AccountPage({ onNavigate }) {
+export function clearAccountCache() {
+  accountDataCache = null;
+}
+
+export default function AccountPage({ 
+  onNavigate, 
+  currentUser, 
+  onLogout, 
+  onOpenLogin,
+  ordersCount = 0,
+  points = 0,
+  walletBalance = 0,
+  unreadNotifications = 0
+}) {
   const [profile, setProfile] = useState(accountDataCache?.profile || null);
   const [addresses, setAddresses] = useState(accountDataCache?.addresses || []);
   const [loading, setLoading] = useState(!accountDataCache);
@@ -15,6 +28,11 @@ export default function AccountPage({ onNavigate }) {
     soundbox_alerts: true
   });
   
+  const displayOrders = ordersCount ?? 0;
+  const displayPoints = profile?.points ?? points ?? 0;
+  const displayWallet = profile?.wallet_balance ?? walletBalance ?? 0;
+  const displayUnreadNotifications = unreadNotifications ?? 0;
+
   // Views: 'dashboard' | 'addresses' | 'profile' | 'placeholder'
   const [activeView, setActiveView] = useState('dashboard');
   const [placeholderText, setPlaceholderText] = useState('');
@@ -81,6 +99,13 @@ export default function AccountPage({ onNavigate }) {
   }, []);
 
   const fetchData = async (force = false) => {
+    const isUserStored = Boolean(currentUser || localStorage.getItem('adab_user'));
+    if (!isUserStored) {
+      setProfile(null);
+      setAddresses([]);
+      setLoading(false);
+      return;
+    }
     if (accountDataCache && !force) {
       setProfile(accountDataCache.profile);
       setAddresses(accountDataCache.addresses);
@@ -191,42 +216,98 @@ export default function AccountPage({ onNavigate }) {
 
   if (loading) return <div className="p-8 text-center text-gray-500">Loading Account...</div>;
 
+  const isLoggedIn = Boolean(currentUser || localStorage.getItem('adab_user'));
+  const effectiveUser = profile || currentUser || (() => {
+    try {
+      const saved = localStorage.getItem('adab_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  })();
+
+  const displayName = effectiveUser?.name || effectiveUser?.full_name || 'Customer';
+  const displayEmail = effectiveUser?.email || '';
+  const displayPhone = effectiveUser?.phone || '';
+  const displayInitial = displayName ? displayName.charAt(0).toUpperCase() : 'C';
+
   const renderDashboard = () => (
     <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto">
+      {/* Guest Sign In Callout if not authenticated */}
+      {!isLoggedIn && (
+        <div className="bg-gradient-to-r from-emerald-50 to-green-100 border border-emerald-200 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-[#18753C] text-white flex items-center justify-center text-xl shrink-0 shadow-sm">
+              <i className="fa-solid fa-user-lock"></i>
+            </div>
+            <div>
+              <h3 className="font-extrabold text-gray-900 text-sm">Log in to your ADAB account</h3>
+              <p className="text-xs text-gray-600 mt-0.5">Access your saved addresses, track live orders, earn points and customize alerts.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onOpenLogin ? onOpenLogin() : (onNavigate && onNavigate('login'))}
+            className="w-full sm:w-auto px-5 py-2.5 bg-[#18753C] hover:bg-[#156030] text-white font-bold text-xs rounded-xl shadow-xs transition-colors shrink-0 cursor-pointer flex items-center justify-center gap-2"
+          >
+            <span>Login / Register</span>
+            <i className="fa-solid fa-arrow-right text-[10px]"></i>
+          </button>
+        </div>
+      )}
+
       {/* Top Banner */}
       <div className="bg-[#18753C] rounded-2xl p-6 text-white shadow-sm flex flex-col gap-6 relative overflow-hidden">
         <div className="flex justify-between items-start z-10">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-[#519468] rounded-xl flex items-center justify-center text-3xl font-extrabold text-white">
-              {profile?.name ? profile.name.charAt(0).toUpperCase() : 'P'}
+            <div className="w-16 h-16 bg-[#519468] rounded-xl flex items-center justify-center text-3xl font-extrabold text-white shadow-sm">
+              {displayInitial}
             </div>
             <div>
-              <h2 className="text-xl font-bold">{profile?.name || 'Pooja Sharma'}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold">{displayName}</h2>
+                {effectiveUser?.loyalty_tier && (
+                  <span className="bg-[#2D804D] border border-white/20 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    {effectiveUser.loyalty_tier} MEMBER
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-green-100 mt-1">
-                {profile?.phone || '+91 98765 12340'} &bull; {profile?.email || 'pooja.s@email.com'}
+                {displayPhone ? `${displayPhone} • ` : ''}{displayEmail || 'ADAB Customer Account'}
               </p>
             </div>
           </div>
-          <button 
-            type="button"
-            onClick={() => { setIsEditingProfile(true); setActiveView('profile'); }} 
-            className="bg-[#3D8856] hover:bg-[#4E9765] transition-colors text-white text-xs font-bold py-2 px-4 rounded-full border border-[#5CA072] cursor-pointer"
-          >
-            Edit Profile
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              type="button"
+              onClick={() => { setIsEditingProfile(true); setActiveView('profile'); }} 
+              className="bg-[#3D8856] hover:bg-[#4E9765] transition-colors text-white text-xs font-bold py-2 px-4 rounded-full border border-[#5CA072] cursor-pointer"
+            >
+              Edit Profile
+            </button>
+            {isLoggedIn && onLogout && (
+              <button 
+                type="button"
+                onClick={onLogout}
+                className="bg-white/20 hover:bg-white/30 transition-colors text-white text-xs font-bold py-2 px-3.5 rounded-full border border-white/30 cursor-pointer flex items-center gap-1.5"
+                title="Sign Out"
+              >
+                <i className="fa-solid fa-arrow-right-from-bracket text-[11px]"></i>
+                <span className="hidden sm:inline">Sign Out</span>
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-3 gap-4 z-10">
           <div className="bg-[#2D804D] rounded-xl p-4 text-center">
-            <div className="text-xl font-extrabold">12</div>
+            <div className="text-xl font-extrabold">{displayOrders}</div>
             <div className="text-[10px] text-green-100 font-semibold uppercase tracking-wider mt-1">Orders</div>
           </div>
           <div className="bg-[#2D804D] rounded-xl p-4 text-center">
-            <div className="text-xl font-extrabold">2,840</div>
+            <div className="text-xl font-extrabold">{Number(displayPoints).toLocaleString('en-IN')}</div>
             <div className="text-[10px] text-green-100 font-semibold uppercase tracking-wider mt-1">Points</div>
           </div>
           <div className="bg-[#2D804D] rounded-xl p-4 text-center">
-            <div className="text-xl font-extrabold">₹450</div>
+            <div className="text-xl font-extrabold">₹{Number(displayWallet).toLocaleString('en-IN')}</div>
             <div className="text-[10px] text-green-100 font-semibold uppercase tracking-wider mt-1">Wallet</div>
           </div>
         </div>
@@ -242,7 +323,9 @@ export default function AccountPage({ onNavigate }) {
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <span className="font-bold text-gray-900 text-sm">My Orders</span>
-              <span className="bg-red-100 text-red-600 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">2</span>
+              {displayOrders > 0 && (
+                <span className="bg-red-100 text-red-600 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">{displayOrders}</span>
+              )}
             </div>
             <div className="text-xs text-gray-500 mt-0.5">Track, return, or buy again</div>
           </div>
@@ -319,7 +402,7 @@ export default function AccountPage({ onNavigate }) {
           </div>
           <div className="flex-1">
             <div className="font-bold text-gray-900 text-sm">ADAB Rewards</div>
-            <div className="text-xs text-gray-500 mt-0.5">2,840 points available</div>
+            <div className="text-xs text-gray-500 mt-0.5">{Number(displayPoints).toLocaleString('en-IN')} points available</div>
           </div>
           <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
         </div>
@@ -342,7 +425,14 @@ export default function AccountPage({ onNavigate }) {
             <i className="fa-solid fa-bell"></i>
           </div>
           <div className="flex-1">
-            <div className="font-bold text-gray-900 text-sm">Notifications</div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-gray-900 text-sm">Notifications</span>
+              {displayUnreadNotifications > 0 && (
+                <span className="bg-red-100 text-red-600 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">
+                  {displayUnreadNotifications}
+                </span>
+              )}
+            </div>
             <div className="text-xs text-gray-500 mt-0.5">Order & promo alerts</div>
           </div>
           <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
@@ -371,6 +461,37 @@ export default function AccountPage({ onNavigate }) {
           </div>
           <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
         </div>
+
+        {/* 12. Sign Out / Sign In */}
+        {isLoggedIn ? (
+          <div 
+            onClick={onLogout} 
+            className="bg-white border border-red-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-red-300 hover:bg-red-50/20 transition-colors"
+          >
+            <div className="w-12 h-12 bg-red-50 text-red-600 rounded-xl flex items-center justify-center text-xl shrink-0">
+              <i className="fa-solid fa-arrow-right-from-bracket"></i>
+            </div>
+            <div className="flex-1">
+              <div className="font-bold text-red-600 text-sm">Sign Out</div>
+              <div className="text-xs text-gray-500 mt-0.5">Log out of your customer account</div>
+            </div>
+            <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+          </div>
+        ) : (
+          <div 
+            onClick={() => onOpenLogin ? onOpenLogin() : (onNavigate && onNavigate('login'))} 
+            className="bg-white border border-emerald-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-[#18753C] hover:bg-emerald-50/20 transition-colors"
+          >
+            <div className="w-12 h-12 bg-emerald-50 text-[#18753C] rounded-xl flex items-center justify-center text-xl shrink-0">
+              <i className="fa-solid fa-user-plus"></i>
+            </div>
+            <div className="flex-1">
+              <div className="font-bold text-[#18753C] text-sm">Login / Register</div>
+              <div className="text-xs text-gray-500 mt-0.5">Log into your existing account or join</div>
+            </div>
+            <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+          </div>
+        )}
       </div>
 
       {/* 12. Sell on ADAB Section (Added from sidebar) */}
@@ -402,32 +523,71 @@ export default function AccountPage({ onNavigate }) {
     </div>
   );
 
-  const renderAddresses = () => (
-    <div className="max-w-4xl mx-auto w-full">
-      <button 
-        type="button"
-        onClick={() => { setActiveView('dashboard'); setIsAddingAddress(false); setEditingAddressId(null); }} 
-        className="mb-4 text-sm font-bold text-gray-600 hover:text-black flex items-center gap-2 cursor-pointer transition-colors"
-      >
-        <i className="fa-solid fa-arrow-left"></i> Back to Account
-      </button>
-
-      <h2 className="text-2xl font-black text-[#111827] mb-6">Manage Addresses</h2>
-
-      <div className="flex flex-col gap-4 mb-12">
-        {addresses.map(addr => (
-          <div key={addr.id} className={`border rounded-xl p-5 flex justify-between items-start transition-colors ${addr.isDefault ? 'border-[#18753C] bg-[#F5FBF7]' : 'border-gray-200 bg-white shadow-sm'}`}>
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="font-extrabold text-gray-900 text-lg">{addr.type}</span>
-                {addr.isDefault && <span className="bg-[#E8F5E9] text-[#18753C] text-[10px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider">DEFAULT</span>}
-              </div>
-              <p className="text-gray-600 text-sm mb-1">{addr.address}, {addr.city} {addr.zip}</p>
-              <p className="text-gray-400 text-sm">{addr.recipientName || profile?.name || 'Pooja Sharma'} &bull; {addr.phone || profile?.phone || '+91 98765 12340'}</p>
-            </div>
-            <button onClick={() => { setEditingAddressId(addr.id); setAddressForm({ type: addr.type, recipientName: addr.recipientName || '', phone: addr.phone || '', address: addr.address, city: addr.city, state: addr.state, zip: addr.zip, isDefault: addr.isDefault }); setIsAddingAddress(true); }} className="text-sm font-bold text-gray-700 bg-gray-100 px-5 py-2 rounded-xl hover:bg-gray-200 transition-colors cursor-pointer">Edit</button>
+  const renderAddresses = () => {
+    if (!isLoggedIn) {
+      return (
+        <div className="max-w-4xl mx-auto w-full text-center py-12 px-4">
+          <button 
+            type="button"
+            onClick={() => setActiveView('dashboard')} 
+            className="mb-4 text-sm font-bold text-gray-600 hover:text-black flex items-center gap-2 cursor-pointer transition-colors"
+          >
+            <i className="fa-solid fa-arrow-left"></i> Back to Account
+          </button>
+          <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-[#18753C] flex items-center justify-center text-2xl mx-auto mb-4">
+            <i className="fa-solid fa-location-dot"></i>
           </div>
-        ))}
+          <h2 className="text-xl font-bold text-gray-900 mb-2">No Saved Addresses</h2>
+          <p className="text-xs text-gray-500 mb-6 max-w-sm mx-auto">
+            Please log in or register to view and manage your delivery addresses.
+          </p>
+          <button
+            type="button"
+            onClick={() => onOpenLogin ? onOpenLogin() : (onNavigate && onNavigate('login'))}
+            className="px-6 py-3 bg-[#18753C] hover:bg-[#156030] text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+          >
+            Login / Register
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="max-w-4xl mx-auto w-full">
+        <button 
+          type="button"
+          onClick={() => { setActiveView('dashboard'); setIsAddingAddress(false); setEditingAddressId(null); }} 
+          className="mb-4 text-sm font-bold text-gray-600 hover:text-black flex items-center gap-2 cursor-pointer transition-colors"
+        >
+          <i className="fa-solid fa-arrow-left"></i> Back to Account
+        </button>
+
+        <h2 className="text-2xl font-black text-[#111827] mb-6">Manage Addresses</h2>
+
+        <div className="flex flex-col gap-4 mb-12">
+          {addresses.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-gray-500">
+              <div className="w-12 h-12 rounded-full bg-emerald-50 text-[#18753C] flex items-center justify-center text-xl mx-auto mb-3">
+                <i className="fa-solid fa-location-dot"></i>
+              </div>
+              <div className="font-bold text-sm text-gray-800">No addresses saved yet</div>
+              <p className="text-xs text-gray-500 mt-1">Add your delivery address for 14–45 min local delivery.</p>
+            </div>
+          ) : (
+            addresses.map(addr => (
+              <div key={addr.id} className={`border rounded-xl p-5 flex justify-between items-start transition-colors ${addr.isDefault ? 'border-[#18753C] bg-[#F5FBF7]' : 'border-gray-200 bg-white shadow-sm'}`}>
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="font-extrabold text-gray-900 text-lg">{addr.type}</span>
+                    {addr.isDefault && <span className="bg-[#E8F5E9] text-[#18753C] text-[10px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider">DEFAULT</span>}
+                  </div>
+                  <p className="text-gray-600 text-sm mb-1">{addr.address}, {addr.city} {addr.zip}</p>
+                  <p className="text-gray-400 text-sm">{addr.recipientName || profile?.name || 'Customer'} &bull; {addr.phone || profile?.phone || ''}</p>
+                </div>
+                <button onClick={() => { setEditingAddressId(addr.id); setAddressForm({ type: addr.type, recipientName: addr.recipientName || '', phone: addr.phone || '', address: addr.address, city: addr.city, state: addr.state, zip: addr.zip, isDefault: addr.isDefault }); setIsAddingAddress(true); }} className="text-sm font-bold text-gray-700 bg-gray-100 px-5 py-2 rounded-xl hover:bg-gray-200 transition-colors cursor-pointer">Edit</button>
+              </div>
+            ))
+          )}
         
         {/* ADD NEW ADDRESS BUTTON */}
         {!isAddingAddress && (
@@ -514,6 +674,7 @@ export default function AccountPage({ onNavigate }) {
       </div>
     </div>
   );
+};
 
   const renderProfile = () => (
     <div className="max-w-4xl mx-auto w-full">
@@ -699,10 +860,41 @@ export default function AccountPage({ onNavigate }) {
               
               <div className="h-px bg-gray-100 my-2 mx-2"></div>
               
-              <div className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors text-brand-green hover:bg-green-50 font-bold mx-2">
+              <div 
+                onClick={() => {
+                  showToast('Redirecting to ADAB Seller Portal...');
+                  setIsSidebarOpen(false);
+                }}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors text-brand-green hover:bg-green-50 font-bold mx-2"
+              >
                 <i className="fa-solid fa-store w-5 text-center"></i>
                 <span className="text-sm">Sell on ADAB</span>
               </div>
+
+              {isLoggedIn ? (
+                <div 
+                  onClick={() => {
+                    setIsSidebarOpen(false);
+                    if (onLogout) onLogout();
+                  }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors text-red-600 hover:bg-red-50 font-bold mx-2 mt-1"
+                >
+                  <i className="fa-solid fa-arrow-right-from-bracket w-5 text-center"></i>
+                  <span className="text-sm">Sign Out</span>
+                </div>
+              ) : (
+                <div 
+                  onClick={() => {
+                    setIsSidebarOpen(false);
+                    if (onOpenLogin) onOpenLogin();
+                    else if (onNavigate) onNavigate('login');
+                  }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors text-[#18753C] hover:bg-emerald-50 font-bold mx-2 mt-1"
+                >
+                  <i className="fa-solid fa-arrow-right-to-bracket w-5 text-center"></i>
+                  <span className="text-sm">Login / Register</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

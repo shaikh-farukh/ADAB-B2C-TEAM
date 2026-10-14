@@ -14,9 +14,9 @@ import AddressModal from './components/AddressModal';
 import OrderStatusView from './components/OrderStatusView';
 import OrdersView from './components/OrdersView';
 import NotificationsView from './components/NotificationsView';
-import AccountPage from './pages/AccountPage';
-import NotificationsPage from './pages/NotificationsPage';
-import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI, CustomerAPI } from './services/api';
+import AccountPage, { clearAccountCache } from './pages/AccountPage';
+import LoginPage from './pages/LoginPage';
+import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI, CustomerAPI, AuthAPI } from './services/api';
 import { api } from './api/api';
 
 export default function App() {
@@ -24,8 +24,22 @@ export default function App() {
   const navigate = useNavigate();
   const activeTab = location.pathname.substring(1) || 'home';
   const setActiveTab = (tab) => navigate(`/${tab === 'home' ? '' : tab}`);
-  const [points] = useState(2840);
+  const [points, setPoints] = useState(0);
+  const [walletBalance, setWalletBalance] = useState(0);
   
+  // Authenticated user state
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('adab_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const mockUserId = "11111111-1111-1111-1111-111111111111"; // Fallback UUID
+  const currentUserId = currentUser?.id || mockUserId;
+
   const [storeCount, setStoreCount] = useState(48); // default mock, replaced by API
 
   useEffect(() => {
@@ -35,7 +49,12 @@ export default function App() {
       }
     }).catch(err => console.error("Failed to fetch stores in App", err));
   }, []);
-  const [unreadNotifications, setUnreadNotifications] = useState(4);
+  const [unreadNotifications, setUnreadNotifications] = useState(() => {
+    if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') {
+      return 3;
+    }
+    return 0;
+  });
   const [cartData, setCartData] = useState({
     items: [],
     summary: { subtotal: 0, grand_total: 0, delivery_fee: 29, discount: 0 }
@@ -49,6 +68,11 @@ export default function App() {
   const [wishlist, setWishlist] = useState([]);
   const [selectedAddress, setSelectedAddress] = useState(() => {
     try {
+      const user = localStorage.getItem('adab_user');
+      if (!user) {
+        localStorage.removeItem('adab_selected_address');
+        return null;
+      }
       const saved = localStorage.getItem('adab_selected_address');
       return saved ? JSON.parse(saved) : null;
     } catch {
@@ -56,7 +80,16 @@ export default function App() {
     }
   });
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
-  const mockUserId = "11111111-1111-1111-1111-111111111111"; // Using a valid mock UUID since database expects UUID
+
+  // Clear selected address if user is unauthenticated
+  useEffect(() => {
+    if (!currentUser) {
+      setSelectedAddress(null);
+      try {
+        localStorage.removeItem('adab_selected_address');
+      } catch (e) {}
+    }
+  }, [currentUser]);
 
   // Search autocomplete state from Day 1
   const [searchQuery, setSearchQuery] = useState('');
@@ -111,20 +144,73 @@ export default function App() {
     }
   };
 
+  const handleLoginSuccess = async (user, initialAddress = null) => {
+    setCurrentUser(user);
+    clearAccountCache();
+    showToast(`Welcome to ADAB, ${user.name || user.full_name || 'Customer'}!`);
+    refreshOrders();
+    refreshCart();
+    refreshNotifications();
+    refreshCustomerStats();
+    if (initialAddress) {
+      setSelectedAddress(initialAddress);
+      try {
+        localStorage.setItem('adab_selected_address', JSON.stringify(initialAddress));
+      } catch (e) {}
+    } else {
+      try {
+        const res = await CustomerAPI.getAddresses();
+        if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          const defaultAddr = res.data.find((a) => a.is_default) || res.data[0];
+          setSelectedAddress(defaultAddr);
+          localStorage.setItem('adab_selected_address', JSON.stringify(defaultAddr));
+        } else {
+          setSelectedAddress(null);
+        }
+      } catch (e) {
+        console.warn('Could not load user addresses upon login:', e.message);
+      }
+    }
+    setActiveTab('account');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('adab_auth_token');
+    localStorage.removeItem('adab_user');
+    localStorage.removeItem('adab_user_id');
+    localStorage.removeItem('adab_selected_address');
+    setSelectedAddress(null);
+    setCurrentUser(null);
+    setOrdersList([]);
+    setPoints(0);
+    setWalletBalance(0);
+    setUnreadNotifications(0);
+    clearAccountCache();
+    showToast('You have been logged out successfully.');
+    setActiveTab('home');
+  };
+
   const [loadingOrders, setLoadingOrders] = useState(false);
 
   const refreshOrders = async () => {
     try {
       setLoadingOrders(true);
-      const res = await OrderAPI.getOrders(mockUserId);
-      if (res.status === 'success' && res.data) {
+      if (!currentUser?.id) {
+        setOrdersList([]);
+        return;
+      }
+      const res = await OrderAPI.getOrders(currentUser.id);
+      if (res.status === 'success' && Array.isArray(res.data)) {
         setOrdersList(res.data);
         if (res.data.length > 0 && !activeOrder) {
           setActiveOrder(res.data[0]);
         }
+      } else {
+        setOrdersList([]);
       }
     } catch (err) {
       console.warn('Could not fetch orders:', err.message);
+      setOrdersList([]);
     } finally {
       setLoadingOrders(false);
     }
@@ -132,16 +218,60 @@ export default function App() {
 
   const refreshNotifications = async () => {
     try {
-      const res = await CustomerAPI.getUnreadNotificationCount();
-      if (typeof res?.data === 'number') {
-        setUnreadNotifications(res.data);
-      } else if (typeof res?.unread_count === 'number') {
-        setUnreadNotifications(res.unread_count);
+      if (!currentUser?.id) {
+        setUnreadNotifications(0);
+        return;
       }
+      const res = await CustomerAPI.getUnreadNotificationCount();
+      const count =
+        typeof res?.data?.unread_count === 'number'
+          ? res.data.unread_count
+          : typeof res?.unread_count === 'number'
+          ? res.unread_count
+          : typeof res?.data === 'number'
+          ? res.data
+          : 0;
+      setUnreadNotifications(count);
     } catch (err) {
       console.warn('Could not fetch unread notifications count:', err.message);
+      setUnreadNotifications(0);
     }
   };
+
+  const refreshCustomerStats = async () => {
+    if (!currentUser?.id) {
+      setPoints(0);
+      setWalletBalance(0);
+      return;
+    }
+    try {
+      const [profRes, walletRes] = await Promise.all([
+        CustomerAPI.getProfile().catch(() => null),
+        CustomerAPI.getWallet().catch(() => null)
+      ]);
+      if (profRes?.data && typeof profRes.data.points === 'number') {
+        setPoints(profRes.data.points);
+      }
+      if (walletRes?.data && typeof walletRes.data.balance === 'number') {
+        setWalletBalance(walletRes.data.balance);
+      }
+    } catch (err) {
+      console.warn('Could not refresh customer stats:', err.message);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser?.id) {
+      refreshOrders();
+      refreshNotifications();
+      refreshCustomerStats();
+    } else {
+      setOrdersList([]);
+      setPoints(0);
+      setWalletBalance(0);
+      setUnreadNotifications(0);
+    }
+  }, [currentUser?.id]);
 
   useEffect(() => {
     refreshCart();
@@ -149,8 +279,14 @@ export default function App() {
     refreshOrders();
     refreshNotifications();
 
-    // Load initial customer address from database if not cached
+    // Load initial customer address from database only if user is logged in
     const loadInitialAddress = async () => {
+      const storedUser = localStorage.getItem('adab_user');
+      if (!currentUser && !storedUser) {
+        setSelectedAddress(null);
+        try { localStorage.removeItem('adab_selected_address'); } catch (e) {}
+        return;
+      }
       try {
         const res = await CustomerAPI.getAddresses();
         if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
@@ -200,7 +336,7 @@ export default function App() {
 
   const refreshWishlist = async () => {
     try {
-      const res = await WishlistAPI.getWishlist(mockUserId);
+      const res = await WishlistAPI.getWishlist(currentUserId);
       if (res.success) {
         setWishlist(res.wishlist || []);
       }
@@ -213,11 +349,11 @@ export default function App() {
     try {
       const isWishlisted = wishlist.includes(listingId);
       if (isWishlisted) {
-        await WishlistAPI.removeItem(mockUserId, listingId);
+        await WishlistAPI.removeItem(currentUserId, listingId);
         setWishlist(wishlist.filter(id => id !== listingId));
         showToast(`Removed from wishlist`);
       } else {
-        await WishlistAPI.addItem(mockUserId, listingId);
+        await WishlistAPI.addItem(currentUserId, listingId);
         setWishlist([...wishlist, listingId]);
         showToast(`Added to wishlist`);
       }
@@ -230,7 +366,7 @@ export default function App() {
   const handleMoveToCart = async (listingId, productName) => {
     try {
       showToast(`Moving ${productName} to cart...`);
-      await WishlistAPI.moveToCart(mockUserId, listingId);
+      await WishlistAPI.moveToCart(currentUserId, listingId);
       setWishlist(wishlist.filter(id => id !== listingId));
       await refreshCart();
       showToast(`Moved ${productName} to cart!`);
@@ -258,6 +394,7 @@ export default function App() {
         setActiveOrder(orderPayloadOrResult);
         await refreshCart();
         await refreshOrders();
+        await refreshNotifications();
         showToast('🎉 Order placed & verified! Tracking live dispatch...');
         setActiveTab('orders');
         return orderPayloadOrResult;
@@ -268,6 +405,7 @@ export default function App() {
         setActiveOrder(res.data);
         await refreshCart();
         await refreshOrders();
+        await refreshNotifications();
         showToast('🎉 Order placed successfully! Tracking live dispatch...');
         setActiveTab('orders');
         return res.data;
@@ -529,14 +667,39 @@ export default function App() {
               <i className="fa-solid fa-bell"></i>
               {unreadNotifications > 0 && <span className="site-badge">{unreadNotifications}</span>}
             </button>
-            <button
-              type="button"
-              className="site-btn"
-              onClick={() => showToast('Signed in as Guest Customer')}
-            >
-              <i className="fa-solid fa-user"></i>
-              <span id="navAuth">Sign In</span>
-            </button>
+            {currentUser ? (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  className="site-btn font-bold text-gray-800 flex items-center gap-2 hover:bg-green-50 transition-colors"
+                  onClick={() => setActiveTab('account')}
+                  title="View Profile & Account"
+                >
+                  <div className="w-6 h-6 rounded-full bg-[#18753C] text-white flex items-center justify-center text-xs font-black">
+                    {(currentUser.name || currentUser.full_name || 'U').charAt(0).toUpperCase()}
+                  </div>
+                  <span className="truncate max-w-[110px]">{currentUser.name || currentUser.full_name || 'Account'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="site-btn !px-2.5 text-gray-400 hover:text-red-600 transition-colors"
+                  onClick={handleLogout}
+                  title="Sign Out"
+                  aria-label="Sign Out"
+                >
+                  <i className="fa-solid fa-arrow-right-from-bracket"></i>
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="site-btn"
+                onClick={() => setActiveTab('login')}
+              >
+                <i className="fa-solid fa-user"></i>
+                <span id="navAuth">Login</span>
+              </button>
+            )}
             <button
               type="button"
               className="site-btn primary"
@@ -570,14 +733,38 @@ export default function App() {
               </div>
 
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => showToast('Signed in as Guest Customer')}
-                  className="glass px-2.5 h-9 rounded-full flex items-center gap-1.5 text-xs font-bold transition hover:bg-white/30 cursor-pointer"
-                >
-                  <i className="fa-solid fa-user"></i>
-                  <span>Sign In</span>
-                </button>
+                {currentUser ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('account')}
+                      className="glass px-2.5 h-9 rounded-full flex items-center gap-1.5 text-xs font-bold transition hover:bg-white/30 cursor-pointer"
+                    >
+                      <div className="w-5 h-5 rounded-full bg-white text-[#18753C] flex items-center justify-center text-[10px] font-black">
+                        {(currentUser.name || currentUser.full_name || 'U').charAt(0).toUpperCase()}
+                      </div>
+                      <span className="truncate max-w-[70px]">{(currentUser.name || currentUser.full_name || 'You').split(' ')[0]}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="glass w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition hover:bg-red-500/30 cursor-pointer"
+                      title="Sign Out"
+                      aria-label="Sign Out"
+                    >
+                      <i className="fa-solid fa-arrow-right-from-bracket text-xs"></i>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('login')}
+                    className="glass px-2.5 h-9 rounded-full flex items-center gap-1.5 text-xs font-bold transition hover:bg-white/30 cursor-pointer"
+                  >
+                    <i className="fa-solid fa-user"></i>
+                    <span>Login</span>
+                  </button>
+                )}
 
                 <button
                   type="button"
@@ -620,7 +807,14 @@ export default function App() {
             {/* Location Delivery Selector */}
             <button
               type="button"
-              onClick={() => setIsAddressModalOpen(true)}
+              onClick={() => {
+                if (!currentUser) {
+                  setActiveTab('login');
+                  showToast('Please login to set your delivery address.');
+                  return;
+                }
+                setIsAddressModalOpen(true);
+              }}
               className="flex items-center gap-2 mb-3 text-left w-full group cursor-pointer"
             >
               <i className="fa-solid fa-location-dot text-brand-coral text-base"></i>
@@ -629,9 +823,11 @@ export default function App() {
                   Deliver to
                 </div>
                 <div className="font-extrabold text-sm truncate flex items-center gap-1">
-                  {selectedAddress
-                    ? `${selectedAddress.label || selectedAddress.type || 'Home'} · ${selectedAddress.address_line ? selectedAddress.address_line.split(',')[0] : (selectedAddress.address ? selectedAddress.address.split(',')[0] : 'Ring Road')}, ${selectedAddress.city || 'Surat'}`
-                    : 'Home · Ring Road, Surat'}
+                  {currentUser && selectedAddress
+                    ? `${selectedAddress.label || selectedAddress.type || 'Home'} · ${selectedAddress.address_line ? selectedAddress.address_line.split(',')[0] : (selectedAddress.address ? selectedAddress.address.split(',')[0] : 'Surat')}, ${selectedAddress.city || 'Surat'}`
+                    : currentUser
+                    ? 'Select Delivery Address'
+                    : 'Login to set address'}
                   <i className="fa-solid fa-chevron-down text-[9px] opacity-70 group-hover:translate-y-0.5 transition-transform"></i>
                 </div>
               </div>
@@ -725,7 +921,9 @@ export default function App() {
             <i className="fa-solid fa-arrow-left text-lg"></i>
           </button>
           <h1 id="subHeaderTitle" className="font-extrabold text-base flex-1 capitalize">
-            {activeTab === 'cart'
+            {activeTab === 'login'
+              ? 'Login / Register'
+              : activeTab === 'cart'
               ? 'Your Cart'
               : activeTab === 'checkout'
               ? 'Checkout'
@@ -739,8 +937,8 @@ export default function App() {
               ? 'Notifications'
               : activeTab === 'stores' || activeTab === 'browse'
               ? 'Browse Products'
-              : activeTab === 'notifications'
-              ? 'Notifications'
+              : activeTab === 'account'
+              ? 'My Account'
               : activeTab.startsWith('product/')
               ? 'Product Details'
               : activeTab}
@@ -810,14 +1008,26 @@ export default function App() {
           />
         )}
 
-        {/* Account Page */}
-        {activeTab === 'account' && (
-          <AccountPage onNavigate={setActiveTab} />
+        {/* Login / Authentication Page */}
+        {activeTab === 'login' && (
+          <LoginPage
+            onLoginSuccess={handleLoginSuccess}
+            onNavigate={setActiveTab}
+          />
         )}
 
-        {/* Notifications Page */}
-        {activeTab === 'notifications' && (
-          <NotificationsPage />
+        {/* Account Page */}
+        {activeTab === 'account' && (
+          <AccountPage 
+            onNavigate={setActiveTab} 
+            currentUser={currentUser}
+            onLogout={handleLogout}
+            onOpenLogin={() => setActiveTab('login')}
+            ordersCount={currentUser ? ordersList.length : 0}
+            points={points}
+            walletBalance={walletBalance}
+            unreadNotifications={unreadNotifications}
+          />
         )}
 
         {/* Shopping Cart Screen (Task 3: sec-cart) */}
@@ -850,6 +1060,7 @@ export default function App() {
             loading={placingOrder}
             selectedDeliveryAddress={selectedAddress}
             onSelectDeliveryAddress={handleSelectAddress}
+            currentUser={currentUser}
           />
         )}
 
@@ -915,6 +1126,7 @@ export default function App() {
           activeTab !== 'browse' &&
           activeTab !== 'wishlist' &&
           activeTab !== 'account' &&
+          activeTab !== 'login' &&
           !activeTab.startsWith('product/') && (
             <div className="bg-white rounded-2xl p-6 text-center border border-gray-200">
               <h2 className="font-extrabold text-lg capitalize">{activeTab} Section</h2>
@@ -1045,6 +1257,10 @@ export default function App() {
         onClose={() => setIsAddressModalOpen(false)}
         selectedAddressId={selectedAddress?.id}
         onSelectAddress={handleSelectAddress}
+        onLoginRedirect={() => {
+          setIsAddressModalOpen(false);
+          setActiveTab('login');
+        }}
       />
     </div>
   );

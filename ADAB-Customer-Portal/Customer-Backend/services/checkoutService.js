@@ -678,12 +678,34 @@ async function checkServiceability({ pincode = null, addressLine = '', storeId =
     delivery_radius_km: 10.00
   };
 
-  // Surat delivery hub pincodes (starts with 395 or Surat address)
-  const isSuratHub = cleanPin.startsWith('395') ||
-    ['395001', '395002', '395003', '395004', '395005', '395006', '395007', '395008', '395009', '395010'].includes(cleanPin) ||
-    (addressLine && addressLine.toLowerCase().includes('surat'));
+  // Gujarat delivery hub pincodes & localities
+  const storeCity = (store.city || '').toLowerCase();
+  const storePinPrefix = (store.pincode || '').toString().slice(0, 3);
+  const addrLower = (addressLine || '').toLowerCase();
 
-  const isServiceable = cleanPin ? isSuratHub : true;
+  const isAhmedabadHub = cleanPin.startsWith('380') || cleanPin.startsWith('382') ||
+    addrLower.includes('ahmedabad') || addrLower.includes('vejalpur') ||
+    addrLower.includes('satellite') || addrLower.includes('thaltej') ||
+    addrLower.includes('navrangpura') || addrLower.includes('bodakdev') ||
+    addrLower.includes('prahlad') || addrLower.includes('paldi') ||
+    addrLower.includes('maninagar') || addrLower.includes('vastrapur');
+
+  const isSuratHub = cleanPin.startsWith('395') || cleanPin.startsWith('394') ||
+    ['395001', '395002', '395003', '395004', '395005', '395006', '395007', '395008', '395009', '395010'].includes(cleanPin) ||
+    addrLower.includes('surat') || addrLower.includes('vesu') ||
+    addrLower.includes('adajan') || addrLower.includes('varachha');
+
+  const isVadodaraHub = cleanPin.startsWith('390') || cleanPin.startsWith('391') || addrLower.includes('vadodara') || addrLower.includes('baroda');
+  const isRajkotHub = cleanPin.startsWith('360') || addrLower.includes('rajkot');
+  const isGandhinagarHub = cleanPin.startsWith('382') || addrLower.includes('gandhinagar');
+
+  const matchesStoreLocality =
+    (storePinPrefix && cleanPin.startsWith(storePinPrefix)) ||
+    (storeCity && addrLower.includes(storeCity));
+
+  const isServiceable = cleanPin
+    ? (isAhmedabadHub || isSuratHub || isVadodaraHub || isRajkotHub || isGandhinagarHub || matchesStoreLocality)
+    : true;
 
   let slots = [];
   try {
@@ -692,9 +714,13 @@ async function checkServiceability({ pincode = null, addressLine = '', storeId =
     console.warn('Could not load slots in serviceability check:', e.message);
   }
 
+  const zoneName = store.city
+    ? `${store.city} Delivery Hub`
+    : (isAhmedabadHub ? 'Ahmedabad Express Zone' : 'Surat Central & Vesu Zone');
+
   return {
     is_serviceable: isServiceable,
-    pincode: cleanPin || '395002',
+    pincode: cleanPin || store.pincode || '380051',
     address_line: addressLine,
     store: {
       id: store.id,
@@ -702,7 +728,7 @@ async function checkServiceability({ pincode = null, addressLine = '', storeId =
       address: `${store.address_line || ''}, ${store.city || 'Surat'} ${store.pincode || ''}`.trim(),
       radius_km: Number(store.delivery_radius_km || 10)
     },
-    zone_name: 'Surat Central & Vesu Zone',
+    zone_name: zoneName,
     estimated_minutes: {
       express_min: 14,
       express_max: 30,
@@ -711,13 +737,13 @@ async function checkServiceability({ pincode = null, addressLine = '', storeId =
     speeds: {
       fast: {
         code: 'EXPRESS_30M',
-        label: 'Express (14–45 min)',
+        label: 'Express (14–30 min)',
         fee: 29,
         eta: '14–30 mins',
         is_available: isServiceable,
         description: isServiceable
-          ? 'Dispatched instantly by store rider within 10 km'
-          : 'Unavailable outside Surat delivery radius'
+          ? `Dispatched instantly by store rider within ${Number(store.delivery_radius_km || 10)} km`
+          : 'Unavailable outside store delivery radius'
       },
       same: {
         code: 'SAME_DAY',
@@ -727,21 +753,21 @@ async function checkServiceability({ pincode = null, addressLine = '', storeId =
         is_available: isServiceable,
         description: isServiceable
           ? 'Scheduled batch dispatch slot'
-          : 'Unavailable outside Surat delivery radius'
+          : 'Unavailable outside store delivery radius'
       },
       pickup: {
         code: 'STORE_PICKUP',
         label: 'Self Pickup from Shop',
         fee: 0,
-        eta: 'Ready in 10 mins',
+        eta: 'Ready in 15 mins',
         is_available: true,
-        description: 'Ready in 10 mins · Zero queue at counter'
+        description: 'Ready in 15 mins · Zero queue at counter'
       }
     },
     delivery_slots: slots,
     message: isServiceable
-      ? `Delivery available for pincode ${cleanPin || '395002'} via ${store.store_name}`
-      : `Pincode ${cleanPin} is outside our 10 km delivery radius. Express/Same-Day delivery is unavailable. Store Pickup is still available.`
+      ? `Delivery available for pincode ${cleanPin || store.pincode || '380051'} via ${store.store_name}`
+      : `Pincode ${cleanPin} is outside our ${Number(store.delivery_radius_km || 10)} km delivery radius. Express/Same-Day delivery is unavailable. Store Pickup is still available.`
   };
 }
 

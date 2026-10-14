@@ -21,9 +21,21 @@ const pendingRequests = new Map();
 
 export async function apiRequest(endpoint, options = {}) {
   const sessionToken = getSessionToken();
+  const token = localStorage.getItem('adab_auth_token');
+  const userStr = localStorage.getItem('adab_user');
+  let userId = null;
+  if (userStr) {
+    try {
+      const u = JSON.parse(userStr);
+      if (u?.id) userId = u.id;
+    } catch {}
+  }
+
   const headers = {
     'Content-Type': 'application/json',
     'x-session-token': sessionToken,
+    ...(userId ? { 'x-user-id': userId } : {}),
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     ...(options.headers || {})
   };
 
@@ -264,5 +276,40 @@ export const CustomerAPI = {
       method: 'PATCH',
       body: JSON.stringify(prefs)
     })
+};
+
+// Customer Authentication APIs
+export const AuthAPI = {
+  login: (email, password, sessionToken = null) =>
+    apiRequest('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, session_token: sessionToken || getSessionToken() })
+    }),
+  register: (userData, sessionToken = null) =>
+    apiRequest('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ ...userData, session_token: sessionToken || getSessionToken() })
+    }),
+  forgotPassword: (email) =>
+    apiRequest('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    }),
+  resetPassword: (email, otp, newPassword) =>
+    apiRequest('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp, new_password: newPassword })
+    }),
+  sendRegistrationOtp: (email, phone, fullName) =>
+    apiRequest('/auth/send-registration-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email, phone, full_name: fullName })
+    }),
+  verifyRegistrationOtp: (email, otp) =>
+    apiRequest('/auth/verify-registration-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp })
+    }),
+  getCurrentUser: () => apiRequest('/auth/me')
 };
 

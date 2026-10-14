@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { OrderAPI } from '../services/api';
+import { printInvoiceDocument } from '../utils/printInvoice';
 
 /**
  * Order Detail & Live Shipment Tracking View (sec-track)
@@ -53,6 +54,8 @@ export default function OrderStatusView({
     };
   }, [order?.id]);
 
+  const mapRef = useRef(null);
+
   // Leaflet Map Initialization (#trackMap)
   useEffect(() => {
     if (!order?.id) return;
@@ -63,63 +66,110 @@ export default function OrderStatusView({
       const mapContainer = document.getElementById('trackMap');
       if (!mapContainer || typeof window === 'undefined' || !window.L) return;
 
-      // Clean up previous Leaflet instance if present on DOM container
+      // Clean up previous Leaflet instance if present on DOM container or ref
+      if (mapRef.current) {
+        try {
+          mapRef.current.remove();
+        } catch (e) {}
+        mapRef.current = null;
+      }
       if (mapContainer._leaflet_id) {
         mapContainer._leaflet_id = null;
       }
 
       try {
-        const storeLat = trackingData?.store?.latitude || 21.1702;
-        const storeLng = trackingData?.store?.longitude || 72.8311;
-        const riderLat = trackingData?.rider_telemetry?.latitude || 21.1820;
-        const riderLng = trackingData?.rider_telemetry?.longitude || 72.8250;
-        const destLat = trackingData?.destination?.latitude || 21.1950;
-        const destLng = trackingData?.destination?.longitude || 72.8190;
+        const rawAddr = order.delivery_address || {};
+        const addrObj = typeof rawAddr === 'string' ? { address_line: rawAddr } : rawAddr;
+        const addrCity = (addrObj.city || '').toLowerCase();
+        const addrPin = String(addrObj.pincode || addrObj.zip || '').trim();
+        const addrText = (addrObj.address_line || addrObj.address || '').toLowerCase();
+
+        const isAhm =
+          addrCity.includes('ahmedabad') ||
+          addrPin.startsWith('380') ||
+          addrPin.startsWith('382') ||
+          addrText.includes('ahmedabad') ||
+          addrText.includes('vejalpur');
+
+        const defStoreLat = isAhm ? 23.0181 : 21.1702;
+        const defStoreLng = isAhm ? 72.5901 : 72.8311;
+        const defDestLat = isAhm ? 23.0025 : 21.1950;
+        const defDestLng = isAhm ? 72.5207 : 72.8190;
+        const defRiderLat = isAhm ? 23.0110 : 21.1820;
+        const defRiderLng = isAhm ? 72.5600 : 72.8250;
+
+        let storeLat = Number(trackingData?.store?.latitude) || defStoreLat;
+        let storeLng = Number(trackingData?.store?.longitude) || defStoreLng;
+        let destLat = Number(trackingData?.destination?.latitude) || defDestLat;
+        let destLng = Number(trackingData?.destination?.longitude) || defDestLng;
+        let riderLat = Number(trackingData?.rider_telemetry?.latitude || trackingData?.current_location?.latitude) || defRiderLat;
+        let riderLng = Number(trackingData?.rider_telemetry?.longitude || trackingData?.current_location?.longitude) || defRiderLng;
+
+        // Ensure distinct points if store and destination are too close
+        if (Math.abs(storeLat - destLat) < 0.001 && Math.abs(storeLng - destLng) < 0.001) {
+          destLat = Math.round((destLat + 0.008) * 10000) / 10000;
+          destLng = Math.round((destLng - 0.006) * 10000) / 10000;
+        }
+
+        // Anti-stacking: Ensure rider pin never covers the delivery address pin
+        if (Math.abs(riderLat - destLat) < 0.0015 && Math.abs(riderLng - destLng) < 0.0015) {
+          riderLat = Math.round((destLat + (storeLat - destLat) * 0.18) * 10000) / 10000;
+          riderLng = Math.round((destLng + (storeLng - destLng) * 0.18) * 10000) / 10000;
+        }
 
         const L = window.L;
+        const bounds = L.latLngBounds([
+          [storeLat, storeLng],
+          [destLat, destLng]
+        ]);
+        if (riderLat && riderLng) {
+          bounds.extend([riderLat, riderLng]);
+        }
+
         mapInstance = L.map('trackMap', {
-          zoomControl: false,
+          zoomControl: true,
           attributionControl: false
-        }).setView([riderLat, riderLng], 13);
+        });
+        mapRef.current = mapInstance;
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 18
         }).addTo(mapInstance);
 
-        // 1. Store Origin Pin
+        // 1. Store Origin Pin (Prominent Green Badge)
         const storeIcon = L.divIcon({
           className: 'custom-map-pin',
-          html: '<div style="background:#15803D;color:white;padding:4px 8px;border-radius:12px;font-size:10px;font-weight:800;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;gap:4px;"><i class="fa-solid fa-store"></i><span>Store</span></div>',
-          iconSize: [60, 26],
-          iconAnchor: [30, 13]
+          html: `<div style="background:#15803D;color:white;padding:5px 10px;border-radius:14px;font-size:11px;font-weight:800;box-shadow:0 3px 8px rgba(0,0,0,0.35);display:flex;align-items:center;gap:5px;border:2px solid white;white-space:nowrap;z-index:200;"><i class="fa-solid fa-store"></i><span>Shop: ${storeName || 'Store'}</span></div>`,
+          iconSize: [150, 30],
+          iconAnchor: [75, 15]
         });
-        L.marker([storeLat, storeLng], { icon: storeIcon })
+        L.marker([storeLat, storeLng], { icon: storeIcon, zIndexOffset: 200 })
           .addTo(mapInstance)
-          .bindPopup(`<b>${trackingData?.store?.name || storeName}</b><br>Pickup Origin`);
+          .bindPopup(`<b>${trackingData?.store?.name || storeName}</b><br>Shop Location`);
 
-        // 2. Rider Motorcycle Pin
+        // 2. Rider Motorcycle Pin (Vibrant Orange Badge, Positioned along route)
         const riderIcon = L.divIcon({
           className: 'custom-map-pin',
-          html: `<div style="background:#F97316;color:white;padding:5px 9px;border-radius:14px;font-size:11px;font-weight:800;box-shadow:0 3px 8px rgba(249,115,22,0.4);display:flex;align-items:center;gap:5px;border:2px solid white;"><i class="fa-solid fa-motorcycle"></i><span>${riderName}</span></div>`,
-          iconSize: [85, 28],
-          iconAnchor: [42, 14]
+          html: `<div style="background:#F97316;color:white;padding:5px 10px;border-radius:14px;font-size:11px;font-weight:800;box-shadow:0 3px 8px rgba(249,115,22,0.4);display:flex;align-items:center;gap:5px;border:2px solid white;white-space:nowrap;z-index:100;"><i class="fa-solid fa-motorcycle"></i><span>${statusUpper === 'DELIVERED' ? `Delivered by ${riderName}` : riderName}</span></div>`,
+          iconSize: [150, 30],
+          iconAnchor: [75, 15]
         });
-        L.marker([riderLat, riderLng], { icon: riderIcon })
+        L.marker([riderLat, riderLng], { icon: riderIcon, zIndexOffset: 100 })
           .addTo(mapInstance)
-          .bindPopup(`<b>Rider: ${riderName}</b><br>Speed: 28 km/h · 1.2 km away`);
+          .bindPopup(`<b>Rider: ${riderName}</b><br>${statusUpper === 'DELIVERED' ? 'Delivery Completed' : 'En Route'}`);
 
-        // 3. Customer Delivery Address Pin
+        // 3. Customer Delivery Address Pin (Dark Slate with Pinpoint icon)
         const destIcon = L.divIcon({
           className: 'custom-map-pin',
-          html: '<div style="background:#0F172A;color:white;padding:4px 8px;border-radius:12px;font-size:10px;font-weight:800;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;gap:4px;"><i class="fa-solid fa-location-dot"></i><span>Delivery</span></div>',
-          iconSize: [70, 26],
-          iconAnchor: [35, 13]
+          html: '<div style="background:#0F172A;color:white;padding:5px 10px;border-radius:14px;font-size:11px;font-weight:800;box-shadow:0 3px 8px rgba(0,0,0,0.4);display:flex;align-items:center;gap:5px;border:2px solid white;white-space:nowrap;z-index:300;"><i class="fa-solid fa-location-dot" style="color:#F87171"></i><span>My Location</span></div>',
+          iconSize: [130, 30],
+          iconAnchor: [65, 15]
         });
-        L.marker([destLat, destLng], { icon: destIcon })
+        L.marker([destLat, destLng], { icon: destIcon, zIndexOffset: 300 })
           .addTo(mapInstance)
-          .bindPopup(`<b>Delivery Address</b><br>${fullAddressLine}`);
+          .bindPopup(`<b>My Delivery Address</b><br>${fullAddressLine}`);
 
-        // Route Trajectory Polyline
+        // Route Trajectory Polyline connecting Shop -> Rider -> My Location
         const routePoints = [
           [storeLat, storeLng],
           [riderLat, riderLng],
@@ -128,12 +178,20 @@ export default function OrderStatusView({
         L.polyline(routePoints, {
           color: '#15803D',
           weight: 4,
-          opacity: 0.8,
+          opacity: 0.85,
           dashArray: '6, 8'
         }).addTo(mapInstance);
 
-        // Auto-fit map viewport to bound all three markers
-        mapInstance.fitBounds(routePoints, { padding: [35, 35] });
+        // Auto-fit map viewport to bound all markers with comfortable margin
+        mapInstance.fitBounds(bounds, { padding: [55, 55], maxZoom: 15 });
+
+        // Invalidate size and re-fit bounds after DOM settles to guarantee complete visibility
+        setTimeout(() => {
+          if (mapRef.current) {
+            mapRef.current.invalidateSize();
+            mapRef.current.fitBounds(bounds, { padding: [55, 55], maxZoom: 15 });
+          }
+        }, 300);
       } catch (err) {
         console.warn('Leaflet map initialization skipped:', err);
       }
@@ -142,8 +200,9 @@ export default function OrderStatusView({
     const timer = setTimeout(initMap, 200);
     return () => {
       clearTimeout(timer);
-      if (mapInstance) {
-        try { mapInstance.remove(); } catch (e) {}
+      if (mapRef.current) {
+        try { mapRef.current.remove(); } catch (e) {}
+        mapRef.current = null;
       }
     };
   }, [order?.id, trackingData]);
@@ -190,7 +249,9 @@ export default function OrderStatusView({
     'Balaji Store';
   const riderName = trackingData?.rider?.name || 'Ramesh';
   const riderPhone = trackingData?.rider?.phone || '+91 98765 43210';
-  const etaMins = order.eta_minutes || trackingData?.eta_minutes || 18;
+  const isPickup = (order.delivery_mode || '').toUpperCase() === 'STORE_PICKUP';
+  const rawEta = Number(order.eta_minutes || trackingData?.eta_minutes || (isPickup ? 15 : 25));
+  const etaMins = rawEta > 120 ? (isPickup ? 15 : 25) : (rawEta || 15);
 
   // Items count calculation
   const allItems = Array.isArray(order.items) && order.items.length > 0 ? order.items : [];
@@ -275,6 +336,8 @@ export default function OrderStatusView({
       ? 'Your order has been delivered'
       : statusUpper === 'CANCELLED'
       ? 'This order has been cancelled'
+      : isPickup
+      ? `Your order is ready for pickup at ${storeName}`
       : statusUpper === 'PACKED' || statusUpper === 'PREPARING'
       ? `${storeName} is packing your order`
       : `${riderName} is on the way with your order`;
@@ -369,7 +432,11 @@ export default function OrderStatusView({
       {/* ============================================================== */}
       <div className="bg-green-50 rounded-xl p-4 text-center">
         <div className="text-3xl font-extrabold text-brand-green">
-          {`${etaMins} min`}
+          {statusUpper === 'DELIVERED'
+            ? 'Order Delivered ✓'
+            : isPickup
+            ? `Ready for Pickup (${etaMins} min)`
+            : `${etaMins} min`}
         </div>
         <div className="text-sm text-gray-600 mt-1">
           {riderMessage}
@@ -384,8 +451,8 @@ export default function OrderStatusView({
       {/* ============================================================== */}
       <div
         id="trackMap"
-        className="border border-gray-100 relative overflow-hidden"
-        style={{ minHeight: '260px' }}
+        className="border border-gray-100 relative overflow-hidden rounded-2xl shadow-xs"
+        style={{ height: '360px', minHeight: '360px' }}
       >
         {/* Visual telemetry fallback overlay for tests and initial load */}
         <div className="absolute inset-0 bg-gradient-to-br from-green-50/70 to-emerald-100/60 p-4 flex flex-col justify-between pointer-events-none z-0">
@@ -699,9 +766,9 @@ export default function OrderStatusView({
       {/* 7. TAX INVOICE MODAL                                           */}
       {/* ============================================================== */}
       {isInvoiceModalOpen && invoiceData && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto space-y-4 animate-scaleIn">
-            <div className="flex items-center justify-between border-b pb-3 border-gray-100">
+        <div className="tax-invoice-modal-overlay fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="tax-invoice-modal-card bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto space-y-4 animate-scaleIn">
+            <div className="flex items-center justify-between border-b pb-3 border-gray-100 no-print">
               <div className="flex items-center gap-2">
                 <i className="fa-solid fa-receipt text-brand-green text-lg"></i>
                 <h3 className="font-extrabold text-base text-gray-900">Tax Invoice</h3>
@@ -804,17 +871,34 @@ export default function OrderStatusView({
             </div>
 
             {/* Modal Actions */}
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2 pt-2 no-print">
               <button
                 type="button"
                 onClick={() => {
-                  window.print();
-                  showToast('🖨️ Opening print dialogue for invoice');
+                  printInvoiceDocument({
+                    invoice: invoiceData.invoice,
+                    order: invoiceData.order || order,
+                    seller: invoiceData.seller || {
+                      store_name: invoiceData.stores?.[0]?.store_name || storeName,
+                      address: invoiceData.stores?.[0]?.address_line || trackingData?.store?.address,
+                      gstin: invoiceData.stores?.[0]?.gstin || '24AAACA1234A1Z5'
+                    },
+                    buyer: invoiceData.buyer || {
+                      name: recipientName,
+                      address: fullAddressLine,
+                      phone: recipientPhone,
+                      city: city,
+                      pincode: pincode
+                    },
+                    items: invoiceData.items || allItems,
+                    stores: invoiceData.stores
+                  });
+                  showToast('🖨️ Opening print dialogue for structured bill');
                 }}
-                className="flex-1 py-2.5 rounded-xl bg-[#18753C] hover:bg-[#156030] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl bg-[#18753C] hover:bg-[#156030] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
               >
                 <i className="fa-solid fa-print"></i>
-                <span>Print Invoice</span>
+                <span>Print Bill</span>
               </button>
               <button
                 type="button"

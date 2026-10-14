@@ -21,15 +21,66 @@ async function runDay4Tests() {
     }
   }
 
-  try {
-    // 1. Fetch orders from database
-    const ordersRes = await pool.query(`SELECT id, order_number, order_status, customer_id FROM orders ORDER BY created_at DESC LIMIT 5`);
-    assert(ordersRes.rows.length > 0, `Database contains existing orders (found ${ordersRes.rows.length})`);
+  let createdTestOrder = false;
+  let sampleOrder;
 
-    const sampleOrder = ordersRes.rows[0];
+  try {
+    // 0. Clean up any leftover test orders
+    await pool.query(`DELETE FROM invoices WHERE seller_order_id IN (SELECT id FROM seller_orders WHERE parent_order_id IN (SELECT id FROM orders WHERE order_number LIKE 'ORD-TEST%'))`);
+    await pool.query(`DELETE FROM order_items WHERE seller_order_id IN (SELECT id FROM seller_orders WHERE parent_order_id IN (SELECT id FROM orders WHERE order_number LIKE 'ORD-TEST%'))`);
+    await pool.query(`DELETE FROM order_status_history WHERE order_id IN (SELECT id FROM orders WHERE order_number LIKE 'ORD-TEST%')`);
+    await pool.query(`DELETE FROM seller_orders WHERE parent_order_id IN (SELECT id FROM orders WHERE order_number LIKE 'ORD-TEST%')`);
+    await pool.query(`DELETE FROM orders WHERE order_number LIKE 'ORD-TEST%'`);
+
+    // 1. Fetch orders from database
+    let ordersRes = await pool.query(`SELECT id, order_number, order_status, customer_id FROM orders ORDER BY created_at DESC LIMIT 5`);
+
+    if (ordersRes.rows.length === 0) {
+      const userRes = await pool.query(`SELECT id FROM users WHERE user_type = 'CUSTOMER' LIMIT 1`);
+      const storeRes = await pool.query(`SELECT id FROM stores LIMIT 1`);
+      if (userRes.rows.length > 0 && storeRes.rows.length > 0) {
+        const uId = userRes.rows[0].id;
+        const sId = storeRes.rows[0].id;
+        const ordRes = await pool.query(`
+          INSERT INTO orders (
+            order_number, customer_id, delivery_address, delivery_mode,
+            total_mrp, total_discount, delivery_fee, grand_total,
+            payment_method, payment_status, order_status, eta_minutes, created_at, updated_at
+          ) VALUES (
+            'ORD-TEST-9999', $1, '{"address":"Test Address"}', 'EXPRESS_30M',
+            250, 0, 29, 279,
+            'UPI', 'PAID', 'CONFIRMED', 25, NOW(), NOW()
+          ) RETURNING id, order_number, order_status, customer_id
+        `, [uId]);
+        sampleOrder = ordRes.rows[0];
+
+        const soRes = await pool.query(`
+          INSERT INTO seller_orders (parent_order_id, store_id, subtotal, seller_payout_amount, status, created_at)
+          VALUES ($1, $2, 250, 230, 'NEW', NOW())
+          RETURNING id
+        `, [sampleOrder.id, sId]);
+
+        const listingRes = await pool.query(`SELECT id, title, sell_price FROM seller_listings WHERE is_active = true AND stock_qty > 0 LIMIT 1`);
+        if (listingRes.rows.length > 0) {
+          const l = listingRes.rows[0];
+          await pool.query(`
+            INSERT INTO order_items (seller_order_id, listing_id, product_name, quantity, unit_price, total_price)
+            VALUES ($1, $2, $3, 1, $4, $4)
+          `, [soRes.rows[0].id, l.id, l.title, l.sell_price]);
+        }
+
+        createdTestOrder = true;
+      }
+    } else {
+      sampleOrder = ordersRes.rows[0];
+    }
+
+    assert(sampleOrder !== undefined, `Database contains order for Day 4 tests`);
+    console.log('sampleOrder:', sampleOrder);
 
     // 2. Test getCustomerOrders service
     const customerOrders = await orderService.getCustomerOrders(sampleOrder.customer_id);
+    console.log('customerOrders:', customerOrders);
     assert(Array.isArray(customerOrders) && customerOrders.length > 0, `getCustomerOrders returns array of orders for customer`);
     assert(customerOrders[0].seller_orders !== undefined, `Customer orders include seller_orders array`);
     assert(customerOrders[0].items !== undefined, `Customer orders include items array`);
@@ -70,22 +121,40 @@ async function runDay4Tests() {
     assert(typeof reorderResult.added_count === 'number', `Reorder added available items to cart (${reorderResult.added_count} items)`);
 
     // 9. Test Notifications service
-    const notifs = await customerService.getNotifications(sampleOrder.customer_id);
+    const testUserRes = await pool.query(`
+      INSERT INTO users (phone, email, full_name, user_type)
+      VALUES ('+919999900099', 'testnotif@adab.test', 'Test Notif User', 'CUSTOMER')
+      ON CONFLICT (phone) DO UPDATE SET full_name = EXCLUDED.full_name
+      RETURNING id
+    `);
+    const testCustomerId = testUserRes.rows[0].id;
+
+    await pool.query(
+      `INSERT INTO notifications (user_id, title, message, type, is_read, created_at)
+       VALUES ($1, 'Test Notification', 'This is a test notification', 'ORDER_STATUS', false, NOW())`,
+      [testCustomerId]
+    );
+
+    const notifs = await customerService.getNotifications(testCustomerId);
     assert(Array.isArray(notifs) && notifs.length > 0, `getNotifications returns customer notifications list`);
     assert(notifs[0].title && notifs[0].message, `Notifications contain title, message, and type`);
 
     // 10. Test Notification unread count
-    const unreadCount = await customerService.getUnreadNotificationCount(sampleOrder.customer_id);
+    const unreadCount = await customerService.getUnreadNotificationCount(testCustomerId);
     assert(typeof unreadCount === 'number', `getUnreadNotificationCount returns integer count (${unreadCount})`);
 
     // 11. Test Mark notification as read
     const firstNotif = notifs[0];
-    const readResult = await customerService.markNotificationRead(sampleOrder.customer_id, firstNotif.id);
+    const readResult = await customerService.markNotificationRead(testCustomerId, firstNotif.id);
     assert(readResult.is_read === true, `markNotificationRead successfully marks notification as read`);
 
     // 12. Test Mark all notifications as read
-    const markAllResult = await customerService.markAllNotificationsRead(sampleOrder.customer_id);
+    const markAllResult = await customerService.markAllNotificationsRead(testCustomerId);
     assert(typeof markAllResult.updated_count === 'number', `markAllNotificationsRead bulk updates notifications`);
+
+    // Clean up test notifications and user
+    await pool.query(`DELETE FROM notifications WHERE user_id = $1`, [testCustomerId]);
+    await pool.query(`DELETE FROM users WHERE id = $1`, [testCustomerId]);
 
     // 13. Test cancelOrder with status validation
     // Find an active order or test non-cancellable rejection
@@ -107,6 +176,17 @@ async function runDay4Tests() {
     console.error('❌ Day 4 backend test suite encountered an error:', err);
     process.exit(1);
   } finally {
+    if (createdTestOrder && sampleOrder?.id) {
+      try {
+        await pool.query(`DELETE FROM invoices WHERE seller_order_id IN (SELECT id FROM seller_orders WHERE parent_order_id = $1)`, [sampleOrder.id]);
+        await pool.query(`DELETE FROM order_items WHERE seller_order_id IN (SELECT id FROM seller_orders WHERE parent_order_id = $1)`, [sampleOrder.id]);
+        await pool.query(`DELETE FROM order_status_history WHERE order_id = $1`, [sampleOrder.id]);
+        await pool.query(`DELETE FROM seller_orders WHERE parent_order_id = $1`, [sampleOrder.id]);
+        await pool.query(`DELETE FROM orders WHERE id = $1`, [sampleOrder.id]);
+      } catch (cleanErr) {
+        console.warn('Could not cleanup test order:', cleanErr.message);
+      }
+    }
     await pool.end();
   }
 }

@@ -41,6 +41,7 @@ export default function AddressModal({
   onClose,
   selectedAddressId,
   onSelectAddress,
+  onLoginRedirect,
   initialView = 'list'
 }) {
   const [modalView, setModalView] = useState(initialView); // 'list' | 'add' | 'edit'
@@ -55,17 +56,17 @@ export default function AddressModal({
 
   // Phone number state with country code and 10-digit constraint
   const [countryCode, setCountryCode] = useState('+91');
-  const [phoneDigits, setPhoneDigits] = useState('9876512340');
+  const [phoneDigits, setPhoneDigits] = useState('');
 
   const [addressForm, setAddressForm] = useState({
     id: null,
     label: 'Home',
-    recipient_name: 'Pooja Sharma',
+    recipient_name: '',
     address_line: '',
     landmark: '',
     city: 'Surat',
     state: 'Gujarat',
-    pincode: '395002',
+    pincode: '',
     is_default: false
   });
 
@@ -80,6 +81,12 @@ export default function AddressModal({
   }, [isOpen, initialView]);
 
   const loadAddresses = async () => {
+    const userStr = localStorage.getItem('adab_user');
+    if (!userStr) {
+      setSavedAddresses([]);
+      setLoadingAddresses(false);
+      return;
+    }
     try {
       setLoadingAddresses(true);
       const res = await CustomerAPI.getAddresses();
@@ -139,15 +146,26 @@ export default function AddressModal({
   if (!isOpen) return null;
 
   const handleOpenAdd = () => {
-    setCountryCode('+91');
-    setPhoneDigits('');
+    let defaultRecipient = '';
+    let defaultPhone = '';
+    try {
+      const u = localStorage.getItem('adab_user');
+      if (u) {
+        const parsed = JSON.parse(u);
+        defaultRecipient = parsed.name || parsed.full_name || '';
+        defaultPhone = parsed.phone || '';
+      }
+    } catch {}
+    const parsedPh = parsePhone(defaultPhone);
+    setCountryCode(parsedPh.countryCode || '+91');
+    setPhoneDigits(parsedPh.phoneDigits || '');
     setAddressForm({
       id: null,
       label: 'Home',
-      recipient_name: 'Pooja Sharma',
+      recipient_name: defaultRecipient,
       address_line: '',
       landmark: '',
-      city: '',
+      city: 'Surat',
       state: 'Gujarat',
       pincode: '',
       is_default: savedAddresses.length === 0
@@ -343,7 +361,9 @@ export default function AddressModal({
                   </div>
                   <div className="text-xs font-bold text-gray-700">No saved addresses found.</div>
                   <p className="text-[11px] text-gray-500">
-                    Add a delivery address to get 14–45 min delivery from local stores.
+                    {!localStorage.getItem('adab_user')
+                      ? 'Please login to view or add your delivery address.'
+                      : 'Add a delivery address to get 14–45 min delivery from local stores.'}
                   </p>
                 </div>
               ) : (
@@ -413,14 +433,28 @@ export default function AddressModal({
               )}
 
               {/* Add New Address Button */}
-              <button
-                type="button"
-                onClick={handleOpenAdd}
-                className="w-full py-3.5 border-2 border-dashed border-emerald-400 bg-emerald-50/40 hover:bg-emerald-50 rounded-2xl text-emerald-800 text-xs font-extrabold flex items-center justify-center gap-2 transition cursor-pointer"
-              >
-                <i className="fa-solid fa-plus text-sm"></i>
-                <span>Add New Delivery Address</span>
-              </button>
+              {!localStorage.getItem('adab_user') ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    if (onLoginRedirect) onLoginRedirect();
+                  }}
+                  className="w-full py-3.5 bg-[#18753C] hover:bg-[#156030] text-white rounded-2xl text-xs font-extrabold flex items-center justify-center gap-2 transition cursor-pointer shadow-sm"
+                >
+                  <i className="fa-solid fa-user text-sm"></i>
+                  <span>Login to Add Address</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleOpenAdd}
+                  className="w-full py-3.5 border-2 border-dashed border-emerald-400 bg-emerald-50/40 hover:bg-emerald-50 rounded-2xl text-emerald-800 text-xs font-extrabold flex items-center justify-center gap-2 transition cursor-pointer"
+                >
+                  <i className="fa-solid fa-plus text-sm"></i>
+                  <span>Add New Delivery Address</span>
+                </button>
+              )}
             </div>
           )}
 

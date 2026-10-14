@@ -75,14 +75,27 @@ async function placeOrder(req, res) {
       coupon_code = null
     } = req.body;
 
+    const resolvedCustomerId = customer_id || req.headers['x-user-id'] || null;
+
     let targetCartId = cart_id;
     if (!targetCartId) {
       const token = session_token || req.headers['x-session-token'] || 'guest-session';
       const cart = await cartService.getOrCreateCart({
-        customerId: customer_id,
+        customerId: resolvedCustomerId,
         sessionToken: token
       });
       targetCartId = cart.id;
+    }
+
+    // Try resolving customer ID from cart if not explicitly provided
+    let effectiveCustomerId = resolvedCustomerId;
+    if (!effectiveCustomerId && targetCartId) {
+      try {
+        const cartUserRes = await pool.query('SELECT customer_id FROM carts WHERE id = $1', [targetCartId]);
+        if (cartUserRes.rows.length > 0 && cartUserRes.rows[0].customer_id) {
+          effectiveCustomerId = cartUserRes.rows[0].customer_id;
+        }
+      } catch (e) {}
     }
 
     // 1. Guard: Check if cart has items before attempting transaction
@@ -113,7 +126,7 @@ async function placeOrder(req, res) {
     // 3. Process order in database transaction
     const order = await orderService.createOrderFromCart({
       cartId: targetCartId,
-      customerId: customer_id || null,
+      customerId: effectiveCustomerId,
       customerName: customer_name,
       customerPhone: customer_phone,
       customerEmail: customer_email,
@@ -134,10 +147,10 @@ async function placeOrder(req, res) {
           receipt: order.order_number,
           paymentMethod: order.payment_method,
           customer: {
-            id: customer_id || order.customer_id,
-            name: customer_name,
-            phone: customer_phone,
-            email: customer_email
+            id: effectiveCustomerId || order.customer_id,
+            name: customer_name || order.customer?.full_name,
+            phone: customer_phone || order.customer?.phone,
+            email: customer_email || order.customer?.email
           },
           metadata: {
             order_id: order.id,

@@ -868,3 +868,60 @@ img, video, svg {
     scroll-behavior: auto !important;
   }
 }
+
+/* ==============================================================================
+   PRINT STYLES — Professional Full-Page A4 Tax Invoice Document
+   ============================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm;
+  }
+
+  /* Hide entire application navigation, header bars, bottom navigation, floating toasts, and buttons */
+  header,
+  nav,
+  footer,
+  .app-header,
+  .bottom-nav,
+  .no-print,
+  button,
+  .hide-on-print,
+  #bottomNav,
+  #toastContainer,
+  #trackMap {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #111827 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    min-height: auto !important;
+    font-size: 11px !important;
+  }
+
+  /* Unfold modal container into 100% full-width structured document */
+  .tax-invoice-modal-overlay {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    inset: auto !important;
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .tax-invoice-modal-card {
+    max-width: 100% !important;
+    width: 100% !important;
+    box-shadow: none !important;
+    border: 1.5px solid #111827 !important;
+    border-radius: 0 !important;
+    padding: 18px !important;
+    margin: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
