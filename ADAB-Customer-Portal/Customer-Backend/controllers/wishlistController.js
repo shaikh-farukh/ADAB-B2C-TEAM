@@ -53,8 +53,8 @@ exports.moveItemToCart = async (req, res) => {
       return res.status(400).json({ success: false, message: 'userId and listingId are required' });
     }
 
-    // Remove from wishlist
-    await wishlistService.removeWishlistItem(userId, listingId);
+    // Like Amazon, adding/moving from wishlist to cart does NOT remove it from the wishlist database.
+    // The item remains in the wishlist and is only removed when the user manually clicks Remove.
 
     // Get or create cart for user
     const cart = await cartService.getOrCreateCart({ customerId: userId });
@@ -62,7 +62,7 @@ exports.moveItemToCart = async (req, res) => {
     // Add to cart
     const cartItem = await cartService.addItemToCart(cart.id, listingId, 1);
 
-    res.status(200).json({ success: true, message: 'Item moved to cart', cartItem });
+    res.status(200).json({ success: true, message: 'Item added to cart', cartItem });
   } catch (error) {
     console.error('Error moving item to cart:', error);
     res.status(500).json({ success: false, message: error.message || 'Internal Server Error' });

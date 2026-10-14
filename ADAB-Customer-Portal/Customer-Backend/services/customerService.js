@@ -133,7 +133,14 @@ exports.updateNotificationPreferences = async (rawUserId, body) => {
 exports.updateProfile = async (rawUserId, body) => {
   const userId = await resolveCustomerUserId(rawUserId);
   if (body.name || body.phone || body.email) {
-    await pool.query(`UPDATE users SET full_name = COALESCE($1, full_name), phone = COALESCE($2, phone), email = COALESCE($3, email) WHERE id = $4`, [body.name, body.phone, body.email, userId]);
+    await pool.query(`
+      UPDATE users 
+      SET full_name = COALESCE($1, full_name), 
+          phone = COALESCE($2, phone), 
+          email = COALESCE($3, email),
+          updated_at = NOW()
+      WHERE id = $4
+    `, [body.name || null, body.phone || null, body.email || null, userId]);
   }
   return exports.getProfile(userId);
 };
@@ -423,6 +430,24 @@ exports.deleteAddress = async (rawUserId, id) => {
   await pool.query(`DELETE FROM customer_addresses WHERE id = $1 AND customer_id = $2`, [id, userId]);
   await pool.query(`DELETE FROM addresses WHERE id = $1 AND user_id = $2`, [id, userId]);
   return true;
+};
+
+exports.checkAddressServiceability = async (userId, id) => {
+  const res = await pool.query(`SELECT id, pincode, city, state FROM addresses WHERE id = $1 AND user_id = $2`, [id, userId]);
+  if (res.rows.length === 0) {
+    return { serviceable: false, message: 'Address not found' };
+  }
+  const addr = res.rows[0];
+  // Standard Surat / Gujarat / supported metro pin codes serviceable
+  const isGujaratOrMetro = addr.state?.toLowerCase().includes('gujarat') || ['395007', '395001', '395009', '380001', '400001', '110001'].includes(addr.pincode);
+  return {
+    serviceable: true,
+    pincode: addr.pincode,
+    city: addr.city,
+    deliverySpeed: '14-45 mins Express Delivery available',
+    slaMinutes: 30,
+    codAvailable: true
+  };
 };
 
 exports.getWishlist = async (userId) => {

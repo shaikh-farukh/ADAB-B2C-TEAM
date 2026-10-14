@@ -15,12 +15,16 @@ router.patch('/me/notification-preferences', customerController.updateNotificati
 router.get('/me/notifications/preferences', customerController.getNotificationPreferences);
 router.patch('/me/notifications/preferences', customerController.updateNotificationPreferences);
 router.patch('/me/notifications', customerController.updateNotificationPreferences);
+// Settings aliases
+router.get('/me/settings', customerController.getNotificationPreferences);
+router.patch('/me/settings', customerController.updateNotificationPreferences);
 
 // Addresses
 router.get('/me/addresses', customerController.getAddresses);
 router.post('/me/addresses', customerController.addAddress);
 router.patch('/me/addresses/:id', customerController.updateAddress);
 router.delete('/me/addresses/:id', customerController.deleteAddress);
+router.get('/me/addresses/:id/serviceability', customerController.checkAddressServiceability);
 
 // Payment Methods & Wallet
 router.get('/me/payment-methods', customerController.getPaymentMethods);
@@ -30,8 +34,10 @@ router.get('/me/wallet', customerController.getWallet);
 
 // Wishlist
 router.get('/me/wishlist', customerController.getWishlist);
+router.get('/me/wishlist/count', customerController.getWishlistCount);
 router.post('/me/wishlist/items', customerController.addWishlistItem);
 router.delete('/me/wishlist/items/:id', customerController.removeWishlistItem);
+router.post('/me/wishlist/items/:id/move-to-cart', customerController.moveWishlistItemToCart);
 
 // Notifications (Day 4)
 router.get('/me/notifications', customerController.getNotifications);

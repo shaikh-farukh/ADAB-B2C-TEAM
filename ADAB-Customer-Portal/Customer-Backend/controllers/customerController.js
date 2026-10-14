@@ -30,6 +30,9 @@ exports.updateProfile = async (req, res) => {
     const data = await customerService.updateProfile(userId, req.body);
     res.json({ status: 'success', success: true, data });
   } catch (error) {
+    if (error.code === '23505') {
+      return res.status(400).json({ status: 'error', success: false, message: 'Phone number or email is already registered.' });
+    }
     const { statusCode, response } = formatError(error);
     res.status(statusCode).json(response);
   }
@@ -103,6 +106,15 @@ exports.deleteAddress = async (req, res) => {
   } catch (error) {
     const { statusCode, response } = formatError(error);
     res.status(statusCode).json(response);
+  }
+};
+
+exports.checkAddressServiceability = async (req, res) => {
+  try {
+    const data = await customerService.checkAddressServiceability(getUserId(req), req.params.id);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -238,4 +250,25 @@ exports.markAllNotificationsRead = async (req, res) => {
   }
 };
 
+exports.getWishlistCount = async (req, res) => {
+  try {
+    const data = await customerService.getWishlist(getUserId(req));
+    res.json({ success: true, count: Array.isArray(data) ? data.length : 0 });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 
+const cartService = require('../services/cartService');
+
+exports.moveWishlistItemToCart = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const { id } = req.params;
+    const cart = await cartService.getOrCreateCart({ customerId: userId });
+    await cartService.addItemToCart(cart.id, id, 1);
+    res.json({ success: true, message: 'Item added to cart from wishlist' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

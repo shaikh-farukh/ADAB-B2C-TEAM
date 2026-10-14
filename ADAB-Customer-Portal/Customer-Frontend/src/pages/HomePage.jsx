@@ -3,17 +3,24 @@ import { api } from '../api/api';
 import ProductCard from '../components/ProductCard';
 import { Link, useNavigate } from 'react-router-dom';
 
+let homeDataCache = null;
+
 export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wishlist }) {
-  const [recommended, setRecommended] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [stores, setStores] = useState([]);
-  const [coupons, setCoupons] = useState([]);
-  const [promotions, setPromotions] = useState([]);
-  const [latestOrder, setLatestOrder] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [recommended, setRecommended] = useState(homeDataCache?.recommended || []);
+  const [categories, setCategories] = useState(homeDataCache?.categories || []);
+  const [stores, setStores] = useState(homeDataCache?.stores || []);
+  const [coupons, setCoupons] = useState(homeDataCache?.coupons || []);
+  const [promotions, setPromotions] = useState(homeDataCache?.promotions || []);
+  const [latestOrder, setLatestOrder] = useState(homeDataCache?.latestOrder || null);
+  const [loading, setLoading] = useState(!homeDataCache);
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (homeDataCache) {
+      setLoading(false);
+      return;
+    }
+
     Promise.all([
       api.get('/catalog/recommended').catch(() => ({ data: { data: [] } })),
       api.get('/catalog/categories').catch(() => ({ data: { data: [] } })),
@@ -23,15 +30,29 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
       api.get('/orders').catch(() => ({ data: { data: [] } }))
     ])
       .then(([recRes, catRes, storeRes, couponRes, promoRes, orderRes]) => {
-        setRecommended(recRes?.data?.data || recRes?.data || []);
-        setCategories(catRes?.data?.data || catRes?.data || []);
-        setStores(storeRes?.data?.data || storeRes?.data || []);
-        setCoupons(couponRes?.data?.data?.coupons || couponRes?.data?.coupons || []);
-        setPromotions(promoRes?.data?.data || promoRes?.data || []);
+        const rec = recRes?.data?.data || recRes?.data || [];
+        const cats = catRes?.data?.data || catRes?.data || [];
+        const sts = storeRes?.data?.data || storeRes?.data || [];
+        const cps = couponRes?.data?.data?.coupons || couponRes?.data?.coupons || [];
+        const pms = promoRes?.data?.data || promoRes?.data || [];
         const orders = orderRes?.data?.data || orderRes?.data || [];
-        if (orders.length > 0) {
-          setLatestOrder(orders[0]);
-        }
+        const latest = orders.length > 0 ? orders[0] : null;
+
+        homeDataCache = {
+          recommended: rec,
+          categories: cats,
+          stores: sts,
+          coupons: cps,
+          promotions: pms,
+          latestOrder: latest
+        };
+
+        setRecommended(rec);
+        setCategories(cats);
+        setStores(sts);
+        setCoupons(cps);
+        setPromotions(pms);
+        setLatestOrder(latest);
       })
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
@@ -58,7 +79,7 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
             const colors = ['bg-emerald-600', 'bg-blue-600', 'bg-orange-500', 'bg-cyan-600', 'bg-purple-600'];
             const initial = (shop.name || 'Store').substring(0, 2).toUpperCase();
             return (
-              <button key={shop.id} onClick={() => go('stores', { storeId: shop.id, store: shop })} className="flex flex-col items-center gap-1.5 shrink-0 group">
+              <button key={shop.id} onClick={() => go('stores', { storeId: shop.id, store: shop, storeName: shop.name })} className="flex flex-col items-center gap-1.5 shrink-0 group">
                 <div className="story-ring"><div className={`w-14 h-14 rounded-full ${colors[i % 5]} text-white font-extrabold flex items-center justify-center text-sm shadow-md group-hover:scale-105 transition-transform`}>{initial}</div></div>
                 <span className="text-[11px] font-bold text-gray-800 truncate max-w-[64px]">{(shop.name || '').split(' ')[0]}</span>
               </button>
@@ -182,13 +203,13 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
             <h2 className="section-title">What are you looking for?</h2>
             <p className="text-xs text-gray-500 mt-0.5">Explore categories across local stores</p>
           </div>
-          <button onClick={() => go('categories')} className="text-brand-green text-xs font-extrabold hover:underline">View All →</button>
+          <button onClick={() => go('browse')} className="text-brand-green text-xs font-extrabold hover:underline">View All →</button>
         </div>
         <div className="grid grid-cols-4 sm:grid-cols-6 gap-2.5">
           {categories.slice(0, 6).map((cat, i) => {
              const icons = ['🥬', '🥛', '🌾', '🫒', '👗', '🍿'];
              return (
-              <button key={cat.id} onClick={() => go(`search?q=${cat.slug || cat.name}`)} className="cat-pill flex flex-col items-center gap-1 text-center">
+              <button key={cat.id} onClick={() => go(`browse?category=${encodeURIComponent(cat.slug || cat.name)}`)} className="cat-pill flex flex-col items-center gap-1 text-center">
                 <span className="text-2xl transform hover:scale-110 transition-transform">{icons[i % 6]}</span>
                 <span className="text-[11px] font-extrabold text-gray-800">{cat.name}</span>
               </button>
@@ -201,34 +222,92 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
       <div>
         <div className="flex justify-between items-end mb-3">
           <div>
-            <h2 className="section-title">Top Verified Stores</h2>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <h2 className="section-title">Top Verified Stores</h2>
+            </div>
             <p className="text-xs text-gray-500 mt-0.5">Direct from your trusted local merchants</p>
           </div>
-          <button onClick={() => go('stores', { storeId: null, store: null })} className="text-brand-green text-xs font-extrabold hover:underline">All {stores.length} shops →</button>
+          <button 
+            type="button"
+            onClick={() => go('stores', { storeId: null, store: null })} 
+            className="text-brand-green text-xs font-extrabold hover:underline cursor-pointer flex items-center gap-1"
+          >
+            <span>All {stores.length} shops</span>
+            <span>→</span>
+          </button>
         </div>
-        <div className="space-y-3.5">
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           {stores.slice(0, 2).map((shop) => (
-            <div key={shop.id} className="shop-card flex bg-white cursor-pointer" onClick={() => go('stores', { storeId: shop.id, store: shop })}>
-                <div className="w-1/3 bg-gray-200 relative">
-                    <img src={shop.image} alt={shop.name} className="w-full h-full object-cover" />
-                    <div className="absolute top-2 left-2 bg-white/90 backdrop-blur px-2 py-0.5 rounded text-[10px] font-extrabold text-emerald-700 flex items-center gap-1">
-                        <i className="fa-solid fa-star text-amber-400"></i> {shop.rating}
-                    </div>
+            <div 
+              key={shop.id} 
+              className="group bg-white rounded-2xl border border-gray-100 hover:border-emerald-300 hover:shadow-lg transition-all duration-200 overflow-hidden cursor-pointer flex flex-col sm:flex-row shadow-xs" 
+              onClick={() => go('stores', { storeId: shop.id, store: shop, storeName: shop.name })}
+            >
+              <div className="sm:w-36 h-32 sm:h-auto bg-gray-100 relative shrink-0 overflow-hidden">
+                <img 
+                  src={shop.image || 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=400&q=80'} 
+                  alt={shop.name} 
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                />
+                <div className="absolute top-2.5 left-2.5 bg-white/95 backdrop-blur-sm px-2 py-0.5 rounded-full text-[10px] font-black text-gray-800 flex items-center gap-1 shadow-xs">
+                  <i className="fa-solid fa-star text-amber-400 text-[9px]"></i> {shop.rating || '4.8'}
                 </div>
-                <div className="p-3 w-2/3">
-                    <div className="flex justify-between items-start">
-                        <h3 className="font-extrabold text-sm text-gray-900 leading-tight">{shop.name}</h3>
-                        <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{shop.distance}</span>
+              </div>
+
+              <div className="p-3.5 flex flex-col justify-between flex-1">
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="text-[9px] font-extrabold tracking-wider uppercase text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full inline-block mb-1">
+                        Verified Shop
+                      </span>
+                      <h3 className="font-black text-sm text-gray-900 group-hover:text-emerald-700 transition leading-tight">
+                        {shop.name}
+                      </h3>
                     </div>
-                    <p className="text-[11px] text-gray-500 mt-0.5 truncate">{(Array.isArray(shop.tags) && shop.tags.length > 0 ? shop.tags.join(' & ') : 'General Store')} · {shop.area}</p>
-                    <div className="mt-2 flex gap-1.5">
-                        <span className="store-chip">{shop.distance || 'Local'} Delivery</span>
-                        <span className="store-chip">{shop.rating} ★ Rating</span>
-                    </div>
+                    <span className="text-[10px] font-bold text-gray-600 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-lg shrink-0">
+                      {shop.distance || '1.2 km'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-1 line-clamp-1">
+                    {(Array.isArray(shop.tags) && shop.tags.length > 0 ? shop.tags.join(' • ') : 'Fresh Groceries & Essentials')} • {shop.area || 'Neighborhood'}
+                  </p>
                 </div>
+
+                <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1 text-[11px] font-bold text-gray-500">
+                    <i className="fa-solid fa-truck-fast text-emerald-600"></i>
+                    <span>15-30 min delivery</span>
+                  </div>
+                  <span className="text-[11px] font-extrabold text-brand-green group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                    Shop Products <i className="fa-solid fa-arrow-right text-[9px]"></i>
+                  </span>
+                </div>
+              </div>
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Quick Catalog Discovery Banner */}
+      <div 
+        onClick={() => go('browse')}
+        className="cursor-pointer bg-gradient-to-r from-emerald-50 via-teal-50 to-green-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between shadow-xs hover:border-emerald-400 hover:shadow-md transition-all"
+      >
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-lg shadow-sm">
+            <i className="fa-solid fa-boxes-stacked"></i>
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-gray-900">Explore Full Product Catalog</h3>
+            <p className="text-xs text-gray-600">Filter by category, price, or specific local kirana store</p>
+          </div>
+        </div>
+        <span className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white font-extrabold text-xs shrink-0 shadow-xs flex items-center gap-1 hover:bg-emerald-700 transition">
+          Browse Now <i className="fa-solid fa-arrow-right text-[10px]"></i>
+        </span>
       </div>
 
       {/* Popular Picks Grid */}
@@ -238,7 +317,7 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
             <h2 className="section-title">Trending in Your Area</h2>
             <p className="text-xs text-gray-500 mt-0.5">Top-selling products delivered in minutes</p>
           </div>
-          <button onClick={() => go('search')} className="text-brand-green text-xs font-extrabold hover:underline">Search all →</button>
+          <button onClick={() => go('browse')} className="text-brand-green text-xs font-extrabold hover:underline">Browse all products →</button>
         </div>
         {loading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">

@@ -1,19 +1,32 @@
 import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 
-export default function ProductCard({ product, onAddToCart, onToggleWishlist, wishlist, actionButtonText = 'ADD' }) {
+export default function ProductCard({ 
+  product, 
+  onAddToCart, 
+  onToggleWishlist, 
+  onRemove,
+  wishlist, 
+  actionButtonText = 'ADD',
+  customClassName = '',
+  compact = false
+}) {
   const navigate = useNavigate();
   const discount = product.mrp > product.price ? Math.round(((product.mrp - product.price) / product.mrp) * 100) : (product.discount || 0);
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] overflow-hidden group hover:border-[#18753C]/30 transition-colors">
+    <div className={`bg-white rounded-2xl border border-gray-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] overflow-hidden group hover:border-[#18753C]/30 transition-all duration-200 flex flex-col justify-between ${customClassName}`}>
       <div 
         onClick={() => navigate(`/product/${product.id}`)}
-        className="relative aspect-square bg-[#F9FAFB] flex items-center justify-center p-4 cursor-pointer"
+        className="relative aspect-square bg-[#F9FAFB] flex items-center justify-center p-3 sm:p-4 cursor-pointer"
       >
         <img 
-          src={product.image || 'https://via.placeholder.com/300'} 
+          src={product.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80'} 
           alt={product.name} 
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80';
+          }}
           className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500"
         />
         {discount > 0 && (
@@ -33,21 +46,23 @@ export default function ProductCard({ product, onAddToCart, onToggleWishlist, wi
           <i className={`fa-regular fa-heart text-[14px] ${wishlist?.includes(product.id) ? 'fa-solid text-red-500' : ''}`}></i>
         </button>
       </div>
-      <div className="p-4">
+      <div className="p-4 flex flex-col justify-between flex-1">
+        <div>
         <span 
           onClick={(e) => {
             e.stopPropagation();
-            if (product.store_id) {
-              navigate(`/stores?store_id=${product.store_id}`);
+            if (product.store_id || product.storeId) {
+              navigate(`/stores?store_id=${product.store_id || product.storeId}`);
             }
           }}
-          className={`bg-[#E8F5E9] text-[#18753C] text-[10px] font-extrabold px-2 py-1 rounded mb-2 inline-block uppercase tracking-wider ${product.store_id ? 'hover:bg-emerald-200 transition-colors cursor-pointer' : ''}`}
+          className={`bg-[#E8F5E9] text-[#18753C] text-[10px] font-extrabold px-2 py-1 rounded mb-2 inline-flex items-center gap-1 uppercase tracking-wider ${(product.store_id || product.storeId) ? 'hover:bg-emerald-200 transition-colors cursor-pointer' : ''}`}
         >
-          {product.sellerName || 'Verified Shop'}
+          <i className="fa-solid fa-store text-[10px] text-emerald-600"></i>
+          <span className="truncate">{product.sellerName || 'Verified Shop'}</span>
         </span>
         <div 
           onClick={() => navigate(`/product/${product.id}`)}
-          className="font-bold text-[14px] leading-tight line-clamp-2 min-h-[2.5rem] text-[#111827] cursor-pointer hover:text-[#18753C] mb-1"
+          className="font-bold text-[14px] leading-tight line-clamp-2 min-h-[2.5rem] text-[#111827] cursor-pointer hover:text-[#18753C] mb-1 capitalize"
         >
           {product.name}
         </div>
@@ -58,21 +73,38 @@ export default function ProductCard({ product, onAddToCart, onToggleWishlist, wi
           <span className="font-bold text-sm text-[#111827]">{product.rating ? parseFloat(product.rating).toFixed(1) : '4.5'}</span>
           <span className="text-gray-400 text-sm">({product.reviews || 82})</span>
         </div>
+        </div>
 
-        <div className="flex items-center justify-between mt-2">
-          <div className="flex items-baseline gap-2">
-            <span className="font-extrabold text-xl text-[#111827]">₹{product.price}</span>
-            {product.mrp > product.price && (
-              <span className="text-sm text-gray-400 line-through">₹{product.mrp}</span>
-            )}
-          </div>
+        {/* Price Row */}
+        <div className="flex items-baseline gap-1.5 mt-3 pt-1">
+          <span className="font-extrabold text-lg text-[#111827]">₹{product.price}</span>
+          {product.mrp > product.price && (
+            <span className="text-xs text-gray-400 line-through">₹{product.mrp}</span>
+          )}
+        </div>
+
+        {/* Action Buttons on Next New Line */}
+        <div className="mt-3 pt-1 flex items-center gap-2">
+          {onRemove && (
+            <button 
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(product.id);
+              }}
+              className="flex-1 border border-red-200 text-red-600 bg-red-50/50 hover:bg-red-500 hover:text-white py-2 rounded-xl font-bold text-xs tracking-wide transition-colors cursor-pointer text-center flex items-center justify-center gap-1 shadow-2xs"
+            >
+              <i className="fa-regular fa-trash-can text-[11px]"></i>
+              <span>Remove</span>
+            </button>
+          )}
           <button 
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               if (onAddToCart) onAddToCart(product.id, product.name);
             }}
-            className="border-2 border-[#18753C] text-[#18753C] bg-white hover:bg-[#18753C] hover:text-white px-4 py-1.5 rounded-xl font-bold text-sm transition-colors cursor-pointer"
+            className={`${onRemove ? 'flex-1' : 'w-full'} border-2 border-[#18753C] text-[#18753C] bg-white hover:bg-[#18753C] hover:text-white py-2 px-3 rounded-xl font-extrabold text-xs tracking-wide transition-colors cursor-pointer text-center shadow-2xs`}
           >
             {actionButtonText}
           </button>

@@ -33,7 +33,9 @@ exports.getWishlistByUser = async (userId) => {
     FROM wishlist_items wi
     JOIN wishlists w ON wi.wishlist_id = w.id
     JOIN seller_listings sl ON wi.listing_id = sl.id
-    WHERE w.user_id = $1 AND sl.is_active = true
+    WHERE w.user_id = $1 
+      AND sl.is_active = true 
+      AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
   `, [userId]);
   return res.rows.map(row => row.listing_id);
 };

@@ -8,6 +8,9 @@ const pool = require('./db');
 const app = express();
 const PORT = process.env.PORT || 5002; 
 
+// Disable weak ETags for dynamic REST APIs (prevents HTTP 304 conditional cache matches)
+app.set('etag', false);
+
 // Middleware
 app.use(cors()); 
 app.use(express.json({
@@ -17,6 +20,14 @@ app.use(express.json({
   }
 })); 
 app.use(express.urlencoded({ limit: '25mb', extended: true }));
+
+// Dynamic REST APIs Cache-Control headers
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  next();
+});
 
 // Route imports
 const catalogRoutes = require('./routes/catalog');
