@@ -203,6 +203,92 @@ export const OrderAPI = {
   getInvoice: (orderId) => apiRequest(`/customers/me/orders/${orderId}/invoice`)
 };
 
+// Return & Refund APIs (Day 5 Task 1)
+export const ReturnAPI = {
+  createReturn: (orderId, returnPayload) =>
+    apiRequest(`/customers/me/orders/${orderId}/return`, {
+      method: 'POST',
+      body: JSON.stringify(returnPayload)
+    }),
+  getReturns: () => apiRequest('/customers/me/returns'),
+  getReturnById: (returnId) => apiRequest(`/customers/me/returns/${returnId}`),
+  cancelReturn: (returnId) =>
+    apiRequest(`/customers/me/returns/${returnId}/cancel`, {
+      method: 'POST'
+    }),
+  uploadEvidence: (returnId, payload) =>
+    apiRequest(`/customers/me/returns/${returnId}/evidence`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+  getRefunds: () => apiRequest('/customers/me/refunds'),
+  getRefundById: (refundId) => apiRequest(`/customers/me/refunds/${refundId}`)
+};
+
+// Verified Customer Reviews APIs (Day 5 Task 2)
+export const ReviewAPI = {
+  getPendingReviews: () => apiRequest('/customers/me/reviews/pending'),
+  createReview: (productId, reviewPayload) =>
+    apiRequest(`/products/${productId}/reviews`, {
+      method: 'POST',
+      body: JSON.stringify(reviewPayload)
+    }),
+  getProductReviews: (productId, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/products/${productId}/reviews${query ? `?${query}` : ''}`);
+  },
+  updateReview: (reviewId, payload) =>
+    apiRequest(`/reviews/${reviewId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    }),
+  uploadMedia: (reviewId, payload) =>
+    apiRequest(`/customers/me/reviews/${reviewId}/media`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+  getMyReviews: () => apiRequest('/customers/me/reviews')
+};
+
+// Help & Support Tickets APIs (Day 5 Task 3)
+export const SupportAPI = {
+  createTicket: (ticketPayload) =>
+    apiRequest('/customers/me/support/tickets', {
+      method: 'POST',
+      body: JSON.stringify(ticketPayload)
+    }),
+  getTickets: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/customers/me/support/tickets${query ? `?${query}` : ''}`);
+  },
+  getTicketDetails: (ticketId) =>
+    apiRequest(`/customers/me/support/tickets/${ticketId}`),
+  sendMessage: (ticketId, messagePayload) =>
+    apiRequest(`/customers/me/support/tickets/${ticketId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(messagePayload)
+    }),
+  updateTicket: (ticketId, updatePayload) =>
+    apiRequest(`/customers/me/support/tickets/${ticketId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updatePayload)
+    })
+};
+
+// Rewards Ledger APIs (Day 5 Task 4)
+export const RewardAPI = {
+  getRewardsSummary: () => apiRequest('/customers/me/rewards'),
+  getLedger: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/customers/me/rewards/ledger${query ? `?${query}` : ''}`);
+  },
+  redeemPoints: (redemptionPayload) =>
+    apiRequest('/customers/me/rewards/redeem', {
+      method: 'POST',
+      body: JSON.stringify(redemptionPayload)
+    })
+};
+
 // Wishlist APIs
 export const WishlistAPI = {
   getWishlist: (userId) => apiRequest(`/wishlist/${userId}`),

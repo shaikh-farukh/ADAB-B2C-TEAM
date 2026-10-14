@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/razorpaySecurity.test.js && node tests/day4Backend.test.js && node tests/checkoutUniqueUser.test.js && node tests/exactAddressGeocoding.test.js"
+    "test": "node tests/razorpaySecurity.test.js && node tests/day4Backend.test.js && node tests/checkoutUniqueUser.test.js && node tests/exactAddressGeocoding.test.js && node tests/day5Returns.test.js && node tests/day5Reviews.test.js && node tests/day5Support.test.js && node tests/day5Rewards.test.js"
   },
   "keywords": [],
   "author": "",

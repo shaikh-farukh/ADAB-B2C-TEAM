@@ -57,13 +57,30 @@ exports.getProfile = async (rawUserId) => {
     return { id: userId, name: 'Pooja Sharma', email: 'customer@adab.com', phone: '+91 98765 12340', points: 0, wallet_balance: 0 };
   }
 
-  // Calculate reward points from user's completed orders (starts at 0 for new account)
-  const ordersPointsRes = await pool.query(`
-    SELECT COALESCE(SUM(FLOOR(grand_total / 100)), 0)::int as points
-    FROM orders
-    WHERE customer_id = $1 AND order_status != 'CANCELLED'
-  `, [userId]);
-  const points = ordersPointsRes.rows[0]?.points || 0;
+  // Get active reward points and tier from canonical rewards_accounts (falling back to orders)
+  let points = 0;
+  let loyaltyTier = res.rows[0]?.loyalty_tier || 'BRONZE';
+  try {
+    const rewardsAccRes = await pool.query(
+      `SELECT points_balance, tier FROM rewards_accounts WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    );
+    if (rewardsAccRes.rows.length > 0) {
+      points = Number(rewardsAccRes.rows[0].points_balance || 0);
+      if (rewardsAccRes.rows[0].tier) {
+        loyaltyTier = rewardsAccRes.rows[0].tier;
+      }
+    } else {
+      const ordersPointsRes = await pool.query(`
+        SELECT COALESCE(SUM(FLOOR(grand_total / 100)), 0)::int as points
+        FROM orders
+        WHERE customer_id = $1 AND order_status != 'CANCELLED'
+      `, [userId]);
+      points = ordersPointsRes.rows[0]?.points || 0;
+    }
+  } catch (rErr) {
+    console.warn('Could not query rewards_accounts in getProfile:', rErr.message);
+  }
 
   // Get user wallet balance from customer_wallets table
   const walletRes = await pool.query(`SELECT balance FROM customer_wallets WHERE customer_id = $1 LIMIT 1`, [userId]);
@@ -71,6 +88,7 @@ exports.getProfile = async (rawUserId) => {
 
   return {
     ...res.rows[0],
+    loyalty_tier: loyaltyTier,
     points,
     wallet_balance
   };

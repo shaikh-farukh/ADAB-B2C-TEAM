@@ -16,7 +16,8 @@ export default function OrdersView({
   initialView = 'orders',
   loading = false,
   onRefresh = () => {},
-  showToast = () => {}
+  showToast = () => {},
+  onReviewOrder
 }) {
   const [currentView, setCurrentView] = useState(initialView); // 'orders' | 'orderhistory'
   const [searchQuery, setSearchQuery] = useState('');
@@ -492,21 +493,38 @@ export default function OrdersView({
 
                   {/* Reorder Button */}
                   {isDelivered && (
-                    <button
-                      type="button"
-                      disabled={reorderingOrderId === order.id}
-                      onClick={(e) => handleReorderClick(order, e)}
-                      className="text-brand-green hover:bg-green-50 font-bold text-xs border border-brand-green px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 disabled:opacity-50 flex items-center gap-1.5"
-                    >
-                      {reorderingOrderId === order.id ? (
-                        <>
-                          <i className="fa-solid fa-spinner fa-spin text-xs"></i>
-                          <span>Adding...</span>
-                        </>
-                      ) : (
-                        <span>Reorder</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        disabled={reorderingOrderId === order.id}
+                        onClick={(e) => handleReorderClick(order, e)}
+                        className="text-brand-green hover:bg-green-50 font-bold text-xs border border-brand-green px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {reorderingOrderId === order.id ? (
+                          <>
+                            <i className="fa-solid fa-spinner fa-spin text-xs"></i>
+                            <span>Adding...</span>
+                          </>
+                        ) : (
+                          <span>Reorder</span>
+                        )}
+                      </button>
+
+                      {onReviewOrder && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onReviewOrder(order);
+                          }}
+                          className="text-amber-800 hover:bg-amber-50 font-bold text-xs border border-amber-300 bg-amber-50/50 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                          title="Rate & Review this order"
+                        >
+                          <i className="fa-solid fa-star text-amber-500 text-[10px]"></i>
+                          <span>Rate</span>
+                        </button>
                       )}
-                    </button>
+                    </div>
                   )}
 
                   {/* Cancel Button */}

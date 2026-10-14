@@ -14,9 +14,13 @@ import AddressModal from './components/AddressModal';
 import OrderStatusView from './components/OrderStatusView';
 import OrdersView from './components/OrdersView';
 import NotificationsView from './components/NotificationsView';
+import ReturnsView from './components/ReturnsView';
+import ReviewsView from './components/ReviewsView';
+import HelpSupportView from './components/HelpSupportView';
+import PointsView from './components/PointsView';
 import AccountPage, { clearAccountCache } from './pages/AccountPage';
 import LoginPage from './pages/LoginPage';
-import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI, CustomerAPI, AuthAPI } from './services/api';
+import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI, CustomerAPI, AuthAPI, RewardAPI } from './services/api';
 import { api } from './api/api';
 
 export default function App() {
@@ -63,6 +67,9 @@ export default function App() {
   const [placingOrder, setPlacingOrder] = useState(false);
   const [activeOrder, setActiveOrder] = useState(null);
   const [ordersList, setOrdersList] = useState([]);
+  const [returnTargetOrder, setReturnTargetOrder] = useState(null);
+  const [reviewTargetItem, setReviewTargetItem] = useState(null);
+  const [supportTargetOrder, setSupportTargetOrder] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
   const [validationIssues, setValidationIssues] = useState([]);
   const [wishlist, setWishlist] = useState([]);
@@ -245,11 +252,14 @@ export default function App() {
       return;
     }
     try {
-      const [profRes, walletRes] = await Promise.all([
+      const [profRes, walletRes, rewardsRes] = await Promise.all([
         CustomerAPI.getProfile().catch(() => null),
-        CustomerAPI.getWallet().catch(() => null)
+        CustomerAPI.getWallet().catch(() => null),
+        RewardAPI.getRewardsSummary().catch(() => null)
       ]);
-      if (profRes?.data && typeof profRes.data.points === 'number') {
+      if (rewardsRes?.data && typeof rewardsRes.data.points_balance === 'number') {
+        setPoints(rewardsRes.data.points_balance);
+      } else if (profRes?.data && typeof profRes.data.points === 'number') {
         setPoints(profRes.data.points);
       }
       if (walletRes?.data && typeof walletRes.data.balance === 'number') {
@@ -278,6 +288,7 @@ export default function App() {
     refreshWishlist();
     refreshOrders();
     refreshNotifications();
+    refreshCustomerStats();
 
     // Load initial customer address from database only if user is logged in
     const loadInitialAddress = async () => {
@@ -442,6 +453,22 @@ export default function App() {
       console.error('Failed to reorder items:', err);
       throw err;
     }
+  };
+
+  // Day 5: Order Review Handler (Navigates to sec-reviews with delivered order item)
+  const handleReviewOrder = (order) => {
+    if (!order) return;
+    const item = order.items?.[0] || {};
+    setReviewTargetItem({
+      order_id: order.id,
+      order_number: order.order_number,
+      listing_id: item.listing_id || item.id,
+      product_name: item.product_name || item.title || 'Delivered Item',
+      store_name: order.seller_orders?.[0]?.store_name || item.store_name || 'Neighborhood Store',
+      unit_price: item.unit_price || 0,
+      quantity: item.quantity || 1
+    });
+    setActiveTab('reviews');
   };
 
   // Add sample item to cart
@@ -653,7 +680,8 @@ export default function App() {
             <button
               type="button"
               className="site-btn"
-              onClick={() => showToast(`ADAB Reward Points Balance: ${points.toLocaleString('en-IN')}`)}
+              onClick={() => setActiveTab('points')}
+              title={`ADAB Reward Points Balance: ${points.toLocaleString('en-IN')} (Click to view ledger)`}
             >
               <i className="fa-solid fa-star" style={{ color: '#F59E0B' }}></i>
               <span id="navPoints">{points.toLocaleString('en-IN')}</span>
@@ -795,8 +823,9 @@ export default function App() {
 
                 <button
                   type="button"
-                  onClick={() => showToast(`ADAB Reward Points: ${points.toLocaleString('en-IN')}`)}
+                  onClick={() => setActiveTab('points')}
                   className="glass px-2.5 h-9 rounded-full flex items-center gap-1 text-xs font-bold transition hover:bg-white/30 cursor-pointer"
+                  title={`ADAB Reward Points: ${points.toLocaleString('en-IN')} (Click to view)`}
                 >
                   <i className="fa-solid fa-star text-amber-300"></i>
                   <span>{points.toLocaleString('en-IN')}</span>
@@ -1086,6 +1115,7 @@ export default function App() {
             }}
             onCancelOrder={handleCancelOrder}
             onReorder={handleReorder}
+            onReviewOrder={handleReviewOrder}
             onBrowseShops={() => setActiveTab('stores')}
             showToast={showToast}
           />
@@ -1097,6 +1127,11 @@ export default function App() {
             order={activeOrder}
             onBackToOrders={() => setActiveTab('orders')}
             showToast={showToast}
+            onRequestReturn={(ord) => {
+              setReturnTargetOrder(ord);
+              setActiveTab('returns');
+            }}
+            onRequestReview={(ord) => handleReviewOrder(ord)}
           />
         )}
 
@@ -1113,6 +1148,47 @@ export default function App() {
           />
         )}
 
+        {/* Returns & Replacements Screen (Day 5 Task 1: sec-returns) */}
+        {activeTab === 'returns' && (
+          <ReturnsView
+            onBack={() => setActiveTab('account')}
+            onNavigate={setActiveTab}
+            showToast={showToast}
+            preselectedOrder={returnTargetOrder}
+          />
+        )}
+
+        {/* Verified Customer Reviews Screen (Day 5 Task 2: sec-reviews) */}
+        {activeTab === 'reviews' && (
+          <ReviewsView
+            onBack={() => setActiveTab('account')}
+            onNavigate={setActiveTab}
+            showToast={showToast}
+            preselectedPendingItem={reviewTargetItem}
+          />
+        )}
+
+        {/* Help & Customer Support Screen (Day 5 Task 3: sec-help, sec-messages) */}
+        {(activeTab === 'help' || activeTab === 'messages' || activeTab === 'support') && (
+          <HelpSupportView
+            onBack={() => setActiveTab('account')}
+            onNavigate={setActiveTab}
+            showToast={showToast}
+            preselectedOrder={supportTargetOrder}
+            initialView={activeTab === 'messages' ? 'chat' : 'hub'}
+            orders={ordersList}
+          />
+        )}
+
+        {/* Reward Points & Loyalty Ledger Screen (Day 5 Task 4: sec-points) */}
+        {(activeTab === 'points' || activeTab === 'rewards') && (
+          <PointsView
+            onBack={() => setActiveTab('account')}
+            onNavigate={setActiveTab}
+            showToast={showToast}
+          />
+        )}
+
         {/* Other Tab Placeholders */}
         {activeTab !== 'home' &&
           activeTab !== 'cart' &&
@@ -1121,6 +1197,13 @@ export default function App() {
           activeTab !== 'orderhistory' &&
           activeTab !== 'track' &&
           activeTab !== 'notifications' &&
+          activeTab !== 'returns' &&
+          activeTab !== 'reviews' &&
+          activeTab !== 'help' &&
+          activeTab !== 'messages' &&
+          activeTab !== 'support' &&
+          activeTab !== 'points' &&
+          activeTab !== 'rewards' &&
           activeTab !== 'search' &&
           activeTab !== 'stores' &&
           activeTab !== 'browse' &&

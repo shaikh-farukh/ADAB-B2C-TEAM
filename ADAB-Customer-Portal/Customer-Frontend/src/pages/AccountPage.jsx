@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api/api';
+import { RewardAPI } from '../services/api';
 import { lookupPincode, getOfflinePincodeHint } from '../utils/pincode';
 
 let accountDataCache = null;
@@ -29,9 +30,21 @@ export default function AccountPage({
   });
   
   const displayOrders = ordersCount ?? 0;
-  const displayPoints = profile?.points ?? points ?? 0;
+  const displayPoints = (typeof points === 'number' && points > 0)
+    ? points
+    : (profile?.points ?? points ?? 0);
   const displayWallet = profile?.wallet_balance ?? walletBalance ?? 0;
   const displayUnreadNotifications = unreadNotifications ?? 0;
+
+  // Keep profile points synchronized with latest points prop from App
+  useEffect(() => {
+    if (typeof points === 'number' && points > 0) {
+      setProfile(prev => prev ? ({ ...prev, points }) : prev);
+      if (accountDataCache?.profile) {
+        accountDataCache.profile.points = points;
+      }
+    }
+  }, [points]);
 
   // Views: 'dashboard' | 'addresses' | 'profile' | 'placeholder'
   const [activeView, setActiveView] = useState('dashboard');
@@ -115,17 +128,30 @@ export default function AccountPage({
     }
     setLoading(true);
     try {
-      const [profRes, addrRes, notifRes] = await Promise.all([
+      const [profRes, addrRes, notifRes, rewardsRes] = await Promise.all([
         api.get('/customers/me'),
         api.get('/customers/me/addresses'),
-        api.get('/customers/me/notifications')
+        api.get('/customers/me/notifications'),
+        RewardAPI.getRewardsSummary().catch(() => null)
       ]);
       
       const newCache = { profile: null, addresses: [], notifications: notificationPrefs };
 
       if (profRes.data?.success) {
-        newCache.profile = profRes.data.data;
-        setProfile(profRes.data.data);
+        const rewardsData = rewardsRes?.data;
+        const resolvedPoints = typeof rewardsData?.points_balance === 'number'
+          ? rewardsData.points_balance
+          : (typeof profRes.data.data.points === 'number' ? profRes.data.data.points : points || 0);
+        const resolvedTier = rewardsData?.tier || profRes.data.data.loyalty_tier || 'BRONZE';
+
+        const mergedProfile = {
+          ...profRes.data.data,
+          points: resolvedPoints,
+          loyalty_tier: resolvedTier
+        };
+
+        newCache.profile = mergedProfile;
+        setProfile(mergedProfile);
         setProfileForm({ 
           name: profRes.data.data.name || '', 
           phone: profRes.data.data.phone || '', 
@@ -302,7 +328,10 @@ export default function AccountPage({
             <div className="text-xl font-extrabold">{displayOrders}</div>
             <div className="text-[10px] text-green-100 font-semibold uppercase tracking-wider mt-1">Orders</div>
           </div>
-          <div className="bg-[#2D804D] rounded-xl p-4 text-center">
+          <div 
+            onClick={() => onNavigate && onNavigate('points')} 
+            className="bg-[#2D804D] rounded-xl p-4 text-center cursor-pointer hover:bg-[#256f42] transition"
+          >
             <div className="text-xl font-extrabold">{Number(displayPoints).toLocaleString('en-IN')}</div>
             <div className="text-[10px] text-green-100 font-semibold uppercase tracking-wider mt-1">Points</div>
           </div>
@@ -395,8 +424,8 @@ export default function AccountPage({
           <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
         </div>
 
-        {/* 7. ADAB Rewards */}
-        <div onClick={() => showPlaceholder('ADAB Rewards: Loyalty program details coming soon.')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
+        {/* 7. ADAB Rewards (Day 5 Task 4: sec-points) */}
+        <div onClick={() => (onNavigate ? onNavigate('points') : null)} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
           <div className="w-12 h-12 bg-yellow-50 text-yellow-500 rounded-xl flex items-center justify-center text-xl shrink-0">
             <i className="fa-solid fa-star"></i>
           </div>
@@ -407,14 +436,14 @@ export default function AccountPage({
           <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
         </div>
 
-        {/* 8. My Reviews */}
-        <div onClick={() => showPlaceholder('My Reviews: Rate past purchases coming soon.')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
+        {/* 8. My Reviews (Day 5 Task 2: sec-reviews) */}
+        <div onClick={() => (onNavigate ? onNavigate('reviews') : null)} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
           <div className="w-12 h-12 bg-orange-50 text-orange-500 rounded-xl flex items-center justify-center text-xl shrink-0">
             <i className="fa-regular fa-star-half-stroke"></i>
           </div>
           <div className="flex-1">
             <div className="font-bold text-gray-900 text-sm">My Reviews</div>
-            <div className="text-xs text-gray-500 mt-0.5">Rate past purchases & stores</div>
+            <div className="text-xs text-gray-500 mt-0.5">Rate past purchases &amp; stores</div>
           </div>
           <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
         </div>
@@ -438,14 +467,26 @@ export default function AccountPage({
           <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
         </div>
 
-        {/* 10. Help & Support */}
-        <div onClick={() => showPlaceholder('Help & Support: Customer service portal coming soon.')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
+        {/* 10. Help & Support (Day 5 Task 3: sec-help, sec-messages) */}
+        <div onClick={() => (onNavigate ? onNavigate('help') : null)} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
           <div className="w-12 h-12 bg-teal-50 text-teal-500 rounded-xl flex items-center justify-center text-xl shrink-0">
             <i className="fa-solid fa-headset"></i>
           </div>
           <div className="flex-1">
-            <div className="font-bold text-gray-900 text-sm">Help & Support</div>
-            <div className="text-xs text-gray-500 mt-0.5">Get help with orders & refunds</div>
+            <div className="font-bold text-gray-900 text-sm">Help &amp; Support</div>
+            <div className="text-xs text-gray-500 mt-0.5">Tickets, live chat &amp; order disputes</div>
+          </div>
+          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+        </div>
+
+        {/* Returns & Refunds (Day 5) */}
+        <div onClick={() => (onNavigate ? onNavigate('returns') : null)} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
+          <div className="w-12 h-12 bg-gray-100 text-gray-700 rounded-xl flex items-center justify-center text-xl shrink-0">
+            <i className="fa-solid fa-rotate-left"></i>
+          </div>
+          <div className="flex-1">
+            <div className="font-bold text-gray-900 text-sm">Returns &amp; Refunds</div>
+            <div className="text-xs text-gray-500 mt-0.5">Track return requests &amp; pickup slots</div>
           </div>
           <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
         </div>

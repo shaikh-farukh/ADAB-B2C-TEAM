@@ -925,3 +925,11 @@ img, video, svg {
     overflow: visible !important;
   }
 }
+
+/* Day 5 Task 4: Reward Points Hero Card Gradient Fallback */
+.points-hero-card,
+.bg-gradient-to-br.from-amber-400.to-orange-500 {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 45%, #EA580C 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 25px -5px rgba(245, 158, 11, 0.35), 0 8px 10px -6px rgba(234, 88, 12, 0.25) !important;
+}

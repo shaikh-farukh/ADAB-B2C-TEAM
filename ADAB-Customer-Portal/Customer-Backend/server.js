@@ -11,10 +11,12 @@ const PORT = process.env.PORT || 5002;
 // Middleware
 app.use(cors()); 
 app.use(express.json({
+  limit: '25mb',
   verify: (req, res, buf) => {
     req.rawBody = buf;
   }
 })); 
+app.use(express.urlencoded({ limit: '25mb', extended: true }));
 
 // Route imports
 const catalogRoutes = require('./routes/catalog');
@@ -28,6 +30,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/v1/catalog', catalogRoutes);
 app.use('/api/catalog', catalogRoutes);
 app.use('/api/v1/customers', customerRoutes);
+app.use('/api/customers', customerRoutes);
 app.use('/api/v1/wishlist', wishlistRoutes);
 
 // Health / Sample API Route with DB check
@@ -57,6 +60,10 @@ const cartRoutes = require('./routes/cartRoutes');
 const checkoutRoutes = require('./routes/checkoutRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const reviewRoutes = require('./routes/reviewRoutes');
+const productRoutes = require('./routes/productRoutes');
+const supportRoutes = require('./routes/supportRoutes');
+const rewardRoutes = require('./routes/rewardRoutes');
 
 app.use('/api/v1/cart', cartRoutes);
 app.use('/api/cart', cartRoutes);
@@ -69,6 +76,18 @@ app.use('/api/orders', orderRoutes);
 
 app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/payments', paymentRoutes);
+
+app.use('/api/v1/reviews', reviewRoutes);
+app.use('/api/reviews', reviewRoutes);
+
+app.use('/api/v1/products', productRoutes);
+app.use('/api/products', productRoutes);
+
+app.use('/api/v1/support', supportRoutes);
+app.use('/api/support', supportRoutes);
+
+app.use('/api/v1/rewards', rewardRoutes);
+app.use('/api/rewards', rewardRoutes);
 
 // 404 Handler for unknown routes
 app.use((req, res) => {

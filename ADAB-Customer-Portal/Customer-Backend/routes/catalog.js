@@ -1,5 +1,6 @@
 const express = require('express');
 const catalogController = require('../controllers/catalogController');
+const reviewController = require('../controllers/reviewController');
 const router = express.Router();
 
 router.get('/recommended', catalogController.getRecommended);
@@ -8,6 +9,8 @@ router.get('/search', catalogController.searchProducts);
 router.get('/products/:id', catalogController.getProductById);
 router.get('/products/:id/sellers', catalogController.getProductSellers);
 router.get('/products/:id/related', catalogController.getRelatedProducts);
+router.get('/products/:id/reviews', reviewController.getProductReviews);
+router.post('/products/:id/reviews', reviewController.createVerifiedReview);
 router.get('/categories', catalogController.getCategories);
 router.get('/categories/:slug/products', catalogController.getProductsByCategory);
 router.get('/stores', catalogController.getStores);

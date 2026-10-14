@@ -1,6 +1,10 @@
 const express = require('express');
 const customerController = require('../controllers/customerController');
 const orderController = require('../controllers/orderController');
+const returnController = require('../controllers/returnController');
+const reviewController = require('../controllers/reviewController');
+const supportController = require('../controllers/supportController');
+const rewardController = require('../controllers/rewardController');
 const router = express.Router();
 
 // Profile & Settings
@@ -44,6 +48,32 @@ router.get('/me/orders/:id/status-history', orderController.getOrderStatusHistor
 router.get('/me/orders/:id/shipments', orderController.getOrderShipments);
 router.get('/me/orders/:id/tracking', orderController.getOrderTracking);
 router.get('/me/orders/:id/invoice', orderController.getOrderInvoice);
+
+// Returns & Refunds (Day 5 Task 1 canonical endpoints)
+router.post('/me/orders/:id/return', returnController.createOrderReturn);
+router.get('/me/returns', returnController.getCustomerReturns);
+router.get('/me/returns/:id', returnController.getReturnById);
+router.post('/me/returns/:id/cancel', returnController.cancelReturn);
+router.post('/me/returns/:id/evidence', returnController.uploadReturnEvidence);
+router.get('/me/refunds', returnController.getCustomerRefunds);
+router.get('/me/refunds/:id', returnController.getRefundById);
+
+// Verified Reviews (Day 5 Task 2 canonical endpoints)
+router.get('/me/reviews/pending', reviewController.getPendingReviews);
+router.get('/me/reviews', reviewController.getCustomerReviews);
+router.post('/me/reviews/:id/media', reviewController.uploadReviewMedia);
+
+// Help & Support Tickets (Day 5 Task 3 canonical endpoints)
+router.post('/me/support/tickets', supportController.createTicket);
+router.get('/me/support/tickets', supportController.getCustomerTickets);
+router.get('/me/support/tickets/:id', supportController.getTicketDetails);
+router.post('/me/support/tickets/:id/messages', supportController.sendTicketMessage);
+router.patch('/me/support/tickets/:id', supportController.updateTicketStatus);
+
+// Rewards Ledger (Day 5 Task 4 canonical endpoints)
+router.get('/me/rewards', rewardController.getRewardsSummary);
+router.get('/me/rewards/ledger', rewardController.getRewardsLedger);
+router.post('/me/rewards/redeem', rewardController.redeemRewardPoints);
 
 module.exports = router;
 

@@ -15,7 +15,9 @@ import { printInvoiceDocument } from '../utils/printInvoice';
 export default function OrderStatusView({
   order,
   onBackToOrders,
-  showToast = () => {}
+  showToast = () => {},
+  onRequestReturn,
+  onRequestReview
 }) {
   const [trackingData, setTrackingData] = useState(null);
   const [statusHistory, setStatusHistory] = useState([]);
@@ -715,6 +717,34 @@ export default function OrderStatusView({
             <span className="sr-only"> · Download Order Receipt</span>
           </button>
         </div>
+
+        {/* Request Return / Replacement Button for Delivered Orders */}
+        {statusUpper === 'DELIVERED' && onRequestReturn && (
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => onRequestReturn(order)}
+              className="w-full py-3 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition cursor-pointer shadow-xs"
+            >
+              <i className="fa-solid fa-rotate-left text-amber-800 text-sm"></i>
+              <span>Request Return / Replacement</span>
+            </button>
+          </div>
+        )}
+
+        {/* Rate & Review Button for Delivered Orders (Day 5 Task 2: sec-reviews) */}
+        {statusUpper === 'DELIVERED' && onRequestReview && (
+          <div className="pt-1.5">
+            <button
+              type="button"
+              onClick={() => onRequestReview(order)}
+              className="w-full py-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-900 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition cursor-pointer shadow-xs"
+            >
+              <i className="fa-solid fa-star text-amber-500 text-sm"></i>
+              <span>Rate &amp; Review Order</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Delivery Destination & Recipient Card */}
