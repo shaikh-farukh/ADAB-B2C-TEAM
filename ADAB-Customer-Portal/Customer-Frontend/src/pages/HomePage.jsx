@@ -36,7 +36,10 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
         const cps = couponRes?.data?.data?.coupons || couponRes?.data?.coupons || [];
         const pms = promoRes?.data?.data || promoRes?.data || [];
         const orders = orderRes?.data?.data || orderRes?.data || [];
-        const latest = orders.length > 0 ? orders[0] : null;
+        // Only surface orders actively in transit (ignore DELIVERED, CANCELLED, or completed orders)
+        const activeOrder = orders.find(o => 
+          ['PLACED', 'CONFIRMED', 'ACCEPTED', 'PREPARING', 'PACKED', 'DISPATCHED', 'OUT_FOR_DELIVERY', 'IN_TRANSIT'].includes(o.order_status?.toUpperCase())
+        ) || null;
 
         homeDataCache = {
           recommended: rec,
@@ -44,7 +47,7 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
           stores: sts,
           coupons: cps,
           promotions: pms,
-          latestOrder: latest
+          latestOrder: activeOrder
         };
 
         setRecommended(rec);
@@ -52,7 +55,7 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
         setStores(sts);
         setCoupons(cps);
         setPromotions(pms);
-        setLatestOrder(latest);
+        setLatestOrder(activeOrder);
       })
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
@@ -92,8 +95,8 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
         </div>
       </div>
 
-      {/* Active Live Order Strip from DB */}
-      {latestOrder ? (
+      {/* Active Live Order Strip from DB (only active in-transit orders) */}
+      {latestOrder && ['PLACED', 'CONFIRMED', 'ACCEPTED', 'PREPARING', 'PACKED', 'DISPATCHED', 'OUT_FOR_DELIVERY', 'IN_TRANSIT'].includes(latestOrder.order_status?.toUpperCase()) ? (
         <div 
           onClick={() => go('track')} 
           className="cursor-pointer text-white rounded-2xl p-4 flex items-center gap-3.5 shadow-lg shadow-emerald-700/20 hover:scale-[1.01] transition-all"

@@ -351,7 +351,7 @@ exports.getDealById = async (req, res) => {
   }
 };
 
-// 29. GET /api/v1/catalog/sellers
+// 29. GET /api/v1/catalog/sellers & GET /api/v1/catalog/stores
 exports.getSellers = async (req, res) => {
   try {
     const data = await catalogService.getSellers();
@@ -360,6 +360,7 @@ exports.getSellers = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+exports.getStores = exports.getSellers;
 
 // 30. GET /api/v1/catalog/sellers/:id
 exports.getSellerById = async (req, res) => {
