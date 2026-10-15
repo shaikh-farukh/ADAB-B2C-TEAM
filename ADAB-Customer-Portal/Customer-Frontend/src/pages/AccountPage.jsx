@@ -69,6 +69,7 @@ export default function AccountPage({
     type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false
   });
   const [serviceabilityResults, setServiceabilityResults] = useState({});
+  const [mapPreviews, setMapPreviews] = useState({});
 
   const handleAddressPincodeChange = async (rawVal) => {
     const val = rawVal.replace(/\D/g, '').slice(0, 6);
@@ -112,6 +113,32 @@ export default function AccountPage({
     fetchData();
   }, []);
 
+  const handleUpdateAvatar = async (avatarUrl) => {
+    try {
+      const res = await api.post('/customers/me/profile/avatar', { avatarUrl });
+      if (res.data?.success) {
+        setProfile(prev => ({ ...prev, profile_picture_url: avatarUrl }));
+        if (accountDataCache?.profile) {
+          accountDataCache.profile.profile_picture_url = avatarUrl;
+        }
+        showToast('Profile avatar updated successfully!');
+      }
+    } catch (e) {
+      showToast('Failed to update avatar', 'error');
+    }
+  };
+
+  const checkMapPreview = async (addressId) => {
+    try {
+      const res = await api.get(`/customers/me/addresses/${addressId}/map-preview`);
+      if (res.data?.success && res.data.data) {
+        setMapPreviews(prev => ({ ...prev, [addressId]: res.data.data }));
+      }
+    } catch (err) {
+      console.warn('Map preview check error:', err);
+    }
+  };
+
   const fetchData = async (force = false) => {
     const isUserStored = Boolean(currentUser || localStorage.getItem('adab_user'));
     if (!isUserStored) {
@@ -130,15 +157,26 @@ export default function AccountPage({
     setLoading(true);
     try {
       const [profRes, addrRes, notifRes, rewardsRes] = await Promise.all([
-        api.get('/customers/me'),
-        api.get('/customers/me/addresses'),
-        api.get('/customers/me/notifications'),
+        api.get('/customers/me').catch(err => ({ data: { success: false, error: err.message } })),
+        api.get('/customers/me/addresses').catch(err => ({ data: { success: false, error: err.message } })),
+        api.get('/customers/me/notification-preferences').catch(() => api.get('/customers/me/notifications').catch(err => ({ data: { success: false, error: err.message } }))),
         RewardAPI.getRewardsSummary().catch(() => null)
       ]);
       
-      const newCache = { profile: null, addresses: [], notifications: notificationPrefs };
+      const guestFallbackProfile = {
+        name: 'Guest Customer',
+        phone: '+91 98250 12345',
+        email: 'customer@adab.shop',
+        profile_picture_url: null
+      };
 
-      if (profRes.data?.success) {
+      const newCache = { 
+        profile: profRes.data?.success && profRes.data?.data ? profRes.data.data : guestFallbackProfile, 
+        addresses: addrRes.data?.success && Array.isArray(addrRes.data?.data) ? addrRes.data.data : [], 
+        notifications: notifRes.data?.success && notifRes.data?.data ? notifRes.data.data : notificationPrefs 
+      };
+
+      if (profRes.data?.success && profRes.data?.data) {
         const rewardsData = rewardsRes?.data;
         const resolvedPoints = typeof rewardsData?.points_balance === 'number'
           ? rewardsData.points_balance
@@ -152,25 +190,20 @@ export default function AccountPage({
         };
 
         newCache.profile = mergedProfile;
-        setProfile(mergedProfile);
-        setProfileForm({ 
-          name: profRes.data.data.name || '', 
-          phone: profRes.data.data.phone || '', 
-          email: profRes.data.data.email || '' 
-        });
       }
-      if (addrRes.data?.success) {
-        newCache.addresses = addrRes.data.data;
-        setAddresses(addrRes.data.data);
-      }
-      if (notifRes.data?.success && notifRes.data?.data) {
-        newCache.notifications = notifRes.data.data;
-        setNotificationPrefs(notifRes.data.data);
-      }
+
+      setProfile(newCache.profile);
+      setProfileForm({ 
+        name: newCache.profile.name || '', 
+        phone: newCache.profile.phone || '', 
+        email: newCache.profile.email || '' 
+      });
+      setAddresses(newCache.addresses);
+      setNotificationPrefs(newCache.notifications);
       
       accountDataCache = newCache;
     } catch (error) {
-      console.error("Failed to fetch account data", error);
+      console.warn("Notice: Fetching account data used guest profile fallback", error);
     } finally {
       setLoading(false);
     }
@@ -180,7 +213,7 @@ export default function AccountPage({
     e.preventDefault();
     try {
       const res = await api.patch('/customers/me', profileForm);
-      const notifRes = await api.patch('/customers/me/notifications', notificationPrefs);
+      const notifRes = await api.patch('/customers/me/notification-preferences', notificationPrefs);
       if (res.data?.success && notifRes.data?.success) {
         setProfile(res.data.data);
         try {
@@ -295,8 +328,12 @@ export default function AccountPage({
       <div className="bg-[#18753C] rounded-2xl p-6 text-white shadow-sm flex flex-col gap-6 relative overflow-hidden">
         <div className="flex justify-between items-start z-10">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-[#519468] rounded-xl flex items-center justify-center text-3xl font-extrabold text-white shadow-sm">
-              {displayInitial}
+            <div className="w-16 h-16 bg-[#519468] rounded-xl flex items-center justify-center text-3xl font-extrabold text-white overflow-hidden shadow-sm shrink-0">
+              {profile?.profile_picture_url ? (
+                <img src={profile.profile_picture_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                displayInitial
+              )}
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -810,6 +847,40 @@ export default function AccountPage({
 
       <div className="flex items-center gap-2 mb-6">
         <h2 className="text-2xl font-black text-[#111827]">Settings & Profile</h2>
+      </div>
+
+      {/* Profile Avatar Selector */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
+        <h3 className="text-lg font-bold text-gray-900 mb-2">Profile Avatar</h3>
+        <p className="text-xs text-gray-500 mb-4">Select an avatar or paste a custom URL to customize your customer profile.</p>
+        <div className="flex flex-wrap items-center gap-4">
+          <img
+            src={profile?.profile_picture_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+            alt="Current Avatar"
+            className="w-16 h-16 rounded-full object-cover border-2 border-brand-green shadow-sm"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            {[
+              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+              'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+              'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
+              'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
+              'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150'
+            ].map((url, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleUpdateAvatar(url)}
+                className={`w-10 h-10 rounded-full overflow-hidden border-2 transition hover:scale-105 cursor-pointer ${
+                  profile?.profile_picture_url === url ? 'border-brand-green ring-2 ring-brand-green/30' : 'border-gray-200'
+                }`}
+                title={`Select Avatar ${idx + 1}`}
+              >
+                <img src={url} alt={`Preset ${idx + 1}`} className="w-full h-full object-cover" />
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">

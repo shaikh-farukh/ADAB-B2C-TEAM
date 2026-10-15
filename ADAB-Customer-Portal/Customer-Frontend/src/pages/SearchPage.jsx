@@ -1,17 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '../api/api';
 import ProductCard from '../components/ProductCard';
-import { Search, ArrowLeft } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Search, ArrowLeft, Flame, ThumbsUp, ThumbsDown, CheckCircle2 } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 let searchRecommendedCache = null;
 
 export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) {
-  const [query, setQuery] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlQuery = searchParams.get('q') || '';
+  const [query, setQuery] = useState(urlQuery);
   const [products, setProducts] = useState([]);
   const [recommended, setRecommended] = useState([]);
+  const [popularSearches, setPopularSearches] = useState([]);
+  const [feedbackSent, setFeedbackSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  // Sync URL query if user navigates with a new ?q= search param
+  useEffect(() => {
+    const qParam = searchParams.get('q');
+    if (qParam !== null && qParam !== query) {
+      setQuery(qParam);
+    }
+  }, [searchParams]);
 
   const [filters, setFilters] = useState({
     brand: '',
@@ -25,6 +37,7 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   useEffect(() => {
+    // 1. Fetch recommended
     const fetchRecommended = async () => {
       if (searchRecommendedCache) {
         setRecommended(searchRecommendedCache);
@@ -41,13 +54,35 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
       }
     };
     fetchRecommended();
+
+    // 2. Fetch popular/trending searches
+    api.get('/catalog/search/popular')
+      .then(res => {
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          setPopularSearches(res.data.data);
+        }
+      })
+      .catch(() => {});
   }, []);
+
+  const handleSearchFeedback = async (helpful) => {
+    try {
+      await api.post('/catalog/search/feedback', {
+        query: query.trim() || 'popular_browse',
+        helpful
+      });
+      setFeedbackSent(true);
+      setTimeout(() => setFeedbackSent(false), 3500);
+    } catch (e) {
+      console.warn('Feedback submission failed', e);
+    }
+  };
 
   useEffect(() => {
     const fetchSuggestions = async () => {
       if (query.trim().length > 1) {
         try {
-          const res = await api.get(`/catalog/suggest?q=${encodeURIComponent(query)}`);
+          const res = await api.get(`/catalog/search/suggestions?q=${encodeURIComponent(query)}`);
           setSuggestions(res.data?.data || []);
           setShowSuggestions(true);
         } catch (err) {
@@ -75,9 +110,10 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
         if (filters.inStockOnly) queryParams.append('inStockOnly', 'true');
 
         const res = await api.get(`/catalog/search?${queryParams.toString()}`);
-        setProducts(res.data.data);
+        setProducts(Array.isArray(res.data?.data) ? res.data.data : []);
       } catch (err) {
-        console.error(err);
+        console.error("Error in SearchPage fetchProducts:", err);
+        setProducts([]);
       } finally {
         setLoading(false);
       }
@@ -85,7 +121,7 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
 
     const delayDebounceFn = setTimeout(() => {
       fetchProducts();
-    }, 500);
+    }, 250);
 
     return () => clearTimeout(delayDebounceFn);
   }, [query, filters]);
@@ -105,7 +141,10 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
               className="w-full bg-transparent border-none focus:outline-none text-sm font-medium text-gray-900 placeholder-gray-400"
               placeholder="Search shops, products, brands..." 
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setSearchParams(e.target.value.trim() ? { q: e.target.value } : {});
+              }}
               onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
             />
@@ -125,6 +164,7 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
                   onMouseDown={(e) => {
                     e.preventDefault();
                     setQuery(suggestion);
+                    setSearchParams({ q: suggestion });
                     setShowSuggestions(false);
                   }}
                   className="px-4 py-3 hover:bg-green-50 cursor-pointer text-sm font-semibold text-gray-700 flex items-center gap-3 transition-colors border-b border-gray-50 last:border-0"
@@ -184,6 +224,29 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
             </label>
           </div>
         )}
+
+        {/* Popular & Trending Searches Pills */}
+        {!query.trim() && popularSearches.length > 0 && (
+          <div className="mt-3 flex items-center gap-2 overflow-x-auto hide-scroll py-1">
+            <span className="text-[11px] font-extrabold text-amber-600 flex items-center gap-1 shrink-0 uppercase tracking-wide">
+              <Flame className="w-3.5 h-3.5 fill-current" />
+              Trending:
+            </span>
+            {popularSearches.map((term, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => {
+                  setQuery(term);
+                  setSearchParams({ q: term });
+                }}
+                className="px-3 py-1 bg-white hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 text-gray-700 text-xs font-bold rounded-full border border-gray-200 transition-colors whitespace-nowrap cursor-pointer shadow-2xs"
+              >
+                {term}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -193,21 +256,71 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
           ))}
         </div>
       ) : products.length > 0 ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
-          {products.map(product => (
-            <ProductCard 
-              key={product.id} 
-              product={product} 
-              onAddToCart={onAddToCart} 
-              onToggleWishlist={onToggleWishlist}
-              wishlist={wishlist}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
+            {products.map(product => (
+              <ProductCard 
+                key={product.id} 
+                product={product} 
+                onAddToCart={onAddToCart} 
+                onToggleWishlist={onToggleWishlist}
+                wishlist={wishlist}
+              />
+            ))}
+          </div>
+
+          {/* Search Feedback Widget */}
+          <div className="mt-8 py-3.5 px-5 bg-white border border-gray-100 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
+            <div className="text-xs text-gray-600 font-semibold text-center sm:text-left">
+              Did you find what you were looking for?
+            </div>
+            {feedbackSent ? (
+              <div className="text-xs font-bold text-emerald-700 flex items-center gap-1.5 animate-fade-in">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>Thank you for your feedback!</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSearchFeedback(true)}
+                  className="px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-800 text-xs font-bold text-gray-700 transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <ThumbsUp className="w-3.5 h-3.5" />
+                  <span>Yes</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSearchFeedback(false)}
+                  className="px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-rose-50 hover:border-rose-300 hover:text-rose-800 text-xs font-bold text-gray-700 transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <ThumbsDown className="w-3.5 h-3.5" />
+                  <span>No</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </>
       ) : query.trim() ? (
-        <div className="text-center py-20 text-gray-500">
-          <p className="font-semibold text-lg">No results found for "{query}"</p>
-          <p className="text-sm">Try searching for something else.</p>
+        <div className="text-center py-20 text-gray-500 bg-white border border-gray-100 rounded-3xl p-8">
+          <p className="font-black text-lg text-gray-900 mb-1">No results found for "{query}"</p>
+          <p className="text-xs text-gray-500 mb-4">Try checking for typos or searching a broader keyword like "snacks", "milk", or "oil".</p>
+          
+          {/* Search Feedback on 0 results */}
+          <div className="inline-flex items-center gap-3 pt-2 border-t border-gray-100 mt-2">
+            <span className="text-xs text-gray-400">Help us improve:</span>
+            {feedbackSent ? (
+              <span className="text-xs font-bold text-emerald-700">Noted! ✓</span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleSearchFeedback(false)}
+                className="text-xs font-bold text-emerald-700 hover:underline cursor-pointer"
+              >
+                Report missing product
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <div className="mt-6">

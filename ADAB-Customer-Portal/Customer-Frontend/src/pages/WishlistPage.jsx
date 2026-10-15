@@ -60,7 +60,7 @@ export default function WishlistPage({ onAddToCart, onToggleWishlist, onMoveToCa
       if (validProductIds.length > 0 && validProductIds.length !== wishlist.length && onToggleWishlist) {
         const invalidIds = wishlist.filter(id => !validProductIds.includes(id));
         invalidIds.forEach(invId => {
-          api.delete('/wishlist', { data: { userId: '11111111-1111-1111-1111-111111111111', listingId: invId } }).catch(() => {});
+          api.delete(`/customers/me/wishlist/items/${invId}`).catch(() => {});
         });
       }
     } catch (err) {

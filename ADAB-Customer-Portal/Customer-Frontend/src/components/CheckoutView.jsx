@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import AddressModal from './AddressModal';
 import { CustomerAPI, CheckoutAPI, PaymentAPI, RewardAPI, generateIdempotencyKey } from '../services/api';
 import { openRazorpayCheckout } from '../utils/razorpay';
+import { api } from '../api/api';
 
 /**
  * Checkout Screen Component (sec-checkout)
@@ -65,7 +66,6 @@ export default function CheckoutView({
     longitude: 72.831062,
     is_default: false
   });
-
   const [errorMessage, setErrorMessage] = useState(null);
 
   // Delivery Slots state (Day 3 Frontend Task 2)

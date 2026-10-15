@@ -5,12 +5,18 @@ const { formatError } = require('../utils/errorHandler');
  * Order Controller handling customer order retrieval, lifecycle, tracking, and invoicing
  */
 
-const getCustomerId = (req) =>
-  req.headers['x-user-id'] ||
-  req.headers['x-session-token'] ||
-  (req.query && req.query.customer_id) ||
-  (req.body && req.body.customer_id) ||
-  null;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const getCustomerId = (req) => {
+  const rawId = req.headers['x-user-id'] ||
+    req.headers['x-customer-id'] ||
+    req.headers['x-session-token'] ||
+    (req.query && req.query.customer_id) ||
+    (req.body && req.body.customer_id) ||
+    null;
+  if (!rawId) return null;
+  return UUID_REGEX.test(rawId) ? rawId : null;
+};
 
 async function getOrders(req, res) {
   try {

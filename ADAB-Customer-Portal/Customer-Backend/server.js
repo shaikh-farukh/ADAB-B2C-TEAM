@@ -43,6 +43,7 @@ app.use('/api/catalog', catalogRoutes);
 app.use('/api/v1/customers', customerRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/v1/wishlist', wishlistRoutes);
+app.use('/api/wishlist', wishlistRoutes);
 
 // Health / Sample API Route with DB check
 app.get('/api/health', async (req, res) => {
@@ -126,10 +127,14 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start Server
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
+// Start Server if run directly
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
 
 // Graceful shutdown
 process.on('SIGINT', async () => {

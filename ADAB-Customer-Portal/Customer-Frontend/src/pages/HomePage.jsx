@@ -24,9 +24,9 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
     Promise.all([
       api.get('/catalog/recommended').catch(() => ({ data: { data: [] } })),
       api.get('/catalog/categories').catch(() => ({ data: { data: [] } })),
-      api.get('/catalog/stores').catch(() => ({ data: { data: [] } })),
+      api.get('/catalog/sellers').catch(() => ({ data: { data: [] } })),
       api.get('/cart/coupons').catch(() => ({ data: { data: { coupons: [] } } })),
-      api.get('/catalog/promotions').catch(() => ({ data: { data: [] } })),
+      api.get('/catalog/deals').catch(() => ({ data: { data: [] } })),
       api.get('/orders').catch(() => ({ data: { data: [] } }))
     ])
       .then(([recRes, catRes, storeRes, couponRes, promoRes, orderRes]) => {

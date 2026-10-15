@@ -23,7 +23,8 @@ import AccountPage, { clearAccountCache } from './pages/AccountPage';
 import NotificationsPage from './pages/NotificationsPage';
 import ShopsPage from './pages/ShopsPage';
 import LoginPage from './pages/LoginPage';
-import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI, CustomerAPI, AuthAPI, RewardAPI } from './services/api';
+import CategoriesPage from './pages/CategoriesPage';
+import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI, CustomerAPI, AuthAPI, RewardAPI, getCurrentUserId } from './services/api';
 import { api } from './api/api';
 
 export default function App() {
@@ -50,7 +51,7 @@ export default function App() {
   const [storeCount, setStoreCount] = useState(48); // default mock, replaced by API
 
   useEffect(() => {
-    api.get('/catalog/stores').then(res => {
+    api.get('/catalog/sellers').then(res => {
       if (res.data?.success && res.data?.data) {
         setStoreCount(res.data.data.length || 48);
       }
@@ -110,7 +111,7 @@ export default function App() {
     const fetchSuggestions = async () => {
       if (searchQuery.trim().length > 1) {
         try {
-          const res = await api.get(`/catalog/suggest?q=${encodeURIComponent(searchQuery)}`);
+          const res = await api.get(`/catalog/search/suggestions?q=${encodeURIComponent(searchQuery)}`);
           setSuggestions(res.data?.data || []);
           setShowSuggestions(true);
         } catch (err) {
@@ -203,14 +204,20 @@ export default function App() {
   const [loadingOrders, setLoadingOrders] = useState(false);
 
   const refreshOrders = async () => {
+    const uid = getCurrentUserId();
+    if (!uid) {
+      setOrdersList([]);
+      return;
+    }
     try {
       setLoadingOrders(true);
-      if (!currentUser?.id) {
+      const targetUid = currentUser?.id || uid;
+      if (!targetUid) {
         setOrdersList([]);
         return;
       }
-      const res = await OrderAPI.getOrders(currentUser.id);
-      if (res.status === 'success' && Array.isArray(res.data)) {
+      const res = await OrderAPI.getOrders(targetUid);
+      if (res.status === 'success' && res.data) {
         setOrdersList(res.data);
         if (res.data.length > 0 && !activeOrder) {
           setActiveOrder(res.data[0]);
@@ -360,8 +367,9 @@ export default function App() {
   const refreshWishlist = async () => {
     try {
       const res = await WishlistAPI.getWishlist(currentUserId);
-      if (res.success) {
-        setWishlist(res.wishlist || []);
+      if (res && (res.success || Array.isArray(res))) {
+        const items = Array.isArray(res) ? res : (res.wishlist || res.data || []);
+        setWishlist(items.map(item => typeof item === 'object' ? (item.listing_id || item.product_id || item.id) : item));
       }
     } catch (err) {
       console.warn('Could not fetch wishlist:', err.message);
@@ -668,7 +676,7 @@ export default function App() {
             <button
               type="button"
               className={`site-link ${activeTab === 'categories' ? 'on' : ''}`}
-              onClick={() => setActiveTab('browse')}
+              onClick={() => setActiveTab('categories')}
             >
               Categories
             </button>
@@ -1013,6 +1021,8 @@ export default function App() {
               ? 'Local Verified Shops'
               : activeTab === 'browse'
               ? 'Browse Products'
+              : activeTab === 'categories'
+              ? 'Shop by Category'
               : activeTab === 'notifications'
               ? 'Notifications'
               : activeTab === 'stores' || activeTab === 'browse'
@@ -1087,6 +1097,15 @@ export default function App() {
         {/* Browse Products Screen (Mahi's BrowsePage) */}
         {activeTab === 'browse' && (
           <BrowsePage
+            onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
+            onToggleWishlist={handleToggleWishlist}
+            wishlist={wishlist}
+          />
+        )}
+
+        {/* Categories Explorer Screen (Blinkit/Zepto/Flipkart Style by Mahi) */}
+        {activeTab === 'categories' && (
+          <CategoriesPage
             onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
             onToggleWishlist={handleToggleWishlist}
             wishlist={wishlist}
@@ -1348,6 +1367,7 @@ export default function App() {
           activeTab !== 'stores' &&
           activeTab !== 'shops' &&
           activeTab !== 'browse' &&
+          activeTab !== 'categories' &&
           activeTab !== 'wishlist' &&
           activeTab !== 'account' &&
           activeTab !== 'login' &&

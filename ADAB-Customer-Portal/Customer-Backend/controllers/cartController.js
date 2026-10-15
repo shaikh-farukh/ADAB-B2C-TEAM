@@ -7,6 +7,8 @@ const { formatError, validatePositiveQuantity } = require('../utils/errorHandler
  * Cart Controller with robust validation and error handling
  */
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Helper to identify session parameters from headers, query, or body
  * Supports authenticated customers (customer_id / x-customer-id) and guest carts (session_token / x-session-token)
@@ -16,13 +18,14 @@ function resolveSession(req) {
   const query = req.query || {};
   const headers = req.headers || {};
 
-  const customerId =
+  const rawCustomerId =
     headers['x-user-id'] ||
     headers['x-customer-id'] ||
     (req.user && req.user.id) ||
     query.customer_id ||
     body.customer_id ||
     null;
+  const customerId = rawCustomerId && UUID_REGEX.test(rawCustomerId) ? rawCustomerId : (rawCustomerId || null);
 
   const sessionToken =
     headers['x-session-token'] ||
