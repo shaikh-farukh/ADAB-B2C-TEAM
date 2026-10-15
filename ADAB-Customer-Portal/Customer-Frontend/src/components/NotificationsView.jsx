@@ -190,13 +190,41 @@ export default function NotificationsView({
     });
   }, [notifications, activeFilter]);
 
-  // Handle action click
+  // Handle action click with deep linking to Live Tracking or Order Detail
   const handleNotificationClick = (notif) => {
     if (!notif.is_read) {
       handleToggleRead(notif.id, false);
     }
     if (notif.action_url) {
       onNavigate(notif.action_url);
+    } else {
+      const typeUpper = (notif.type || '').toUpperCase();
+      const titleLower = (notif.title || '').toLowerCase();
+      const msgLower = (notif.message || '').toLowerCase();
+      const orderRef = notif.reference_id || notif.order_id;
+
+      if (
+        typeUpper.includes('ORDER') ||
+        typeUpper.includes('DELIVERY') ||
+        titleLower.includes('order') ||
+        titleLower.includes('deliver') ||
+        titleLower.includes('rider') ||
+        msgLower.includes('order')
+      ) {
+        onNavigate(orderRef ? `/track?orderId=${orderRef}` : '/orders');
+      } else if (
+        typeUpper.includes('RETURN') ||
+        typeUpper.includes('REFUND') ||
+        titleLower.includes('return') ||
+        titleLower.includes('refund')
+      ) {
+        onNavigate('/returns');
+      } else if (
+        typeUpper.includes('REWARD') ||
+        titleLower.includes('point')
+      ) {
+        onNavigate('/points');
+      }
     }
   };
 
@@ -333,6 +361,9 @@ export default function NotificationsView({
             return (
               <div
                 key={notif.id}
+                data-testid="notification-card"
+                data-notification-id={notif.id}
+                data-is-read={notif.is_read ? 'true' : 'false'}
                 onClick={() => handleNotificationClick(notif)}
                 className={`rounded-r-xl p-4 transition-all relative group cursor-pointer shadow-2xs ${visuals.cardClass}`}
               >
@@ -370,16 +401,30 @@ export default function NotificationsView({
                       </span>
 
                       <div className="flex items-center gap-2">
-                        {notif.action_url && (
-                          <span className="text-brand-green font-bold hover:underline flex items-center gap-0.5">
-                            <span>Open</span>
-                            <i className="fa-solid fa-arrow-right text-[9px]"></i>
+                        <button
+                          type="button"
+                          data-testid="notification-action-link"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleNotificationClick(notif);
+                          }}
+                          className="text-brand-green font-bold hover:underline flex items-center gap-0.5 cursor-pointer text-xs"
+                        >
+                          <span>
+                            {(notif.action_url || '').includes('track') ||
+                            (notif.type || '').toUpperCase().includes('ORDER') ||
+                            (notif.title || '').toLowerCase().includes('order') ||
+                            (notif.title || '').toLowerCase().includes('deliver')
+                              ? 'Live Tracking'
+                              : 'Open'}
                           </span>
-                        )}
+                          <i className="fa-solid fa-arrow-right text-[9px]"></i>
+                        </button>
 
                         {/* Individual Mark as Read toggle button */}
                         <button
                           type="button"
+                          data-testid="notification-read-toggle"
                           onClick={(e) => handleToggleRead(notif.id, notif.is_read, e)}
                           className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition cursor-pointer flex items-center gap-1 ${
                             isUnread

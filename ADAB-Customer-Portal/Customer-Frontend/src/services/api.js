@@ -34,7 +34,7 @@ export async function apiRequest(endpoint, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
     'x-session-token': sessionToken,
-    ...(userId ? { 'x-user-id': userId } : {}),
+    ...(userId ? { 'x-user-id': userId, 'x-customer-id': userId } : {}),
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     ...(options.headers || {})
   };

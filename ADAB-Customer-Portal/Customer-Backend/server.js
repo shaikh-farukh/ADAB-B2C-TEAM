@@ -64,6 +64,8 @@ const reviewRoutes = require('./routes/reviewRoutes');
 const productRoutes = require('./routes/productRoutes');
 const supportRoutes = require('./routes/supportRoutes');
 const rewardRoutes = require('./routes/rewardRoutes');
+const returnRoutes = require('./routes/returnRoutes');
+const refundRoutes = require('./routes/refundRoutes');
 
 app.use('/api/v1/cart', cartRoutes);
 app.use('/api/cart', cartRoutes);
@@ -77,6 +79,12 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/payments', paymentRoutes);
 
+app.use('/api/v1/returns', returnRoutes);
+app.use('/api/returns', returnRoutes);
+
+app.use('/api/v1/refunds', refundRoutes);
+app.use('/api/refunds', refundRoutes);
+
 app.use('/api/v1/reviews', reviewRoutes);
 app.use('/api/reviews', reviewRoutes);
 
@@ -88,6 +96,7 @@ app.use('/api/support', supportRoutes);
 
 app.use('/api/v1/rewards', rewardRoutes);
 app.use('/api/rewards', rewardRoutes);
+
 
 // 404 Handler for unknown routes
 app.use((req, res) => {

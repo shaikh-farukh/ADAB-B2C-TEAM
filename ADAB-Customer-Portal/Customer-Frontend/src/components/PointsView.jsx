@@ -23,7 +23,9 @@ export default function PointsView({
   onNavigate,
   showToast = () => {},
   initialSummary = null,
-  initialLedger = []
+  initialLedger = [],
+  pointsBalance: pointsBalanceProp = null,
+  onPointsChange = null
 }) {
   const [summary, setSummary] = useState(initialSummary);
   const [ledger, setLedger] = useState(initialLedger);
@@ -44,6 +46,9 @@ export default function PointsView({
 
       if (sumRes.status === 'fulfilled' && sumRes.value?.data) {
         setSummary(sumRes.value.data);
+        if (onPointsChange && typeof sumRes.value.data.points_balance === 'number') {
+          onPointsChange(sumRes.value.data.points_balance);
+        }
       }
       if (ledRes.status === 'fulfilled' && ledRes.value?.data) {
         setLedger(ledRes.value.data.ledger || ledRes.value.data);
@@ -60,7 +65,9 @@ export default function PointsView({
   }, [activeFilter]);
 
   // Points values
-  const pointsBalance = summary?.points_balance ?? 2840;
+  const pointsBalance = typeof summary?.points_balance === 'number'
+    ? summary.points_balance
+    : (typeof pointsBalanceProp === 'number' ? pointsBalanceProp : 2840);
   const lifetimeEarned = summary?.lifetime_earned ?? pointsBalance;
   const currentTier = summary?.tier || (lifetimeEarned >= 2000 ? 'GOLD' : lifetimeEarned >= 500 ? 'SILVER' : 'BRONZE');
   const rupeeValue = summary?.rupee_value || Number(pointsBalance).toFixed(2);
@@ -183,7 +190,11 @@ export default function PointsView({
         {/* Center: Available Points & Big Count */}
         <div className="text-center relative z-10">
           <div className="text-sm text-amber-100/90 font-medium tracking-wide">Available points</div>
-          <div className="text-4xl md:text-5xl font-black mt-1 tracking-tight text-white drop-shadow-sm" id="pointsBig">
+          <div
+            className="text-4xl md:text-5xl font-black mt-1 tracking-tight text-white drop-shadow-sm"
+            id="pointsBig"
+            data-testid="points-big"
+          >
             {Number(pointsBalance).toLocaleString('en-IN')}
           </div>
           <div className="text-sm text-white/95 mt-1 font-medium bg-black/15 py-1 px-3 rounded-full inline-block backdrop-blur-xs">
@@ -261,6 +272,7 @@ export default function PointsView({
               <button
                 key={f.id}
                 type="button"
+                data-testid={`filter-chip-${f.id}`}
                 onClick={() => setActiveFilter(f.id)}
                 className={`px-3 py-1 rounded-lg font-bold transition whitespace-nowrap cursor-pointer ${
                   activeFilter === f.id
@@ -302,11 +314,12 @@ export default function PointsView({
               return (
                 <div
                   key={tx.id || idx}
+                  data-testid="points-ledger-row"
                   className="flex items-center justify-between p-3.5 bg-gray-50/80 hover:bg-gray-50 rounded-xl border border-gray-100 transition"
                 >
                   <div className="space-y-0.5">
                     <div className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
-                      <span>{getTransactionLabel(tx)}</span>
+                      <span data-testid="points-transaction-label">{getTransactionLabel(tx)}</span>
                     </div>
                     <div className="text-[11px] text-gray-500 flex items-center gap-2">
                       <span>{formattedDate || 'Recent'}</span>
@@ -320,6 +333,7 @@ export default function PointsView({
                   </div>
 
                   <span
+                    data-testid="points-change"
                     className={`font-bold font-mono text-sm ${
                       isPositive ? 'text-green-700' : 'text-orange-600'
                     }`}

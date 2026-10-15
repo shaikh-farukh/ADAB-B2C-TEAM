@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import AddressModal from './AddressModal';
-import { CustomerAPI, CheckoutAPI, PaymentAPI, generateIdempotencyKey } from '../services/api';
+import { CustomerAPI, CheckoutAPI, PaymentAPI, RewardAPI, generateIdempotencyKey } from '../services/api';
 import { openRazorpayCheckout } from '../utils/razorpay';
 
 /**
@@ -15,7 +15,9 @@ export default function CheckoutView({
   loading = false,
   selectedDeliveryAddress = null,
   onSelectDeliveryAddress = null,
-  currentUser = null
+  currentUser = null,
+  pointsBalance = null,
+  onPointsRedeemed = null
 }) {
   const [deliverySpeed, setDeliverySpeed] = useState('fast'); // 'fast', 'same', 'pickup'
   const [paymentMethod, setPaymentMethod] = useState('card'); // 'card' (Pay Online) | 'cod'
@@ -43,8 +45,8 @@ export default function CheckoutView({
     city: 'Surat',
     state: 'Gujarat',
     pincode: '395002',
-    latitude: null,
-    longitude: null,
+    latitude: 21.170240,
+    longitude: 72.831062,
     is_default: false
   });
 
@@ -59,6 +61,8 @@ export default function CheckoutView({
     city: 'Surat',
     state: 'Gujarat',
     pincode: '395002',
+    latitude: 21.170240,
+    longitude: 72.831062,
     is_default: false
   });
 
@@ -94,6 +98,19 @@ export default function CheckoutView({
   const [walletData, setWalletData] = useState({ balance: 0, bnpl_limit: 0, bnpl_available: 0 });
   const [loadingWallet, setLoadingWallet] = useState(false);
   const [useWalletBalance, setUseWalletBalance] = useState(false);
+
+  // Reward Points & Loyalty Deduction States (Day 6 Frontend Task 5)
+  const [rewardsAccount, setRewardsAccount] = useState({
+    points_balance: typeof pointsBalance === 'number' ? pointsBalance : 0,
+    lifetime_earned: 0,
+    tier: 'BRONZE'
+  });
+  const [loadingRewards, setLoadingRewards] = useState(false);
+  const [useRewardPoints, setUseRewardPoints] = useState(false);
+  const [appliedRewardPoints, setAppliedRewardPoints] = useState(0);
+
+  // Authoritative Customer Account Profile (name & phone stored in account)
+  const [accountProfile, setAccountProfile] = useState(null);
 
   // Payment Processing, Failure, Retry & Cancellation States (Day 3 Frontend Task 4)
   const [paymentProcessing, setPaymentProcessing] = useState({
@@ -195,13 +212,16 @@ export default function CheckoutView({
     }
   };
 
-  // Load saved payment methods and customer wallet from DB
+  // Load saved payment methods, customer wallet, and rewards account from DB
   const fetchPaymentMethodsAndWallet = async () => {
     try {
       setLoadingWallet(true);
-      const [cardsRes, walletRes] = await Promise.all([
+      setLoadingRewards(true);
+      const [cardsRes, walletRes, rewardsRes, profileRes] = await Promise.all([
         CustomerAPI.getPaymentMethods().catch(() => ({ data: [] })),
-        CustomerAPI.getWallet().catch(() => ({ data: { balance: 0, bnpl_limit: 0, bnpl_available: 0 } }))
+        CustomerAPI.getWallet().catch(() => ({ data: { balance: 0, bnpl_limit: 0, bnpl_available: 0 } })),
+        RewardAPI.getRewardsSummary().catch(() => ({ data: { points_balance: typeof pointsBalance === 'number' ? pointsBalance : 0, tier: 'BRONZE' } })),
+        CustomerAPI.getProfile().catch(() => null)
       ]);
 
       if (cardsRes?.data && Array.isArray(cardsRes.data)) {
@@ -210,12 +230,26 @@ export default function CheckoutView({
       if (walletRes?.data) {
         setWalletData(walletRes.data);
       }
+      if (rewardsRes?.data) {
+        setRewardsAccount(rewardsRes.data);
+      }
+      if (profileRes?.data) {
+        setAccountProfile(profileRes.data);
+      }
     } catch (err) {
-      console.warn('Could not load payment methods / wallet:', err.message);
+      console.warn('Could not load payment methods / wallet / rewards:', err.message);
     } finally {
       setLoadingWallet(false);
+      setLoadingRewards(false);
     }
   };
+
+  // Sync external points prop if it changes
+  useEffect(() => {
+    if (typeof pointsBalance === 'number') {
+      setRewardsAccount((prev) => ({ ...prev, points_balance: pointsBalance }));
+    }
+  }, [pointsBalance]);
 
   // Map internal speeds to backend DB constraints
   const getBackendDeliverySpeed = (speed = deliverySpeed) => {
@@ -296,8 +330,12 @@ export default function CheckoutView({
       city: addr.city || 'Surat',
       state: addr.state || 'Gujarat',
       pincode: addr.pincode || addr.zip || '395002',
-      latitude: addr.latitude !== undefined && addr.latitude !== null && !isNaN(Number(addr.latitude)) ? Number(addr.latitude) : null,
-      longitude: addr.longitude !== undefined && addr.longitude !== null && !isNaN(Number(addr.longitude)) ? Number(addr.longitude) : null,
+      latitude: addr.latitude !== undefined && addr.latitude !== null && !isNaN(Number(addr.latitude))
+        ? Number(addr.latitude)
+        : (addr.lat !== undefined && !isNaN(Number(addr.lat)) ? Number(addr.lat) : 21.170240),
+      longitude: addr.longitude !== undefined && addr.longitude !== null && !isNaN(Number(addr.longitude))
+        ? Number(addr.longitude)
+        : (addr.lng !== undefined && !isNaN(Number(addr.lng)) ? Number(addr.lng) : 72.831062),
       is_default: !!addr.is_default
     };
     setAddress(chosen);
@@ -419,12 +457,28 @@ export default function CheckoutView({
     ? Number(serverPreview.pricing.grand_total)
     : Math.max(0, subtotal + fee - discount);
 
+  // Available Reward Points & eligible deduction calculation (Day 6 Frontend Task 5)
+  const availablePoints = Math.max(0, Number(rewardsAccount?.points_balance || 0));
+  // 1 point = ₹1 off · Max 50% per order rule (matching PointsView & demo)
+  const maxEligiblePoints = Math.min(availablePoints, Math.floor(rawTotalPayable * 0.5));
+
+  const effectivePointsToRedeem = useRewardPoints
+    ? Math.min(
+        appliedRewardPoints > 0 ? appliedRewardPoints : maxEligiblePoints,
+        maxEligiblePoints,
+        rawTotalPayable
+      )
+    : 0;
+
+  const rewardPointsDeduction = effectivePointsToRedeem * 1; // 1 point = ₹1 direct reduction
+  const payableAfterPoints = Math.max(0, rawTotalPayable - rewardPointsDeduction);
+
   // Digital Wallet balance deduction calculation
   const walletAvailable = Number(walletData?.balance || 0);
-  const walletDeduction = useWalletBalance ? Math.min(walletAvailable, rawTotalPayable) : 0;
-  const totalPayable = Math.max(0, rawTotalPayable - walletDeduction);
+  const walletDeduction = useWalletBalance ? Math.min(walletAvailable, payableAfterPoints) : 0;
+  const totalPayable = Math.max(0, payableAfterPoints - walletDeduction);
 
-  const pointsEarned = Math.floor(rawTotalPayable / 100);
+  const pointsEarned = Math.floor(totalPayable / 100);
 
   // Comprehensive Payment Intent Initiation & Order Submission Flow (Day 3 Frontend Task 3 & Task 5)
   // Direct online payment launcher for specific Razorpay channel (card, netbanking, wallet, upi)
@@ -485,9 +539,9 @@ export default function CheckoutView({
           return null;
         }
       })();
-      const effectiveUser = currentUser || userFromStorage;
-      const effectiveName = address.recipient_name || address.full_name || effectiveUser?.name || effectiveUser?.full_name || 'Customer';
-      const effectivePhone = address.phone || effectiveUser?.phone || '+919876512340';
+      const effectiveUser = accountProfile || currentUser || userFromStorage;
+      const effectiveName = effectiveUser?.name || effectiveUser?.full_name || address.recipient_name || address.full_name || 'Customer';
+      const effectivePhone = effectiveUser?.phone || address.phone || '+919876512340';
       const effectiveEmail = effectiveUser?.email || address.email || 'customer@adab.com';
       const effectiveCustomerId = effectiveUser?.id || undefined;
 
@@ -506,6 +560,8 @@ export default function CheckoutView({
         delivery_speed: getBackendDeliverySpeed(),
         payment_method: getBackendPaymentMethod(activeMethod, activeChannel),
         coupon_code: appliedCouponCode || summary.coupon_code || null,
+        points_redeemed: effectivePointsToRedeem,
+        points_discount: rewardPointsDeduction,
         idempotency_key: orderIdempotencyKey
       };
 
@@ -533,7 +589,20 @@ export default function CheckoutView({
           step: 'paid'
         }));
         await new Promise((r) => setTimeout(r, 400));
+
         await onPlaceOrder(orderPayload);
+
+        // Synchronize local points state (backend atomically redeemed the points in createOrderFromCart)
+        if (useRewardPoints && effectivePointsToRedeem > 0) {
+          const newBal = Math.max(0, (rewardsAccount.points_balance || 0) - effectivePointsToRedeem);
+          setRewardsAccount((prev) => ({
+            ...prev,
+            points_balance: newBal
+          }));
+          if (onPointsRedeemed) {
+            onPointsRedeemed(newBal);
+          }
+        }
         setPaymentProcessing({
           isOpen: false,
           step: 'idle',
@@ -572,6 +641,10 @@ export default function CheckoutView({
       }));
 
       // Step C: Open official Razorpay Checkout modal targeting the selected method
+      const resolvedCustName = placedOrder?.customer?.name || placedOrder?.customer?.full_name || effectiveName;
+      const resolvedCustPhone = placedOrder?.customer?.phone || effectivePhone;
+      const resolvedCustEmail = placedOrder?.customer?.email || effectiveEmail;
+
       await openRazorpayCheckout({
         key: razorpayKeyId,
         amountPaise: Math.round(Number(placedOrder.grand_total) * 100),
@@ -580,10 +653,15 @@ export default function CheckoutView({
         orderNumber: placedOrder.order_number,
         method: activeChannel,
         prefill: {
-          name: effectiveName,
-          phone: effectivePhone,
-          email: effectiveEmail,
+          name: resolvedCustName,
+          phone: resolvedCustPhone,
+          email: resolvedCustEmail,
           method: activeChannel
+        },
+        readonly: {
+          contact: true,
+          email: true,
+          name: true
         },
         onSuccess: async (razorpayResponse) => {
           // Step D: Verify payment signature on backend
@@ -610,6 +688,18 @@ export default function CheckoutView({
               ...prev,
               step: 'paid'
             }));
+
+            // Synchronize local points state (backend atomically redeemed the points in createOrderFromCart)
+            if (useRewardPoints && effectivePointsToRedeem > 0) {
+              const newBal = Math.max(0, (rewardsAccount.points_balance || 0) - effectivePointsToRedeem);
+              setRewardsAccount((prev) => ({
+                ...prev,
+                points_balance: newBal
+              }));
+              if (onPointsRedeemed) {
+                onPointsRedeemed(newBal);
+              }
+            }
 
             await new Promise((r) => setTimeout(r, 500));
 
@@ -720,6 +810,11 @@ export default function CheckoutView({
       }));
 
       // Re-open Razorpay Checkout with new intent
+      const retryUser = accountProfile || currentUser;
+      const retryCustName = currentOrder?.customer?.name || currentOrder?.customer?.full_name || retryUser?.name || retryUser?.full_name || address.recipient_name || address.full_name || 'Customer';
+      const retryCustPhone = currentOrder?.customer?.phone || retryUser?.phone || address.phone || '+919876512340';
+      const retryCustEmail = currentOrder?.customer?.email || retryUser?.email || address.email || 'customer@adab.com';
+
       await openRazorpayCheckout({
         key: newRazorpayKeyId,
         amountPaise: Math.round(Number(retryData.payment?.amount || currentOrder.grand_total) * 100),
@@ -728,10 +823,15 @@ export default function CheckoutView({
         orderNumber: currentOrder.order_number,
         method: selectedOnlineChannel || 'upi',
         prefill: {
-          name: address.recipient_name || address.full_name || effectiveUser?.name || effectiveUser?.full_name || 'Customer',
-          phone: address.phone || effectiveUser?.phone || '9876512340',
-          email: effectiveUser?.email || address.email || 'customer@adab.com',
+          name: retryCustName,
+          phone: retryCustPhone,
+          email: retryCustEmail,
           method: selectedOnlineChannel || 'upi'
+        },
+        readonly: {
+          contact: true,
+          email: true,
+          name: true
         },
         onSuccess: async (razorpayResponse) => {
           try {
@@ -1692,6 +1792,103 @@ export default function CheckoutView({
           ))}
         </div>
 
+        {/* ============================================================== */}
+        {/* ADAB REWARD POINTS REDEMPTION (Day 6 Frontend Task 5: sec-points) */}
+        {/* ============================================================== */}
+        <div
+          id="checkoutRewardsSection"
+          data-testid="checkout-rewards-section"
+          className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-50 via-orange-50/40 to-amber-50/30 border border-amber-200/80 shadow-xs space-y-2.5 my-2"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center text-sm shadow-xs shrink-0">
+                <i className="fa-solid fa-star"></i>
+              </div>
+              <div>
+                <div className="text-xs font-black text-amber-950 flex items-center gap-1.5">
+                  <span>ADAB Loyalty Points</span>
+                  <span className="text-[10px] px-2 py-0.2 rounded-full bg-amber-200/80 text-amber-900 font-extrabold uppercase">
+                    {rewardsAccount.tier || 'BRONZE'} TIER
+                  </span>
+                </div>
+                <div className="text-[11px] text-amber-800">
+                  Balance: <strong id="checkoutAvailablePoints" data-testid="checkout-available-points" className="font-bold">{availablePoints.toLocaleString('en-IN')}</strong> pts (Worth ₹{availablePoints.toFixed(2)})
+                </div>
+              </div>
+            </div>
+
+            {availablePoints > 0 && maxEligiblePoints > 0 ? (
+              <label className="flex items-center gap-2 cursor-pointer select-none bg-white px-3 py-1.5 rounded-xl border border-amber-300 shadow-2xs hover:bg-amber-50/50 transition">
+                <input
+                  type="checkbox"
+                  id="useRewardPointsToggle"
+                  data-testid="use-reward-points-toggle"
+                  checked={useRewardPoints}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setUseRewardPoints(checked);
+                    if (checked && appliedRewardPoints === 0) {
+                      setAppliedRewardPoints(maxEligiblePoints);
+                    }
+                  }}
+                  className="w-4 h-4 text-emerald-600 rounded border-gray-300 focus:ring-emerald-500 cursor-pointer accent-[#18753C]"
+                />
+                <span className="text-xs font-extrabold text-amber-950">
+                  Apply Points
+                </span>
+              </label>
+            ) : (
+              <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
+                {availablePoints === 0 ? '0 Points Available' : 'Max 50% Met'}
+              </span>
+            )}
+          </div>
+
+          {useRewardPoints && maxEligiblePoints > 0 && (
+            <div className="pt-2 border-t border-amber-200/60 space-y-2 animate-fade-in text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white/70 p-2.5 rounded-xl border border-amber-200/50">
+                <div className="text-[11px] text-amber-900">
+                  <span>Applying </span>
+                  <strong className="font-extrabold text-amber-950">{effectivePointsToRedeem} pts</strong>
+                  <span> = </span>
+                  <strong className="font-extrabold text-emerald-700">₹{rewardPointsDeduction.toFixed(2)} off order total</strong>
+                  <div className="text-[10px] text-amber-700/80 mt-0.5">
+                    1 pt = ₹1 off · Max {maxEligiblePoints} pts eligible on this order (50% max)
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <input
+                    type="number"
+                    id="rewardPointsInput"
+                    data-testid="reward-points-input"
+                    min="1"
+                    max={maxEligiblePoints}
+                    value={appliedRewardPoints > 0 ? appliedRewardPoints : maxEligiblePoints}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      if (isNaN(val) || val <= 0) {
+                        setAppliedRewardPoints(0);
+                      } else {
+                        setAppliedRewardPoints(Math.min(val, maxEligiblePoints));
+                      }
+                    }}
+                    className="w-20 px-2 py-1 text-xs font-mono font-bold border border-amber-300 rounded-lg text-center bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setAppliedRewardPoints(maxEligiblePoints)}
+                    className="px-2 py-1 text-[10px] font-extrabold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition cursor-pointer"
+                  >
+                    Max
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Breakdown Rows */}
         <div className="pt-2 space-y-1.5 text-xs text-gray-600 border-t border-gray-100">
           <div className="bill-row">
@@ -1731,6 +1928,19 @@ export default function CheckoutView({
                 <span>Coupon Savings {appliedCouponCode ? `(${appliedCouponCode})` : ''}</span>
               </span>
               <span className="font-bold">-₹{discount}</span>
+            </div>
+          )}
+          {rewardPointsDeduction > 0 && (
+            <div
+              id="rewardPointsBillRow"
+              data-testid="reward-points-bill-row"
+              className="bill-row text-amber-900 bg-amber-50/80 p-1.5 rounded-lg border border-amber-200/60"
+            >
+              <span className="flex items-center gap-1.5">
+                <i className="fa-solid fa-star text-amber-500 text-xs"></i>
+                <span>Reward Points Applied (-{effectivePointsToRedeem} pts)</span>
+              </span>
+              <span className="font-extrabold text-amber-800">-₹{rewardPointsDeduction.toFixed(2)}</span>
             </div>
           )}
           {walletDeduction > 0 && (

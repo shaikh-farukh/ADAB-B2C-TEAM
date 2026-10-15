@@ -4,6 +4,7 @@ import './App.css';
 import FloatingCartBar from './components/FloatingCartBar';
 import CartView from './components/CartView';
 import CheckoutView from './components/CheckoutView';
+import OrderSuccessView from './components/OrderSuccessView';
 import HomePage from './pages/HomePage';
 import BrowsePage from './pages/BrowsePage';
 import SearchPage from './pages/SearchPage';
@@ -283,6 +284,15 @@ export default function App() {
     }
   }, [currentUser?.id]);
 
+  // Live polling for unread notifications every 10 seconds when authenticated
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const interval = setInterval(() => {
+      refreshNotifications();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [currentUser?.id]);
+
   useEffect(() => {
     refreshCart();
     refreshWishlist();
@@ -403,22 +413,28 @@ export default function App() {
       // If already an existing placed or verified order object from Razorpay flow
       if (orderPayloadOrResult && (orderPayloadOrResult.id || orderPayloadOrResult.order_id) && orderPayloadOrResult.order_number) {
         setActiveOrder(orderPayloadOrResult);
+        // Clear active cart immediately
+        setCartData({ items: [], summary: { subtotal: 0, grand_total: 0, delivery_fee: 0, discount: 0 } });
         await refreshCart();
         await refreshOrders();
         await refreshNotifications();
-        showToast('🎉 Order placed & verified! Tracking live dispatch...');
-        setActiveTab('orders');
+        await refreshCustomerStats();
+        showToast('🎉 Order placed & verified! Confirmation generated.');
+        setActiveTab('order-success');
         return orderPayloadOrResult;
       }
 
       const res = await CheckoutAPI.placeOrder(orderPayloadOrResult, orderPayloadOrResult?.idempotency_key);
       if (res.status === 'success' && res.data) {
         setActiveOrder(res.data);
+        // Clear active cart immediately
+        setCartData({ items: [], summary: { subtotal: 0, grand_total: 0, delivery_fee: 0, discount: 0 } });
         await refreshCart();
         await refreshOrders();
         await refreshNotifications();
-        showToast('🎉 Order placed successfully! Tracking live dispatch...');
-        setActiveTab('orders');
+        await refreshCustomerStats();
+        showToast('🎉 Order placed successfully! Confirmation generated.');
+        setActiveTab('order-success');
         return res.data;
       } else {
         throw new Error(res.message || 'Failed to place order');
@@ -688,12 +704,23 @@ export default function App() {
             </button>
             <button
               type="button"
-              className="site-btn"
+              className="site-btn relative"
               onClick={() => setActiveTab('notifications')}
               aria-label="Notifications"
+              id="desktopNotificationBtn"
+              data-testid="desktop-notification-btn"
+              title={`${unreadNotifications} unread notifications`}
             >
               <i className="fa-solid fa-bell"></i>
-              {unreadNotifications > 0 && <span className="site-badge">{unreadNotifications}</span>}
+              {unreadNotifications > 0 && (
+                <span
+                  className="site-badge"
+                  id="desktopNotificationBadge"
+                  data-testid="desktop-notification-badge"
+                >
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </span>
+              )}
             </button>
             {currentUser ? (
               <div className="flex items-center gap-1.5">
@@ -799,11 +826,18 @@ export default function App() {
                   onClick={() => setActiveTab('notifications')}
                   className="glass w-9 h-9 rounded-full flex items-center justify-center relative transition hover:bg-white/30 cursor-pointer"
                   aria-label="Notifications"
+                  id="mobileNotificationBtn"
+                  data-testid="mobile-notification-btn"
+                  title={`${unreadNotifications} unread notifications`}
                 >
                   <i className="fa-solid fa-bell text-sm"></i>
                   {unreadNotifications > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-brand-coral rounded-full text-[8px] font-bold flex items-center justify-center">
-                      {unreadNotifications}
+                    <span
+                      className="absolute -top-0.5 -right-0.5 min-w-[15px] h-3.5 px-0.5 bg-brand-coral rounded-full text-[8px] font-bold flex items-center justify-center text-white shadow-2xs"
+                      id="mobileNotificationBadge"
+                      data-testid="mobile-notification-badge"
+                    >
+                      {unreadNotifications > 99 ? '99+' : unreadNotifications}
                     </span>
                   )}
                 </button>
@@ -1090,6 +1124,22 @@ export default function App() {
             selectedDeliveryAddress={selectedAddress}
             onSelectDeliveryAddress={handleSelectAddress}
             currentUser={currentUser}
+            pointsBalance={points}
+            onPointsRedeemed={(newBal) => setPoints(newBal)}
+          />
+        )}
+
+        {/* Order Success Screen (Day 6 Frontend Task 1: sec-order-success) */}
+        {(activeTab === 'order-success' || activeTab === 'ordersuccess') && (
+          <OrderSuccessView
+            order={activeOrder}
+            onTrackOrder={(ord) => {
+              if (ord) setActiveOrder(ord);
+              setActiveTab('track');
+            }}
+            onViewOrders={() => setActiveTab('orders')}
+            onContinueShopping={() => setActiveTab('home')}
+            showToast={showToast}
           />
         )}
 
@@ -1116,6 +1166,10 @@ export default function App() {
             onCancelOrder={handleCancelOrder}
             onReorder={handleReorder}
             onReviewOrder={handleReviewOrder}
+            onRequestReturn={(ord) => {
+              setReturnTargetOrder(ord);
+              setActiveTab('returns');
+            }}
             onBrowseShops={() => setActiveTab('stores')}
             showToast={showToast}
           />
@@ -1139,9 +1193,61 @@ export default function App() {
         {activeTab === 'notifications' && (
           <NotificationsView
             onBack={() => setActiveTab('home')}
-            onNavigate={(url) => {
-              const target = url.startsWith('/') ? url.substring(1) : url;
-              setActiveTab(target);
+            onNavigate={async (url) => {
+              if (!url) return;
+              const [pathPart, queryString] = url.split('?');
+              const cleanPath = (pathPart.startsWith('/') ? pathPart.substring(1) : pathPart).toLowerCase();
+              const params = new URLSearchParams(queryString || '');
+              const orderId = params.get('orderId') || params.get('id');
+
+              if (cleanPath === 'track' || cleanPath.startsWith('track') || cleanPath.startsWith('orders/')) {
+                const targetOrderId = orderId || (cleanPath.startsWith('orders/') ? cleanPath.split('/')[1] : null);
+                if (targetOrderId) {
+                  try {
+                    const orderRes = await OrderAPI.getOrderById(targetOrderId);
+                    if (orderRes?.data) {
+                      setActiveOrder(orderRes.data);
+                      setActiveTab('track');
+                      return;
+                    }
+                  } catch (e) {
+                    console.warn('Could not fetch target order for tracking:', e);
+                  }
+                  setActiveOrder({ id: targetOrderId, order_status: 'CONFIRMED' });
+                  setActiveTab('track');
+                  return;
+                }
+                if (ordersList.length > 0) {
+                  setActiveOrder(ordersList[0]);
+                  setActiveTab('track');
+                } else {
+                  setActiveTab('orders');
+                }
+                return;
+              }
+
+              if (cleanPath === 'orderhistory' || cleanPath === 'history') {
+                setActiveTab('orderhistory');
+                return;
+              }
+
+              const tabMap = {
+                orders: 'orders',
+                returns: 'returns',
+                refunds: 'returns',
+                rewards: 'points',
+                points: 'points',
+                wallet: 'wallet',
+                addresses: 'addresses',
+                account: 'account',
+                cart: 'cart',
+                checkout: 'checkout',
+                home: 'home',
+                stores: 'stores',
+                help: 'help'
+              };
+
+              setActiveTab(tabMap[cleanPath] || cleanPath || 'home');
             }}
             showToast={showToast}
             onUnreadCountChange={(count) => setUnreadNotifications(count)}
@@ -1186,6 +1292,8 @@ export default function App() {
             onBack={() => setActiveTab('account')}
             onNavigate={setActiveTab}
             showToast={showToast}
+            pointsBalance={points}
+            onPointsChange={(newBal) => setPoints(newBal)}
           />
         )}
 
@@ -1263,7 +1371,7 @@ export default function App() {
       </footer>
 
       {/* Floating Cart Bar (Task 2) */}
-      {activeTab !== 'cart' && activeTab !== 'checkout' && (
+      {activeTab !== 'cart' && activeTab !== 'checkout' && activeTab !== 'order-success' && activeTab !== 'ordersuccess' && (
         <FloatingCartBar
           itemCount={totalItemCount}
           totalPrice={grandTotal}
@@ -1325,9 +1433,10 @@ export default function App() {
             {unreadNotifications > 0 && (
               <span
                 id="navNotifBadge"
+                data-testid="bottom-nav-notif-badge"
                 className="absolute top-1 right-2 min-w-[15px] h-3.5 px-1 bg-brand-coral text-white rounded-full text-[8px] font-extrabold flex items-center justify-center shadow-xs"
               >
-                {unreadNotifications}
+                {unreadNotifications > 99 ? '99+' : unreadNotifications}
               </span>
             )}
           </button>

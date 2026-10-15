@@ -16,8 +16,20 @@ function resolveSession(req) {
   const query = req.query || {};
   const headers = req.headers || {};
 
-  const customerId = headers['x-customer-id'] || query.customer_id || body.customer_id || null;
-  const sessionToken = headers['x-session-token'] || headers['session-token'] || query.session_token || body.session_token || null;
+  const customerId =
+    headers['x-user-id'] ||
+    headers['x-customer-id'] ||
+    (req.user && req.user.id) ||
+    query.customer_id ||
+    body.customer_id ||
+    null;
+
+  const sessionToken =
+    headers['x-session-token'] ||
+    headers['session-token'] ||
+    query.session_token ||
+    body.session_token ||
+    null;
 
   return { customerId, sessionToken };
 }
@@ -185,9 +197,8 @@ async function removeItem(req, res) {
 
 async function getCartSummary(req, res) {
   try {
-    const cartId = req.query.cart_id || null;
-    const customerId = req.query.customer_id || null;
-    const sessionToken = req.query.session_token || req.headers['x-session-token'] || 'guest-session';
+    const { customerId, sessionToken } = resolveSession(req);
+    const cartId = req.query.cart_id || req.body?.cart_id || null;
     const deliverySpeed = req.query.delivery_speed || null;
     const couponCode = req.query.coupon_code || null;
 
@@ -222,7 +233,7 @@ async function getCartSummary(req, res) {
 
 async function applyCoupon(req, res) {
   try {
-    const { coupon_code, cart_id, customer_id, session_token } = req.body || {};
+    const { coupon_code, cart_id } = req.body || {};
     if (!coupon_code || typeof coupon_code !== 'string' || coupon_code.trim() === '') {
       return res.status(400).json({
         status: 'error',
@@ -231,12 +242,13 @@ async function applyCoupon(req, res) {
     }
 
     const cleanCode = coupon_code.toUpperCase().trim();
+    const { customerId, sessionToken } = resolveSession(req);
 
     let targetCartId = cart_id;
     if (!targetCartId) {
       const cart = await cartService.getOrCreateCart({
-        customerId: customer_id,
-        sessionToken: session_token || req.headers['x-session-token'] || 'guest-session'
+        customerId,
+        sessionToken
       });
       targetCartId = cart.id;
     }
@@ -298,16 +310,15 @@ async function applyCoupon(req, res) {
 
 async function removeCoupon(req, res) {
   try {
+    const { customerId, sessionToken } = resolveSession(req);
     const body = req.body || {};
     const cart_id = body.cart_id || req.query.cart_id;
-    const customer_id = body.customer_id || req.query.customer_id;
-    const session_token = body.session_token || req.query.session_token || req.headers['x-session-token'] || 'guest-session';
 
     let targetCartId = cart_id;
     if (!targetCartId) {
       const cart = await cartService.getOrCreateCart({
-        customerId: customer_id,
-        sessionToken: session_token
+        customerId,
+        sessionToken
       });
       targetCartId = cart.id;
     }
@@ -337,10 +348,9 @@ async function removeCoupon(req, res) {
 
 async function validateCart(req, res) {
   try {
+    const { customerId, sessionToken } = resolveSession(req);
     const body = req.body || {};
-    const customerId = body.customer_id || req.query.customer_id || null;
-    const sessionToken = body.session_token || req.query.session_token || req.headers['x-session-token'] || 'guest-session';
-    let targetCartId = body.cart_id;
+    let targetCartId = body.cart_id || req.query.cart_id;
     let targetCart = null;
     if (!targetCartId) {
       targetCart = await cartService.getOrCreateCart({ customerId, sessionToken });
@@ -417,8 +427,7 @@ async function mergeCart(req, res) {
 
 async function getAvailableCoupons(req, res) {
   try {
-    const sessionToken = req.headers['x-session-token'] || req.query.session_token || 'guest-session';
-    const customerId = req.query.customer_id;
+    const { customerId, sessionToken } = resolveSession(req);
     const cart = await cartService.getOrCreateCart({ customerId, sessionToken });
     const items = await cartService.getCartItems(cart.id);
     const subtotal = items.reduce((sum, it) => sum + (Number(it.sell_price) * Number(it.quantity)), 0);

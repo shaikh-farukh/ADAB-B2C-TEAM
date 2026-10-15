@@ -12,6 +12,8 @@ router.get('/:id/status-history', orderController.getOrderStatusHistory);
 router.get('/:id/shipments', orderController.getOrderShipments);
 router.get('/:id/tracking', orderController.getOrderTracking);
 router.get('/:id/invoice', orderController.getOrderInvoice);
+router.patch('/:id/status', orderController.updateOrderStatus);
+router.post('/:id/status', orderController.updateOrderStatus);
 
 module.exports = router;
 

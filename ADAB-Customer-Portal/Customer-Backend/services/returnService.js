@@ -476,7 +476,7 @@ async function getCustomerRefunds(customerId, { limit = 50, offset = 0 } = {}) {
 }
 
 /**
- * Get specific refund details by ID
+ * Get specific refund details by ID (supports refund ID or return ID)
  */
 async function getRefundById(refundId, customerId) {
   if (!refundId) {
@@ -485,21 +485,24 @@ async function getRefundById(refundId, customerId) {
     throw err;
   }
 
-  const userId = await resolveCustomerUserId(customerId);
+  const userId = customerId ? await resolveCustomerUserId(customerId) : null;
 
   const refundRes = await pool.query(
     `SELECT ref.*, o.order_number, o.created_at as order_created_at, o.payment_method,
-            r.reason as return_reason, r.status as return_status, r.requested_at as return_requested_at
+            r.reason as return_reason, r.status as return_status, r.requested_at as return_requested_at,
+            r.resolved_at as return_resolved_at, r.rejection_reason
      FROM refunds ref
      JOIN orders o ON ref.order_id = o.id
      LEFT JOIN returns r ON ref.return_id = r.id
-     WHERE ref.id = $1 AND o.customer_id = $2
+     WHERE (ref.id = $1 OR ref.return_id = $1)
+       AND (o.customer_id = $2 OR $2 IS NULL)
+     ORDER BY ref.created_at DESC
      LIMIT 1`,
     [refundId, userId]
   );
 
   if (refundRes.rows.length === 0) {
-    const existsRes = await pool.query(`SELECT id FROM refunds WHERE id = $1`, [refundId]);
+    const existsRes = await pool.query(`SELECT id FROM refunds WHERE id = $1 OR return_id = $1`, [refundId]);
     if (existsRes.rows.length === 0) {
       const err = new Error(`Refund #${refundId} not found`);
       err.statusCode = 404;
@@ -518,13 +521,253 @@ async function getRefundById(refundId, customerId) {
      FROM refund_items rfi
      JOIN order_items oi ON rfi.order_item_id = oi.id
      WHERE rfi.refund_id = $1`,
-    [refundId]
+    [refund.id]
   );
+
+  let statusHistory = [];
+  if (refund.return_id) {
+    const historyRes = await pool.query(
+      `SELECT * FROM return_status_history
+       WHERE return_id = $1
+       ORDER BY changed_at ASC`,
+      [refund.return_id]
+    );
+    statusHistory = historyRes.rows;
+  }
 
   return {
     ...refund,
-    items: itemsRes.rows
+    items: itemsRes.rows,
+    status_history: statusHistory
   };
+}
+
+/**
+ * Update return status by admin or seller with refund lifecycle synchronization
+ * Allowed statuses: 'REQUESTED', 'APPROVED', 'ITEM_PICKED', 'COMPLETED', 'REJECTED'
+ */
+async function updateReturnStatus(returnId, newStatus, { notes, rejection_reason, gateway_refund_id } = {}) {
+  if (!returnId) {
+    const err = new Error('Return ID is required');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const validStatuses = ['REQUESTED', 'APPROVED', 'ITEM_PICKED', 'COMPLETED', 'REJECTED'];
+  const normalizedStatus = (newStatus || '').toUpperCase().trim();
+  if (!validStatuses.includes(normalizedStatus)) {
+    const err = new Error(`Invalid return status "${newStatus}". Must be one of: ${validStatuses.join(', ')}`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // 1. Fetch current return and linked order
+  const returnRes = await pool.query(
+    `SELECT r.*, o.order_number, o.customer_id
+     FROM returns r
+     JOIN orders o ON r.order_id = o.id
+     WHERE r.id = $1
+     LIMIT 1`,
+    [returnId]
+  );
+
+  if (returnRes.rows.length === 0) {
+    const err = new Error(`Return #${returnId} not found`);
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const currentReturn = returnRes.rows[0];
+
+  // 2. Idempotency guard: If already in target status, return existing detail
+  if (currentReturn.status === normalizedStatus) {
+    return getReturnById(returnId, currentReturn.customer_id);
+  }
+
+  const prevStatus = currentReturn.status;
+
+  // 3. Status-specific updates and refund transitions
+  if (normalizedStatus === 'APPROVED') {
+    await pool.query(
+      `UPDATE returns
+       SET status = 'APPROVED'
+       WHERE id = $1`,
+      [returnId]
+    );
+
+    // Transition linked refund from INITIATED -> PROCESSED
+    const gwRefundId = gateway_refund_id || `RFND-GW-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    await pool.query(
+      `UPDATE refunds
+       SET status = 'PROCESSED',
+           processed_at = NOW(),
+           gateway_refund_id = COALESCE($2, gateway_refund_id, $3)
+       WHERE return_id = $1`,
+      [returnId, gateway_refund_id, gwRefundId]
+    );
+
+    // Insert history
+    const historyNotes = notes || 'Return request approved by seller/admin. Refund initiated.';
+    await pool.query(
+      `INSERT INTO return_status_history (
+        return_id, previous_status, new_status, notes, changed_at
+      ) VALUES ($1, $2, 'APPROVED', $3, NOW())`,
+      [returnId, prevStatus, historyNotes]
+    );
+
+    // Customer Notification
+    try {
+      await pool.query(
+        `INSERT INTO notifications (
+          user_id, title, message, type, is_read, action_url, created_at
+        ) VALUES ($1, $2, $3, 'ORDER_STATUS', false, '/returns', NOW())`,
+        [
+          currentReturn.customer_id,
+          `Return Approved & Refund Processed: #${currentReturn.order_number}`,
+          `Your return for ₹${currentReturn.refund_amount} has been approved. Refund of ₹${currentReturn.refund_amount} has been processed to your payment method.`
+        ]
+      );
+    } catch (notifErr) {
+      console.warn('Non-blocking notification error on return approval:', notifErr.message);
+    }
+  } else if (normalizedStatus === 'ITEM_PICKED') {
+    await pool.query(
+      `UPDATE returns
+       SET status = 'ITEM_PICKED'
+       WHERE id = $1`,
+      [returnId]
+    );
+
+    const historyNotes = notes || 'Return package picked up by courier service.';
+    await pool.query(
+      `INSERT INTO return_status_history (
+        return_id, previous_status, new_status, notes, changed_at
+      ) VALUES ($1, $2, 'ITEM_PICKED', $3, NOW())`,
+      [returnId, prevStatus, historyNotes]
+    );
+
+    try {
+      await pool.query(
+        `INSERT INTO notifications (
+          user_id, title, message, type, is_read, action_url, created_at
+        ) VALUES ($1, $2, $3, 'ORDER_STATUS', false, '/returns', NOW())`,
+        [
+          currentReturn.customer_id,
+          `Return Item Picked Up: #${currentReturn.order_number}`,
+          `Courier has picked up your returned item(s) for order #${currentReturn.order_number}.`
+        ]
+      );
+    } catch (notifErr) {
+      console.warn('Non-blocking notification error on item pickup:', notifErr.message);
+    }
+  } else if (normalizedStatus === 'COMPLETED') {
+    await pool.query(
+      `UPDATE returns
+       SET status = 'COMPLETED',
+           resolved_at = NOW()
+       WHERE id = $1`,
+      [returnId]
+    );
+
+    const gwRefundId = gateway_refund_id || `RFND-GW-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    await pool.query(
+      `UPDATE refunds
+       SET status = 'PROCESSED',
+           processed_at = COALESCE(processed_at, NOW()),
+           gateway_refund_id = COALESCE($2, gateway_refund_id, $3)
+       WHERE return_id = $1`,
+      [returnId, gateway_refund_id, gwRefundId]
+    );
+
+    const historyNotes = notes || 'Return inspection completed and return resolved.';
+    await pool.query(
+      `INSERT INTO return_status_history (
+        return_id, previous_status, new_status, notes, changed_at
+      ) VALUES ($1, $2, 'COMPLETED', $3, NOW())`,
+      [returnId, prevStatus, historyNotes]
+    );
+
+    try {
+      await pool.query(
+        `INSERT INTO notifications (
+          user_id, title, message, type, is_read, action_url, created_at
+        ) VALUES ($1, $2, $3, 'ORDER_STATUS', false, '/returns', NOW())`,
+        [
+          currentReturn.customer_id,
+          `Return Completed: #${currentReturn.order_number}`,
+          `Your return for order #${currentReturn.order_number} has been fully completed and settled.`
+        ]
+      );
+    } catch (notifErr) {
+      console.warn('Non-blocking notification error on return completion:', notifErr.message);
+    }
+  } else if (normalizedStatus === 'REJECTED') {
+    const reasonText = rejection_reason || notes || 'Return request rejected by seller/admin';
+    await pool.query(
+      `UPDATE returns
+       SET status = 'REJECTED',
+           rejection_reason = $2,
+           resolved_at = NOW()
+       WHERE id = $1`,
+      [returnId, reasonText]
+    );
+
+    // Mark refund as FAILED if not already processed
+    await pool.query(
+      `UPDATE refunds
+       SET status = 'FAILED'
+       WHERE return_id = $1 AND status != 'PROCESSED'`,
+      [returnId]
+    );
+
+    await pool.query(
+      `INSERT INTO return_status_history (
+        return_id, previous_status, new_status, notes, changed_at
+      ) VALUES ($1, $2, 'REJECTED', $3, NOW())`,
+      [returnId, prevStatus, reasonText]
+    );
+
+    try {
+      await pool.query(
+        `INSERT INTO notifications (
+          user_id, title, message, type, is_read, action_url, created_at
+        ) VALUES ($1, $2, $3, 'ORDER_STATUS', false, '/returns', NOW())`,
+        [
+          currentReturn.customer_id,
+          `Return Request Rejected: #${currentReturn.order_number}`,
+          `Your return request was rejected: ${reasonText}`
+        ]
+      );
+    } catch (notifErr) {
+      console.warn('Non-blocking notification error on return rejection:', notifErr.message);
+    }
+  } else if (normalizedStatus === 'REQUESTED') {
+    await pool.query(
+      `UPDATE returns
+       SET status = 'REQUESTED',
+           resolved_at = NULL,
+           rejection_reason = NULL
+       WHERE id = $1`,
+      [returnId]
+    );
+
+    await pool.query(
+      `UPDATE refunds
+       SET status = 'INITIATED',
+           processed_at = NULL
+       WHERE return_id = $1`,
+      [returnId]
+    );
+
+    await pool.query(
+      `INSERT INTO return_status_history (
+        return_id, previous_status, new_status, notes, changed_at
+      ) VALUES ($1, $2, 'REQUESTED', $3, NOW())`,
+      [returnId, prevStatus, notes || 'Return status reset to REQUESTED']
+    );
+  }
+
+  return getReturnById(returnId, currentReturn.customer_id);
 }
 
 module.exports = {
@@ -534,5 +777,7 @@ module.exports = {
   cancelReturn,
   attachReturnEvidence,
   getCustomerRefunds,
-  getRefundById
+  getRefundById,
+  updateReturnStatus
 };
+

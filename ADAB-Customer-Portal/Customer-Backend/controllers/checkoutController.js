@@ -72,7 +72,8 @@ async function placeOrder(req, res) {
       delivery_address,
       delivery_speed = 'EXPRESS_30M',
       payment_method = 'UPI',
-      coupon_code = null
+      coupon_code = null,
+      points_redeemed = 0
     } = req.body;
 
     const resolvedCustomerId = customer_id || req.headers['x-user-id'] || null;
@@ -133,7 +134,8 @@ async function placeOrder(req, res) {
       deliveryAddress: delivery_address,
       deliverySpeed: delivery_speed,
       paymentMethod: payment_method,
-      couponCode: coupon_code || undefined
+      couponCode: coupon_code || undefined,
+      pointsRedeemed: points_redeemed || 0
     });
 
     // 4. Initialize Razorpay order intent for online digital payments
@@ -173,6 +175,17 @@ async function placeOrder(req, res) {
         order_id: order.id,
         order_number: order.order_number,
         customer_id: order.customer_id,
+        customer: order.customer ? {
+          id: order.customer.id,
+          name: order.customer.full_name || order.customer.name,
+          phone: order.customer.phone,
+          email: order.customer.email
+        } : (customer_name || customer_phone ? {
+          id: order.customer_id,
+          name: customer_name,
+          phone: customer_phone,
+          email: customer_email
+        } : null),
         payment_id: order.payment ? order.payment.id : null,
         order_status: order.order_status,
         payment_status: order.payment_status,

@@ -17,7 +17,8 @@ export default function OrdersView({
   loading = false,
   onRefresh = () => {},
   showToast = () => {},
-  onReviewOrder
+  onReviewOrder,
+  onRequestReturn
 }) {
   const [currentView, setCurrentView] = useState(initialView); // 'orders' | 'orderhistory'
   const [searchQuery, setSearchQuery] = useState('');
@@ -522,6 +523,21 @@ export default function OrdersView({
                         >
                           <i className="fa-solid fa-star text-amber-500 text-[10px]"></i>
                           <span>Rate</span>
+                        </button>
+                      )}
+
+                      {onRequestReturn && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRequestReturn(order);
+                          }}
+                          className="text-gray-700 hover:bg-gray-100 font-bold text-xs border border-gray-200 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                          title="Initiate Return / Replacement"
+                        >
+                          <i className="fa-solid fa-rotate-left text-gray-500 text-[10px]"></i>
+                          <span>Return</span>
                         </button>
                       )}
                     </div>

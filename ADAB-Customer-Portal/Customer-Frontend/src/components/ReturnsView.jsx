@@ -2,23 +2,46 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ReturnAPI, OrderAPI } from '../services/api';
 
 /**
+ * 4-Stage Return Lifecycle Milestones:
+ * REQUESTED → APPROVED → PICKUP_SCHEDULED → REFUNDED
+ */
+export const RETURN_MILESTONE_STEPS = [
+  { key: 'REQUESTED', label: 'Requested', icon: 'fa-file-lines' },
+  { key: 'APPROVED', label: 'Approved', icon: 'fa-check' },
+  { key: 'PICKUP_SCHEDULED', label: 'Pickup Scheduled', icon: 'fa-truck-ramp-box' },
+  { key: 'REFUNDED', label: 'Refunded', icon: 'fa-money-bill-transfer' }
+];
+
+export const getReturnStepIndex = (status) => {
+  const s = (status || '').toUpperCase();
+  if (s === 'REFUNDED' || s === 'COMPLETED') return 3;
+  if (s === 'PICKUP_SCHEDULED' || s === 'ITEM_PICKED') return 2;
+  if (s === 'APPROVED') return 1;
+  if (s === 'REQUESTED') return 0;
+  return -1; // REJECTED / CANCELLED
+};
+
+/**
  * Returns & Replacements View (sec-returns)
  * 100% Design Parity with unified-customer-portal-demo.html:
- * - New Return Flow: item-level selection, return reason, condition, pickup slot
- * - Photo Evidence: upload URL/file preview before submission
- * - Return Status Cards: pills (REQUESTED, APPROVED, ITEM_PICKED, COMPLETED, REJECTED) & pickup countdown
+ * - New Return Flow: item-level selection from completed/delivered orders
+ * - 4-Stage Milestone Stepper: REQUESTED → APPROVED → PICKUP_SCHEDULED → REFUNDED
+ * - Linked Refund State & Amount matching backend refunds table
  * - Refund Tracker: live refund status indicator (INITIATED, PROCESSED, FAILED) & refund mode badge
  */
 export default function ReturnsView({
   onBack,
   onNavigate,
   showToast = () => {},
-  preselectedOrder = null
+  preselectedOrder = null,
+  initialReturnsList = [],
+  initialRefundsList = [],
+  initialActiveTab = 'returns'
 }) {
-  const [returnsList, setReturnsList] = useState([]);
-  const [refundsList, setRefundsList] = useState([]);
+  const [returnsList, setReturnsList] = useState(initialReturnsList);
+  const [refundsList, setRefundsList] = useState(initialRefundsList);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('returns'); // 'returns' | 'refunds'
+  const [activeTab, setActiveTab] = useState(initialActiveTab);
 
   // New Return Modal State
   const [isNewReturnModalOpen, setIsNewReturnModalOpen] = useState(Boolean(preselectedOrder));
@@ -74,7 +97,7 @@ export default function ReturnsView({
     refreshData();
   }, []);
 
-  // Pre-selected order from Order Detail view
+  // Pre-selected order from Order Detail view or Order Tracking view
   useEffect(() => {
     if (preselectedOrder) {
       setSelectedOrder(preselectedOrder);
@@ -87,34 +110,71 @@ export default function ReturnsView({
     }
   }, [preselectedOrder]);
 
-  // Load delivered orders when opening modal
+  // Load delivered/completed orders when opening modal
   const handleOpenNewReturnModal = async () => {
     setIsNewReturnModalOpen(true);
-    if (!selectedOrder) {
-      setLoadingOrders(true);
-      try {
-        const ordersRes = await OrderAPI.getCustomerOrders();
-        const orders = ordersRes?.data || [];
-        const delivered = orders.filter((o) => (o.order_status || '').toUpperCase() === 'DELIVERED');
-        setDeliveredOrders(delivered);
-        if (delivered.length > 0) {
-          setSelectedOrder(delivered[0]);
-          const initialItems = {};
-          if (delivered[0].items && delivered[0].items.length > 0) {
-            initialItems[delivered[0].items[0].id] = 1;
+    setLoadingOrders(true);
+    try {
+      const ordersRes = await OrderAPI.getCustomerOrders();
+      const orders = ordersRes?.data || [];
+      const delivered = orders.filter((o) =>
+        ['DELIVERED', 'COMPLETED'].includes((o.order_status || '').toUpperCase())
+      );
+      setDeliveredOrders(delivered);
+
+      if (!selectedOrder && delivered.length > 0) {
+        let firstOrder = delivered[0];
+        // If items are not populated on order summary, fetch complete order details
+        if (!firstOrder.items || firstOrder.items.length === 0) {
+          try {
+            const detailRes = await OrderAPI.getOrderById(firstOrder.id);
+            if (detailRes?.data?.items) {
+              firstOrder = { ...firstOrder, items: detailRes.data.items };
+            }
+          } catch (e) {
+            console.warn('Could not fetch items for first delivered order:', e);
           }
-          setSelectedItems(initialItems);
         }
-      } catch (err) {
-        console.warn('Could not load delivered orders:', err.message);
-      } finally {
-        setLoadingOrders(false);
+        setSelectedOrder(firstOrder);
+        const initialItems = {};
+        if (firstOrder.items && firstOrder.items.length > 0) {
+          initialItems[firstOrder.items[0].id] = 1;
+        }
+        setSelectedItems(initialItems);
       }
+    } catch (err) {
+      console.warn('Could not load delivered orders:', err.message);
+    } finally {
+      setLoadingOrders(false);
     }
   };
 
+  // Change selected delivered order in dropdown
+  const handleSelectOrderChange = async (orderId) => {
+    let ord = deliveredOrders.find((o) => o.id === orderId);
+    if (!ord) return;
+
+    if (!ord.items || ord.items.length === 0) {
+      try {
+        const detailRes = await OrderAPI.getOrderById(ord.id);
+        if (detailRes?.data?.items) {
+          ord = { ...ord, items: detailRes.data.items };
+        }
+      } catch (e) {
+        console.warn('Could not fetch order items for order selection:', e);
+      }
+    }
+
+    setSelectedOrder(ord);
+    const initialItems = {};
+    if (ord.items && ord.items.length > 0) {
+      initialItems[ord.items[0].id] = 1;
+    }
+    setSelectedItems(initialItems);
+  };
+
   // Toggle item selection in return modal
-  const handleToggleItem = (itemId, maxQty = 1) => {
+  const handleToggleItem = (itemId) => {
     setSelectedItems((prev) => {
       const next = { ...prev };
       if (next[itemId]) {
@@ -263,34 +323,48 @@ export default function ReturnsView({
     }
   };
 
-  // Return Status Pill Renderer
+  // Return Status Pill Renderer supporting 4-stage statuses + REJECTED
   const renderStatusPill = (status) => {
     const s = (status || 'REQUESTED').toUpperCase();
     switch (s) {
       case 'REQUESTED':
         return (
-          <span className="text-[10px] font-extrabold bg-amber-200 text-amber-900 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+          <span className="text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-2xs">
             <i className="fa-solid fa-clock text-[9px]"></i>
-            <span>Review · Requested</span>
+            <span>Requested</span>
           </span>
         );
       case 'APPROVED':
         return (
-          <span className="text-[10px] font-extrabold bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+          <span className="text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-300 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-2xs">
             <i className="fa-solid fa-check text-[9px]"></i>
             <span>Approved</span>
           </span>
         );
+      case 'PICKUP_SCHEDULED':
+        return (
+          <span className="text-[10px] font-extrabold bg-purple-100 text-purple-800 border border-purple-300 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-2xs">
+            <i className="fa-solid fa-truck-ramp-box text-[9px]"></i>
+            <span>Pickup Scheduled</span>
+          </span>
+        );
       case 'ITEM_PICKED':
         return (
-          <span className="text-[10px] font-extrabold bg-purple-100 text-purple-800 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+          <span className="text-[10px] font-extrabold bg-purple-100 text-purple-800 border border-purple-300 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-2xs">
             <i className="fa-solid fa-box text-[9px]"></i>
             <span>Item Picked</span>
           </span>
         );
+      case 'REFUNDED':
+        return (
+          <span className="text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-2xs">
+            <i className="fa-solid fa-circle-check text-[9px]"></i>
+            <span>Refunded</span>
+          </span>
+        );
       case 'COMPLETED':
         return (
-          <span className="text-[10px] font-extrabold bg-green-100 text-green-800 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+          <span className="text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-2xs">
             <i className="fa-solid fa-circle-check text-[9px]"></i>
             <span>Completed</span>
           </span>
@@ -298,7 +372,7 @@ export default function ReturnsView({
       case 'REJECTED':
       default:
         return (
-          <span className="text-[10px] font-extrabold bg-gray-200 text-gray-700 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+          <span className="text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-2xs">
             <i className="fa-solid fa-ban text-[9px]"></i>
             <span>{s === 'REJECTED' ? 'Rejected / Cancelled' : s}</span>
           </span>
@@ -306,20 +380,20 @@ export default function ReturnsView({
     }
   };
 
-  // Refund Status Pill Renderer
+  // Refund Status Pill Renderer matching backend refunds table
   const renderRefundStatusPill = (status, amount) => {
     const s = (status || 'INITIATED').toUpperCase();
     switch (s) {
       case 'PROCESSED':
         return (
-          <span className="text-[10px] font-extrabold bg-green-100 text-green-800 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+          <span className="text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
             <i className="fa-solid fa-check-double text-[9px]"></i>
             <span>Refunded ₹{parseFloat(amount || 0).toFixed(2)}</span>
           </span>
         );
       case 'INITIATED':
         return (
-          <span className="text-[10px] font-extrabold bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+          <span className="text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-300 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
             <i className="fa-solid fa-spinner fa-spin text-[9px]"></i>
             <span>Refund Initiated (₹{parseFloat(amount || 0).toFixed(2)})</span>
           </span>
@@ -327,12 +401,88 @@ export default function ReturnsView({
       case 'FAILED':
       default:
         return (
-          <span className="text-[10px] font-extrabold bg-red-100 text-red-700 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+          <span className="text-[10px] font-extrabold bg-rose-100 text-rose-700 border border-rose-300 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
             <i className="fa-solid fa-triangle-exclamation text-[9px]"></i>
             <span>Refund Failed</span>
           </span>
         );
     }
+  };
+
+  // 4-Stage Stepper Component
+  const render4StageStepper = (status, isModal = false) => {
+    const currentStepIndex = getReturnStepIndex(status);
+    if (currentStepIndex < 0) {
+      return (
+        <div className="mt-2.5 p-2 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2">
+          <i className="fa-solid fa-circle-xmark"></i>
+          <span>Return request was rejected or cancelled</span>
+        </div>
+      );
+    }
+
+    const pct = (Math.min(currentStepIndex, 3) / 3) * 100;
+
+    return (
+      <div
+        className={`mt-3 ${isModal ? 'p-3 bg-gray-50/90' : 'pt-2.5 px-3 pb-3 bg-gray-50/70'} rounded-xl border border-gray-100`}
+        data-testid="return-milestone-stepper"
+        data-current-step={currentStepIndex}
+      >
+        <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center justify-between">
+          <span>Lifecycle Progress</span>
+          <span className="text-emerald-700 font-extrabold">
+            Stage {currentStepIndex + 1} of 4: {RETURN_MILESTONE_STEPS[currentStepIndex]?.label}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between relative px-2">
+          {/* Connector line behind circles */}
+          <div className="absolute left-6 right-6 top-3.5 h-0.5 bg-gray-200 -z-0"></div>
+          <div
+            className="absolute left-6 top-3.5 h-0.5 bg-emerald-500 -z-0 transition-all duration-300"
+            style={{ width: `${pct * 0.88}%` }}
+          ></div>
+
+          {RETURN_MILESTONE_STEPS.map((step, sIdx) => {
+            const isCompleted = currentStepIndex > sIdx;
+            const isCurrent = currentStepIndex === sIdx;
+            const isActive = isCompleted || isCurrent;
+
+            return (
+              <div
+                key={step.key}
+                className="flex flex-col items-center relative z-10 text-center"
+                style={{ minWidth: '60px' }}
+              >
+                <div
+                  className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold transition-all shadow-xs ${
+                    isCompleted
+                      ? 'bg-emerald-600 text-white'
+                      : isCurrent
+                      ? 'bg-emerald-500 text-white ring-4 ring-emerald-100 animate-pulse'
+                      : 'bg-white border-2 border-gray-200 text-gray-400'
+                  }`}
+                >
+                  {isCompleted ? (
+                    <i className="fa-solid fa-check text-[10px]"></i>
+                  ) : (
+                    <i className={`fa-solid ${step.icon} text-[10px]`}></i>
+                  )}
+                </div>
+                <span
+                  className={`text-[10px] mt-1 font-bold whitespace-nowrap ${
+                    isActive ? 'text-gray-900 font-extrabold' : 'text-gray-400'
+                  }`}
+                >
+                  {step.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -428,12 +578,22 @@ export default function ReturnsView({
               const firstItemTitle = itemsList[0]?.product_name || 'Product';
               const isAmber = isRequested;
 
+              // Linked refund state and amount matching backend refunds table
+              const linkedRefundAmount = ret.refund?.amount || ret.refund_amount || 0;
+              const linkedRefundStatus = (
+                ret.refund?.refund_status ||
+                (['COMPLETED', 'REFUNDED'].includes(status) ? 'PROCESSED' : 'INITIATED')
+              ).toUpperCase();
+              const linkedRefundMode = (ret.refund?.refund_mode || 'UPI').toUpperCase();
+
               return (
                 <div
                   key={ret.id || idx}
-                  className={`rounded-xl p-4 transition shadow-xs ${
-                    isAmber ? 'border border-amber-200 bg-amber-50/60' : 'border border-gray-100 bg-white'
+                  className={`rounded-2xl p-4 transition shadow-xs ${
+                    isAmber ? 'border border-amber-200 bg-amber-50/50' : 'border border-gray-100 bg-white'
                   }`}
+                  data-testid="return-card"
+                  data-return-id={ret.id}
                 >
                   <div className="flex justify-between items-start gap-2">
                     <div>
@@ -445,8 +605,13 @@ export default function ReturnsView({
                           </span>
                         )}
                       </div>
-                      <div className="text-[11px] text-gray-500 mt-0.5 font-medium">
-                        Order #{ret.order_number || 'N/A'} · Refund: ₹{parseFloat(ret.refund_amount || 0).toFixed(2)}
+                      <div className="text-[11px] text-gray-500 mt-0.5 font-medium flex items-center gap-2 flex-wrap">
+                        <span>Order #{ret.order_number || 'N/A'}</span>
+                        <span>·</span>
+                        <span>
+                          Refund Amount:{' '}
+                          <strong className="text-gray-900">₹{parseFloat(linkedRefundAmount).toFixed(2)}</strong>
+                        </span>
                       </div>
                     </div>
 
@@ -455,7 +620,45 @@ export default function ReturnsView({
                     </div>
                   </div>
 
-                  {/* Return details & pickup countdown */}
+                  {/* 4-Stage Return Stepper: REQUESTED → APPROVED → PICKUP_SCHEDULED → REFUNDED */}
+                  {render4StageStepper(status)}
+
+                  {/* Linked Refund State Box matching backend refunds table */}
+                  <div className="mt-3 p-2.5 bg-white/80 rounded-xl border border-gray-100 flex items-center justify-between flex-wrap gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center text-xs">
+                        <i className="fa-solid fa-wallet"></i>
+                      </div>
+                      <div>
+                        <div className="font-bold text-gray-900 flex items-center gap-1.5">
+                          <span>Linked Refund: ₹{parseFloat(linkedRefundAmount).toFixed(2)}</span>
+                          <span
+                            className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
+                              linkedRefundStatus === 'PROCESSED'
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                : linkedRefundStatus === 'FAILED'
+                                ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                : 'bg-blue-100 text-blue-800 border border-blue-200'
+                            }`}
+                          >
+                            State: {linkedRefundStatus}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-gray-500">
+                          Mode: {linkedRefundMode}
+                          {ret.refund?.gateway_refund_id ? ` · Ref: ${ret.refund.gateway_refund_id}` : ''}
+                        </div>
+                      </div>
+                    </div>
+
+                    {ret.refund?.processed_at && (
+                      <div className="text-[10px] text-gray-400 font-mono">
+                        Processed: {new Date(ret.refund.processed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Return details & pickup countdown footer */}
                   <div className="text-xs text-gray-600 mt-2.5 flex items-center justify-between border-t border-gray-100/60 pt-2 flex-wrap gap-2">
                     <div className="flex items-center gap-1.5">
                       <i className="fa-solid fa-truck-ramp-box text-gray-400"></i>
@@ -464,9 +667,11 @@ export default function ReturnsView({
                           ? 'Pickup in 48 hrs'
                           : status === 'APPROVED'
                           ? 'Pickup scheduled · Tomorrow'
+                          : status === 'PICKUP_SCHEDULED'
+                          ? 'Pickup scheduled · Rider assigned'
                           : status === 'ITEM_PICKED'
                           ? 'Item received by rider · Inspection pending'
-                          : status === 'COMPLETED'
+                          : status === 'REFUNDED' || status === 'COMPLETED'
                           ? 'Inspection passed · Refund processed'
                           : 'Return rejected or cancelled'}
                       </span>
@@ -527,11 +732,15 @@ export default function ReturnsView({
             refundsList.map((ref, idx) => {
               const status = (ref.refund_status || 'INITIATED').toUpperCase();
               const mode = (ref.refund_mode || 'UPI').toUpperCase();
+              const linkedReturnCode = ref.return_id ? `#R-${ref.return_id.slice(0, 4).toUpperCase()}` : null;
+              const orderNum = ref.order_number || (ref.order_id ? ref.order_id.slice(0, 8) : null);
 
               return (
                 <div
                   key={ref.id || idx}
-                  className="border border-gray-100 bg-white rounded-xl p-4 shadow-xs space-y-2.5"
+                  className="border border-gray-100 bg-white rounded-2xl p-4 shadow-xs space-y-2.5"
+                  data-testid="refund-card"
+                  data-refund-id={ref.id}
                 >
                   <div className="flex justify-between items-start gap-2">
                     <div>
@@ -541,21 +750,37 @@ export default function ReturnsView({
                           {mode}
                         </span>
                       </div>
-                      <div className="text-[11px] text-gray-500 mt-0.5">
-                        Amount: <strong className="text-gray-900">₹{parseFloat(ref.amount || 0).toFixed(2)}</strong>
+                      <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                        <span>
+                          Amount: <strong className="text-gray-900">₹{parseFloat(ref.amount || 0).toFixed(2)}</strong>
+                        </span>
+                        {linkedReturnCode && (
+                          <>
+                            <span>·</span>
+                            <span>Linked Return: <strong>{linkedReturnCode}</strong></span>
+                          </>
+                        )}
+                        {orderNum && (
+                          <>
+                            <span>·</span>
+                            <span>Order #{orderNum}</span>
+                          </>
+                        )}
                       </div>
                     </div>
 
                     <div>{renderRefundStatusPill(status, ref.amount)}</div>
                   </div>
 
-                  <div className="text-xs text-gray-500 flex justify-between items-center border-t border-gray-50 pt-2">
-                    <span>
+                  <div className="text-xs text-gray-500 flex justify-between items-center border-t border-gray-50 pt-2 flex-wrap gap-2">
+                    <span className="flex items-center gap-1.5">
+                      <i className="fa-solid fa-circle-info text-gray-400 text-[10px]"></i>
                       {status === 'PROCESSED'
                         ? 'Credited to your account'
                         : status === 'INITIATED'
                         ? 'Estimated credit within 2–4 hours'
                         : 'Contact support for refund retry'}
+                      {ref.gateway_refund_id ? ` (Ref: ${ref.gateway_refund_id})` : ''}
                     </span>
                     <span className="text-[11px] font-mono text-gray-400">
                       {new Date(ref.created_at || Date.now()).toLocaleDateString('en-IN', {
@@ -592,22 +817,18 @@ export default function ReturnsView({
             </div>
 
             <form onSubmit={handleSubmitReturn} className="space-y-4">
-              {/* Step 1: Select Order */}
-              {deliveredOrders.length > 1 && !preselectedOrder && (
+              {/* Step 1: Select Delivered Order */}
+              {deliveredOrders.length > 0 && !preselectedOrder && (
                 <div className="space-y-1.5">
                   <label className="text-xs font-extrabold text-gray-700">1. Select Delivered Order</label>
                   <select
                     value={selectedOrder?.id || ''}
-                    onChange={(e) => {
-                      const o = deliveredOrders.find((ord) => ord.id === e.target.value);
-                      setSelectedOrder(o);
-                      setSelectedItems({});
-                    }}
+                    onChange={(e) => handleSelectOrderChange(e.target.value)}
                     className="w-full border border-gray-200 rounded-xl p-2.5 text-xs text-gray-800 font-semibold focus:border-brand-green outline-none"
                   >
                     {deliveredOrders.map((ord) => (
                       <option key={ord.id} value={ord.id}>
-                        {`#${ord.order_number || ord.id.slice(0, 8)} · ₹${parseFloat(ord.grand_total || 0).toFixed(2)}`}
+                        {`#${ord.order_number || ord.id.slice(0, 8)} · ₹${parseFloat(ord.grand_total || 0).toFixed(2)} (${ord.order_status})`}
                       </option>
                     ))}
                   </select>
@@ -644,7 +865,7 @@ export default function ReturnsView({
                             <input
                               type="checkbox"
                               checked={isChecked}
-                              onChange={() => handleToggleItem(item.id, maxQty)}
+                              onChange={() => handleToggleItem(item.id)}
                               className="accent-brand-green rounded cursor-pointer"
                             />
                             <div>
@@ -696,7 +917,7 @@ export default function ReturnsView({
                 </select>
               </div>
 
-              {/* Step 4: Item Condition & Pickup Slot */}
+              {/* Step 4: Item Condition & Refund Preference */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-extrabold text-gray-700">Item Condition</label>
@@ -870,13 +1091,13 @@ export default function ReturnsView({
       {/* ============================================================== */}
       {selectedReturnDetail && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl max-h-[85vh] overflow-y-auto space-y-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl max-h-[85vh] overflow-y-auto space-y-4">
             <div className="flex justify-between items-center border-b pb-3 border-gray-100">
               <div>
                 <h3 className="font-extrabold text-sm text-gray-900">
                   Return #{selectedReturnDetail.id.slice(0, 8).toUpperCase()}
                 </h3>
-                <span className="text-[10px] text-gray-500">Status &amp; Inspection Audit</span>
+                <span className="text-[10px] text-gray-500">Cross-Portal Return Audit &amp; Status</span>
               </div>
               <button
                 type="button"
@@ -887,18 +1108,49 @@ export default function ReturnsView({
               </button>
             </div>
 
+            {/* Status Pill & 4-Stage Stepper */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-700">Current Status:</span>
+                {renderStatusPill(selectedReturnDetail.status)}
+              </div>
+              {render4StageStepper(selectedReturnDetail.status, true)}
+            </div>
+
+            {/* Linked Refund Box in Detail Modal */}
+            {selectedReturnDetail.refund && (
+              <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-1.5">
+                <div className="text-xs font-bold text-emerald-900 flex items-center justify-between">
+                  <span>Linked Refund Details</span>
+                  {renderRefundStatusPill(selectedReturnDetail.refund.refund_status, selectedReturnDetail.refund.amount)}
+                </div>
+                <div className="text-[11px] text-gray-600 flex justify-between">
+                  <span>Refund ID: #{selectedReturnDetail.refund.id.slice(0, 8).toUpperCase()}</span>
+                  <span>Amount: ₹{parseFloat(selectedReturnDetail.refund.amount || 0).toFixed(2)}</span>
+                </div>
+                <div className="text-[11px] text-gray-500 flex justify-between">
+                  <span>Mode: {selectedReturnDetail.refund.refund_mode}</span>
+                  {selectedReturnDetail.refund.gateway_refund_id && (
+                    <span>Gateway Ref: {selectedReturnDetail.refund.gateway_refund_id}</span>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Status History Timeline */}
-            <div className="space-y-3">
+            <div className="space-y-3 border-t border-gray-100 pt-3">
               <div className="text-xs font-bold text-gray-700">Timeline Milestones</div>
               <div className="space-y-2 border-l-2 border-brand-green/30 pl-3 ml-2">
-                {selectedReturnDetail.history && selectedReturnDetail.history.length > 0 ? (
-                  selectedReturnDetail.history.map((h, i) => (
+                {selectedReturnDetail.status_history && selectedReturnDetail.status_history.length > 0 ? (
+                  selectedReturnDetail.status_history.map((h, i) => (
                     <div key={h.id || i} className="text-xs space-y-0.5 relative">
                       <div className="w-2 h-2 rounded-full bg-brand-green absolute -left-[17px] top-1"></div>
-                      <div className="font-bold text-gray-800 uppercase text-[11px]">{h.status}</div>
+                      <div className="font-bold text-gray-800 uppercase text-[11px]">
+                        {h.new_status || h.status}
+                      </div>
                       {h.notes && <div className="text-gray-500 text-[10px]">{h.notes}</div>}
                       <div className="text-[10px] text-gray-400">
-                        {new Date(h.created_at).toLocaleString('en-IN')}
+                        {new Date(h.changed_at || h.created_at).toLocaleString('en-IN')}
                       </div>
                     </div>
                   ))
@@ -912,7 +1164,7 @@ export default function ReturnsView({
             <div className="border-t border-gray-100 pt-3 space-y-1.5">
               <div className="text-xs font-bold text-gray-700">Items in Return</div>
               {selectedReturnDetail.items?.map((it) => (
-                <div key={it.id} className="text-xs flex justify-between text-gray-600 bg-gray-50 p-2 rounded-lg">
+                <div key={it.id} className="text-xs flex justify-between text-gray-600 bg-gray-50 p-2.5 rounded-xl">
                   <span>{it.product_name} (×{it.quantity})</span>
                   <span className="font-bold text-gray-900">₹{parseFloat(it.refund_amount || 0).toFixed(2)}</span>
                 </div>

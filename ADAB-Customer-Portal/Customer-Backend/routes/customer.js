@@ -37,7 +37,9 @@ router.delete('/me/wishlist/items/:id', customerController.removeWishlistItem);
 router.get('/me/notifications', customerController.getNotifications);
 router.get('/me/notifications/unread-count', customerController.getUnreadNotificationCount);
 router.patch('/me/notifications/:id/read', customerController.markNotificationRead);
+router.post('/me/notifications/:id/read', customerController.markNotificationRead);
 router.post('/me/notifications/read-all', customerController.markAllNotificationsRead);
+router.patch('/me/notifications/read-all', customerController.markAllNotificationsRead);
 
 // Customer Orders (Day 4 canonical endpoints: /api/v1/customers/me/orders/*)
 router.get('/me/orders', orderController.getOrders);
@@ -48,6 +50,8 @@ router.get('/me/orders/:id/status-history', orderController.getOrderStatusHistor
 router.get('/me/orders/:id/shipments', orderController.getOrderShipments);
 router.get('/me/orders/:id/tracking', orderController.getOrderTracking);
 router.get('/me/orders/:id/invoice', orderController.getOrderInvoice);
+router.patch('/me/orders/:id/status', orderController.updateOrderStatus);
+router.post('/me/orders/:id/status', orderController.updateOrderStatus);
 
 // Returns & Refunds (Day 5 Task 1 canonical endpoints)
 router.post('/me/orders/:id/return', returnController.createOrderReturn);
@@ -55,8 +59,14 @@ router.get('/me/returns', returnController.getCustomerReturns);
 router.get('/me/returns/:id', returnController.getReturnById);
 router.post('/me/returns/:id/cancel', returnController.cancelReturn);
 router.post('/me/returns/:id/evidence', returnController.uploadReturnEvidence);
+router.patch('/me/returns/:id/status', returnController.updateReturnStatus);
+router.post('/me/returns/:id/status', returnController.updateReturnStatus);
+router.patch('/returns/:id/status', returnController.updateReturnStatus);
+router.post('/returns/:id/status', returnController.updateReturnStatus);
 router.get('/me/refunds', returnController.getCustomerRefunds);
 router.get('/me/refunds/:id', returnController.getRefundById);
+router.get('/refunds/:id', returnController.getRefundById);
+
 
 // Verified Reviews (Day 5 Task 2 canonical endpoints)
 router.get('/me/reviews/pending', reviewController.getPendingReviews);

@@ -23,6 +23,7 @@ api.interceptors.request.use((config) => {
       const u = JSON.parse(userStr);
       if (u?.id) {
         config.headers['x-user-id'] = u.id;
+        config.headers['x-customer-id'] = u.id;
       }
     } catch {}
   }
