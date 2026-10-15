@@ -883,12 +883,14 @@ exports.getBrandProducts = async (slug) => {
  * Home page merchandising blocks
  */
 exports.getHome = async () => {
-  const [recommended, categories, deals, stores] = await Promise.all([
+  const [recommended, categories, rawDeals, stores] = await Promise.all([
     exports.getRecommendedProducts(),
     exports.getCategories(),
     exports.getDeals(),
     exports.getSellers()
   ]);
+
+  const dealsList = Array.isArray(rawDeals) ? rawDeals : (rawDeals?.deals || []);
 
   return {
     banners: [
@@ -909,7 +911,7 @@ exports.getHome = async () => {
     ],
     categories: categories.slice(0, 8),
     recommended,
-    deals: deals.slice(0, 4),
+    deals: dealsList.slice(0, 4),
     featuredStores: stores.slice(0, 4)
   };
 };
@@ -971,83 +973,319 @@ exports.getRecommendedProducts = async () => {
 
 /**
  * 25. GET /api/v1/catalog/deals
- * Active platform & seller deals
+ * Active platform & seller deals from canonical tables:
+ * products, product_variants, seller_listings, categories, brands
  */
-exports.getDeals = async () => {
-  return [
-    {
-      id: "deal-01",
-      title: "Daily Essentials Mega Discount",
-      discount: "Flat 20% OFF",
-      code: "ESSENTIAL20",
-      featured: true,
-      categorySlug: "packaged-food",
-      categoryName: "Packaged Food",
-      validTill: "31 Oct 2026",
-      minOrder: 199,
-      image: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80"
-    },
-    {
-      id: "deal-02",
-      title: "First Order Welcome Treat",
-      discount: "Flat ₹50 OFF",
-      code: "WELCOME50",
-      featured: true,
-      categorySlug: "fresh-produce",
-      categoryName: "Fresh Produce",
-      validTill: "31 Dec 2026",
-      minOrder: 149,
-      image: "https://images.unsplash.com/photo-1604719312566-8912e9227c6a?w=500&q=80"
-    },
-    {
-      id: "deal-03",
-      title: "Snacks & Munchies Festival",
-      discount: "Buy 2 Get 10% OFF",
-      code: "SNACKS10",
-      featured: false,
-      categorySlug: "snacks-beverages",
-      categoryName: "Snacks & Beverages",
-      validTill: "15 Nov 2026",
-      minOrder: 99,
-      image: "https://images.unsplash.com/photo-1583258292688-d0213dc5a3a8?w=500&q=80"
-    }
+exports.getDeals = async (filters = {}) => {
+  const {
+    category,
+    search,
+    min_discount,
+    sort = 'discount_desc',
+    page,
+    limit
+  } = filters;
+
+  const conditions = [
+    `sl.is_active = true`,
+    `(sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)`
   ];
+  const params = [];
+  let paramIndex = 1;
+
+  if (category && category !== 'ALL') {
+    conditions.push(`(c.slug = $${paramIndex} OR c.id::text = $${paramIndex})`);
+    params.push(category);
+    paramIndex++;
+  }
+
+  if (search && search.trim()) {
+    conditions.push(`(
+      sl.title ILIKE $${paramIndex} 
+      OR c.name ILIKE $${paramIndex} 
+      OR COALESCE(b.name, sl.brand_tag, '') ILIKE $${paramIndex}
+      OR COALESCE(st.store_name, '') ILIKE $${paramIndex}
+    )`);
+    params.push(`%${search.trim()}%`);
+    paramIndex++;
+  }
+
+  if (min_discount !== undefined && min_discount !== null && min_discount !== '' && !isNaN(Number(min_discount))) {
+    conditions.push(`(sl.mrp > sl.sell_price AND ROUND(((sl.mrp - sl.sell_price) / sl.mrp) * 100) >= $${paramIndex})`);
+    params.push(Number(min_discount));
+    paramIndex++;
+  }
+
+  // Sorting
+  let orderBy = `((sl.mrp - sl.sell_price) / NULLIF(sl.mrp, 0)) DESC NULLS LAST`;
+  if (sort === 'price_asc') {
+    orderBy = `sl.sell_price ASC`;
+  } else if (sort === 'price_desc') {
+    orderBy = `sl.sell_price DESC`;
+  } else if (sort === 'rating_desc') {
+    orderBy = `COALESCE(sl.rating, 5.0) DESC`;
+  }
+
+  // Count total matching deals
+  const countQuery = `
+    SELECT COUNT(*) as total
+    FROM seller_listings sl
+    LEFT JOIN products p ON sl.master_catalog_id = p.id
+    LEFT JOIN categories c ON sl.category_id = c.id
+    LEFT JOIN brands b ON p.brand_id = b.id
+    LEFT JOIN stores st ON sl.store_id = st.id
+    WHERE ${conditions.join(' AND ')}
+  `;
+  const countRes = await pool.query(countQuery, params);
+  const total = parseInt(countRes.rows[0]?.total || 0, 10);
+
+  let paginationClause = '';
+  let parsedPage = page ? Math.max(1, parseInt(page, 10)) : 1;
+  let parsedLimit = limit ? Math.max(1, Math.min(100, parseInt(limit, 10))) : 50;
+
+  if (page || limit) {
+    const offset = (parsedPage - 1) * parsedLimit;
+    paginationClause = `LIMIT ${parsedLimit} OFFSET ${offset}`;
+  }
+
+  const query = `
+    SELECT 
+      sl.id,
+      sl.id as listing_id,
+      sl.title,
+      sl.sell_price as price,
+      sl.mrp,
+      sl.stock_qty,
+      sl.unit,
+      sl.sku,
+      sl.min_order_qty,
+      sl.rating,
+      sl.review_count,
+      sl.approval_status,
+      sl.is_active,
+      sl.store_id,
+      COALESCE(st.store_name, 'AgroFoods') as store_name,
+      COALESCE(st.rating, 5.0) as store_rating,
+      c.id as category_id,
+      c.name as category_name,
+      c.slug as category_slug,
+      p.id as product_id,
+      p.description as product_description,
+      b.id as brand_id,
+      COALESCE(b.name, sl.brand_tag, 'Fresh Farms') as brand_name,
+      pv.variant_name,
+      pv.pack_size,
+      COALESCE(pi.image_url, '/product_images/' || LOWER(TRIM(sl.title)) || '.jpeg', 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80') as image
+    FROM seller_listings sl
+    LEFT JOIN products p ON sl.master_catalog_id = p.id
+    LEFT JOIN product_variants pv ON pv.product_id = p.id OR pv.sku = sl.sku
+    LEFT JOIN categories c ON sl.category_id = c.id
+    LEFT JOIN brands b ON p.brand_id = b.id
+    LEFT JOIN stores st ON sl.store_id = st.id
+    LEFT JOIN LATERAL (
+      SELECT image_url FROM product_images 
+      WHERE product_id = sl.id 
+         OR image_url ILIKE '%' || LOWER(TRIM(sl.title)) || '%'
+      ORDER BY is_primary DESC, display_order ASC
+      LIMIT 1
+    ) pi ON true
+    WHERE ${conditions.join(' AND ')}
+    ORDER BY ${orderBy}
+    ${paginationClause}
+  `;
+
+  const res = await pool.query(query, params);
+  const deals = res.rows.map((row) => {
+    const price = parseFloat(row.price);
+    const mrp = parseFloat(row.mrp);
+    const discountPercent = mrp > price ? Math.round(((mrp - price) / mrp) * 100) : 0;
+    const discountAmount = mrp > price ? parseFloat((mrp - price).toFixed(2)) : 0;
+    const stockQty = parseInt(row.stock_qty || 0, 10);
+    const minOrderQty = parseFloat(row.min_order_qty || 1);
+    const code = discountPercent > 0 ? `SAVE${discountPercent}` : 'SPECIALDEAL';
+
+    return {
+      id: row.id,
+      listing_id: row.id,
+      productId: row.product_id || row.id,
+      title: row.title,
+      description: row.product_description || `Fresh & verified deal directly from ${row.store_name}. Guaranteed best price on ADAB Marketplace.`,
+      discount: discountPercent > 0 ? `${discountPercent}% OFF` : 'Special Value',
+      discountPercent,
+      discountAmount,
+      price,
+      mrp,
+      code,
+      featured: discountPercent >= 10,
+      categorySlug: row.category_slug || 'all-deals',
+      categoryName: row.category_name || 'General Deals',
+      brandName: row.brand_name,
+      sellerName: row.store_name,
+      sellerRating: parseFloat(row.store_rating || 5.0),
+      storeId: row.store_id,
+      unit: row.unit || 'Pack',
+      sku: row.sku,
+      minOrder: Math.round(price * minOrderQty),
+      minOrderQty,
+      stock_qty: stockQty,
+      in_stock: stockQty > 0,
+      validTill: '31 Oct 2026',
+      deliveryEstimate: '14-45 mins Express Delivery available',
+      returnPolicy: '7 Days Returnable',
+      image: row.image,
+      rating: parseFloat(row.rating || 4.8),
+      reviews: parseInt(row.review_count || 12, 10)
+    };
+  });
+
+  return {
+    deals,
+    pagination: {
+      page: parsedPage,
+      limit: parsedLimit,
+      total,
+      totalPages: Math.ceil(total / parsedLimit) || 1
+    }
+  };
 };
 
 /**
  * 26. GET /api/v1/catalog/deals/featured
- * Featured deals
+ * Featured deals (highest savings >= 10%)
  */
 exports.getFeaturedDeals = async () => {
-  const deals = await exports.getDeals();
+  const result = await exports.getDeals();
+  const deals = Array.isArray(result) ? result : (result.deals || []);
   return deals.filter(d => d.featured);
 };
 
 /**
  * 27. GET /api/v1/catalog/deals/categories
- * Deal categories
+ * Deal categories with deal counts
  */
 exports.getDealCategories = async () => {
-  const deals = await exports.getDeals();
-  const seen = new Set();
-  const list = [];
-  deals.forEach(d => {
-    if (!seen.has(d.categorySlug)) {
-      seen.add(d.categorySlug);
-      list.push({ slug: d.categorySlug, name: d.categoryName });
-    }
-  });
-  return list;
+  const res = await pool.query(`
+    SELECT DISTINCT c.id, c.name, c.slug, COUNT(sl.id) as deal_count
+    FROM categories c
+    JOIN seller_listings sl ON sl.category_id = c.id
+    WHERE sl.is_active = true 
+      AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+    GROUP BY c.id, c.name, c.slug
+    ORDER BY deal_count DESC
+  `);
+  return res.rows.map(r => ({
+    id: r.id,
+    name: r.name,
+    slug: r.slug,
+    count: parseInt(r.deal_count, 10)
+  }));
 };
 
 /**
  * 28. GET /api/v1/catalog/deals/:id
- * Single deal detail
+ * Single deal detail with strict approval gate
  */
 exports.getDealById = async (id) => {
-  const deals = await exports.getDeals();
-  const match = deals.find(d => d.id === id);
-  return match || deals[0] || { id, title: "Active Marketplace Deal", discount: "10% OFF" };
+  if (!id) return null;
+
+  const query = `
+    SELECT 
+      sl.id,
+      sl.id as listing_id,
+      sl.title,
+      sl.sell_price as price,
+      sl.mrp,
+      sl.stock_qty,
+      sl.unit,
+      sl.sku,
+      sl.min_order_qty,
+      sl.rating,
+      sl.review_count,
+      sl.approval_status,
+      sl.is_active,
+      sl.store_id,
+      COALESCE(st.store_name, 'AgroFoods') as store_name,
+      COALESCE(st.rating, 5.0) as store_rating,
+      st.address_line as store_address,
+      c.id as category_id,
+      c.name as category_name,
+      c.slug as category_slug,
+      p.id as product_id,
+      p.description as product_description,
+      b.id as brand_id,
+      COALESCE(b.name, sl.brand_tag, 'Fresh Farms') as brand_name,
+      pv.variant_name,
+      pv.pack_size,
+      COALESCE(pi.image_url, '/product_images/' || LOWER(TRIM(sl.title)) || '.jpeg', 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80') as image
+    FROM seller_listings sl
+    LEFT JOIN products p ON sl.master_catalog_id = p.id
+    LEFT JOIN product_variants pv ON pv.product_id = p.id OR pv.sku = sl.sku
+    LEFT JOIN categories c ON sl.category_id = c.id
+    LEFT JOIN brands b ON p.brand_id = b.id
+    LEFT JOIN stores st ON sl.store_id = st.id
+    LEFT JOIN LATERAL (
+      SELECT image_url FROM product_images 
+      WHERE product_id = sl.id 
+         OR image_url ILIKE '%' || LOWER(TRIM(sl.title)) || '%'
+      ORDER BY is_primary DESC, display_order ASC
+      LIMIT 1
+    ) pi ON true
+    WHERE sl.id = $1 
+      AND sl.is_active = true 
+      AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+  `;
+
+  const res = await pool.query(query, [id]);
+  if (res.rows.length === 0) return null;
+
+  const row = res.rows[0];
+  const price = parseFloat(row.price);
+  const mrp = parseFloat(row.mrp);
+  const discountPercent = mrp > price ? Math.round(((mrp - price) / mrp) * 100) : 0;
+  const discountAmount = mrp > price ? parseFloat((mrp - price).toFixed(2)) : 0;
+  const stockQty = parseInt(row.stock_qty || 0, 10);
+  const minOrderQty = parseFloat(row.min_order_qty || 1);
+  const code = discountPercent > 0 ? `SAVE${discountPercent}` : 'SPECIALDEAL';
+
+  return {
+    id: row.id,
+    listing_id: row.id,
+    productId: row.product_id || row.id,
+    title: row.title,
+    description: row.product_description || `Fresh & verified deal directly from ${row.store_name}. Guaranteed best price on ADAB Marketplace.`,
+    discount: discountPercent > 0 ? `${discountPercent}% OFF` : 'Special Value',
+    discountPercent,
+    discountAmount,
+    price,
+    mrp,
+    code,
+    featured: discountPercent >= 10,
+    categorySlug: row.category_slug || 'all-deals',
+    categoryName: row.category_name || 'General Deals',
+    brandName: row.brand_name,
+    sellerName: row.store_name,
+    sellerRating: parseFloat(row.store_rating || 5.0),
+    storeId: row.store_id,
+    unit: row.unit || 'Pack',
+    sku: row.sku,
+    minOrder: Math.round(price * minOrderQty),
+    minOrderQty,
+    stock_qty: stockQty,
+    in_stock: stockQty > 0,
+    validTill: '31 Oct 2026',
+    deliveryEstimate: '14-45 mins Express Delivery available',
+    returnPolicy: '7 Days Returnable',
+    image: row.image,
+    images: [row.image, 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80'],
+    rating: parseFloat(row.rating || 4.8),
+    reviews: parseInt(row.review_count || 12, 10),
+    specs: {
+      brand: row.brand_name,
+      unit: row.unit || 'Standard Pack',
+      seller: row.store_name,
+      stock: stockQty > 0 ? `${stockQty} units available` : 'Out of stock'
+    }
+  };
 };
 
 /**

@@ -314,8 +314,43 @@ exports.getRecommended = async (req, res) => {
 // 25. GET /api/v1/catalog/deals
 exports.getDeals = async (req, res) => {
   try {
-    const data = await catalogService.getDeals();
-    res.json({ success: true, data });
+    const { min_discount, page, limit } = req.query;
+
+    if (min_discount !== undefined && (isNaN(Number(min_discount)) || Number(min_discount) < 0 || Number(min_discount) > 100)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Validation Error: min_discount must be a number between 0 and 100' 
+      });
+    }
+
+    if (page !== undefined && (isNaN(Number(page)) || Number(page) < 1)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Validation Error: page must be a positive integer greater than or equal to 1' 
+      });
+    }
+
+    if (limit !== undefined && (isNaN(Number(limit)) || Number(limit) < 1 || Number(limit) > 100)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Validation Error: limit must be a positive integer between 1 and 100' 
+      });
+    }
+
+    const result = await catalogService.getDeals(req.query);
+    const deals = Array.isArray(result) ? result : (result.deals || []);
+    const pagination = result.pagination || {
+      page: Number(page) || 1,
+      limit: Number(limit) || deals.length,
+      total: deals.length,
+      totalPages: 1
+    };
+
+    res.json({
+      success: true,
+      data: deals,
+      pagination
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -344,7 +379,16 @@ exports.getDealCategories = async (req, res) => {
 // 28. GET /api/v1/catalog/deals/:id
 exports.getDealById = async (req, res) => {
   try {
-    const data = await catalogService.getDealById(req.params.id);
+    const { id } = req.params;
+    if (!id || typeof id !== 'string' || id.trim().length === 0) {
+      return res.status(400).json({ success: false, message: 'Validation Error: deal id parameter is required' });
+    }
+
+    const data = await catalogService.getDealById(id.trim());
+    if (!data) {
+      return res.status(404).json({ success: false, message: 'Deal not found or not active' });
+    }
+
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

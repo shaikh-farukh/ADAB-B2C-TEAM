@@ -24,6 +24,7 @@ import NotificationsPage from './pages/NotificationsPage';
 import ShopsPage from './pages/ShopsPage';
 import LoginPage from './pages/LoginPage';
 import CategoriesPage from './pages/CategoriesPage';
+import OffersPage from './pages/OffersPage';
 import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI, CustomerAPI, AuthAPI, RewardAPI, getCurrentUserId } from './services/api';
 import { api } from './api/api';
 
@@ -683,10 +684,7 @@ export default function App() {
             <button
               type="button"
               className={`site-link ${activeTab === 'offers' ? 'on' : ''}`}
-              onClick={() => {
-                showToast('Viewing available store coupons & discounts');
-                setActiveTab('cart');
-              }}
+              onClick={() => setActiveTab('offers')}
             >
               Offers
             </button>
@@ -1017,6 +1015,8 @@ export default function App() {
               ? 'Order History'
               : activeTab === 'track'
               ? 'Track Delivery'
+              : activeTab === 'offers'
+              ? 'Deals & Offers'
               : activeTab === 'stores' || activeTab === 'shops'
               ? 'Local Verified Shops'
               : activeTab === 'browse'
@@ -1060,6 +1060,7 @@ export default function App() {
                   navigate('/stores');
                 }
               }
+              else if (tab === 'offers') setActiveTab('offers');
               else if (tab === 'cart') setActiveTab('cart');
               else if (tab === 'orders') setActiveTab('orders');
               else setActiveTab(tab);
@@ -1100,6 +1101,19 @@ export default function App() {
             onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
             onToggleWishlist={handleToggleWishlist}
             wishlist={wishlist}
+          />
+        )}
+
+        {/* Deals & Offers Screen (Mahi's Task) */}
+        {activeTab === 'offers' && (
+          <OffersPage
+            onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
+            onToggleWishlist={handleToggleWishlist}
+            wishlist={wishlist}
+            onNavigate={(tab) => {
+              if (tab.startsWith('browse')) navigate(`/${tab}`);
+              else setActiveTab(tab);
+            }}
           />
         )}
 
@@ -1399,10 +1413,7 @@ export default function App() {
             <h4>Shop</h4>
             <a onClick={() => setActiveTab('stores')}>All shops</a>
             <a onClick={() => setActiveTab('stores')}>Categories</a>
-            <a onClick={() => {
-              showToast('Viewing offers & coupons');
-              setActiveTab('cart');
-            }}>Offers</a>
+            <a onClick={() => setActiveTab('offers')}>Offers</a>
           </div>
           <div>
             <h4>Account</h4>

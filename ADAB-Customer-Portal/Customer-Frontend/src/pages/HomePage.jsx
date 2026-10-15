@@ -145,59 +145,78 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
       ) : null}
 
       {/* Dynamic Deal Banners from DB */}
-      <div className="flex gap-3 overflow-x-auto hide-scroll snap-x pb-1">
-        {coupons.length > 0 ? (
-          coupons.slice(0, 3).map((cp, idx) => {
-            const bannerGradients = [
-              'from-amber-500 via-orange-500 to-rose-600',
-              'from-indigo-600 via-purple-600 to-pink-600',
-              'from-emerald-600 via-teal-600 to-cyan-600'
-            ];
-            const grad = bannerGradients[idx % bannerGradients.length];
-            const discountText = cp.discount_type === 'PERCENTAGE' 
-              ? `${parseInt(cp.discount_value)}% OFF` 
-              : `Flat ₹${parseInt(cp.discount_value)} OFF`;
-
-            return (
-              <button 
-                key={cp.code || idx} 
-                onClick={() => go('cart')} 
-                className={`banner-slide shrink-0 bg-gradient-to-br ${grad} p-5 text-white text-left min-h-[125px] flex flex-col justify-between`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-extrabold bg-black/20 px-2.5 py-0.5 rounded-full">LIVE COUPON</span>
-                  <span className="text-xs font-bold text-amber-100">
-                    {cp.min_order_value > 0 ? `Min ₹${parseInt(cp.min_order_value)}` : 'No minimum'}
-                  </span>
-                </div>
-                <div>
-                  <span className="font-extrabold text-xl leading-tight block">{discountText}</span>
-                  <span className="text-xs text-orange-100 mt-0.5 block">
-                    Use code <code className="bg-white/25 px-1.5 py-0.5 rounded font-bold text-white">{cp.code}</code> at checkout
-                  </span>
-                </div>
-              </button>
-            );
-          })
-        ) : promotions.length > 0 ? (
-          promotions.slice(0, 2).map((promo, idx) => (
+      {(coupons.length > 0 || promotions.length > 0) && (
+        <div>
+          <div className="flex justify-between items-center mb-2.5">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+              <span className="text-xs font-extrabold uppercase tracking-wider text-gray-500">Deals & Offers</span>
+            </div>
             <button 
-              key={promo.id || idx} 
-              onClick={() => go('stores')} 
-              className="banner-slide shrink-0 bg-gradient-to-br from-amber-500 via-orange-500 to-rose-600 p-5 text-white text-left min-h-[125px] flex flex-col justify-between"
+              type="button"
+              onClick={() => go('offers')} 
+              className="text-brand-green text-xs font-extrabold hover:underline cursor-pointer flex items-center gap-1"
             >
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-extrabold bg-black/20 px-2.5 py-0.5 rounded-full">{promo.promo_type || 'PROMO'}</span>
-                <span className="text-xs font-bold text-amber-100">{promo.store_name || 'Active Sale'}</span>
-              </div>
-              <div>
-                <span className="font-extrabold text-xl leading-tight block">{promo.title}</span>
-                <span className="text-xs text-orange-100 mt-0.5 block">Discounts applied directly on verified seller catalog</span>
-              </div>
+              <span>All offers</span>
+              <span>→</span>
             </button>
-          ))
-        ) : null}
-      </div>
+          </div>
+
+          <div className="flex gap-3 overflow-x-auto hide-scroll snap-x pb-1">
+            {coupons.length > 0 ? (
+              coupons.slice(0, 3).map((cp, idx) => {
+                const bannerGradients = [
+                  'from-amber-500 via-orange-500 to-rose-600',
+                  'from-indigo-600 via-purple-600 to-pink-600',
+                  'from-emerald-600 via-teal-600 to-cyan-600'
+                ];
+                const grad = bannerGradients[idx % bannerGradients.length];
+                const discountText = cp.discount_type === 'PERCENTAGE' 
+                  ? `${parseInt(cp.discount_value)}% OFF` 
+                  : `Flat ₹${parseInt(cp.discount_value)} OFF`;
+
+                return (
+                  <button 
+                    key={cp.code || idx} 
+                    onClick={() => go('offers')} 
+                    className={`banner-slide shrink-0 bg-gradient-to-br ${grad} p-5 text-white text-left min-h-[125px] flex flex-col justify-between`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-extrabold bg-black/20 px-2.5 py-0.5 rounded-full">LIVE COUPON</span>
+                      <span className="text-xs font-bold text-amber-100">
+                        {cp.min_order_value > 0 ? `Min ₹${parseInt(cp.min_order_value)}` : 'No minimum'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-extrabold text-xl leading-tight block">{discountText}</span>
+                      <span className="text-xs text-orange-100 mt-0.5 block">
+                        Use code <code className="bg-white/25 px-1.5 py-0.5 rounded font-bold text-white">{cp.code}</code> at checkout
+                      </span>
+                    </div>
+                  </button>
+                );
+              })
+            ) : promotions.length > 0 ? (
+              promotions.slice(0, 2).map((promo, idx) => (
+                <button 
+                  key={promo.id || idx} 
+                  onClick={() => go('offers')} 
+                  className="banner-slide shrink-0 bg-gradient-to-br from-amber-500 via-orange-500 to-rose-600 p-5 text-white text-left min-h-[125px] flex flex-col justify-between"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold bg-black/20 px-2.5 py-0.5 rounded-full">{promo.promo_type || 'PROMO'}</span>
+                    <span className="text-xs font-bold text-amber-100">{promo.store_name || 'Active Sale'}</span>
+                  </div>
+                  <div>
+                    <span className="font-extrabold text-xl leading-tight block">{promo.title}</span>
+                    <span className="text-xs text-orange-100 mt-0.5 block">Discounts applied directly on verified seller catalog</span>
+                  </div>
+                </button>
+              ))
+            ) : null}
+          </div>
+        </div>
+      )}
 
       {/* Category Pills */}
       <div>
@@ -246,7 +265,7 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
             <div 
               key={shop.id} 
               className="group bg-white rounded-2xl border border-gray-100 hover:border-emerald-300 hover:shadow-lg transition-all duration-200 overflow-hidden cursor-pointer flex flex-col sm:flex-row shadow-xs" 
-              onClick={() => go('stores', { storeId: shop.id, store: shop, storeName: shop.name })}
+              onClick={() => go(`browse?storeId=${shop.id}&storeName=${encodeURIComponent(shop.name || '')}`)}
             >
               <div className="sm:w-36 h-32 sm:h-auto bg-gray-100 relative shrink-0 overflow-hidden">
                 <img 
