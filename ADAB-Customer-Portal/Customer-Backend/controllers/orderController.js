@@ -176,6 +176,56 @@ async function getOrderInvoice(req, res) {
   }
 }
 
+async function updateOrderStatus(req, res) {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ status: 'error', message: 'Order ID is required' });
+    }
+    const {
+      status,
+      notes,
+      rider_latitude,
+      rider_longitude,
+      carrier_name,
+      tracking_number
+    } = req.body;
+
+    if (!status) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'A valid status is required to update order status'
+      });
+    }
+
+    const changedByUserId = req.headers['x-user-id'] || null;
+
+    const updatedOrder = await orderService.updateOrderStatus(id, status, {
+      changedByUserId,
+      notes,
+      riderLatitude: rider_latitude,
+      riderLongitude: rider_longitude,
+      carrierName: carrier_name,
+      trackingNumber: tracking_number
+    });
+
+    const tracking = await orderService.getOrderTracking(id);
+
+    return res.json({
+      status: 'success',
+      message: `Order status successfully transitioned to ${status}`,
+      data: {
+        order: updatedOrder,
+        tracking
+      }
+    });
+  } catch (error) {
+    console.error('Error updating order status:', error.message);
+    const { statusCode, response } = formatError(error);
+    return res.status(statusCode).json(response);
+  }
+}
+
 module.exports = {
   getOrders,
   getOrder,
@@ -184,6 +234,7 @@ module.exports = {
   getOrderStatusHistory,
   getOrderShipments,
   getOrderTracking,
-  getOrderInvoice
+  getOrderInvoice,
+  updateOrderStatus
 };
 

@@ -183,6 +183,16 @@ export default function AccountPage({
       const notifRes = await api.patch('/customers/me/notifications', notificationPrefs);
       if (res.data?.success && notifRes.data?.success) {
         setProfile(res.data.data);
+        try {
+          const raw = localStorage.getItem('adab_user');
+          const existing = raw ? JSON.parse(raw) : {};
+          localStorage.setItem('adab_user', JSON.stringify({
+            ...existing,
+            name: res.data.data.name || res.data.data.full_name || existing.name,
+            phone: res.data.data.phone || existing.phone,
+            email: res.data.data.email || existing.email
+          }));
+        } catch {}
         if (accountDataCache) {
           accountDataCache.profile = res.data.data;
           accountDataCache.notifications = notificationPrefs;

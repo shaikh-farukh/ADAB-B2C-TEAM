@@ -136,9 +136,10 @@ async function createOrderFromCart({
   deliveryAddress = {},
   deliverySpeed = 'EXPRESS_30M',
   paymentMethod = 'UPI',
-  couponCode = null
+  couponCode = null,
+  pointsRedeemed = 0
 }) {
-  const client = await pool.connect();
+  let client = await pool.connect();
   try {
     await client.query('BEGIN');
 
@@ -267,15 +268,23 @@ async function createOrderFromCart({
       RETURNING *
     `;
 
+    const numPointsRedeemed = Math.max(0, parseInt(pointsRedeemed || 0, 10));
+    let pointsDiscount = 0;
+    if (numPointsRedeemed > 0) {
+      pointsDiscount = Math.min(numPointsRedeemed, Number(preview.pricing.grand_total));
+    }
+    const finalDiscount = Math.round((Number(preview.pricing.discount || 0) + pointsDiscount) * 100) / 100;
+    const finalGrandTotal = Math.max(0, Math.round((Number(preview.pricing.grand_total) - pointsDiscount) * 100) / 100);
+
     const orderValues = [
       orderNumber,
       customerUser.id,
       JSON.stringify(finalDeliveryAddress),
       dbDeliveryMode,
       preview.pricing.total_mrp,
-      preview.pricing.discount,
+      finalDiscount,
       preview.pricing.delivery_fee,
-      preview.pricing.grand_total,
+      finalGrandTotal,
       dbPaymentMethod,
       'PENDING',
       'PLACED',
@@ -376,7 +385,9 @@ async function createOrderFromCart({
         }
 
         // Atomic stock deduction on inventory table (if tracked)
-        const invRecord = lockedInventoryMap[item.listing_id];
+        let invRecord = lockedInventoryMap[item.listing_id];
+        let inventoryId = invRecord ? invRecord.id : null;
+
         if (invRecord) {
           const updateInvRes = await client.query(
             `UPDATE inventory
@@ -388,6 +399,7 @@ async function createOrderFromCart({
           );
 
           if (updateInvRes.rows.length > 0) {
+            inventoryId = updateInvRes.rows[0].id;
             // Insert inventory transaction audit log
             await client.query(
               `INSERT INTO inventory_transactions (
@@ -400,7 +412,7 @@ async function createOrderFromCart({
                 notes,
                 created_at
               )
-              VALUES ($1, $2, $3, 'ORDER_FULFILLMENT', 'ORDER', $4, $5, NOW())`,
+              VALUES ($1, $2, $3, 'ORDER_FULFILL', 'ORDER', $4, $5, NOW())`,
               [
                 invRecord.id,
                 Math.round(-qty),
@@ -410,10 +422,81 @@ async function createOrderFromCart({
               ]
             );
           }
+        } else {
+          // If no inventory row existed yet, lazily create one so reservations & audit trail are tracked
+          try {
+            const currentListing = lockedListingsMap[item.listing_id];
+            const currentListingStock = currentListing ? Number(currentListing.stock_qty || 0) : 0;
+            const createInvRes = await client.query(
+              `INSERT INTO inventory (listing_id, stock_quantity, reserved_quantity, updated_at)
+               VALUES ($1, $2, 0, NOW())
+               ON CONFLICT (listing_id) DO UPDATE SET updated_at = NOW()
+               RETURNING id, stock_quantity, available_quantity`,
+              [item.listing_id, Math.max(0, currentListingStock - qty)]
+            );
+            if (createInvRes.rows.length > 0) {
+              inventoryId = createInvRes.rows[0].id;
+            }
+          } catch (e) {
+            console.warn('Could not auto-create inventory record:', e.message);
+          }
+        }
+
+        // Record atomic inventory reservation with status COMMITTED
+        if (inventoryId) {
+          try {
+            await client.query(
+              `INSERT INTO inventory_reservations (
+                inventory_id, order_id, quantity_reserved, expires_at, status, created_at
+              ) VALUES ($1, $2, $3, NOW() + INTERVAL '7 days', 'COMMITTED', NOW())`,
+              [inventoryId, order.id, Math.round(qty)]
+            );
+          } catch (resErr) {
+            console.warn('Could not record inventory reservation:', resErr.message);
+          }
         }
       }
 
       sellerOrders.push(sellerOrder);
+    }
+
+    // 6b. Generate initial Tax Invoice record in invoices table
+    const invoiceNumber = `INV-${order.order_number}`;
+    const totalAmount = Number(finalGrandTotal);
+    const taxAmount = Math.round(totalAmount * 0.05 * 100) / 100;
+    let initialInvoice = null;
+    try {
+      const invRes = await client.query(
+        `INSERT INTO invoices (
+          invoice_number, order_id, seller_order_id, tax_amount, total_amount, invoice_pdf_url, generated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        ON CONFLICT (invoice_number) DO UPDATE
+        SET tax_amount = EXCLUDED.tax_amount, total_amount = EXCLUDED.total_amount, generated_at = NOW()
+        RETURNING *`,
+        [
+          invoiceNumber,
+          order.id,
+          sellerOrders[0]?.id || null,
+          taxAmount,
+          totalAmount,
+          `/api/v1/orders/${order.id}/invoice/pdf`
+        ]
+      );
+      initialInvoice = invRes.rows[0];
+    } catch (invErr) {
+      console.warn('Could not create invoice record during order placement:', invErr.message);
+    }
+
+    // 6c. Record initial milestone in order_status_history
+    try {
+      await client.query(
+        `INSERT INTO order_status_history (
+          order_id, seller_order_id, previous_status, new_status, notes, created_at
+        ) VALUES ($1, $2, 'NONE', 'PLACED', 'Order placed by customer via Customer Portal', NOW())`,
+        [order.id, sellerOrders[0]?.id || null]
+      );
+    } catch (histErr) {
+      console.warn('Could not record initial order status history:', histErr.message);
     }
 
     // 7. Payment record generation in payments
@@ -434,7 +517,7 @@ async function createOrderFromCart({
       [
         order.id,
         customerUser.id,
-        preview.pricing.grand_total,
+        finalGrandTotal,
         dbPaymentMethod,
         initialPaymentStatus
       ]
@@ -466,7 +549,7 @@ async function createOrderFromCart({
       [
         order.id,
         customerUser.id,
-        preview.pricing.grand_total,
+        finalGrandTotal,
         paymentMode,
         gatewayName,
         txRef,
@@ -495,7 +578,7 @@ async function createOrderFromCart({
     // 9. Generate Order Placed Notification for Customer
     if (customerUser.id) {
       const modeLabel = dbDeliveryMode === 'STORE_PICKUP' ? 'Store Pickup' : 'Delivery';
-      const notificationMessage = `Your order #${orderNumber} for ₹${preview.pricing.grand_total} has been confirmed (${modeLabel} - ${etaMinutes} mins).`;
+      const notificationMessage = `Your order #${orderNumber} for ₹${finalGrandTotal} has been confirmed (${modeLabel} - ${etaMinutes} mins).`;
       try {
         await client.query(
           `INSERT INTO notifications (
@@ -514,19 +597,46 @@ async function createOrderFromCart({
 
     // Commit all changes atomically
     await client.query('COMMIT');
+    client.release();
+    client = null;
+
+    // Auto-redeem reward points if applied during checkout
+    if (numPointsRedeemed > 0 && customerUser.id) {
+      try {
+        const rewardService = require('./rewardService');
+        await rewardService.redeemRewardPoints(customerUser.id, {
+          points: numPointsRedeemed,
+          order_id: order.id,
+          order_amount: preview.pricing.grand_total
+        });
+      } catch (ptsErr) {
+        console.warn('Auto points redemption in createOrderFromCart note:', ptsErr.message);
+      }
+    }
 
     order.seller_orders = sellerOrders;
     order.items = preview.items;
-    order.pricing = preview.pricing;
+    order.pricing = {
+      ...preview.pricing,
+      discount: finalDiscount,
+      grand_total: finalGrandTotal,
+      points_discount: pointsDiscount,
+      points_redeemed: numPointsRedeemed
+    };
     order.customer = customerUser;
     order.payment = paymentRecord;
+    order.invoice = initialInvoice;
 
     return order;
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (client) {
+      await client.query('ROLLBACK');
+    }
     throw error;
   } finally {
-    client.release();
+    if (client) {
+      client.release();
+    }
   }
 }
 
@@ -914,6 +1024,20 @@ async function getOrderShipments(orderId) {
     [orderId]
   );
 
+  if (soRes.rows.length === 0) {
+    return [{
+      id: order.id,
+      seller_order_id: null,
+      store_id: null,
+      store_name: 'ADAB Central Fulfillment',
+      carrier_name: 'ADAB Hyperlocal Express',
+      tracking_number: `TRK-${order.order_number}`,
+      status: order.order_status === 'DELIVERED' ? 'DELIVERED' : (order.order_status === 'SHIPPED' ? 'OUT_FOR_DELIVERY' : 'CREATED'),
+      shipped_at: order.created_at,
+      delivered_at: order.order_status === 'DELIVERED' ? order.updated_at : null
+    }];
+  }
+
   return soRes.rows.map((so) => ({
     id: so.id,
     seller_order_id: so.id,
@@ -1033,6 +1157,33 @@ async function getOrderTracking(orderId) {
     events = [initialEvent.rows[0]];
   }
 
+  // If actual live GPS telemetry exists in tracking_events, use the most recent recorded waypoint
+  const lastGeoEvent = [...events].reverse().find(
+    (e) => e.latitude !== null && e.longitude !== null && !isNaN(Number(e.latitude)) && !isNaN(Number(e.longitude))
+  );
+  const effectiveRiderLat = lastGeoEvent ? Number(lastGeoEvent.latitude) : riderLat;
+  const effectiveRiderLng = lastGeoEvent ? Number(lastGeoEvent.longitude) : riderLng;
+
+  // Retrieve associated shipments for multi-seller orders
+  let shipments = [];
+  try {
+    const shipmentsRes = await pool.query(
+      `SELECT sh.*, so.store_id, st.store_name, st.phone as store_phone
+       FROM shipments sh
+       JOIN seller_orders so ON sh.seller_order_id = so.id
+       LEFT JOIN stores st ON so.store_id = st.id
+       WHERE so.parent_order_id = $1`,
+      [orderId]
+    );
+    if (shipmentsRes.rows.length > 0) {
+      shipments = shipmentsRes.rows;
+    } else {
+      shipments = await getOrderShipments(orderId);
+    }
+  } catch (shipErr) {
+    console.warn('Could not query shipments in getOrderTracking:', shipErr.message);
+  }
+
   return {
     order_id: order.id,
     order_number: order.order_number,
@@ -1059,13 +1210,14 @@ async function getOrderTracking(orderId) {
       recipient_name: addr.recipient_name || addr.full_name || 'Customer'
     },
     current_location: {
-      latitude: riderLat,
-      longitude: riderLng
+      latitude: effectiveRiderLat,
+      longitude: effectiveRiderLng
     },
     rider_telemetry: {
-      latitude: riderLat,
-      longitude: riderLng
+      latitude: effectiveRiderLat,
+      longitude: effectiveRiderLng
     },
+    shipments,
     events
   };
 }
@@ -1164,6 +1316,224 @@ async function getOrderInvoice(orderId) {
   };
 }
 
+/**
+ * Update order status with cross-portal seller order, shipment, and telemetry sync
+ * Supports: PLACED, ACCEPTED, CONFIRMED, PACKED, PREPARING, OUT_FOR_DELIVERY, DELIVERED, CANCELLED
+ */
+async function updateOrderStatus(orderId, newStatus, options = {}) {
+  const {
+    changedByUserId = null,
+    notes = null,
+    riderLatitude = null,
+    riderLongitude = null,
+    carrierName = 'ADAB Hyperlocal Express',
+    trackingNumber = null
+  } = options;
+
+  const validStatuses = ['PLACED', 'ACCEPTED', 'CONFIRMED', 'PACKED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'];
+  const normalizedNewStatus = (newStatus || '').toUpperCase();
+  if (!validStatuses.includes(normalizedNewStatus)) {
+    const err = new Error(`Invalid order status "${newStatus}". Must be one of: ${validStatuses.join(', ')}`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Canonical mappings
+  let targetOrderStatus = normalizedNewStatus;
+  if (normalizedNewStatus === 'ACCEPTED') targetOrderStatus = 'CONFIRMED';
+  if (normalizedNewStatus === 'PACKED') targetOrderStatus = 'PREPARING';
+
+  // Map to seller_orders status constraint: ('NEW','ACCEPTED','PACKED','DISPATCHED','DELIVERED','CANCELLED')
+  let targetSellerStatus = 'NEW';
+  if (['ACCEPTED', 'CONFIRMED'].includes(normalizedNewStatus)) targetSellerStatus = 'ACCEPTED';
+  else if (['PACKED', 'PREPARING'].includes(normalizedNewStatus)) targetSellerStatus = 'PACKED';
+  else if (['OUT_FOR_DELIVERY'].includes(normalizedNewStatus)) targetSellerStatus = 'DISPATCHED';
+  else if (['DELIVERED'].includes(normalizedNewStatus)) targetSellerStatus = 'DELIVERED';
+  else if (['CANCELLED'].includes(normalizedNewStatus)) targetSellerStatus = 'CANCELLED';
+
+  // Map to shipments status constraint: ('CREATED','MANIFESTED','PICKED_UP','IN_TRANSIT','OUT_FOR_DELIVERY','DELIVERED','FAILED','RETURNED')
+  let targetShipmentStatus = 'CREATED';
+  if (['ACCEPTED', 'CONFIRMED'].includes(normalizedNewStatus)) targetShipmentStatus = 'MANIFESTED';
+  else if (['PACKED', 'PREPARING'].includes(normalizedNewStatus)) targetShipmentStatus = 'PICKED_UP';
+  else if (['OUT_FOR_DELIVERY'].includes(normalizedNewStatus)) targetShipmentStatus = 'OUT_FOR_DELIVERY';
+  else if (['DELIVERED'].includes(normalizedNewStatus)) targetShipmentStatus = 'DELIVERED';
+  else if (['CANCELLED'].includes(normalizedNewStatus)) targetShipmentStatus = 'FAILED';
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Fetch current order
+    const orderRes = await client.query(`SELECT * FROM orders WHERE id = $1 FOR UPDATE`, [orderId]);
+    if (orderRes.rows.length === 0) {
+      const err = new Error(`Order #${orderId} not found`);
+      err.statusCode = 404;
+      throw err;
+    }
+    const currentOrder = orderRes.rows[0];
+    const previousStatus = currentOrder.order_status;
+
+    // Idempotency check: if status is already the requested status, return early without duplicate logs
+    if (previousStatus === targetOrderStatus) {
+      await client.query('ROLLBACK');
+      return await getOrderById(orderId);
+    }
+
+    // 2. Update orders table
+    const isNowDelivered = targetOrderStatus === 'DELIVERED';
+    const orderUpdateRes = await client.query(
+      `UPDATE orders 
+       SET order_status = $1, 
+           payment_status = CASE WHEN $3 = true AND payment_status = 'PENDING' AND payment_method = 'CASH_ON_DELIVERY' THEN 'PAID' ELSE payment_status END,
+           updated_at = NOW() 
+       WHERE id = $2 
+       RETURNING *`,
+      [targetOrderStatus, orderId, isNowDelivered]
+    );
+    const updatedOrder = orderUpdateRes.rows[0];
+
+    // 3. Update all associated seller_orders
+    const soRes = await client.query(
+      `UPDATE seller_orders 
+       SET status = $1 
+       WHERE parent_order_id = $2 
+       RETURNING *`,
+      [targetSellerStatus, orderId]
+    );
+    const updatedSellerOrders = soRes.rows;
+
+    // 4. Update or manifest shipments for each seller order
+    const isShipInTransit = ['IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(targetShipmentStatus);
+    const isShipDelivered = targetShipmentStatus === 'DELIVERED';
+
+    for (const so of updatedSellerOrders) {
+      const generatedTrk = trackingNumber || `TRK-${updatedOrder.order_number}-${so.id.slice(0, 4).toUpperCase()}`;
+      const existingShipRes = await client.query(
+        `SELECT id FROM shipments WHERE seller_order_id = $1 LIMIT 1`,
+        [so.id]
+      );
+
+      if (existingShipRes.rows.length > 0) {
+        await client.query(
+          `UPDATE shipments 
+           SET status = $1, 
+               shipped_at = CASE WHEN $3 = true AND shipped_at IS NULL THEN NOW() ELSE shipped_at END,
+               delivered_at = CASE WHEN $4 = true THEN NOW() ELSE delivered_at END
+           WHERE id = $2`,
+          [targetShipmentStatus, existingShipRes.rows[0].id, isShipInTransit, isShipDelivered]
+        );
+      } else {
+        await client.query(
+          `INSERT INTO shipments (
+            seller_order_id, carrier_name, tracking_number, status, shipped_at, delivered_at, created_at
+          ) VALUES ($1, $2, $3, $4, CASE WHEN $5 = true THEN NOW() ELSE NULL END, CASE WHEN $6 = true THEN NOW() ELSE NULL END, NOW())
+          ON CONFLICT (tracking_number) DO UPDATE
+          SET status = EXCLUDED.status, delivered_at = EXCLUDED.delivered_at`,
+          [so.id, carrierName, generatedTrk, targetShipmentStatus, isShipInTransit, isShipDelivered]
+        );
+      }
+    }
+
+    // 5. Append order status history
+    const historyNotes = notes || `Status updated from ${previousStatus} to ${targetOrderStatus}`;
+    await client.query(
+      `INSERT INTO order_status_history (
+        order_id, seller_order_id, previous_status, new_status, changed_by_user_id, notes, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+      [
+        orderId,
+        updatedSellerOrders[0]?.id || null,
+        previousStatus,
+        targetOrderStatus,
+        changedByUserId,
+        historyNotes
+      ]
+    );
+
+    // 6. Append tracking event with accurate coordinates
+    const destCoords = await smartGeocode(updatedOrder.delivery_address || {});
+    let lat = riderLatitude !== null && !isNaN(Number(riderLatitude)) ? Number(riderLatitude) : null;
+    let lng = riderLongitude !== null && !isNaN(Number(riderLongitude)) ? Number(riderLongitude) : null;
+
+    if (lat === null || lng === null) {
+      if (normalizedNewStatus === 'DELIVERED') {
+        lat = destCoords.latitude;
+        lng = destCoords.longitude;
+      } else if (['ACCEPTED', 'CONFIRMED', 'PACKED', 'PREPARING'].includes(normalizedNewStatus)) {
+        const stRes = await client.query(
+          `SELECT latitude, longitude FROM stores WHERE id = $1 LIMIT 1`,
+          [updatedSellerOrders[0]?.store_id]
+        );
+        lat = stRes.rows[0]?.latitude || 21.1702;
+        lng = stRes.rows[0]?.longitude || 72.8311;
+      } else if (normalizedNewStatus === 'OUT_FOR_DELIVERY') {
+        const stRes = await client.query(
+          `SELECT latitude, longitude FROM stores WHERE id = $1 LIMIT 1`,
+          [updatedSellerOrders[0]?.store_id]
+        );
+        const sLat = Number(stRes.rows[0]?.latitude || 21.1702);
+        const sLng = Number(stRes.rows[0]?.longitude || 72.8311);
+        lat = Math.round((sLat + (destCoords.latitude - sLat) * 0.65) * 10000) / 10000;
+        lng = Math.round((sLng + (destCoords.longitude - sLng) * 0.65) * 10000) / 10000;
+      }
+    }
+
+    const eventName = 
+      normalizedNewStatus === 'DELIVERED' ? 'ORDER_DELIVERED' :
+      normalizedNewStatus === 'OUT_FOR_DELIVERY' ? 'DISPATCHED_FOR_DELIVERY' :
+      normalizedNewStatus === 'PACKED' ? 'ORDER_PACKED' :
+      normalizedNewStatus === 'ACCEPTED' ? 'ORDER_ACCEPTED' :
+      normalizedNewStatus === 'CANCELLED' ? 'ORDER_CANCELLED' : 'STATUS_UPDATE';
+
+    await client.query(
+      `INSERT INTO tracking_events (
+        order_id, event_name, event_description, latitude, longitude, timestamp
+      ) VALUES ($1, $2, $3, $4, $5, NOW())`,
+      [orderId, eventName, historyNotes, lat, lng]
+    );
+
+    // 7. Dispatch Customer Notification
+    if (updatedOrder.customer_id) {
+      let notifTitle = `Order Update: #${updatedOrder.order_number}`;
+      let notifMsg = `Your order status is now ${targetOrderStatus}.`;
+      if (normalizedNewStatus === 'ACCEPTED') {
+        notifTitle = 'Order Accepted! 👨‍🍳';
+        notifMsg = `Store has accepted order #${updatedOrder.order_number} and is preparing items.`;
+      } else if (normalizedNewStatus === 'PACKED') {
+        notifTitle = 'Order Packed! 📦';
+        notifMsg = `Your order #${updatedOrder.order_number} is packed and ready for courier pickup.`;
+      } else if (normalizedNewStatus === 'OUT_FOR_DELIVERY') {
+        notifTitle = 'Out for Delivery! 🛵';
+        notifMsg = `Ramesh is on the way with your order #${updatedOrder.order_number}.`;
+      } else if (normalizedNewStatus === 'DELIVERED') {
+        notifTitle = 'Order Delivered! 🎉';
+        notifMsg = `Your order #${updatedOrder.order_number} has been delivered. Enjoy!`;
+      }
+
+      try {
+        await client.query(
+          `INSERT INTO notifications (
+            user_id, title, message, type, is_read, action_url, created_at
+          ) VALUES ($1, $2, $3, 'ORDER_STATUS', false, '/track', NOW())`,
+          [updatedOrder.customer_id, notifTitle, notifMsg]
+        );
+      } catch (notifErr) {
+        console.warn('Could not insert order status notification:', notifErr.message);
+      }
+    }
+
+    await client.query('COMMIT');
+
+    const fullOrder = await getOrderById(orderId);
+    return fullOrder;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   normalizePaymentMethod,
   normalizeDeliveryMode,
@@ -1175,5 +1545,6 @@ module.exports = {
   getOrderStatusHistory,
   getOrderShipments,
   getOrderTracking,
-  getOrderInvoice
+  getOrderInvoice,
+  updateOrderStatus
 };

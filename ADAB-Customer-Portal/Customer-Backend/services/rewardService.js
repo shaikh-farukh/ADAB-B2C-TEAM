@@ -1,5 +1,6 @@
 const pool = require('../db');
 const customerService = require('./customerService');
+const { notifyPointsEarned, notifyPointsRedeemed } = require('./notificationService');
 
 const VALID_TRANSACTION_TYPES = ['EARN_ORDER', 'EARN_POS', 'REDEEM_ORDER', 'SIGNUP_BONUS'];
 
@@ -100,6 +101,13 @@ async function getOrCreateRewardsAccount(userId) {
      VALUES ($1, $2, $3, $4, $5, NOW())`,
     [userId, initialPoints, transactionType, reference, initialPoints]
   );
+  try {
+    await pool.query(
+      `INSERT INTO rewards_ledger (user_id, points_change, transaction_type, reference_id, balance_after, created_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())`,
+      [userId, initialPoints, transactionType, reference, initialPoints]
+    );
+  } catch (mirrorErr) {}
 
   return account;
 }
@@ -267,6 +275,46 @@ async function redeemRewardPoints(rawCustomerId, redemptionData = {}) {
       throw err;
     }
 
+    // Idempotency check: if order_id is provided and already redeemed, return existing transaction safely
+    if (order_id) {
+      let existingTx = await client.query(
+        `SELECT * FROM reward_ledger WHERE user_id = $1 AND transaction_type = 'REDEEM_ORDER' AND reference_id = $2 LIMIT 1`,
+        [userId, String(order_id)]
+      );
+
+      // If not found directly, check cross-reference with orders table (matching order UUID or order_number)
+      if (existingTx.rows.length === 0) {
+        try {
+          const ordRes = await client.query(
+            `SELECT id, order_number FROM orders WHERE id::text = $1 OR order_number = $1 LIMIT 1`,
+            [String(order_id)]
+          );
+          if (ordRes.rows.length > 0) {
+            const ord = ordRes.rows[0];
+            existingTx = await client.query(
+              `SELECT * FROM reward_ledger 
+               WHERE user_id = $1 AND transaction_type = 'REDEEM_ORDER' AND (reference_id = $2 OR reference_id = $3)
+               LIMIT 1`,
+              [userId, String(ord.id), String(ord.order_number)]
+            );
+          }
+        } catch {}
+      }
+
+      if (existingTx.rows.length > 0) {
+        await client.query('COMMIT');
+        return {
+          success: true,
+          redeemed_points: Math.abs(existingTx.rows[0].points_change),
+          discount_amount: Math.abs(existingTx.rows[0].points_change),
+          remaining_points: existingTx.rows[0].balance_after,
+          tier: account.tier,
+          ledger_entry: existingTx.rows[0],
+          is_idempotent: true
+        };
+      }
+    }
+
     // Optional validation against order amount
     if (order_amount !== undefined && order_amount !== null) {
       const numOrderAmount = Number(order_amount);
@@ -304,7 +352,33 @@ async function redeemRewardPoints(rawCustomerId, redemptionData = {}) {
       [userId, -numPoints, reference, newBalance]
     );
 
+    // Also mirror into rewards_ledger table
+    try {
+      await client.query(
+        `INSERT INTO rewards_ledger (
+          user_id,
+          points_change,
+          transaction_type,
+          reference_id,
+          balance_after,
+          created_at
+        ) VALUES ($1, $2, 'REDEEM_ORDER', $3, $4, NOW())`,
+        [userId, -numPoints, reference, newBalance]
+      );
+    } catch (mirrorErr) {}
+
     await client.query('COMMIT');
+
+    // Real-Time Notification: POINTS_REDEEMED
+    try {
+      await notifyPointsRedeemed(userId, {
+        points: numPoints,
+        newBalance,
+        discountAmount
+      });
+    } catch (notifErr) {
+      console.warn('Non-blocking points redemption notification error:', notifErr.message);
+    }
 
     return {
       success: true,
@@ -382,7 +456,33 @@ async function addRewardPoints(userId, { points, transaction_type = 'EARN_ORDER'
       [userId, numPoints, transaction_type, reference_id || 'ORDER_COMPLETION', account.points_balance]
     );
 
+    // Also mirror into rewards_ledger table
+    try {
+      await client.query(
+        `INSERT INTO rewards_ledger (
+          user_id,
+          points_change,
+          transaction_type,
+          reference_id,
+          balance_after,
+          created_at
+        ) VALUES ($1, $2, $3, $4, $5, NOW())`,
+        [userId, numPoints, transaction_type, reference_id || 'ORDER_COMPLETION', account.points_balance]
+      );
+    } catch (mirrorErr) {}
+
     await client.query('COMMIT');
+
+    // Real-Time Notification: POINTS_EARNED
+    try {
+      await notifyPointsEarned(userId, {
+        points: numPoints,
+        newBalance: account.points_balance,
+        reason: transaction_type === 'EARN_ORDER' ? 'your recent order' : 'your purchase'
+      });
+    } catch (notifErr) {
+      console.warn('Non-blocking points earned notification error:', notifErr.message);
+    }
 
     return {
       account,

@@ -207,6 +207,45 @@ async function getRefundById(req, res) {
   }
 }
 
+/**
+ * Update return status by admin or seller with refund lifecycle synchronization
+ * PATCH/POST /api/v1/customers/me/returns/:id/status
+ * PATCH/POST /api/v1/returns/:id/status
+ */
+async function updateReturnStatus(req, res) {
+  try {
+    const { id } = req.params;
+    const { status, notes, rejection_reason, gateway_refund_id } = req.body || {};
+
+    if (!status) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'New status is required'
+      });
+    }
+
+    const updated = await returnService.updateReturnStatus(id, status, {
+      notes,
+      rejection_reason,
+      gateway_refund_id
+    });
+
+    return res.json({
+      status: 'success',
+      message: `Return status successfully updated to ${status}`,
+      data: updated
+    });
+  } catch (error) {
+    console.error('Error updating return status:', error.message);
+    const formatted = formatError(error);
+    const statusCode = error.statusCode || formatted.statusCode || 400;
+    return res.status(statusCode).json({
+      status: 'error',
+      message: error.message || formatted.response.message
+    });
+  }
+}
+
 module.exports = {
   createOrderReturn,
   getCustomerReturns,
@@ -214,5 +253,7 @@ module.exports = {
   cancelReturn,
   uploadReturnEvidence,
   getCustomerRefunds,
-  getRefundById
+  getRefundById,
+  updateReturnStatus
 };
+

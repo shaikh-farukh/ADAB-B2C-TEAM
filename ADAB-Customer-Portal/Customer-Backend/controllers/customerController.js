@@ -203,9 +203,6 @@ exports.getWallet = async (req, res) => {
 exports.getNotifications = async (req, res) => {
   try {
     const userId = getUserId(req);
-    if (!userId) {
-      return res.json({ status: 'success', success: true, data: [] });
-    }
     const limit = parseInt(req.query.limit, 10) || 50;
     const offset = parseInt(req.query.offset, 10) || 0;
     const data = await customerService.getNotifications(userId, { limit, offset });
@@ -219,11 +216,14 @@ exports.getNotifications = async (req, res) => {
 exports.getUnreadNotificationCount = async (req, res) => {
   try {
     const userId = getUserId(req);
-    if (!userId) {
-      return res.json({ status: 'success', success: true, data: { unread_count: 0 } });
-    }
     const count = await customerService.getUnreadNotificationCount(userId);
-    res.json({ status: 'success', success: true, data: { unread_count: count } });
+    res.json({
+      status: 'success',
+      success: true,
+      unread_count: count,
+      count: count,
+      data: { unread_count: count, count }
+    });
   } catch (error) {
     const { statusCode, response } = formatError(error);
     res.status(statusCode).json(response);

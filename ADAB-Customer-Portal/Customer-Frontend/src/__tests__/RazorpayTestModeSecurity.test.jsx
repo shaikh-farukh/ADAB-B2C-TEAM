@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
-import { isRazorpayLoaded, openRazorpayCheckout } from '../utils/razorpay';
+import { isRazorpayLoaded, openRazorpayCheckout, formatRazorpayPhone } from '../utils/razorpay';
 import CheckoutView from '../components/CheckoutView';
 
 describe('Razorpay Test Mode Integration & Security Tests', () => {
@@ -214,6 +214,50 @@ describe('Razorpay Test Mode Integration & Security Tests', () => {
     expect(capturedOptions.config.display.sequence).toEqual(['block.preferred']);
     expect(capturedOptions.config.display.blocks.preferred.instruments).toEqual([{ method: 'upi' }]);
     expect(capturedOptions.config.display.blocks.preferred.name).toContain('UPI');
+  });
+
+  it('8. formatRazorpayPhone normalizes 10-digit and international phone formats', () => {
+    expect(formatRazorpayPhone('9376737300')).toBe('+919376737300');
+    expect(formatRazorpayPhone('+919376737300')).toBe('+919376737300');
+    expect(formatRazorpayPhone('+91 93767 37300')).toBe('+919376737300');
+    expect(formatRazorpayPhone('919376737300')).toBe('+919376737300');
+    expect(formatRazorpayPhone('')).toBe('');
+  });
+
+  it('9. openRazorpayCheckout configures readonly locks to protect account identity from cookie overrides', async () => {
+    let capturedOptions = null;
+
+    function MockRazorpay(options) {
+      capturedOptions = options;
+      this.open = vi.fn();
+      this.on = vi.fn();
+    }
+
+    globalThis.window = {
+      Razorpay: MockRazorpay
+    };
+
+    await openRazorpayCheckout({
+      key: 'rzp_test_abc123',
+      orderId: 'order_rzp_999',
+      amountPaise: 15500,
+      prefill: {
+        name: 'Mrunal Sheth',
+        phone: '9376737300',
+        email: 'mjsheth0711@gmail.com'
+      },
+      onSuccess: () => {},
+      onDismiss: () => {}
+    });
+
+    expect(capturedOptions.readonly).toEqual({
+      contact: true,
+      email: true,
+      name: true
+    });
+    expect(capturedOptions.prefill.contact).toBe('+919376737300');
+    expect(capturedOptions.prefill.name).toBe('Mrunal Sheth');
+    expect(capturedOptions.prefill.email).toBe('mjsheth0711@gmail.com');
   });
 });
 

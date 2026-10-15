@@ -32,8 +32,16 @@ async function runDay4Tests() {
     await pool.query(`DELETE FROM seller_orders WHERE parent_order_id IN (SELECT id FROM orders WHERE order_number LIKE 'ORD-TEST%')`);
     await pool.query(`DELETE FROM orders WHERE order_number LIKE 'ORD-TEST%'`);
 
-    // 1. Fetch orders from database
-    let ordersRes = await pool.query(`SELECT id, order_number, order_status, customer_id FROM orders ORDER BY created_at DESC LIMIT 5`);
+    // 1. Fetch orders from database with valid items
+    let ordersRes = await pool.query(`
+      SELECT o.id, o.order_number, o.order_status, o.customer_id 
+      FROM orders o
+      JOIN seller_orders so ON so.parent_order_id = o.id
+      JOIN order_items oi ON oi.seller_order_id = so.id
+      JOIN seller_listings sl ON oi.listing_id = sl.id
+      WHERE sl.is_active = true AND sl.stock_qty > 0
+      ORDER BY o.created_at DESC LIMIT 5
+    `);
 
     if (ordersRes.rows.length === 0) {
       const userRes = await pool.query(`SELECT id FROM users WHERE user_type = 'CUSTOMER' LIMIT 1`);

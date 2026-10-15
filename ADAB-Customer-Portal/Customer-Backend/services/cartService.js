@@ -15,91 +15,121 @@ function normalizeDeliverySpeed(speed) {
 
 const crypto = require('crypto');
 
-// Helper to find, create, or merge a cart for a customer or session token
+// Helper to find, create, or merge a cart for a customer or session token across devices & browsers
 async function getOrCreateCart({ customerId, sessionToken }) {
   let cart = null;
 
-  // Case A: Both customerId and sessionToken are provided (e.g. guest signs in or authenticated user with session)
-  if (customerId && sessionToken) {
+  // Case A: Customer is authenticated / customerId provided
+  if (customerId) {
+    // 1. Fetch all carts belonging to this customer, newest first
     const custRes = await pool.query(
-      `SELECT * FROM carts WHERE customer_id = $1 LIMIT 1`,
+      `SELECT * FROM carts WHERE customer_id = $1 ORDER BY updated_at DESC`,
       [customerId]
     );
-    const guestRes = await pool.query(
-      `SELECT * FROM carts WHERE session_token = $1 AND (customer_id IS NULL OR customer_id != $2) LIMIT 1`,
-      [sessionToken, customerId]
-    );
 
-    const custCart = custRes.rows[0] || null;
-    const guestCart = guestRes.rows[0] || null;
+    let primaryCart = custRes.rows[0] || null;
 
-    if (custCart && guestCart && custCart.id !== guestCart.id) {
-      // Merge guest cart items into existing customer cart
-      const guestItems = await pool.query(`SELECT * FROM cart_items WHERE cart_id = $1`, [guestCart.id]);
-      for (const gi of guestItems.rows) {
-        const existInCust = await pool.query(
-          `SELECT id, quantity FROM cart_items WHERE cart_id = $1 AND listing_id = $2`,
-          [custCart.id, gi.listing_id]
-        );
-        if (existInCust.rows.length > 0) {
-          await pool.query(
-            `UPDATE cart_items SET quantity = quantity + $1 WHERE id = $2`,
-            [Number(gi.quantity), existInCust.rows[0].id]
+    // Consolidate/merge any duplicate carts for this customer into the primaryCart
+    if (custRes.rows.length > 1) {
+      for (let i = 1; i < custRes.rows.length; i++) {
+        const secondaryCart = custRes.rows[i];
+        const secItems = await pool.query(`SELECT * FROM cart_items WHERE cart_id = $1`, [secondaryCart.id]);
+        for (const item of secItems.rows) {
+          const existInCust = await pool.query(
+            `SELECT id, quantity FROM cart_items WHERE cart_id = $1 AND listing_id = $2`,
+            [primaryCart.id, item.listing_id]
           );
-          await pool.query(`DELETE FROM cart_items WHERE id = $1`, [gi.id]);
-        } else {
-          await pool.query(
-            `UPDATE cart_items SET cart_id = $1 WHERE id = $2`,
-            [custCart.id, gi.id]
-          );
+          if (existInCust.rows.length > 0) {
+            await pool.query(
+              `UPDATE cart_items SET quantity = quantity + $1 WHERE id = $2`,
+              [Number(item.quantity), existInCust.rows[0].id]
+            );
+            await pool.query(`DELETE FROM cart_items WHERE id = $1`, [item.id]);
+          } else {
+            await pool.query(
+              `UPDATE cart_items SET cart_id = $1 WHERE id = $2`,
+              [primaryCart.id, item.id]
+            );
+          }
         }
+        await pool.query(`DELETE FROM carts WHERE id = $1`, [secondaryCart.id]);
       }
-      // Delete empty guest cart
-      await pool.query(`DELETE FROM carts WHERE id = $1`, [guestCart.id]);
-      await pool.query(`UPDATE carts SET updated_at = NOW() WHERE id = $1`, [custCart.id]);
-      return custCart;
-    } else if (!custCart && guestCart) {
-      // Claim guest cart for this customer
-      const claimRes = await pool.query(
-        `UPDATE carts SET customer_id = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
-        [customerId, guestCart.id]
+      await pool.query(`UPDATE carts SET updated_at = NOW() WHERE id = $1`, [primaryCart.id]);
+    }
+
+    // 2. If a sessionToken was provided on this browser/device, check if there is an unattached guest cart
+    if (sessionToken) {
+      const guestRes = await pool.query(
+        `SELECT * FROM carts WHERE session_token = $1 AND (customer_id IS NULL OR customer_id != $2) LIMIT 1`,
+        [sessionToken, customerId]
       );
-      return claimRes.rows[0];
-    } else if (custCart) {
-      return custCart;
+      const guestCart = guestRes.rows[0] || null;
+
+      if (primaryCart && guestCart && primaryCart.id !== guestCart.id) {
+        // Merge guest cart items into customer's primary cart
+        const guestItems = await pool.query(`SELECT * FROM cart_items WHERE cart_id = $1`, [guestCart.id]);
+        for (const gi of guestItems.rows) {
+          const existInCust = await pool.query(
+            `SELECT id, quantity FROM cart_items WHERE cart_id = $1 AND listing_id = $2`,
+            [primaryCart.id, gi.listing_id]
+          );
+          if (existInCust.rows.length > 0) {
+            await pool.query(
+              `UPDATE cart_items SET quantity = quantity + $1 WHERE id = $2`,
+              [Number(gi.quantity), existInCust.rows[0].id]
+            );
+            await pool.query(`DELETE FROM cart_items WHERE id = $1`, [gi.id]);
+          } else {
+            await pool.query(
+              `UPDATE cart_items SET cart_id = $1 WHERE id = $2`,
+              [primaryCart.id, gi.id]
+            );
+          }
+        }
+        // Delete empty guest cart
+        await pool.query(`DELETE FROM carts WHERE id = $1`, [guestCart.id]);
+        await pool.query(`UPDATE carts SET updated_at = NOW() WHERE id = $1`, [primaryCart.id]);
+      } else if (!primaryCart && guestCart) {
+        // Claim guest cart for this customer
+        const claimRes = await pool.query(
+          `UPDATE carts SET customer_id = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+          [customerId, guestCart.id]
+        );
+        primaryCart = claimRes.rows[0];
+      }
+    }
+
+    // 3. If primaryCart exists, ensure session_token is bound to current browser session and return
+    if (primaryCart) {
+      if (sessionToken && primaryCart.session_token !== sessionToken) {
+        await pool.query(
+          `UPDATE carts SET session_token = $1, updated_at = NOW() WHERE id = $2`,
+          [sessionToken, primaryCart.id]
+        );
+        primaryCart.session_token = sessionToken;
+      }
+      return primaryCart;
     }
   }
 
-  // Case B: Only customerId provided
-  if (customerId) {
-    const res = await pool.query(
-      `SELECT * FROM carts WHERE customer_id = $1 LIMIT 1`,
-      [customerId]
-    );
-    if (res.rows.length > 0) cart = res.rows[0];
-  }
-  // Case C: Only sessionToken provided
-  else if (sessionToken) {
+  // Case B: Only sessionToken provided (guest browsing)
+  if (sessionToken) {
     const res = await pool.query(
       `SELECT * FROM carts WHERE session_token = $1 LIMIT 1`,
       [sessionToken]
     );
-    if (res.rows.length > 0) cart = res.rows[0];
+    if (res.rows.length > 0) return res.rows[0];
   }
 
-  // Case D: Create new cart if none exists with persistent session token
-  if (!cart) {
-    const token = sessionToken || `guest_${crypto.randomUUID()}`;
-    const insertRes = await pool.query(
-      `INSERT INTO carts (customer_id, session_token, delivery_speed, updated_at)
-       VALUES ($1, $2, 'EXPRESS_30M', NOW())
-       RETURNING *`,
-      [customerId || null, token]
-    );
-    cart = insertRes.rows[0];
-  }
-
-  return cart;
+  // Case C: Create brand-new persistent cart if none exists
+  const token = sessionToken || `session_${crypto.randomUUID()}`;
+  const insertRes = await pool.query(
+    `INSERT INTO carts (customer_id, session_token, delivery_speed, updated_at)
+     VALUES ($1, $2, 'EXPRESS_30M', NOW())
+     RETURNING *`,
+    [customerId || null, token]
+  );
+  return insertRes.rows[0];
 }
 
 // Fetch all items in a cart with product, store, and inventory details
