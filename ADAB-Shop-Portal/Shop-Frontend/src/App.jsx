@@ -86,19 +86,13 @@ const MainLayout = ({ children, store, profile, isPortalUnlocked = true }) => {
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <button className="hidden xl:flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-amber-300 bg-amber-50 text-xs font-bold text-amber-900">
-              <i className="fa-solid fa-volume-high text-amber-600"></i>
-              <span className="hidden md:inline">Soundbox: ON</span>
-            </button>
             <button className="hidden lg:flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl border border-gray-200 bg-white text-xs sm:text-sm font-bold text-gray-700">
               <i className="fa-solid fa-globe text-green-700"></i> EN <i className="fa-solid fa-chevron-down text-[9px] text-gray-400"></i>
             </button>
-            <Link to="/buycart" className={`relative hidden xl:flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-full bg-blue-50 text-blue-800 text-xs sm:text-sm font-bold border border-blue-200 ${headerLockedClass}`}>
-              <i className="fa-solid fa-cart-shopping"></i> <span className="hidden md:inline">Buy Cart</span>
-            </Link>
-            <button className="hidden lg:flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-full bg-green-50 text-green-800 text-xs sm:text-sm font-bold border border-green-200">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Open
-            </button>
+            <div className={`hidden sm:flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs sm:text-sm font-bold border ${store?.is_online !== false ? 'bg-green-50 text-green-800 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+              <span className={`w-2 h-2 rounded-full ${store?.is_online !== false ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></span>
+              <span>{store?.is_online !== false ? 'Store: Open' : 'Store: Closed'}</span>
+            </div>
             <NotificationBell />
             <Link to="/settings" className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors ${headerLockedClass}`}>
               <i className="fa-solid fa-store text-green-700"></i> <span className="hidden sm:inline">Store Account</span>

@@ -6,29 +6,6 @@ export default function Header() {
   const navigate = useNavigate();
   const { profile, store } = useSeller();
   const [searchTerm, setSearchTerm] = useState('');
-  const [soundboxOn, setSoundboxOn] = useState(true);
-
-  const [buyCartCount, setBuyCartCount] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('adab_buy_cart') || '[]');
-      return Array.isArray(saved) ? saved.length : 0;
-    } catch (e) {
-      return 0;
-    }
-  });
-
-  useEffect(() => {
-    const handleCartUpdate = () => {
-      try {
-        const saved = JSON.parse(localStorage.getItem('adab_buy_cart') || '[]');
-        setBuyCartCount(Array.isArray(saved) ? saved.length : 0);
-      } catch (e) {
-        setBuyCartCount(0);
-      }
-    };
-    window.addEventListener('adab-cart-updated', handleCartUpdate);
-    return () => window.removeEventListener('adab-cart-updated', handleCartUpdate);
-  }, []);
 
   const storeName = store?.store_name || 'My Store';
   const initial = (storeName || 'S').charAt(0).toUpperCase();
@@ -86,26 +63,9 @@ export default function Header() {
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <button 
-            type="button"
-            onClick={() => setSoundboxOn(!soundboxOn)} 
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition ${soundboxOn ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-gray-200 bg-gray-50 text-gray-500'}`}
-          >
-            <i className={`fa-solid ${soundboxOn ? 'fa-volume-high text-amber-600' : 'fa-volume-xmark text-gray-400'}`}></i>
-            <span className="hidden md:inline">Soundbox: {soundboxOn ? 'ON' : 'OFF'}</span>
-          </button>
-          <Link to="/buycart" className="relative flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-full bg-blue-50 text-blue-800 text-xs sm:text-sm font-bold border border-blue-200 hover:bg-blue-100">
-            <i className="fa-solid fa-cart-shopping"></i> 
-            <span className="hidden md:inline">Buy Cart</span>
-            {buyCartCount > 0 && (
-              <span className="ml-1 bg-blue-600 text-white text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">
-                {buyCartCount}
-              </span>
-            )}
-          </Link>
-          <div className="flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-full bg-green-50 text-green-800 text-xs sm:text-sm font-bold border border-green-200">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> 
-            <span>{store?.is_online !== false ? 'Open' : 'Closed'}</span>
+          <div className={`flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-full text-xs sm:text-sm font-bold border ${store?.is_online !== false ? 'bg-green-50 text-green-800 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+            <span className={`w-2 h-2 rounded-full ${store?.is_online !== false ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></span> 
+            <span>{store?.is_online !== false ? 'Store: Open' : 'Store: Closed'}</span>
           </div>
           <Link to="/onboarding" className="btn-primary text-xs !py-1.5 !px-2.5 hidden xl:flex items-center gap-1">
             <i className="fa-solid fa-list-check"></i> Setup

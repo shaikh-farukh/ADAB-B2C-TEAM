@@ -257,7 +257,8 @@ describe('OrdersPage Component', () => {
       expect(sellerApi.updateOrderStatus).toHaveBeenCalledWith('ORD-6840', 'packing');
       expect(screen.getByText('Packing', { selector: 'span' })).toBeDefined();
       expect(screen.getByTitle('Mark Order Packed')).toBeDefined();
-      expect(screen.getByTitle('Dispatch / Send Package')).toBeDefined();
+      expect(screen.queryByTitle('Dispatch / Send Package')).toBeNull();
+      expect(screen.getByTitle('Decline Order')).toBeDefined();
       expect(screen.getByText(/Order #ORD-6840 accepted \(ORDER_ACCEPTED\)/i)).toBeDefined();
     });
 
@@ -268,6 +269,7 @@ describe('OrdersPage Component', () => {
       expect(sellerApi.updateOrderStatus).toHaveBeenCalledWith('ORD-6840', 'packed');
       expect(screen.getByText('Packed', { selector: 'span' })).toBeDefined();
       expect(screen.getByTitle('Dispatch / Send Package')).toBeDefined();
+      expect(screen.getByTitle('Decline Order')).toBeDefined();
     });
 
     // Step 3: Click Send button

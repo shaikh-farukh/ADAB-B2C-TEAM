@@ -123,19 +123,19 @@ function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating
                   onClick={() => { if (!busy) { onClose(); if (onDecline) onDecline(order); } }}
                   className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Decline &amp; Restore Stock
+                  Decline
                 </button>
               </>
             )}
-            {(s === 'packing' || s === 'processing' || s === 'packed') && onUpdateStatus && (
+            {(s === 'packing' || s === 'processing') && onUpdateStatus && (
               <>
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => runAction('dispatched')}
-                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => runAction('packed')}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {busy ? 'Updating...' : 'Dispatch / Ship'}
+                  {busy ? 'Updating...' : 'Pack Order'}
                 </button>
                 <button
                   type="button"
@@ -143,7 +143,27 @@ function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating
                   onClick={() => { if (!busy) { onClose(); if (onDecline) onDecline(order); } }}
                   className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Cancel &amp; Restore Stock
+                  Decline
+                </button>
+              </>
+            )}
+            {s === 'packed' && onUpdateStatus && (
+              <>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => runAction('dispatched')}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {busy ? 'Updating...' : 'Send Package'}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => { if (!busy) { onClose(); if (onDecline) onDecline(order); } }}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Decline
                 </button>
               </>
             )}
@@ -461,7 +481,7 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
               <i className="fa-solid fa-diamond-turn-right text-xs text-blue-600"></i>
               Directions
             </button>
-            {order.status === 'new' && (
+            {((order.status || '').toLowerCase() === 'new') && (
               <>
                 <button 
                   type="button"
@@ -487,17 +507,69 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
                 </button>
               </>
             )}
-            {(order.status === 'packing' || order.status === 'processing') && (
+            {((order.status || '').toLowerCase() === 'packing' || (order.status || '').toLowerCase() === 'processing') && (
+              <>
+                <button 
+                  type="button"
+                  onClick={async () => {
+                    await onUpdateStatus(order.id, 'packed');
+                    onClose();
+                  }}
+                  className="btn-primary !py-1.5 !px-3 !text-xs font-bold flex items-center gap-1.5 cursor-pointer bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
+                >
+                  <i className="fa-solid fa-box text-xs"></i>
+                  Pack
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    if (onDecline) onDecline(order);
+                  }}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                >
+                  <i className="fa-solid fa-ban text-xs"></i>
+                  Decline
+                </button>
+              </>
+            )}
+            {((order.status || '').toLowerCase() === 'packed') && (
+              <>
+                <button 
+                  type="button"
+                  onClick={async () => {
+                    await onUpdateStatus(order.id, 'dispatched');
+                    onClose();
+                  }}
+                  className="btn-primary !py-1.5 !px-3 !text-xs font-bold flex items-center gap-1.5 cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                >
+                  <i className="fa-solid fa-paper-plane text-xs"></i>
+                  Send
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    if (onDecline) onDecline(order);
+                  }}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                >
+                  <i className="fa-solid fa-ban text-xs"></i>
+                  Decline
+                </button>
+              </>
+            )}
+            {((order.status || '').toLowerCase() === 'dispatched' || (order.status || '').toLowerCase() === 'shipped') && (
               <button 
                 type="button"
                 onClick={async () => {
-                  await onUpdateStatus(order.id, 'dispatched');
+                  await onUpdateStatus(order.id, 'delivered');
                   onClose();
                 }}
-                className="btn-primary !py-1.5 !px-3 !text-xs font-bold flex items-center gap-1.5 cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                className="btn-primary !py-1.5 !px-3 !text-xs font-bold flex items-center gap-1.5 cursor-pointer bg-teal-600 hover:bg-teal-700 text-white shadow-xs"
               >
-                <i className="fa-solid fa-paper-plane text-xs"></i>
-                Send
+                <i className="fa-solid fa-check-double text-xs"></i>
+                Delivered
               </button>
             )}
             <button 
@@ -580,7 +652,7 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
             type="button"
             disabled={isUpdating}
             onClick={() => onUpdateStatus(order.id, 'packed')} 
-            className="px-2.5 py-1 rounded-lg text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition cursor-pointer shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-blue-600 hover:bg-blue-700 text-white shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             title="Mark Order Packed"
           >
             Pack
@@ -588,20 +660,11 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
           <button 
             type="button"
             disabled={isUpdating}
-            onClick={() => onUpdateStatus(order.id, 'dispatched')} 
-            className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Dispatch / Send Package"
-          >
-            Send
-          </button>
-          <button 
-            type="button"
-            disabled={isUpdating}
             onClick={() => onDecline(order)} 
-            className="px-2 py-1 rounded-lg text-xs font-bold text-gray-500 hover:text-rose-600 bg-gray-50 hover:bg-rose-50 border border-gray-200 hover:border-rose-200 transition cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Cancel Order"
+            className="px-2 py-1 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Decline Order"
           >
-            Cancel
+            Decline
           </button>
         </div>
       );
@@ -622,10 +685,10 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
             type="button"
             disabled={isUpdating}
             onClick={() => onDecline(order)} 
-            className="px-2 py-1 rounded-lg text-xs font-bold text-gray-500 hover:text-rose-600 bg-gray-50 hover:bg-rose-50 border border-gray-200 hover:border-rose-200 transition cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Cancel Order"
+            className="px-2 py-1 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Decline Order"
           >
-            Cancel
+            Decline
           </button>
         </div>
       );

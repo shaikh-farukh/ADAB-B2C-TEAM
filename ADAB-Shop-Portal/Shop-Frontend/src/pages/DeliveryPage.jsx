@@ -671,7 +671,7 @@ export default function DeliveryPage() {
             {/* Live Leaflet Map Service with Dynamic Relocation */}
             <div className="space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-extrabold text-gray-700 flex items-center gap-1">
                     <i className="fa-solid fa-location-dot text-emerald-600"></i> Pin:
                   </span>
@@ -685,7 +685,11 @@ export default function DeliveryPage() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow-2xs">
+                    <i className="fa-solid fa-hand-pointer text-emerald-600 text-[10px]"></i>
+                    <span>Drag pin to adjust</span>
+                  </span>
                   {isLocationChanged && (
                     <button
                       type="button"
@@ -702,10 +706,6 @@ export default function DeliveryPage() {
 
               <div className="relative h-72 bg-gray-100 rounded-xl overflow-hidden border border-gray-200 group">
                 <div ref={mapContainerRef} className="w-full h-full z-0"></div>
-                <div className="absolute top-2.5 left-2.5 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-bold text-gray-700 pointer-events-none flex items-center gap-1.5 z-10 shadow-xs">
-                  <i className="fa-solid fa-hand-pointer text-emerald-600"></i>
-                  <span>Drag store pin to adjust location</span>
-                </div>
               </div>
             </div>
           </div>
