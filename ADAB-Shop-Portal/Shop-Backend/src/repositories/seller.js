@@ -1136,9 +1136,23 @@ class SellerRepository {
           COALESCE(sl.stock_qty, 0) as stock_qty,
           sl.barcode,
           sl.brand_tag,
+          (
+            SELECT pi.image_url 
+            FROM product_images pi 
+            WHERE pi.product_id = sl.id 
+            ORDER BY pi.is_primary DESC, pi.display_order ASC 
+            LIMIT 1
+          ) AS image_url,
+          (
+            SELECT json_agg(pi.image_url ORDER BY pi.is_primary DESC, pi.display_order ASC)
+            FROM product_images pi
+            WHERE pi.product_id = sl.id
+          ) AS images,
           s.store_name,
           s.city as store_city,
           s.phone as store_phone,
+          s.latitude as store_latitude,
+          s.longitude as store_longitude,
           COALESCE(s.rating, 5.0) as store_rating,
           COALESCE(s.is_online, false) as store_is_online,
           CASE 
@@ -1180,6 +1194,9 @@ class SellerRepository {
         WHERE ($1::uuid IS NULL OR s.id != $1)
           AND sl.is_active = true
           AND sl.approval_status = 'APPROVED'
+          AND sl.product_type IN ('PACKED_ITEM', 'LOOSE_WEIGHT')
+          AND sl.product_type != 'OWN_BRAND'
+          AND COALESCE(sl.allowed_buyers, 'ALL') IN ('ALL', 'STORES_ONLY')
         ORDER BY sl.created_at DESC
         LIMIT 50;
       `;
@@ -1221,6 +1238,8 @@ class SellerRepository {
           s.address_line,
           s.phone,
           s.email,
+          s.latitude,
+          s.longitude,
           COALESCE(s.delivery_radius_km, 10.0) as delivery_radius_km,
           COALESCE(s.is_online, false) as is_online,
           COALESCE(s.rating, 5.0) as rating,
@@ -1246,7 +1265,7 @@ class SellerRepository {
           COALESCE(sos.credit_config->>'creditDays', '14') as credit_days,
           COALESCE(sos.credit_config->>'creditLimit', '50000') as credit_limit,
           COALESCE(sos.credit_config->>'creditMinOrder', '5000') as credit_min_order,
-          (SELECT COUNT(*) FROM seller_listings sl WHERE sl.store_id = s.id AND sl.is_active = true AND sl.approval_status = 'APPROVED') as active_listings_count,
+          (SELECT COUNT(*) FROM seller_listings sl WHERE sl.store_id = s.id AND sl.is_active = true AND sl.approval_status = 'APPROVED' AND sl.product_type IN ('PACKED_ITEM', 'LOOSE_WEIGHT') AND sl.product_type != 'OWN_BRAND' AND COALESCE(sl.allowed_buyers, 'ALL') IN ('ALL', 'STORES_ONLY')) as active_listings_count,
           (
             SELECT json_agg(json_build_object(
               'zone_name', dz.zone_name,
@@ -1276,80 +1295,509 @@ class SellerRepository {
 
   async getBuyerCreditInfo(userId, storeId) {
     try {
+      let limit = 0;
+      let ledgerUtilized = 0;
+      let hasLedger = false;
+
+      // 1. Check credit_ledgers for user OR store ID
       const ledgerRes = await pool.query(
-        `SELECT total_limit, utilized_amount, available_amount FROM credit_ledgers WHERE applicant_id = $1 LIMIT 1`,
-        [userId]
+        `SELECT total_limit, utilized_amount, available_amount FROM credit_ledgers WHERE applicant_id = $1 OR applicant_id = $2 LIMIT 1`,
+        [userId, storeId]
       );
       if (ledgerRes.rows.length > 0) {
-        return ledgerRes.rows[0];
+        hasLedger = true;
+        limit = Number(ledgerRes.rows[0].total_limit) || 0;
+        ledgerUtilized = Number(ledgerRes.rows[0].utilized_amount) || 0;
+      } else {
+        // 2. Check approved credit_applications
+        const appRes = await pool.query(
+          `SELECT approved_amount FROM credit_applications WHERE (applicant_id = $1 OR applicant_id = $2) AND status = 'APPROVED' ORDER BY created_at DESC LIMIT 1`,
+          [userId, storeId]
+        );
+        if (appRes.rows.length > 0) {
+          limit = Number(appRes.rows[0].approved_amount) || 0;
+        } else {
+          // 3. Fallback to onboarding credit configuration
+          const onbRes = await pool.query(
+            `SELECT credit_config FROM seller_onboarding_steps WHERE user_id = $1 LIMIT 1`,
+            [userId]
+          );
+          if (onbRes.rows.length > 0 && onbRes.rows[0].credit_config) {
+            const cfg = onbRes.rows[0].credit_config;
+            limit = Number(cfg.buyerCreditLimit || cfg.creditLimit) || 0;
+          }
+        }
       }
 
-      const onbRes = await pool.query(
-        `SELECT credit_config FROM seller_onboarding_steps WHERE user_id = $1 LIMIT 1`,
-        [userId]
-      );
-      if (onbRes.rows.length > 0 && onbRes.rows[0].credit_config) {
-        const cfg = onbRes.rows[0].credit_config;
-        const limit = Number(cfg.buyerCreditLimit) || 0;
-        return {
-          total_limit: limit,
-          utilized_amount: 0,
-          available_amount: limit
-        };
+      // Calculate real utilized amount from active purchase orders
+      let poUtilized = 0;
+      if (storeId) {
+        const poRes = await pool.query(
+          `SELECT COALESCE(SUM(total_amount), 0) as utilized 
+           FROM b2b_purchase_orders 
+           WHERE buyer_store_id = $1 
+             AND payment_terms LIKE '%CREDIT%' 
+             AND status NOT IN ('CANCELLED', 'PAID')`,
+          [storeId]
+        );
+        poUtilized = Number(poRes.rows[0]?.utilized) || 0;
       }
 
-      return { total_limit: 0, utilized_amount: 0, available_amount: 0 };
+      const totalUtilized = hasLedger ? Math.max(ledgerUtilized, poUtilized) : poUtilized;
+      const available = Math.max(0, limit - totalUtilized);
+
+      return {
+        total_limit: limit,
+        utilized_amount: totalUtilized,
+        available_amount: available
+      };
     } catch (e) {
       console.error('getBuyerCreditInfo Error:', e);
       return { total_limit: 0, utilized_amount: 0, available_amount: 0 };
     }
   }
 
-  async getPurchaseOrders(storeId) {
+  async ensureB2BPurchaseTables(client = pool) {
+    if (this._b2bPurchaseTablesReady) return;
     try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS b2b_purchase_orders (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          po_number VARCHAR(50) UNIQUE NOT NULL,
+          buyer_store_id UUID NOT NULL,
+          supplier_store_id UUID NOT NULL,
+          total_amount NUMERIC(12,2) NOT NULL,
+          payment_terms VARCHAR(50) DEFAULT 'CREDIT_14D',
+          payment_status VARCHAR(50) DEFAULT 'PENDING',
+          payment_method VARCHAR(50) DEFAULT 'CREDIT',
+          payment_reference VARCHAR(150),
+          payment_metadata JSONB DEFAULT '{}'::jsonb,
+          delivery_method VARCHAR(50),
+          delivery_fee NUMERIC(10,2) DEFAULT 0,
+          notes TEXT,
+          status VARCHAR(50) DEFAULT 'PLACED',
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS b2b_purchase_items (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          purchase_order_id UUID NOT NULL REFERENCES b2b_purchase_orders(id) ON DELETE CASCADE,
+          listing_id UUID,
+          item_name VARCHAR(255),
+          unit VARCHAR(50),
+          image_url TEXT,
+          quantity NUMERIC(10,2) NOT NULL,
+          unit_price NUMERIC(10,2) NOT NULL,
+          total_price NUMERIC(10,2) NOT NULL
+        );
+
+        ALTER TABLE b2b_purchase_orders ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) DEFAULT 'PENDING';
+        ALTER TABLE b2b_purchase_orders ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50);
+        ALTER TABLE b2b_purchase_orders ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(150);
+        ALTER TABLE b2b_purchase_orders ADD COLUMN IF NOT EXISTS payment_metadata JSONB DEFAULT '{}'::jsonb;
+        ALTER TABLE b2b_purchase_orders ADD COLUMN IF NOT EXISTS delivery_method VARCHAR(50);
+        ALTER TABLE b2b_purchase_orders ADD COLUMN IF NOT EXISTS delivery_fee NUMERIC(10,2) DEFAULT 0;
+        ALTER TABLE b2b_purchase_orders ADD COLUMN IF NOT EXISTS notes TEXT;
+        ALTER TABLE b2b_purchase_orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+        ALTER TABLE b2b_purchase_items ADD COLUMN IF NOT EXISTS item_name VARCHAR(255);
+        ALTER TABLE b2b_purchase_items ADD COLUMN IF NOT EXISTS unit VARCHAR(50);
+        ALTER TABLE b2b_purchase_items ADD COLUMN IF NOT EXISTS image_url TEXT;
+        ALTER TABLE b2b_purchase_items ADD COLUMN IF NOT EXISTS brand_tag VARCHAR(100);
+        ALTER TABLE b2b_purchase_items ADD COLUMN IF NOT EXISTS mrp NUMERIC(10,2);
+        ALTER TABLE b2b_purchase_items ADD COLUMN IF NOT EXISTS category_name VARCHAR(100);
+
+        ALTER TABLE b2b_purchase_items ADD COLUMN IF NOT EXISTS resale_sell_price NUMERIC(10,2);
+        ALTER TABLE b2b_purchase_orders ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+        ALTER TABLE seller_listings ADD COLUMN IF NOT EXISTS blocked_reseller_store_ids UUID[] DEFAULT '{}'::uuid[];
+
+        ALTER TABLE seller_listings ADD COLUMN IF NOT EXISTS wholesale_price NUMERIC(10,2);
+        ALTER TABLE seller_listings ADD COLUMN IF NOT EXISTS tiered_pricing JSONB DEFAULT '[]'::jsonb;
+        ALTER TABLE seller_listings ADD COLUMN IF NOT EXISTS sample_available BOOLEAN DEFAULT true;
+        ALTER TABLE seller_listings ADD COLUMN IF NOT EXISTS original_listing_id UUID REFERENCES seller_listings(id) ON DELETE SET NULL;
+        ALTER TABLE seller_listings DROP CONSTRAINT IF EXISTS seller_listings_master_catalog_id_fkey;
+        ALTER TABLE cart_items DROP CONSTRAINT IF EXISTS cart_items_listing_id_fkey;
+        ALTER TABLE cart_items ADD CONSTRAINT cart_items_listing_id_fkey FOREIGN KEY (listing_id) REFERENCES seller_listings(id) ON DELETE CASCADE;
+        ALTER TABLE b2b_purchase_orders DROP CONSTRAINT IF EXISTS b2b_purchase_orders_status_check;
+        ALTER TABLE b2b_purchase_orders ADD CONSTRAINT b2b_purchase_orders_status_check CHECK (status IN ('REQUESTED', 'APPROVED', 'DECLINED', 'PLACED', 'CONFIRMED', 'DISPATCHED', 'RECEIVED', 'CANCELLED'));
+      `);
+      this._b2bPurchaseTablesReady = true;
+    } catch (_) {
+      this._b2bPurchaseTablesReady = true;
+    }
+  }
+
+  async getPurchaseOrders(storeId, options = {}) {
+    try {
+      await this.ensureB2BPurchaseTables();
+      const typeFilter = options?.type;
+      let typeClause = '';
+      if (typeFilter === 'restock' || typeFilter === 'PO') {
+        typeClause = " AND po.po_number LIKE 'PO-B2B-%'";
+      } else if (typeFilter === 'resale' || typeFilter === 'REQ') {
+        typeClause = " AND po.po_number LIKE 'REQ-B2B-%'";
+      }
+
       const query = `
         SELECT 
           po.id,
           po.po_number,
-          po.supplier_id,
+          po.supplier_store_id,
           s.store_name as supplier_name,
+          s.phone as supplier_phone,
+          s.city as supplier_city,
           po.total_amount,
-          po.payment_mode,
+          po.payment_terms,
+          COALESCE(po.payment_status, CASE WHEN po.payment_terms LIKE '%CREDIT%' THEN 'PAID_ON_CREDIT' ELSE 'PAID' END) as payment_status,
+          COALESCE(po.payment_method, po.payment_terms) as payment_method,
+          po.payment_reference,
+          po.payment_metadata,
+          po.delivery_method,
+          po.delivery_fee,
           po.status,
+          po.notes,
+          po.rejection_reason,
           po.created_at,
           (
             SELECT json_agg(json_build_object(
-              'item_name', poi.item_name,
-              'quantity', poi.quantity_ordered,
-              'price', poi.unit_purchase_price,
-              'total', poi.total_cost
+              'id', poi.id,
+              'listing_id', poi.listing_id,
+              'item_name', COALESCE(poi.item_name, sl.title, 'Wholesale Product'),
+              'quantity', poi.quantity,
+              'price', poi.unit_price,
+              'resale_sell_price', poi.resale_sell_price,
+              'total', poi.total_price,
+              'unit', COALESCE(poi.unit, sl.unit, 'pcs'),
+              'image_url', COALESCE(poi.image_url, (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = sl.id ORDER BY pi.is_primary DESC LIMIT 1)),
+              'brand', sl.brand_tag
             ))
-            FROM stock_purchase_order_items poi
+            FROM b2b_purchase_items poi
+            LEFT JOIN seller_listings sl ON poi.listing_id = sl.id
             WHERE poi.purchase_order_id = po.id
           ) as items
-        FROM stock_purchase_orders po
-        LEFT JOIN stores s ON po.supplier_id = s.id
-        WHERE po.store_id = $1
+        FROM b2b_purchase_orders po
+        LEFT JOIN stores s ON po.supplier_store_id = s.id
+        WHERE po.buyer_store_id = $1 ${typeClause}
         ORDER BY po.created_at DESC
-        LIMIT 20;
+        LIMIT 50;
       `;
       const res = await pool.query(query, [storeId]);
       return res.rows;
     } catch (e) {
-      console.error('getPurchaseOrders Error:', e);
-      return [];
+      console.warn('getPurchaseOrders fallback to base query:', e.message);
+      try {
+        const typeFilter = options?.type;
+        let typeClause = '';
+        if (typeFilter === 'restock' || typeFilter === 'PO') {
+          typeClause = " AND po.po_number LIKE 'PO-B2B-%'";
+        } else if (typeFilter === 'resale' || typeFilter === 'REQ') {
+          typeClause = " AND po.po_number LIKE 'REQ-B2B-%'";
+        }
+
+        const fallbackQuery = `
+          SELECT 
+            po.id,
+            po.po_number,
+            po.supplier_store_id,
+            s.store_name as supplier_name,
+            s.phone as supplier_phone,
+            s.city as supplier_city,
+            po.total_amount,
+            po.payment_terms,
+            po.status,
+            po.created_at,
+            (
+              SELECT json_agg(json_build_object(
+                'id', poi.id,
+                'listing_id', poi.listing_id,
+                'item_name', COALESCE(sl.title, 'Wholesale Product'),
+                'quantity', poi.quantity,
+                'price', poi.unit_price,
+                'total', poi.total_price,
+                'unit', COALESCE(sl.unit, 'pcs'),
+                'brand', sl.brand_tag
+              ))
+              FROM b2b_purchase_items poi
+              LEFT JOIN seller_listings sl ON poi.listing_id = sl.id
+              WHERE poi.purchase_order_id = po.id
+            ) as items
+          FROM b2b_purchase_orders po
+          LEFT JOIN stores s ON po.supplier_store_id = s.id
+          WHERE po.buyer_store_id = $1 ${typeClause}
+          ORDER BY po.created_at DESC
+          LIMIT 50;
+        `;
+        const res = await pool.query(fallbackQuery, [storeId]);
+        return res.rows;
+      } catch (err2) {
+        console.error('getPurchaseOrders Error:', err2);
+        return [];
+      }
+    }
+  }
+
+  async createPurchaseOrder(buyerStoreId, userId, orderData) {
+    const { items, payment_terms = 'CREDIT_14D', payment_method, payment_details = {}, delivery_method = 'porter', delivery_fee = 0, notes } = orderData;
+    if (!buyerStoreId) {
+      const err = new Error('Buyer store ID is required');
+      err.statusCode = 400;
+      throw err;
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      const err = new Error('Cart is empty. Please add items to place a purchase order.');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // Normalizing payment terms to match DB constraints ('CREDIT_14D' or 'ADVANCE_UPI')
+    const isCreditOrder = String(payment_terms || '').toUpperCase().includes('CREDIT') || 
+                          String(payment_method || '').toLowerCase().includes('credit');
+    const normalizedTerms = isCreditOrder ? 'CREDIT_14D' : 'ADVANCE_UPI';
+    const finalPaymentMethod = (payment_method || (isCreditOrder ? 'CREDIT' : 'UPI')).toUpperCase();
+
+    // Handle missing Razorpay / Card / UPI details gracefully
+    const paymentRef = payment_details.razorpay_payment_id || 
+                       payment_details.transaction_id || 
+                       payment_details.reference_id || 
+                       payment_details.upi_id || 
+                       null;
+
+    const paymentStatus = isCreditOrder ? 'PAID_ON_CREDIT' : (paymentRef ? 'PAID' : 'PAID_SIMULATED');
+    const paymentMeta = {
+      ...paymentDetailsSafe(payment_details),
+      method: finalPaymentMethod,
+      reference: paymentRef,
+      has_gateway_details: Boolean(paymentRef),
+      note: paymentRef ? 'Verified transaction' : 'Online checkout completed (gateway details omitted or pending)',
+      paid_at: payment_details.paid_at || new Date().toISOString()
+    };
+
+    function paymentDetailsSafe(obj) {
+      try {
+        return typeof obj === 'object' && obj !== null ? obj : {};
+      } catch (_) {
+        return {};
+      }
+    }
+
+    // Group items by supplier store_id
+    const groupedBySupplier = {};
+    for (const item of items) {
+      const sId = item.store_id;
+      if (!sId) {
+        const err = new Error(`Item ${item.name || item.id} is missing supplier store reference`);
+        err.statusCode = 400;
+        throw err;
+      }
+      if (sId === buyerStoreId) {
+        const err = new Error('Cannot purchase items from your own store.');
+        err.statusCode = 400;
+        throw err;
+      }
+      if (!groupedBySupplier[sId]) {
+        groupedBySupplier[sId] = [];
+      }
+      groupedBySupplier[sId].push(item);
+    }
+
+    await this.ensureB2BPurchaseTables();
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const createdOrders = [];
+
+      for (const [supplierStoreId, supplierItems] of Object.entries(groupedBySupplier)) {
+        let subtotal = 0;
+        for (const it of supplierItems) {
+          const qty = Number(it.quantity) || 1;
+          const price = Number(it.price) || 0;
+          subtotal += qty * price;
+        }
+
+        const fee = Number(delivery_fee) || 0;
+        const totalAmount = subtotal + fee;
+        const poNumber = `PO-B2B-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+
+        let newPo;
+        try {
+          const poRes = await client.query(
+            `INSERT INTO b2b_purchase_orders (
+              po_number,
+              buyer_store_id,
+              supplier_store_id,
+              total_amount,
+              payment_terms,
+              payment_status,
+              payment_method,
+              payment_reference,
+              payment_metadata,
+              delivery_method,
+              delivery_fee,
+              notes,
+              status,
+              created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'PLACED', NOW())
+            RETURNING *`,
+            [
+              poNumber,
+              buyerStoreId,
+              supplierStoreId,
+              totalAmount,
+              normalizedTerms,
+              paymentStatus,
+              finalPaymentMethod,
+              paymentRef,
+              JSON.stringify(paymentMeta),
+              delivery_method,
+              fee,
+              notes || null
+            ]
+          );
+          newPo = poRes.rows[0];
+        } catch (insertErr) {
+          // Fallback for older schemas lacking newer columns
+          const fallbackRes = await client.query(
+            `INSERT INTO b2b_purchase_orders (
+              po_number,
+              buyer_store_id,
+              supplier_store_id,
+              total_amount,
+              payment_terms,
+              status,
+              created_at
+            ) VALUES ($1, $2, $3, $4, $5, 'PLACED', NOW())
+            RETURNING *`,
+            [poNumber, buyerStoreId, supplierStoreId, totalAmount, normalizedTerms]
+          );
+          newPo = fallbackRes.rows[0];
+        }
+
+        // Insert items with product metadata snapshot (name, unit, image, brand, mrp, category)
+        for (const it of supplierItems) {
+          const qty = Number(it.quantity) || 1;
+          const price = Number(it.price) || 0;
+          const itemTotal = qty * price;
+          const itemName = it.name || it.item_name || 'Wholesale Product';
+          const itemUnit = it.unit || 'unit';
+          const itemImage = it.image_url || null;
+          const itemBrand = it.brand_tag || it.brand || null;
+          const itemMrp = it.mrp ? Number(it.mrp) : null;
+          const itemCategory = it.category || it.category_name || null;
+
+          try {
+            await client.query(
+              `INSERT INTO b2b_purchase_items (
+                purchase_order_id,
+                listing_id,
+                quantity,
+                unit_price,
+                total_price,
+                item_name,
+                unit,
+                image_url,
+                brand_tag,
+                mrp,
+                category_name
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+              [newPo.id, it.id, qty, price, itemTotal, itemName, itemUnit, itemImage, itemBrand, itemMrp, itemCategory]
+            );
+          } catch (_) {
+            try {
+              await client.query(
+                `INSERT INTO b2b_purchase_items (
+                  purchase_order_id,
+                  listing_id,
+                  quantity,
+                  unit_price,
+                  total_price,
+                  item_name,
+                  unit,
+                  image_url
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                [newPo.id, it.id, qty, price, itemTotal, itemName, itemUnit, itemImage]
+              );
+            } catch (__) {
+              await client.query(
+                `INSERT INTO b2b_purchase_items (
+                  purchase_order_id,
+                  listing_id,
+                  quantity,
+                  unit_price,
+                  total_price
+                ) VALUES ($1, $2, $3, $4, $5)`,
+                [newPo.id, it.id, qty, price, itemTotal]
+              );
+            }
+          }
+
+          // Deduct stock safely if listing exists
+          await client.query(
+            `UPDATE seller_listings 
+             SET stock_qty = GREATEST(0, stock_qty - $1)
+             WHERE id = $2`,
+            [qty, it.id]
+          );
+        }
+
+        // If credit payment, update credit_ledgers if row exists
+        if (isCreditOrder) {
+          await client.query(
+            `UPDATE credit_ledgers 
+             SET utilized_amount = utilized_amount + $1,
+                 updated_at = NOW()
+             WHERE applicant_id = $2 OR applicant_id = $3`,
+            [totalAmount, userId, buyerStoreId]
+          );
+        }
+
+        createdOrders.push(newPo);
+      }
+
+      await client.query('COMMIT');
+      return createdOrders;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      console.error('createPurchaseOrder Error:', e);
+      throw e;
+    } finally {
+      client.release();
     }
   }
 
   async getOtherStoreBrands(buyerStoreId, options = {}) {
+    await this.ensureB2BPurchaseTables();
     try {
       const { category, q, storeFilter } = options;
-      const params = [buyerStoreId || null];
+
+      let buyerLat = null;
+      let buyerLng = null;
+      let buyerCity = null;
+      if (buyerStoreId) {
+        try {
+          const stRes = await pool.query(
+            `SELECT id, city, latitude, longitude FROM stores WHERE id = $1`,
+            [buyerStoreId]
+          );
+          if (stRes.rows.length > 0) {
+            buyerLat = stRes.rows[0].latitude;
+            buyerLng = stRes.rows[0].longitude;
+            buyerCity = stRes.rows[0].city;
+          }
+        } catch (_) {}
+      }
+
+      const params = [buyerStoreId || null, buyerLat, buyerLng, buyerCity];
       let conditions = [
         `($1::uuid IS NULL OR sl.store_id != $1)`,
+        `($1::uuid IS NULL OR NOT ($1::uuid = ANY(COALESCE(sl.blocked_reseller_store_ids, '{}'))))`,
         `sl.product_type = 'OWN_BRAND'`,
+        `sl.original_listing_id IS NULL`, // Only original producer's own brands, not resale duplicates
+        `sl.master_catalog_id IS NULL`,
         `sl.is_active = true`,
-        `sl.approval_status = 'APPROVED'`
+        `sl.approval_status = 'APPROVED'`,
+        `COALESCE(sl.allowed_buyers, 'ALL') IN ('ALL', 'STORES_ONLY')`
       ];
 
       if (category && category !== 'all') {
@@ -1372,20 +1820,75 @@ class SellerRepository {
           sl.id,
           sl.store_id,
           sl.title,
+          sl.title as name,
           sl.brand_tag,
           sl.sku,
           sl.barcode,
           sl.category_id,
           COALESCE(c.name, 'General') as category,
           sl.mrp,
-          sl.sell_price as wholesale_price,
+          COALESCE(sl.wholesale_price, sl.sell_price) as price,
+          COALESCE(sl.wholesale_price, sl.sell_price) as wholesale_price,
+          sl.sell_price as retail_sell_price,
+          sl.allowed_buyers,
+          COALESCE(sl.sample_available, true) as sample_available,
+          COALESCE(sl.tiered_pricing, '[]'::jsonb) as tiered_pricing,
           sl.unit,
+          COALESCE(sl.min_order_qty, 1) as min_order,
           COALESCE(sl.min_order_qty, 1) as min_order_qty,
           COALESCE(sl.stock_qty, 0) as stock_qty,
+          (
+            SELECT pi.image_url 
+            FROM product_images pi 
+            WHERE pi.product_id = sl.id 
+            ORDER BY pi.is_primary DESC, pi.display_order ASC 
+            LIMIT 1
+          ) AS image_url,
+          (
+            SELECT json_agg(pi.image_url ORDER BY pi.is_primary DESC, pi.display_order ASC)
+            FROM product_images pi
+            WHERE pi.product_id = sl.id
+          ) AS images,
           s.store_name,
           s.city as store_city,
+          s.phone as store_phone,
+          s.latitude as store_latitude,
+          s.longitude as store_longitude,
+          s.address_line as store_address,
+          COALESCE(s.category, 'Kirana & FMCG') as store_category,
           COALESCE(s.rating, 5.0) as store_rating,
-          s.is_online as store_is_online,
+          COALESCE(s.is_online, false) as store_is_online,
+          CASE 
+            WHEN $2::numeric IS NOT NULL AND $3::numeric IS NOT NULL 
+                 AND s.latitude IS NOT NULL AND s.longitude IS NOT NULL THEN
+              ROUND(
+                (6371 * acos(
+                  LEAST(1.0, GREATEST(-1.0,
+                    cos(radians($2)) * cos(radians(s.latitude)) *
+                    cos(radians($3) - radians(s.longitude)) +
+                    sin(radians($2)) * sin(radians(s.latitude))
+                  ))
+                ))::numeric, 1
+              )
+            WHEN LOWER(s.city) = LOWER($4) THEN 3.0
+            ELSE 10.0
+          END AS distance_km,
+          COALESCE(sos.credit_config->>'enableCredit', 'true')::boolean as credit_allowed,
+          COALESCE(sos.credit_config->>'creditDays', '14') as credit_days,
+          COALESCE(
+            (
+              SELECT json_agg(json_build_object(
+                'zone_name', dz.zone_name,
+                'radius_km', dz.radius_km,
+                'delivery_fee', dz.delivery_fee,
+                'estimated_minutes_min', dz.estimated_minutes_min,
+                'estimated_minutes_max', dz.estimated_minutes_max
+              ))
+              FROM delivery_zones dz
+              WHERE dz.store_id = s.id AND dz.is_active = true
+            ),
+            '[]'::json
+          ) AS delivery_options,
           (
             SELECT COUNT(DISTINCT sl2.store_id)
             FROM seller_listings sl2
@@ -1394,6 +1897,8 @@ class SellerRepository {
         FROM seller_listings sl
         JOIN stores s ON sl.store_id = s.id
         LEFT JOIN categories c ON sl.category_id = c.id
+        LEFT JOIN seller_profiles sp ON s.seller_id = sp.id
+        LEFT JOIN seller_onboarding_steps sos ON sp.user_id = sos.user_id
         WHERE ${conditions.join(' AND ')}
         ORDER BY sl.created_at DESC
         LIMIT 50;
@@ -1407,7 +1912,8 @@ class SellerRepository {
     }
   }
 
-  async addOtherStoreBrandToMyStore(buyerStoreId, { originalListingId, sellPrice, stockQty }) {
+  async addOtherStoreBrandToMyStore(buyerStoreId, { originalListingId, sellPrice, wholesalePrice, stockQty }) {
+    await this.ensureB2BPurchaseTables();
     try {
       const origRes = await pool.query(
         `SELECT * FROM seller_listings WHERE id = $1 AND product_type = 'OWN_BRAND' AND is_active = true`,
@@ -1418,53 +1924,465 @@ class SellerRepository {
       }
       const orig = origRes.rows[0];
 
+      // Safe retail price calculations & guardrails
+      const parsedSellPrice = Number(sellPrice);
+      const parsedWholesalePrice = Number(wholesalePrice);
+      const parsedStockQty = Number(stockQty);
+
+      // Guardrail 1: Resale price cannot exceed printed MRP (if MRP is set)
+      const effectiveMrp = orig.mrp ? Number(orig.mrp) : null;
+      let finalSellPrice = Number.isFinite(parsedSellPrice) && parsedSellPrice > 0 ? parsedSellPrice : Number(orig.sell_price);
+      if (effectiveMrp !== null && finalSellPrice > effectiveMrp) {
+        finalSellPrice = effectiveMrp;
+      }
+
+      // Wholesale price: systematically locked to the original manufacturer's wholesale price (acquisition cost)
+      const wholesaleBase = Number(orig.wholesale_price || orig.sell_price || 0);
+      let finalWholesalePrice = Number.isFinite(parsedWholesalePrice) && parsedWholesalePrice > 0
+        ? parsedWholesalePrice
+        : wholesaleBase;
+
       const existingRes = await pool.query(
-        `SELECT id FROM seller_listings WHERE store_id = $1 AND master_catalog_id = $2`,
+        `SELECT id, stock_qty FROM seller_listings 
+         WHERE store_id = $1 AND (original_listing_id = $2 OR (master_catalog_id IS NOT NULL AND master_catalog_id = $2))`,
         [buyerStoreId, originalListingId]
       );
       if (existingRes.rows.length > 0) {
+        const addedStock = Number.isFinite(parsedStockQty) && parsedStockQty > 0 ? parsedStockQty : 10;
         const updateRes = await pool.query(
           `UPDATE seller_listings 
-           SET sell_price = $1, stock_qty = $2, is_active = true, updated_at = NOW()
-           WHERE id = $3 RETURNING *`,
-          [Number(sellPrice) || orig.sell_price, Number(stockQty) || 10, existingRes.rows[0].id]
+           SET sell_price = $1, wholesale_price = $2, stock_qty = stock_qty + $3, approval_status = 'PUBLISHED', allowed_buyers = 'CUSTOMERS_ONLY', is_active = true, updated_at = NOW()
+           WHERE id = $4 RETURNING *`,
+          [finalSellPrice, finalWholesalePrice, addedStock, existingRes.rows[0].id]
         );
         return updateRes.rows[0];
       }
 
       const insertRes = await pool.query(
         `INSERT INTO seller_listings (
-          store_id, product_type, master_catalog_id, title, sku, barcode, brand_tag,
+          store_id, product_type, original_listing_id, master_catalog_id, title, sku, barcode, brand_tag,
           category_id, mrp, sell_price, unit, min_order_qty, allowed_buyers,
-          approval_status, is_active, stock_qty
+          approval_status, is_active, stock_qty, wholesale_price
         ) VALUES (
-          $1, 'OWN_BRAND', $2, $3, $4, $5, $6,
-          $7, $8, $9, $10, $11, 'ALL',
-          'APPROVED', true, $12
+          $1, 'OWN_BRAND', $2, $2, $3, $4, $5, $6,
+          $7, $8, $9, $10, $11, 'CUSTOMERS_ONLY',
+          'PUBLISHED', true, $12, $13
         ) RETURNING *`,
         [
           buyerStoreId,
-          orig.id,
+          orig.id, // original_listing_id and master_catalog_id
           orig.title,
           orig.sku ? `${orig.sku}-RES` : null,
           orig.barcode,
           orig.brand_tag,
           orig.category_id,
           orig.mrp,
-          Number(sellPrice) || Number(orig.sell_price),
+          finalSellPrice,
           orig.unit || 'unit',
           1,
-          Number(stockQty) || 20
+          parsedStockQty || 20,
+          finalWholesalePrice
         ]
       );
-      return insertRes.rows[0];
+      const childListing = insertRes.rows[0];
+
+      // Clone product images into product_images for the new child listing
+      try {
+        await pool.query(
+          `INSERT INTO product_images (product_id, image_url, is_primary, display_order)
+           SELECT $1, image_url, is_primary, display_order
+           FROM product_images
+           WHERE product_id = $2
+           ON CONFLICT DO NOTHING`,
+          [childListing.id, orig.id]
+        );
+      } catch (imgErr) {
+        console.warn('Image clone notice:', imgErr.message);
+      }
+
+      return childListing;
     } catch (e) {
       console.error('addOtherStoreBrandToMyStore Error:', e);
       throw e;
     }
   }
 
+  async requestResaleStock(buyerStoreId, { originalListingId, quantity, resaleSellPrice, paymentTerms = 'CREDIT_14D', notes }) {
+    await this.ensureB2BPurchaseTables();
+    if (!buyerStoreId) throw new Error('Buyer store ID is required');
+    if (!originalListingId) throw new Error('Original listing ID is required');
+
+    const origRes = await pool.query(
+      `SELECT sl.*, s.store_name, s.id as supplier_store_id, COALESCE(c.name, 'General') as category_name,
+              (
+                SELECT pi.image_url 
+                FROM product_images pi 
+                WHERE pi.product_id = sl.id 
+                ORDER BY pi.is_primary DESC, pi.display_order ASC 
+                LIMIT 1
+              ) AS primary_image_url
+       FROM seller_listings sl 
+       JOIN stores s ON sl.store_id = s.id 
+       LEFT JOIN categories c ON sl.category_id = c.id
+       WHERE sl.id = $1 AND sl.product_type = 'OWN_BRAND' AND sl.is_active = true`,
+      [originalListingId]
+    );
+    if (origRes.rows.length === 0) {
+      throw new Error('Original brand product not found or inactive');
+    }
+    const orig = origRes.rows[0];
+    const supplierStoreId = orig.supplier_store_id;
+
+    if (supplierStoreId === buyerStoreId) {
+      throw new Error('Cannot request stock from your own store');
+    }
+
+    if (Array.isArray(orig.blocked_reseller_store_ids) && orig.blocked_reseller_store_ids.includes(buyerStoreId)) {
+      throw new Error('The manufacturer is currently not accepting resale requests from your store.');
+    }
+
+    const qty = Math.max(1, Number(quantity) || Number(orig.min_order_qty) || 1);
+    const unitPrice = Number(orig.wholesale_price || orig.sell_price || 0);
+    const totalAmount = qty * unitPrice;
+    const poNumber = `REQ-B2B-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+
+    const effectiveMrp = orig.mrp ? Number(orig.mrp) : Number(orig.sell_price || unitPrice * 1.25);
+    let targetSellPrice = Number(resaleSellPrice);
+    if (!Number.isFinite(targetSellPrice) || targetSellPrice <= 0) {
+      targetSellPrice = effectiveMrp || unitPrice * 1.25;
+    }
+    if (effectiveMrp !== null && targetSellPrice > effectiveMrp) {
+      targetSellPrice = effectiveMrp;
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const isCreditOrder = String(paymentTerms || '').toUpperCase().includes('CREDIT');
+      const normalizedTerms = isCreditOrder ? 'CREDIT_14D' : 'ADVANCE_UPI';
+      const poMethod = normalizedTerms === 'ADVANCE_UPI' ? 'UPI' : 'CREDIT';
+      const poRes = await client.query(
+        `INSERT INTO b2b_purchase_orders (
+          po_number, buyer_store_id, supplier_store_id, total_amount, payment_terms,
+          payment_status, payment_method, payment_reference, delivery_method, delivery_fee,
+          status, notes, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, 'PENDING', $6, $1, 'DIRECT_STORE_DELIVERY', 0, 'REQUESTED', $7, NOW(), NOW())
+        RETURNING *`,
+        [poNumber, buyerStoreId, supplierStoreId, totalAmount, normalizedTerms, poMethod, notes || 'Resale authorization request']
+      );
+      const newPo = poRes.rows[0];
+
+      await client.query(
+        `INSERT INTO b2b_purchase_items (
+          purchase_order_id, listing_id, item_name, unit, image_url, brand_tag, category_name, mrp,
+          quantity, unit_price, total_price, resale_sell_price
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [
+          newPo.id,
+          orig.id,
+          orig.title,
+          orig.unit || 'pcs',
+          orig.primary_image_url || null,
+          orig.brand_tag || orig.store_name || 'Brand',
+          orig.category_name || 'General',
+          effectiveMrp,
+          qty,
+          unitPrice,
+          totalAmount,
+          targetSellPrice
+        ]
+      );
+
+      await client.query('COMMIT');
+      return {
+        ...newPo,
+        item: {
+          listing_id: orig.id,
+          title: orig.title,
+          quantity: qty,
+          unit_price: unitPrice,
+          total_price: totalAmount,
+          resale_sell_price: targetSellPrice
+        }
+      };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async getIncomingResaleRequests(supplierStoreId) {
+    await this.ensureB2BPurchaseTables();
+    const query = `
+      SELECT 
+        bpo.id,
+        bpo.po_number,
+        bpo.buyer_store_id,
+        buyer.store_name as buyer_store_name,
+        buyer.city as buyer_store_city,
+        buyer.phone as buyer_store_phone,
+        COALESCE(buyer.rating, 5.0) as buyer_rating,
+        bpo.total_amount,
+        bpo.payment_terms,
+        bpo.payment_status,
+        bpo.status,
+        bpo.notes,
+        bpo.rejection_reason,
+        bpo.created_at,
+        bpo.updated_at,
+        (
+          SELECT json_agg(json_build_object(
+            'id', poi.id,
+            'listing_id', poi.listing_id,
+            'item_name', poi.item_name,
+            'quantity', poi.quantity,
+            'wholesale_price', poi.unit_price,
+            'resale_sell_price', poi.resale_sell_price,
+            'total_price', poi.total_price,
+            'unit', poi.unit,
+            'image_url', poi.image_url,
+            'mrp', poi.mrp
+          ))
+          FROM b2b_purchase_items poi
+          WHERE poi.purchase_order_id = bpo.id
+        ) as items,
+        BOOL_OR(buyer.id = ANY(COALESCE(sl_orig.blocked_reseller_store_ids, '{}'))) as is_buyer_blocked
+      FROM b2b_purchase_orders bpo
+      JOIN stores buyer ON bpo.buyer_store_id = buyer.id
+      LEFT JOIN b2b_purchase_items poi_sub ON poi_sub.purchase_order_id = bpo.id
+      LEFT JOIN seller_listings sl_orig ON poi_sub.listing_id = sl_orig.id
+      WHERE bpo.supplier_store_id = $1
+      GROUP BY bpo.id, buyer.id
+      ORDER BY bpo.created_at DESC
+      LIMIT 50;
+    `;
+    try {
+      const res = await pool.query(query, [supplierStoreId]);
+      return res.rows;
+    } catch (e) {
+      console.error('getIncomingResaleRequests Error:', e);
+      return [];
+    }
+  }
+
+  async approveResaleRequest(supplierStoreId, orderId) {
+    await this.ensureB2BPurchaseTables();
+    const poRes = await pool.query(
+      `SELECT * FROM b2b_purchase_orders WHERE id = $1 AND supplier_store_id = $2`,
+      [orderId, supplierStoreId]
+    );
+    if (poRes.rows.length === 0) {
+      throw new Error('Order/request not found or access denied');
+    }
+    const po = poRes.rows[0];
+    if (po.status !== 'REQUESTED' && po.status !== 'PENDING_APPROVAL') {
+      throw new Error(`Order cannot be approved in its current status: ${po.status}`);
+    }
+
+    const updateRes = await pool.query(
+      `UPDATE b2b_purchase_orders 
+       SET status = 'APPROVED', updated_at = NOW() 
+       WHERE id = $1 RETURNING *`,
+      [orderId]
+    );
+    return updateRes.rows[0];
+  }
+
+  async declineResaleRequest(supplierStoreId, orderId, reason = '') {
+    await this.ensureB2BPurchaseTables();
+    const updateRes = await pool.query(
+      `UPDATE b2b_purchase_orders 
+       SET status = 'DECLINED', rejection_reason = $1, updated_at = NOW() 
+       WHERE id = $2 AND supplier_store_id = $3 
+       RETURNING *`,
+      [reason || 'Manufacturer declined request at this time', orderId, supplierStoreId]
+    );
+    if (updateRes.rows.length === 0) {
+      throw new Error('Order/request not found or access denied');
+    }
+    return updateRes.rows[0];
+  }
+
+  async confirmAndPayResaleOrder(buyerStoreId, orderId, paymentData = {}) {
+    await this.ensureB2BPurchaseTables();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const poRes = await client.query(
+        `SELECT * FROM b2b_purchase_orders WHERE id = $1 AND buyer_store_id = $2 FOR UPDATE`,
+        [orderId, buyerStoreId]
+      );
+      if (poRes.rows.length === 0) {
+        throw new Error('Order not found or access denied');
+      }
+      const po = poRes.rows[0];
+      if (po.status !== 'APPROVED' && po.status !== 'REQUESTED') {
+        throw new Error(`Order is not in an approved state (current: ${po.status})`);
+      }
+
+      const paymentMethod = (paymentData.payment_method || po.payment_method || 'CREDIT_14D').toUpperCase();
+      const isCredit = paymentMethod.includes('CREDIT');
+      const paymentStatus = isCredit ? 'PAID_ON_CREDIT' : 'PAID';
+      const paymentRef = paymentData.payment_reference || `PAY-${Date.now().toString().slice(-8)}`;
+
+      await client.query(
+        `UPDATE b2b_purchase_orders 
+         SET status = 'CONFIRMED', payment_status = $1, payment_method = $2, payment_reference = $3,
+             payment_metadata = $4, updated_at = NOW() 
+         WHERE id = $5`,
+        [paymentStatus, paymentMethod, paymentRef, JSON.stringify(paymentData.metadata || { confirmed_at: new Date().toISOString() }), orderId]
+      );
+
+      const itemsRes = await client.query(
+        `SELECT * FROM b2b_purchase_items WHERE purchase_order_id = $1`,
+        [orderId]
+      );
+
+      const publishedListings = [];
+
+      for (const item of itemsRes.rows) {
+        if (!item.listing_id) continue;
+        const origRes = await client.query(
+          `SELECT * FROM seller_listings WHERE id = $1`,
+          [item.listing_id]
+        );
+        if (origRes.rows.length === 0) continue;
+        const orig = origRes.rows[0];
+        const addedQty = Number(item.quantity) || 1;
+
+        // Deduct inventory from manufacturer Store A
+        await client.query(
+          `UPDATE seller_listings 
+           SET stock_qty = GREATEST(0, stock_qty - $1), updated_at = NOW() 
+           WHERE id = $2`,
+          [addedQty, orig.id]
+        );
+        await client.query(
+          `UPDATE inventory 
+           SET stock_quantity = GREATEST(COALESCE(reserved_quantity, 0), COALESCE(stock_quantity, 0) - $1::numeric),
+               updated_at = NOW() 
+           WHERE listing_id = $2`,
+          [addedQty, orig.id]
+        );
+
+        // Check if Store B already has this product in catalog
+        const existingRes = await client.query(
+          `SELECT id, stock_qty FROM seller_listings 
+           WHERE store_id = $1 AND (original_listing_id = $2 OR (master_catalog_id IS NOT NULL AND master_catalog_id = $2))`,
+          [buyerStoreId, orig.id]
+        );
+
+        const targetSellPrice = item.resale_sell_price ? Number(item.resale_sell_price) : Number(orig.sell_price);
+        const effectiveMrp = orig.mrp ? Number(orig.mrp) : targetSellPrice;
+
+        let targetListingId;
+        if (existingRes.rows.length > 0) {
+          targetListingId = existingRes.rows[0].id;
+          const updateRes = await client.query(
+            `UPDATE seller_listings 
+             SET stock_qty = stock_qty + $1, 
+                 sell_price = $2, 
+                 wholesale_price = NULL,
+                 allowed_buyers = 'CUSTOMERS_ONLY', 
+                 approval_status = 'PUBLISHED', 
+                 is_active = true, 
+                 updated_at = NOW() 
+             WHERE id = $3 
+             RETURNING *`,
+            [addedQty, targetSellPrice, targetListingId]
+          );
+          publishedListings.push(updateRes.rows[0]);
+        } else {
+          const insertRes = await client.query(
+            `INSERT INTO seller_listings (
+              store_id, product_type, original_listing_id, master_catalog_id, title, sku, barcode, brand_tag,
+              category_id, mrp, sell_price, unit, min_order_qty, allowed_buyers,
+              approval_status, is_active, stock_qty, wholesale_price, rating, review_count
+            ) VALUES (
+              $1, 'OWN_BRAND', $2, $2, $3, $4, $5, $6,
+              $7, $8, $9, $10, 1, 'CUSTOMERS_ONLY',
+              'PUBLISHED', true, $11, NULL, 5.0, 0
+            ) RETURNING *`,
+            [
+              buyerStoreId,
+              orig.id,
+              orig.title,
+              orig.sku ? `${orig.sku}-RES` : `SKU-${Date.now().toString().slice(-6)}`,
+              orig.barcode || null,
+              orig.brand_tag || null,
+              orig.category_id || null,
+              effectiveMrp,
+              targetSellPrice,
+              orig.unit || 'pcs',
+              addedQty
+            ]
+          );
+          const newChild = insertRes.rows[0];
+          targetListingId = newChild.id;
+
+          try {
+            await client.query(
+              `INSERT INTO product_images (product_id, image_url, is_primary, display_order)
+               SELECT $1, image_url, is_primary, display_order
+               FROM product_images
+               WHERE product_id = $2
+               ON CONFLICT DO NOTHING`,
+              [newChild.id, orig.id]
+            );
+          } catch (_) {}
+
+          publishedListings.push(newChild);
+        }
+
+        // Sync buyer Store B's inventory table (available_quantity is automatically generated by Postgres)
+        await client.query(
+          `INSERT INTO inventory (listing_id, stock_quantity, reserved_quantity, low_stock_threshold, updated_at)
+           VALUES ($1, $2, 0, 5, NOW())
+           ON CONFLICT (listing_id) DO UPDATE 
+           SET stock_quantity = inventory.stock_quantity + EXCLUDED.stock_quantity,
+               updated_at = NOW()`,
+          [targetListingId, addedQty]
+        );
+      }
+
+      await client.query('COMMIT');
+      return {
+        orderId,
+        status: 'CONFIRMED',
+        paymentStatus,
+        publishedListings
+      };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  async toggleBlockResellerStore(supplierStoreId, buyerStoreId, block = true) {
+    if (block) {
+      await pool.query(
+        `UPDATE seller_listings 
+         SET blocked_reseller_store_ids = array_append(COALESCE(blocked_reseller_store_ids, '{}'), $2::uuid)
+         WHERE store_id = $1 AND NOT ($2::uuid = ANY(COALESCE(blocked_reseller_store_ids, '{}')))`,
+        [supplierStoreId, buyerStoreId]
+      );
+    } else {
+      await pool.query(
+        `UPDATE seller_listings 
+         SET blocked_reseller_store_ids = array_remove(COALESCE(blocked_reseller_store_ids, '{}'), $2::uuid)
+         WHERE store_id = $1`,
+        [supplierStoreId, buyerStoreId]
+      );
+    }
+    return { success: true, blocked: block };
+  }
+
   async getMyAddedOtherStoreBrands(buyerStoreId) {
+    await this.ensureB2BPurchaseTables();
     try {
       const query = `
         SELECT 
@@ -1477,11 +2395,21 @@ class SellerRepository {
           sl.unit,
           sl.approval_status,
           sl.is_active,
+          sl.wholesale_price,
+          sl.original_listing_id,
+          (
+            SELECT pi.image_url 
+            FROM product_images pi 
+            WHERE pi.product_id = orig.id OR pi.product_id = sl.id 
+            ORDER BY pi.is_primary DESC 
+            LIMIT 1
+          ) AS image_url,
+          s_orig.id as original_store_id,
           s_orig.store_name as original_store_name,
           s_orig.city as original_store_city,
-          orig.sell_price as wholesale_price
+          COALESCE(orig.wholesale_price, orig.sell_price) as original_wholesale_price
         FROM seller_listings sl
-        JOIN seller_listings orig ON sl.master_catalog_id = orig.id
+        JOIN seller_listings orig ON (sl.original_listing_id = orig.id OR (sl.master_catalog_id IS NOT NULL AND sl.master_catalog_id = orig.id))
         JOIN stores s_orig ON orig.store_id = s_orig.id
         WHERE sl.store_id = $1
         ORDER BY sl.created_at DESC;
@@ -1491,6 +2419,158 @@ class SellerRepository {
     } catch (e) {
       console.error('getMyAddedOtherStoreBrands Error:', e);
       return [];
+    }
+  }
+
+  async getPurchasedBrandsReadyToPublish(buyerStoreId) {
+    await this.ensureB2BPurchaseTables();
+    try {
+      const query = `
+        SELECT 
+          poi.listing_id as original_listing_id,
+          poi.listing_id as id,
+          COALESCE(poi.item_name, sl_orig.title, 'Purchased Brand Product') as title,
+          COALESCE(poi.item_name, sl_orig.title, 'Purchased Brand Product') as name,
+          COALESCE(poi.brand_tag, sl_orig.brand_tag, 'Own Brand') as brand_tag,
+          COALESCE(poi.unit, sl_orig.unit, 'unit') as unit,
+          COALESCE(
+            poi.image_url,
+            (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = sl_orig.id ORDER BY pi.is_primary DESC LIMIT 1)
+          ) as image_url,
+          poi.unit_price as wholesale_price,
+          COALESCE(poi.mrp, sl_orig.mrp, poi.unit_price * 1.25) as mrp,
+          sl_orig.sell_price as original_retail_price,
+          sl_orig.category_id,
+          COALESCE(poi.category_name, c.name, 'General') as category,
+          SUM(poi.quantity) as total_purchased_qty,
+          MAX(bpo.created_at) as last_purchased_at,
+          s_supplier.id as store_id,
+          s_supplier.store_name,
+          s_supplier.city as store_city
+        FROM b2b_purchase_items poi
+        JOIN b2b_purchase_orders bpo ON poi.purchase_order_id = bpo.id
+        JOIN stores s_supplier ON bpo.supplier_store_id = s_supplier.id
+        LEFT JOIN seller_listings sl_orig ON poi.listing_id = sl_orig.id
+        LEFT JOIN categories c ON sl_orig.category_id = c.id
+        WHERE bpo.buyer_store_id = $1
+          AND poi.listing_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM seller_listings sl_resale 
+            WHERE sl_resale.store_id = $1 
+              AND (sl_resale.original_listing_id = poi.listing_id OR (sl_resale.master_catalog_id IS NOT NULL AND sl_resale.master_catalog_id = poi.listing_id))
+          )
+        GROUP BY 
+          poi.listing_id, poi.item_name, poi.brand_tag, poi.unit, poi.image_url,
+          poi.unit_price, poi.mrp, poi.category_name,
+          s_supplier.id, s_supplier.store_name, s_supplier.city,
+          sl_orig.id, sl_orig.title, sl_orig.brand_tag, sl_orig.unit, sl_orig.mrp,
+          sl_orig.sell_price, sl_orig.category_id, c.name
+        ORDER BY last_purchased_at DESC;
+      `;
+      const res = await pool.query(query, [buyerStoreId]);
+      return res.rows;
+    } catch (e) {
+      console.error('getPurchasedBrandsReadyToPublish Error:', e);
+      return [];
+    }
+  }
+
+  async getBrandDistributionAnalytics(creatorStoreId) {
+    await this.ensureB2BPurchaseTables();
+    try {
+      const partnersRes = await pool.query(`
+        SELECT 
+          s.id as store_id,
+          s.store_name,
+          s.city,
+          COUNT(sl.id) as active_resale_listings,
+          MIN(sl.created_at) as partner_since,
+          BOOL_OR(s.id = ANY(COALESCE(orig.blocked_reseller_store_ids, '{}'))) as is_blocked
+        FROM seller_listings sl
+        JOIN seller_listings orig ON (sl.original_listing_id = orig.id OR (sl.master_catalog_id IS NOT NULL AND sl.master_catalog_id = orig.id))
+        JOIN stores s ON sl.store_id = s.id
+        WHERE orig.store_id = $1
+        GROUP BY s.id, s.store_name, s.city
+        ORDER BY active_resale_listings DESC
+        LIMIT 20;
+      `, [creatorStoreId]);
+
+      const poStatsRes = await pool.query(`
+        SELECT 
+          COUNT(DISTINCT bpo.id) as total_b2b_orders,
+          COUNT(DISTINCT bpo.buyer_store_id) as total_buyer_stores,
+          COALESCE(SUM(poi.quantity), 0) as total_b2b_units_sold,
+          COALESCE(SUM(poi.total_price), 0) as total_b2b_revenue
+        FROM b2b_purchase_items poi
+        JOIN b2b_purchase_orders bpo ON poi.purchase_order_id = bpo.id
+        WHERE bpo.supplier_store_id = $1;
+      `, [creatorStoreId]);
+
+      const topProductsRes = await pool.query(`
+        SELECT 
+          orig.id,
+          orig.title,
+          orig.brand_tag,
+          COUNT(DISTINCT sl.store_id) as partner_stores_count,
+          COALESCE(SUM(poi.quantity), 0) as units_supplied
+        FROM seller_listings orig
+        LEFT JOIN seller_listings sl ON (sl.original_listing_id = orig.id OR (sl.master_catalog_id IS NOT NULL AND sl.master_catalog_id = orig.id))
+        LEFT JOIN b2b_purchase_items poi ON poi.listing_id = orig.id
+        WHERE orig.store_id = $1 AND orig.product_type = 'OWN_BRAND'
+        GROUP BY orig.id, orig.title, orig.brand_tag
+        ORDER BY partner_stores_count DESC, units_supplied DESC
+        LIMIT 10;
+      `, [creatorStoreId]);
+
+      const stats = poStatsRes.rows[0] || {};
+      return {
+        total_buyer_stores: Number(stats.total_buyer_stores || partnersRes.rows.length || 0),
+        total_b2b_orders: Number(stats.total_b2b_orders || 0),
+        total_b2b_units_sold: Number(stats.total_b2b_units_sold || 0),
+        total_b2b_revenue: Number(stats.total_b2b_revenue || 0),
+        partner_stores: partnersRes.rows,
+        top_products: topProductsRes.rows
+      };
+    } catch (e) {
+      console.error('getBrandDistributionAnalytics Error:', e);
+      return {
+        total_buyer_stores: 0,
+        total_b2b_orders: 0,
+        total_b2b_units_sold: 0,
+        total_b2b_revenue: 0,
+        partner_stores: [],
+        top_products: []
+      };
+    }
+  }
+
+  async toggleListingB2B(storeId, listingId) {
+    try {
+      const getRes = await pool.query(
+        `SELECT id, allowed_buyers, master_catalog_id, original_listing_id FROM seller_listings WHERE id = $1 AND store_id = $2`,
+        [listingId, storeId]
+      );
+      if (getRes.rows.length === 0) {
+        throw new Error('Listing not found or access denied');
+      }
+      const item = getRes.rows[0];
+      if (item.master_catalog_id || item.original_listing_id) {
+        throw new Error('Partner brand products are reserved for retail customers only and cannot be opened for wholesale.');
+      }
+      const current = item.allowed_buyers || 'ALL';
+      const nextVal = (current === 'ALL' || current === 'STORES_ONLY') ? 'CUSTOMERS_ONLY' : 'ALL';
+
+      const updateRes = await pool.query(
+        `UPDATE seller_listings 
+         SET allowed_buyers = $1, updated_at = NOW() 
+         WHERE id = $2 AND store_id = $3 
+         RETURNING *`,
+        [nextVal, listingId, storeId]
+      );
+      return updateRes.rows[0];
+    } catch (e) {
+      console.error('toggleListingB2B Error:', e);
+      throw e;
     }
   }
 

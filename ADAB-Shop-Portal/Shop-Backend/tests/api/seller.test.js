@@ -43,7 +43,10 @@ jest.mock('../../src/services/seller', () => ({
   sendThreadMessage: jest.fn().mockResolvedValue({ id: 'msg1' }),
   markThreadRead: jest.fn().mockResolvedValue({ success: true }),
   sendOtp: jest.fn().mockResolvedValue({ success: true, isSimulated: true }),
-  verifyOtp: jest.fn().mockResolvedValue({ success: true })
+  verifyOtp: jest.fn().mockResolvedValue({ success: true }),
+  getPurchasedBrandsReadyToPublish: jest.fn().mockResolvedValue([]),
+  getBrandDistributionAnalytics: jest.fn().mockResolvedValue({}),
+  toggleListingB2B: jest.fn().mockResolvedValue({ id: '1', allowed_buyers: 'CUSTOMERS_ONLY' })
 }));
 
 app.use('/api/v1/seller', sellerRoutes);
@@ -118,6 +121,27 @@ describe('Seller API Routes (Supertest)', () => {
       .send({ email: 'seller@adab.com', otp: '123456', idMode: 'email' });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+  });
+
+  it('GET /api/v1/seller/other-store-brands/purchased-ready should return purchased brands ready to publish', async () => {
+    const res = await request(app).get('/api/v1/seller/other-store-brands/purchased-ready');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(Array.isArray(res.body.data)).toBe(true);
+  });
+
+  it('GET /api/v1/seller/brand-distribution-analytics should return creator brand analytics', async () => {
+    const res = await request(app).get('/api/v1/seller/brand-distribution-analytics');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(typeof res.body.data).toBe('object');
+  });
+
+  it('POST /api/v1/seller/listings/:id/toggle-b2b should toggle B2B distribution status', async () => {
+    const res = await request(app).post('/api/v1/seller/listings/00000000-0000-0000-0000-000000000001/toggle-b2b');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.allowed_buyers).toBe('CUSTOMERS_ONLY');
   });
 });
 
