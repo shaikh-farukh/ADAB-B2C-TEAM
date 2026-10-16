@@ -60,7 +60,7 @@ export const sellerApi = {
   getNearbyCatalog: (params) => apiClient.get('/nearby-catalog', { params }),
   getNearbyStores: (params) => apiClient.get('/nearby-stores', { params }),
   getBuyerCreditBalance: () => apiClient.get('/credit-balance'),
-  getPurchaseOrders: () => apiClient.get('/purchase-orders'),
+  getPurchaseOrders: (params) => apiClient.get('/purchase-orders', { params }),
   createPurchaseOrder: (orderData) =>
     apiClient.post(
       '/purchase-orders',
@@ -70,6 +70,21 @@ export const sellerApi = {
   getOtherStoreBrands: (params) => apiClient.get('/other-store-brands', { params }),
   addOtherStoreBrandToMyStore: (data) => apiClient.post('/other-store-brands/add-to-store', data),
   getMyAddedOtherStoreBrands: () => apiClient.get('/other-store-brands/my-added'),
+  getPurchasedBrandsReadyToPublish: () => apiClient.get('/other-store-brands/purchased-ready'),
+  requestResaleStock: (data) => apiClient.post('/other-store-brands/request-stock', data),
+  getIncomingResaleRequests: () => apiClient.get('/other-store-brands/incoming-requests'),
+  approveResaleRequest: (orderId) => apiClient.post(`/other-store-brands/requests/${orderId}/approve`),
+  declineResaleRequest: (orderId, reason) => apiClient.post(`/other-store-brands/requests/${orderId}/decline`, { reason }),
+  confirmAndPayResaleOrder: (orderId, paymentData) =>
+    apiClient.post(
+      `/other-store-brands/orders/${orderId}/confirm-pay`,
+      paymentData,
+      buildIdempotencyHeaders(`resale-pay-${orderId}`)
+    ),
+  toggleBlockResellerStore: (buyerStoreId, block) =>
+    apiClient.post(`/other-store-brands/resellers/${buyerStoreId}/toggle-block`, { block }),
+  getBrandDistributionAnalytics: () => apiClient.get('/brand-distribution-analytics'),
+  toggleListingB2B: (listingId) => apiClient.post(`/listings/${listingId}/toggle-b2b`),
   getRecommendations: () => apiClient.get('/recommendations'),
   getThreads: () => apiClient.get('/messages/threads'),
   getMessages: () => apiClient.get('/messages/threads'),

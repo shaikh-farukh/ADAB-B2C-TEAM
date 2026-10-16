@@ -20,6 +20,9 @@ const createListingSchema = z.object({
   image_url: z.preprocess(emptyStringAsNull, z.string().nullable().optional()),
   stock_qty: z.coerce.number().int().nonnegative().optional().default(0),
   category_id: z.preprocess(emptyStringAsNull, z.coerce.number().int().positive().nullable().optional()),
+  wholesale_price: z.preprocess(emptyStringAsNull, z.coerce.number().nonnegative().nullable().optional()),
+  tiered_pricing: z.any().optional(),
+  sample_available: z.boolean().optional().default(true),
 });
 
 const updateListingSchema = createListingSchema.partial();

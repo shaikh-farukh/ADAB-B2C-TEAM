@@ -244,7 +244,8 @@ class SellerController {
   async getPurchaseOrders(req, res) {
     try {
       const { storeId } = await resolveSellerStoreId(req);
-      const orders = await sellerService.getPurchaseOrders(storeId);
+      const { type } = req.query;
+      const orders = await sellerService.getPurchaseOrders(storeId, { type });
       res.json({ success: true, data: orders });
     } catch (error) {
       handleError(res, error);
@@ -275,11 +276,11 @@ class SellerController {
   async addOtherStoreBrandToMyStore(req, res) {
     try {
       const { storeId } = getAuthenticatedSellerContext(req);
-      const { originalListingId, sellPrice, stockQty } = req.body;
+      const { originalListingId, sellPrice, wholesalePrice, stockQty } = req.body;
       if (!originalListingId) {
         return res.status(400).json({ success: false, error: 'originalListingId is required' });
       }
-      const added = await sellerService.addOtherStoreBrandToMyStore(storeId, { originalListingId, sellPrice, stockQty });
+      const added = await sellerService.addOtherStoreBrandToMyStore(storeId, { originalListingId, sellPrice, wholesalePrice, stockQty });
       res.status(201).json({ success: true, data: added, message: 'Added to your store catalog successfully' });
     } catch (error) {
       handleError(res, error);
@@ -291,6 +292,130 @@ class SellerController {
       const { storeId } = getAuthenticatedSellerContext(req);
       const added = await sellerService.getMyAddedOtherStoreBrands(storeId);
       res.json({ success: true, data: added });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async getPurchasedBrandsReadyToPublish(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      const items = await sellerService.getPurchasedBrandsReadyToPublish(storeId);
+      res.json({ success: true, data: items });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async getBrandDistributionAnalytics(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      const analytics = await sellerService.getBrandDistributionAnalytics(storeId);
+      res.json({ success: true, data: analytics });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async toggleListingB2B(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      const listingId = req.params.id;
+      const updated = await sellerService.toggleListingB2B(storeId, listingId);
+      res.json({ success: true, data: updated, message: 'B2B distribution status updated successfully' });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async requestResaleStock(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      const { originalListingId, quantity, resaleSellPrice, paymentTerms, notes } = req.body;
+      if (!originalListingId) {
+        return res.status(400).json({ success: false, error: 'originalListingId is required' });
+      }
+      const requestResult = await sellerService.requestResaleStock(storeId, {
+        originalListingId,
+        quantity,
+        resaleSellPrice,
+        paymentTerms,
+        notes
+      });
+      res.status(201).json({
+        success: true,
+        data: requestResult,
+        message: 'Resale authorization and stock request submitted to brand manufacturer'
+      });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async getIncomingResaleRequests(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      const requests = await sellerService.getIncomingResaleRequests(storeId);
+      res.json({ success: true, data: requests });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async approveResaleRequest(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      const orderId = req.params.id;
+      const approved = await sellerService.approveResaleRequest(storeId, orderId);
+      res.json({ success: true, data: approved, message: 'Resale request approved successfully' });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async declineResaleRequest(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      const orderId = req.params.id;
+      const { reason } = req.body;
+      const declined = await sellerService.declineResaleRequest(storeId, orderId, reason);
+      res.json({ success: true, data: declined, message: 'Resale request declined' });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async confirmAndPayResaleOrder(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      const orderId = req.params.id;
+      const { payment_method, payment_reference, metadata } = req.body;
+      const result = await sellerService.confirmAndPayResaleOrder(storeId, orderId, {
+        payment_method,
+        payment_reference,
+        metadata
+      });
+      res.json({
+        success: true,
+        data: result,
+        message: 'Resale order paid & activated in your catalog with real inventory!'
+      });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async toggleBlockResellerStore(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      const { buyerStoreId } = req.params;
+      const { block } = req.body;
+      const result = await sellerService.toggleBlockResellerStore(storeId, buyerStoreId, block !== false);
+      res.json({
+        success: true,
+        data: result,
+        message: block !== false ? 'Store blocked from future resale requests' : 'Store unblocked'
+      });
     } catch (error) {
       handleError(res, error);
     }

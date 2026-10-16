@@ -98,8 +98,8 @@ class SellerService {
     return await sellerRepository.getBuyerCreditInfo(userId, storeId);
   }
 
-  async getPurchaseOrders(storeId) {
-    return await sellerRepository.getPurchaseOrders(storeId);
+  async getPurchaseOrders(storeId, options = {}) {
+    return await sellerRepository.getPurchaseOrders(storeId, options);
   }
 
   async createPurchaseOrder(storeId, userId, orderData) {
@@ -116,6 +116,42 @@ class SellerService {
 
   async getMyAddedOtherStoreBrands(storeId) {
     return await sellerRepository.getMyAddedOtherStoreBrands(storeId);
+  }
+
+  async getPurchasedBrandsReadyToPublish(storeId) {
+    return await sellerRepository.getPurchasedBrandsReadyToPublish(storeId);
+  }
+
+  async getBrandDistributionAnalytics(storeId) {
+    return await sellerRepository.getBrandDistributionAnalytics(storeId);
+  }
+
+  async toggleListingB2B(storeId, listingId) {
+    return await sellerRepository.toggleListingB2B(storeId, listingId);
+  }
+
+  async requestResaleStock(storeId, data) {
+    return await sellerRepository.requestResaleStock(storeId, data);
+  }
+
+  async getIncomingResaleRequests(storeId) {
+    return await sellerRepository.getIncomingResaleRequests(storeId);
+  }
+
+  async approveResaleRequest(storeId, orderId) {
+    return await sellerRepository.approveResaleRequest(storeId, orderId);
+  }
+
+  async declineResaleRequest(storeId, orderId, reason) {
+    return await sellerRepository.declineResaleRequest(storeId, orderId, reason);
+  }
+
+  async confirmAndPayResaleOrder(storeId, orderId, paymentData) {
+    return await sellerRepository.confirmAndPayResaleOrder(storeId, orderId, paymentData);
+  }
+
+  async toggleBlockResellerStore(storeId, buyerStoreId, block) {
+    return await sellerRepository.toggleBlockResellerStore(storeId, buyerStoreId, block);
   }
 
 

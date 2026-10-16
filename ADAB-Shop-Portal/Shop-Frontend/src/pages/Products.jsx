@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useSeller } from '../context/SellerContext';
 import { useListings } from '../hooks/useListings';
 import listingService from '../services/listingService';
+import { sellerApi } from '../api/sellerApi';
 
 const FMCG_MASTER_CATALOG = [
   { id: 'tata-salt-1kg', name: 'Tata Salt Vacuum Evaporated Iodised 1kg', brand: 'Tata', barcode: '8901030383749', mrp: 28, sell_price: 25, unit: 'pack', category_id: 3 },
@@ -45,6 +47,17 @@ const Products = () => {
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const fileInputRef = useRef(null);
   const { uploadJobs, setUploadJobs } = useSeller();
+  const location = useLocation();
+  const [successBanner, setSuccessBanner] = useState(location.state?.message || '');
+
+  useEffect(() => {
+    if (location.state?.message) {
+      setSuccessBanner(location.state.message);
+      if (typeof refresh === 'function') refresh();
+      const timer = setTimeout(() => setSuccessBanner(''), 7000);
+      return () => clearTimeout(timer);
+    }
+  }, [location.state, refresh]);
 
   useEffect(() => {
     const fetchCats = async () => {
@@ -225,6 +238,8 @@ const Products = () => {
     category_id: '',
     mrp: '',
     sell_price: '',
+    wholesale_price: '',
+    sample_available: true,
     product_type: 'OWN_BRAND',
     unit: 'pcs',
     min_order_qty: 1,
@@ -241,6 +256,37 @@ const Products = () => {
     setEditingListing(null);
     setFormData(initialFormState);
     setShowModal(true);
+  };
+
+  const handleQuickToggleB2B = async (listingId) => {
+    const target = listings.find((x) => x.id === listingId);
+    if (target?.master_catalog_id || target?.original_listing_id) {
+      alert('This is a partner brand product. It can only be sold directly to retail consumers and cannot be distributed wholesale to other stores.');
+      return;
+    }
+
+    const currentAllowed = target?.allowed_buyers || 'ALL';
+    const nextAllowed = currentAllowed === 'ALL' || currentAllowed === 'STORES_ONLY' ? 'CUSTOMERS_ONLY' : 'ALL';
+
+    // Optimistic UI update
+    setListings((prev) =>
+      prev.map((l) => (l.id === listingId ? { ...l, allowed_buyers: nextAllowed } : l))
+    );
+
+    try {
+      const res = await sellerApi.toggleListingB2B(listingId);
+      const updatedListing = res?.data || res;
+      if (updatedListing?.allowed_buyers) {
+        setListings((prev) =>
+          prev.map((l) => (l.id === listingId ? { ...l, allowed_buyers: updatedListing.allowed_buyers } : l))
+        );
+      }
+      refresh();
+    } catch (err) {
+      console.error('Failed to toggle B2B status', err);
+      alert('Failed to update B2B availability: ' + (err.response?.data?.error || err.message));
+      refresh();
+    }
   };
 
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -296,6 +342,8 @@ const Products = () => {
       category_id: listing.category_id || '',
       mrp: listing.mrp,
       sell_price: listing.sell_price,
+      wholesale_price: listing.wholesale_price || '',
+      sample_available: listing.sample_available !== false,
       product_type: listing.product_type || 'OWN_BRAND',
       allowed_buyers: listing.allowed_buyers || 'ALL',
       image_url: listing.image_url || '',
@@ -340,7 +388,9 @@ const Products = () => {
         category_id: formData.category_id ? parseInt(formData.category_id, 10) : null,
         mrp: parseFloat(formData.mrp || formData.sell_price), 
         sell_price: parseFloat(formData.sell_price),
-        stock_qty: parseInt(formData.stock_qty || 0, 10)
+        stock_qty: parseInt(formData.stock_qty || 0, 10),
+        wholesale_price: formData.wholesale_price ? parseFloat(formData.wholesale_price) : null,
+        sample_available: formData.sample_available !== false
       };
       
       // Strict field sanitization per product type
@@ -515,6 +565,29 @@ const Products = () => {
 
   return (
     <div className="fade-in w-full p-2 sm:p-4">
+      {/* Newly Published Product Success Banner */}
+      {successBanner && (
+        <div className="mb-5 p-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-lg flex items-center justify-between gap-3 animate-fade-in border border-emerald-500">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+              <i className="fa-solid fa-circle-check text-white text-xl"></i>
+            </div>
+            <div>
+              <h3 className="font-black text-sm tracking-wide">Product Successfully Published!</h3>
+              <p className="text-xs text-emerald-100 font-medium">{successBanner}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSuccessBanner('')}
+            className="text-white/80 hover:text-white text-sm font-black p-1 hover:bg-white/10 rounded-lg transition"
+            title="Dismiss"
+          >
+            <i className="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
+      )}
+
       {/* Header and Actions */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
         <div>
@@ -738,8 +811,52 @@ const Products = () => {
                         <td className="px-4 py-4 whitespace-nowrap text-gray-600 text-sm">
                           {l.stock_qty || 0} {l.unit || (l.product_type === 'LOOSE_WEIGHT' ? 'kg' : l.product_type === 'PACKED_ITEM' ? 'packs' : 'pcs')}
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-gray-500 text-sm">
-                          {l.allowed_buyers === 'ALL' ? 'Customers + Stores' : l.allowed_buyers === 'CUSTOMERS_ONLY' ? 'Customers only' : 'Stores only'}
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          {l.master_catalog_id || l.original_listing_id ? (
+                            <span
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200"
+                              title="Partner Brand product — only sold directly to retail consumers"
+                            >
+                              <i className="fa-solid fa-lock text-[10px] text-amber-600"></i>
+                              <span>Customers Only</span>
+                            </span>
+                          ) : l.product_type === 'OWN_BRAND' ? (
+                            <button
+                              type="button"
+                              onClick={() => handleQuickToggleB2B(l.id)}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition shadow-sm ${
+                                l.allowed_buyers === 'ALL' || l.allowed_buyers === 'STORES_ONLY'
+                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
+                                  : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+                              }`}
+                              title={
+                                l.allowed_buyers === 'ALL' || l.allowed_buyers === 'STORES_ONLY'
+                                  ? 'Click to make Exclusive to your store only (Close B2B)'
+                                  : 'Click to Open for other Stores to buy wholesale'
+                              }
+                            >
+                              <span
+                                className={`w-2 h-2 rounded-full ${
+                                  l.allowed_buyers === 'ALL' || l.allowed_buyers === 'STORES_ONLY'
+                                    ? 'bg-emerald-500 animate-pulse'
+                                    : 'bg-gray-400'
+                                }`}
+                              ></span>
+                              <span>
+                                {l.allowed_buyers === 'ALL' || l.allowed_buyers === 'STORES_ONLY'
+                                  ? `B2B Open (₹${l.wholesale_price || l.sell_price})`
+                                  : 'Shop Exclusive'}
+                              </span>
+                            </button>
+                          ) : (
+                            <span className="text-gray-500 text-xs">
+                              {l.allowed_buyers === 'ALL'
+                                ? 'Customers + Stores'
+                                : l.allowed_buyers === 'CUSTOMERS_ONLY'
+                                ? 'Customers only'
+                                : 'Stores only'}
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-4 text-right space-x-3 whitespace-nowrap">
                           <button onClick={() => openEdit(l)} className="text-gray-400 hover:text-brand-dark transition tooltip-trigger" title="Edit">
@@ -872,30 +989,45 @@ const Products = () => {
               </div>
 
               {formData.product_type === 'OWN_BRAND' && (
-                <div className="p-4 bg-purple-50 rounded-2xl border border-purple-100">
-                  <div className="flex items-center gap-2 mb-1">
-                    <i className="fa-solid fa-tag text-purple-600 text-xs"></i>
-                    <span className="font-extrabold text-sm text-purple-900">Own Brand Setup</span>
+                <div className="p-4 bg-purple-50 rounded-2xl border border-purple-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <i className="fa-solid fa-tag text-purple-600 text-sm"></i>
+                      <span className="font-extrabold text-sm text-purple-900">Own Brand Setup & B2B Distribution</span>
+                    </div>
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-purple-200/60 text-purple-900">
+                      Private Label
+                    </span>
                   </div>
-                  <p className="text-xs text-purple-700 mb-3 leading-relaxed">For garments, apparel, footwear, craft, or products manufactured under your own label.</p>
-                  <div className="flex gap-2 mb-2">
-                    <input 
-                      type="text" 
-                      name="brand_tag" 
-                      value={formData.brand_tag || ''} 
-                      onChange={handleFormChange} 
-                      placeholder="Brand / Label (e.g. Balaji)" 
-                      className="flex-1 px-3 py-2 rounded-xl border border-purple-200 bg-white text-sm outline-none focus:border-purple-500 font-semibold text-purple-900" 
-                    />
-                    <input 
-                      type="text" 
-                      name="sku" 
-                      value={formData.sku || ''} 
-                      onChange={handleFormChange} 
-                      placeholder="SKU / Style Code (e.g. BAL-001)" 
-                      className="flex-1 px-3 py-2 rounded-xl border border-purple-200 bg-white text-sm outline-none focus:border-purple-500" 
-                    />
+                  <p className="text-xs text-purple-700 leading-relaxed">
+                    Set up your manufacturer label, unit, and configure store-to-store wholesale rates for partner kiranas across the ADAB network.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-bold text-purple-900 mb-1">Brand / Label Name *</label>
+                      <input 
+                        type="text" 
+                        name="brand_tag" 
+                        value={formData.brand_tag || ''} 
+                        onChange={handleFormChange} 
+                        placeholder="Brand (e.g. Balaji, Homemade)" 
+                        className="w-full px-3 py-2 rounded-xl border border-purple-200 bg-white text-sm outline-none focus:border-purple-500 font-semibold text-purple-900" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-purple-900 mb-1">SKU / Style Code</label>
+                      <input 
+                        type="text" 
+                        name="sku" 
+                        value={formData.sku || ''} 
+                        onChange={handleFormChange} 
+                        placeholder="e.g. BAL-001 or HM-05" 
+                        className="w-full px-3 py-2 rounded-xl border border-purple-200 bg-white text-sm outline-none focus:border-purple-500 font-mono text-purple-900" 
+                      />
+                    </div>
                   </div>
+
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-purple-900 shrink-0">Selling Unit:</span>
                     <select 
@@ -907,9 +1039,111 @@ const Products = () => {
                       <option value="pcs">Pieces (pcs) [Default]</option>
                       <option value="pair">Pair (pair)</option>
                       <option value="set">Set (set)</option>
+                      <option value="pack">Pack (pack)</option>
+                      <option value="box">Box (box)</option>
                       <option value="meter">Meter (m)</option>
+                      <option value="kg">Kilogram (kg)</option>
                     </select>
                   </div>
+
+                  {/* B2B Wholesale Pricing & Network Settings */}
+                  {editingListing?.master_catalog_id || editingListing?.original_listing_id ? (
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-2 text-xs">
+                      <div className="flex items-center gap-2 text-amber-900 font-bold">
+                        <i className="fa-solid fa-lock text-amber-600"></i>
+                        <span>Partner Brand Product (Retail Exclusive)</span>
+                      </div>
+                      <p className="text-[11px] text-amber-800">
+                        This product was sourced from a partner manufacturer. It is sold directly to <strong>Retail Customers Only</strong> and cannot be redistributed wholesale to other stores.
+                      </p>
+                      <div className="flex items-center justify-between text-[11px] text-gray-600 bg-white p-2 rounded-lg border border-amber-200">
+                        <span>Wholesale Cost: <strong>₹{editingListing.wholesale_price || '—'}</strong></span>
+                        <span>Allowed Buyers: <strong className="text-emerald-700">Retail Customers Only</strong></span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-white rounded-xl border border-purple-200 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-extrabold text-purple-950 flex items-center gap-1.5">
+                          <i className="fa-solid fa-store text-emerald-600"></i>
+                          Store-to-Store Wholesale Pricing (B2B)
+                        </span>
+                        {formData.wholesale_price && formData.sell_price && Number(formData.sell_price) > Number(formData.wholesale_price) && (
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                            Reseller Margin: {Math.round(((Number(formData.sell_price) - Number(formData.wholesale_price)) / Number(formData.sell_price)) * 100)}%
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                            Wholesale Price to Other Stores (₹)
+                          </label>
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            name="wholesale_price" 
+                            value={formData.wholesale_price || ''} 
+                            onChange={handleFormChange} 
+                            placeholder="Wholesale (e.g. 500)" 
+                            className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-bold text-emerald-800 outline-none focus:border-purple-500" 
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                            Wholesale Min Order Qty (MOQ)
+                          </label>
+                          <input 
+                            type="number" 
+                            min="1"
+                            name="min_order_qty" 
+                            value={formData.min_order_qty || ''} 
+                            onChange={handleFormChange} 
+                            placeholder="Min units (e.g. 5)" 
+                            className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-800 outline-none focus:border-purple-500" 
+                          />
+                        </div>
+                      </div>
+
+                      <div className="pt-1 space-y-2 border-t border-purple-100">
+                        <label className="flex items-start gap-2.5 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={formData.allowed_buyers === 'ALL' || formData.allowed_buyers === 'STORES_ONLY'} 
+                            onChange={(e) => setFormData({
+                              ...formData, 
+                              allowed_buyers: e.target.checked ? 'ALL' : 'CUSTOMERS_ONLY'
+                            })}
+                            className="w-4 h-4 text-emerald-600 rounded mt-0.5 focus:ring-emerald-500" 
+                          />
+                          <div>
+                            <div className="text-xs font-bold text-gray-900">
+                              Distribute on B2B Partner Network
+                            </div>
+                            <div className="text-[11px] text-gray-500">
+                              Allow neighboring kiranas and stores to order wholesale stock and resell in their shops
+                            </div>
+                          </div>
+                        </label>
+
+                        <label className="flex items-center gap-2.5 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={formData.sample_available !== false} 
+                            onChange={(e) => setFormData({
+                              ...formData, 
+                              sample_available: e.target.checked
+                            })}
+                            className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500" 
+                          />
+                          <span className="text-xs font-semibold text-gray-700">
+                            Allow 1-unit sample orders so partner stores can inspect quality before bulk restock
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -6,22 +6,44 @@ class ListingRepository {
       data.product_type === 'LOOSE_WEIGHT' ? 'kg' :
       data.product_type === 'PACKED_ITEM' ? 'pack' : 'pcs'
     );
-    const query = `
-      INSERT INTO seller_listings (
-        store_id, title, sku, barcode, brand_tag, product_type, unit, 
-        mrp, sell_price, min_order_qty, allowed_buyers, approval_status, is_active, stock_qty, category_id
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
-      ) RETURNING *;
-    `;
-    const values = [
-      storeId, data.title, data.sku || null, data.barcode || null, data.brand_tag || null, data.product_type, effectiveUnit,
-      data.mrp, data.sell_price, data.min_order_qty || 1, data.allowed_buyers || 'ALL', data.approval_status || 'DRAFT', data.is_active !== undefined ? data.is_active : true, data.stock_qty || 0,
-      data.category_id ? parseInt(data.category_id, 10) : null
-    ];
-    
-    const result = await pool.query(query, values);
-    const listing = result.rows[0];
+    let listing;
+    try {
+      const query = `
+        INSERT INTO seller_listings (
+          store_id, title, sku, barcode, brand_tag, product_type, unit, 
+          mrp, sell_price, min_order_qty, allowed_buyers, approval_status, is_active, stock_qty, category_id,
+          wholesale_price, tiered_pricing, sample_available
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+        ) RETURNING *;
+      `;
+      const values = [
+        storeId, data.title, data.sku || null, data.barcode || null, data.brand_tag || null, data.product_type, effectiveUnit,
+        data.mrp, data.sell_price, data.min_order_qty || 1, data.allowed_buyers || 'ALL', data.approval_status || 'DRAFT', data.is_active !== undefined ? data.is_active : true, data.stock_qty || 0,
+        data.category_id ? parseInt(data.category_id, 10) : null,
+        data.wholesale_price !== undefined && data.wholesale_price !== null ? data.wholesale_price : null,
+        data.tiered_pricing ? (typeof data.tiered_pricing === 'string' ? data.tiered_pricing : JSON.stringify(data.tiered_pricing)) : '[]',
+        data.sample_available !== undefined ? Boolean(data.sample_available) : true
+      ];
+      const result = await pool.query(query, values);
+      listing = result.rows[0];
+    } catch (_) {
+      const fallbackQuery = `
+        INSERT INTO seller_listings (
+          store_id, title, sku, barcode, brand_tag, product_type, unit, 
+          mrp, sell_price, min_order_qty, allowed_buyers, approval_status, is_active, stock_qty, category_id
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+        ) RETURNING *;
+      `;
+      const fallbackValues = [
+        storeId, data.title, data.sku || null, data.barcode || null, data.brand_tag || null, data.product_type, effectiveUnit,
+        data.mrp, data.sell_price, data.min_order_qty || 1, data.allowed_buyers || 'ALL', data.approval_status || 'DRAFT', data.is_active !== undefined ? data.is_active : true, data.stock_qty || 0,
+        data.category_id ? parseInt(data.category_id, 10) : null
+      ];
+      const result = await pool.query(fallbackQuery, fallbackValues);
+      listing = result.rows[0];
+    }
 
     // Handle mock image insert if provided
     if (data.image_url) {

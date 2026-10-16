@@ -56,7 +56,7 @@ export default function BuyNearbyPage() {
         sellerApi.getNearbyCatalog(),
         sellerApi.getNearbyStores(),
         sellerApi.getBuyerCreditBalance(),
-        sellerApi.getPurchaseOrders()
+        sellerApi.getPurchaseOrders({ type: 'restock' })
       ]);
 
       let loadedProducts = [];
@@ -95,7 +95,9 @@ export default function BuyNearbyPage() {
 
       if (orderRes.status === 'fulfilled') {
         const raw = orderRes.value?.data !== undefined ? orderRes.value.data : orderRes.value;
-        setOrders(Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []));
+        const allOrders = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
+        // Strictly filter to wholesale grocery restock purchase orders (PO-B2B-...), never Own Brand resale requests (REQ-B2B-...)
+        setOrders(allOrders.filter((po) => !po.po_number || po.po_number.startsWith('PO-B2B-') || !po.po_number.startsWith('REQ-B2B-')));
       } else {
         setOrders([]);
       }
@@ -1388,9 +1390,40 @@ export default function BuyNearbyPage() {
                           {po.status || 'PLACED'}
                         </span>
                       </div>
-                      <div className="text-xs text-gray-500">
-                        Supplier: <span className="font-bold text-gray-800">{po.supplier_name || 'Partner Kirana'}</span> ·{' '}
-                        {po.payment_terms || '14D Credit'} · {new Date(po.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-gray-500">
+                        <span>Supplier: <strong className="text-gray-800">{po.supplier_name || 'Partner Kirana'}</strong></span>
+                        <span className="text-gray-300">·</span>
+                        <span>{new Date(po.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                        <span className="text-gray-300">·</span>
+                        {/* Payment Status & Method Badge */}
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-[11px] ${
+                          po.payment_method === 'CARD'
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                            : po.payment_method === 'UPI' || po.payment_terms === 'ADVANCE_UPI'
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : 'bg-purple-50 text-purple-800 border border-purple-200'
+                        }`}>
+                          <i className={`fa-solid ${
+                            po.payment_method === 'CARD' ? 'fa-credit-card' :
+                            po.payment_method === 'UPI' || po.payment_terms === 'ADVANCE_UPI' ? 'fa-qrcode' :
+                            'fa-receipt'
+                          }`}></i>
+                          <span>
+                            {po.payment_method === 'CARD' 
+                              ? 'Paid via Card' 
+                              : po.payment_method === 'UPI' || po.payment_terms === 'ADVANCE_UPI'
+                              ? 'Paid via UPI' 
+                              : '14 Days Net Credit'}
+                          </span>
+                        </span>
+
+                        {/* Delivery Method Badge */}
+                        {po.delivery_method && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 text-[11px] font-semibold border border-gray-200">
+                            <i className="fa-solid fa-truck text-emerald-600"></i>
+                            <span className="capitalize">{po.delivery_method}</span>
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -1414,18 +1447,32 @@ export default function BuyNearbyPage() {
 
                   {/* Items list in PO */}
                   {Array.isArray(po.items) && po.items.length > 0 && (
-                    <div className="p-3 bg-gray-50 rounded-xl space-y-2 text-xs">
+                    <div className="p-3 bg-gray-50 rounded-xl space-y-2 text-xs border border-gray-100">
                       <div className="font-black text-gray-700 text-[11px] uppercase tracking-wider">
                         Ordered Items ({po.items.length}):
                       </div>
                       <div className="divide-y divide-gray-200">
                         {po.items.map((it, idx) => (
-                          <div key={it.id || idx} className="py-1.5 flex justify-between items-center text-gray-700">
-                            <div>
-                              <span className="font-bold text-gray-900">{it.item_name}</span>{' '}
-                              <span className="text-gray-400">× {it.quantity} {it.unit || 'unit'}</span>
+                          <div key={it.id || idx} className="py-2 flex justify-between items-center text-gray-700 gap-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              {it.image_url ? (
+                                <img
+                                  src={it.image_url}
+                                  alt={it.item_name}
+                                  className="w-8 h-8 rounded-lg object-contain bg-white border border-gray-200 p-0.5 shrink-0"
+                                  onError={(e) => { e.target.style.display = 'none'; }}
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded-lg bg-gray-200 text-gray-400 flex items-center justify-center shrink-0 text-xs">
+                                  <i className="fa-solid fa-box"></i>
+                                </div>
+                              )}
+                              <div className="truncate">
+                                <span className="font-bold text-gray-900 truncate block">{it.item_name}</span>
+                                <span className="text-gray-400 text-[11px]">Qty: {it.quantity} {it.unit || 'unit'} · ₹{Number(it.price || 0).toLocaleString('en-IN')}/ea</span>
+                              </div>
                             </div>
-                            <div className="font-bold text-gray-900">
+                            <div className="font-black text-gray-900 text-sm shrink-0">
                               ₹{Number(it.total || (it.quantity * it.price) || 0).toLocaleString('en-IN')}
                             </div>
                           </div>

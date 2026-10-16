@@ -53,6 +53,15 @@ router.post('/purchase-orders', idempotencyMiddleware, sellerController.createPu
 router.get('/other-store-brands', sellerController.getOtherStoreBrands);
 router.post('/other-store-brands/add-to-store', sellerController.addOtherStoreBrandToMyStore);
 router.get('/other-store-brands/my-added', sellerController.getMyAddedOtherStoreBrands);
+router.get('/other-store-brands/purchased-ready', sellerController.getPurchasedBrandsReadyToPublish);
+router.post('/other-store-brands/request-stock', (req, res) => sellerController.requestResaleStock(req, res));
+router.get('/other-store-brands/incoming-requests', (req, res) => sellerController.getIncomingResaleRequests(req, res));
+router.post('/other-store-brands/requests/:id/approve', (req, res) => sellerController.approveResaleRequest(req, res));
+router.post('/other-store-brands/requests/:id/decline', (req, res) => sellerController.declineResaleRequest(req, res));
+router.post('/other-store-brands/orders/:id/confirm-pay', idempotencyMiddleware, (req, res) => sellerController.confirmAndPayResaleOrder(req, res));
+router.post('/other-store-brands/resellers/:buyerStoreId/toggle-block', (req, res) => sellerController.toggleBlockResellerStore(req, res));
+router.get('/brand-distribution-analytics', sellerController.getBrandDistributionAnalytics);
+router.post('/listings/:id/toggle-b2b', sellerController.toggleListingB2B);
 router.get('/recommendations', sellerController.getRecommendations);
 router.get('/messages/threads', sellerController.getThreads);
 router.get('/messages/threads/:threadId', sellerController.getThreadMessages);

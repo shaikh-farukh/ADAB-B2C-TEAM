@@ -122,9 +122,11 @@ export default function BuyCartPage() {
   const hasEnoughCredit = creditInfo.available_amount >= grandTotal && grandTotal > 0;
 
   const handlePlaceOrder = async () => {
+    if (isSubmitting) return; // Immediate guard against double-clicks
     if (cartItems.length === 0) {
       alert('Your purchase cart is empty.');
       return;
+
     }
     if (!agreeTerms) {
       alert('Please accept seller credit terms and delivery charges to proceed.');
@@ -137,16 +139,30 @@ export default function BuyCartPage() {
 
     try {
       setIsSubmitting(true);
+      const isCredit = paymentMethod === 'shop-credit' || paymentMethod === 'adab-credit';
+      const normalizedTerms = isCredit ? 'CREDIT_14D' : 'ADVANCE_UPI';
+      const idempotencyKey = `b2b-po-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
       const payload = {
+        idempotency_key: idempotencyKey,
         items: cartItems.map((item) => ({
           id: item.id,
           store_id: item.store_id,
           name: item.name,
           quantity: Number(item.quantity || 1),
           price: Number(item.price || 0),
-          unit: item.unit
+          unit: item.unit || 'unit',
+          image_url: item.image_url || null
         })),
-        payment_terms: paymentMethod === 'upi' ? 'UPI_INSTANT' : 'CREDIT_14D',
+        payment_terms: normalizedTerms,
+        payment_method: paymentMethod, // 'shop-credit' | 'adab-credit' | 'upi' | 'card'
+        payment_details: {
+          method: paymentMethod,
+          gateway: paymentMethod === 'upi' ? 'UPI_DIRECT' : paymentMethod === 'card' ? 'CARD_GATEWAY' : 'INTERNAL_CREDIT',
+          paid_at: new Date().toISOString()
+          // Note: When live Razorpay/UPI is integrated, gateway transaction IDs will be included here.
+          // Currently, they may be missing and the backend handles this gracefully without errors.
+        },
         delivery_method: deliveryMethod,
         delivery_fee: deliveryFee
       };
@@ -160,7 +176,11 @@ export default function BuyCartPage() {
         count: orders.length,
         orders: orders,
         total: grandTotal,
-        paymentTerms: paymentMethod === 'upi' ? 'UPI Instant Pay' : '14 Days Net Credit'
+        paymentTerms: paymentMethod === 'upi'
+          ? 'UPI Instant Pay'
+          : paymentMethod === 'card'
+            ? 'Credit / Debit Card'
+            : '14 Days Net Credit'
       });
       showToast('Purchase Order placed successfully with partner stores!');
     } catch (err) {
@@ -346,23 +366,23 @@ export default function BuyCartPage() {
                             )}
                             <div className="space-y-1">
                               <div className="font-extrabold text-gray-900 text-sm sm:text-base">{item.name}</div>
-                            <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
-                              <span className="font-bold text-emerald-700">
-                                ₹{Number(item.price || 0).toLocaleString('en-IN')}
-                              </span>
-                              <span>/ {item.unit || 'unit'}</span>
-                              {item.mrp && Number(item.mrp) > Number(item.price) && (
-                                <span className="line-through text-gray-400">
-                                  MRP ₹{Number(item.mrp).toLocaleString('en-IN')}
+                              <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
+                                <span className="font-bold text-emerald-700">
+                                  ₹{Number(item.price || 0).toLocaleString('en-IN')}
                                 </span>
-                              )}
-                              {minOrder > 1 && (
-                                <span className="px-1.5 py-0.5 rounded bg-gray-100 text-[10px] text-gray-600 font-semibold">
-                                  MOQ: {minOrder}
-                                </span>
-                              )}
+                                <span>/ {item.unit || 'unit'}</span>
+                                {item.mrp && Number(item.mrp) > Number(item.price) && (
+                                  <span className="line-through text-gray-400">
+                                    MRP ₹{Number(item.mrp).toLocaleString('en-IN')}
+                                  </span>
+                                )}
+                                {minOrder > 1 && (
+                                  <span className="px-1.5 py-0.5 rounded bg-gray-100 text-[10px] text-gray-600 font-semibold">
+                                    MOQ: {minOrder}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          </div>
                           </div>
 
                           {/* Quantity selector & Line Total */}
@@ -496,6 +516,7 @@ export default function BuyCartPage() {
                     <option value="shop-credit">Shop Credit (Pay Supplier in 14 Days)</option>
                     <option value="adab-credit">ADAB Credit Line (Pay ADAB in 14 Days)</option>
                     <option value="upi">Instant UPI / Bank Transfer Now</option>
+                    <option value="card">Debit / Credit Card (Visa / Mastercard / Rupay)</option>
                   </select>
                 </div>
 
@@ -539,7 +560,11 @@ export default function BuyCartPage() {
                   ) : (
                     <>
                       <i className="fa-solid fa-lock"></i>
-                      <span>Place Purchase Order ({paymentMethod === 'upi' ? 'UPI' : 'Credit'}) →</span>
+                      <span>
+                        Place Purchase Order (
+                        {paymentMethod === 'upi' ? 'UPI Instant' : paymentMethod === 'card' ? 'Card Pay' : '14D Credit'}
+                        ) →
+                      </span>
                     </>
                   )}
                 </button>
