@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useSeller } from '../context/SellerContext';
+import { useTranslation } from '../context/LanguageContext';
 import L from 'leaflet';
 
 function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating = false }) {
@@ -782,6 +783,7 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
 
 export default function OrdersPage() {
   const { store } = useSeller();
+  const { t } = useTranslation();
   const { orders, loading, error, updatingIds, updateStatus } = useOrders();
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [mapOrder, setMapOrder] = useState(null);
@@ -864,12 +866,12 @@ export default function OrdersPage() {
   const pickupCount = orders.filter(o => (o.delivery_mode || o.delivery_type || '').toLowerCase().includes('pickup')).length;
 
   const statusTabs = [
-    { key: 'all', label: 'All', count: orders.length },
-    { key: 'new', label: 'New', count: orders.filter(o => (o.status || '').toLowerCase() === 'new').length },
-    { key: 'packing', label: 'Processing', count: orders.filter(o => ['packing', 'processing', 'packed'].includes((o.status || '').toLowerCase())).length },
-    { key: 'dispatched', label: 'Shipped', count: orders.filter(o => ['dispatched', 'shipped'].includes((o.status || '').toLowerCase())).length },
-    { key: 'delivered', label: 'Delivered', count: orders.filter(o => (o.status || '').toLowerCase() === 'delivered').length },
-    { key: 'declined', label: 'Cancelled', count: orders.filter(o => ['cancelled', 'declined'].includes((o.status || '').toLowerCase())).length }
+    { key: 'all', label: t('tabAll', 'All'), count: orders.length },
+    { key: 'new', label: t('tabNew', 'New'), count: orders.filter(o => (o.status || '').toLowerCase() === 'new').length },
+    { key: 'packing', label: t('tabProcessing', 'Processing'), count: orders.filter(o => ['packing', 'processing', 'packed'].includes((o.status || '').toLowerCase())).length },
+    { key: 'dispatched', label: t('tabDispatched', 'Shipped'), count: orders.filter(o => ['dispatched', 'shipped'].includes((o.status || '').toLowerCase())).length },
+    { key: 'delivered', label: t('tabDelivered', 'Delivered'), count: orders.filter(o => (o.status || '').toLowerCase() === 'delivered').length },
+    { key: 'declined', label: t('tabCancelled', 'Cancelled'), count: orders.filter(o => ['cancelled', 'declined'].includes((o.status || '').toLowerCase())).length }
   ];
 
   return (

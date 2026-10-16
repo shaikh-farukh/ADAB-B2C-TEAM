@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import sellerService from '../services/sellerService';
+import { useSeller } from '../context/SellerContext';
+import { useTranslation } from '../context/LanguageContext';
 
 const Settings = () => {
+  const { t, language, setLanguage, languages } = useTranslation();
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -66,14 +69,20 @@ const Settings = () => {
     }
   };
 
+  const { updateStoreSettings } = useSeller();
+
   const handleSaveSettings = async (e) => {
     e.preventDefault();
     setSaving(true);
     setError(null);
     setSuccess(false);
     try {
-      const res = await sellerService.updateSettings(settingsData);
-      if (res.success) setSuccess(true);
+      if (updateStoreSettings) {
+        await updateStoreSettings(settingsData);
+      } else {
+        await sellerService.updateSettings(settingsData);
+      }
+      setSuccess(true);
     } catch (err) {
       setError("Failed to update settings");
     } finally {
@@ -86,16 +95,16 @@ const Settings = () => {
   return (
     <div className="fade-in max-w-4xl mx-auto py-2">
       <div className="mb-8">
-        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Configuration</h1>
-        <p className="text-sm text-gray-500 mt-1 font-medium">Manage your store's public profile, legal details, and operational settings.</p>
+        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">{t('configTitle', 'Configuration')}</h1>
+        <p className="text-sm text-gray-500 mt-1 font-medium">{t('configSubtitle', "Manage your store's public profile, legal details, and operational settings.")}</p>
       </div>
       
       {/* Tabs */}
       <div className="flex gap-6 border-b border-gray-200 mb-8 px-1">
         {[
-          { id: 'profile', icon: 'fa-id-badge', label: 'Legal & Profile' },
-          { id: 'store', icon: 'fa-store', label: 'Store Details' },
-          { id: 'settings', icon: 'fa-sliders', label: 'Operations' }
+          { id: 'profile', icon: 'fa-id-badge', label: t('tabLegalProfile', 'Legal & Profile') },
+          { id: 'store', icon: 'fa-store', label: t('tabStoreDetails', 'Store Details') },
+          { id: 'settings', icon: 'fa-sliders', label: t('tabOperations', 'Operations') }
         ].map(tab => (
           <button 
             key={tab.id}
@@ -151,7 +160,7 @@ const Settings = () => {
           </div>
           <div className="pt-6 mt-6 border-t border-gray-100 flex justify-end">
             <button type="submit" disabled={saving} className="btn-primary py-3 px-8 shadow-sm flex items-center gap-2">
-              {saving ? <><i className="fa-solid fa-spinner fa-spin"></i> Saving...</> : <><i className="fa-solid fa-check"></i> Save Legal Details</>}
+              {saving ? <><i className="fa-solid fa-spinner fa-spin"></i> {t('saving', 'Saving...')}</> : <><i className="fa-solid fa-check"></i> {t('saveProfile', 'Save Legal Details')}</>}
             </button>
           </div>
         </form>
@@ -190,7 +199,7 @@ const Settings = () => {
           </div>
           <div className="pt-6 mt-6 border-t border-gray-100 flex justify-end">
             <button type="submit" disabled={saving} className="btn-primary py-3 px-8 shadow-sm flex items-center gap-2">
-              {saving ? <><i className="fa-solid fa-spinner fa-spin"></i> Saving...</> : <><i className="fa-solid fa-check"></i> Save Storefront</>}
+              {saving ? <><i className="fa-solid fa-spinner fa-spin"></i> {t('saving', 'Saving...')}</> : <><i className="fa-solid fa-check"></i> {t('saveStorefront', 'Save Storefront')}</>}
             </button>
           </div>
         </form>
@@ -211,14 +220,44 @@ const Settings = () => {
             </div>
             
             <div className="space-y-4">
+              {/* Language Preference Row */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-5 border border-gray-100 rounded-2xl hover:border-gray-200 transition-colors bg-gray-50/50">
+                <div className="flex gap-4 items-center">
+                  <div className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-green-700">
+                    <i className="fa-solid fa-globe"></i>
+                  </div>
+                  <div>
+                    <p className="text-sm font-extrabold text-gray-900">{t('appLanguage', 'App Language')}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 font-medium">{t('appLanguageDesc', 'Select your preferred language for the merchant portal')}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {languages.map((l) => (
+                    <button
+                      key={l.code}
+                      type="button"
+                      id={`settings-lang-${l.code}`}
+                      onClick={() => setLanguage(l.code)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                        language === l.code
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
+                      }`}
+                    >
+                      {l.nativeLabel}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex items-center justify-between p-5 border border-gray-100 rounded-2xl hover:border-gray-200 transition-colors bg-gray-50/50">
                 <div className="flex gap-4 items-center">
                   <div className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-gray-400">
                     <i className="fa-solid fa-store"></i>
                   </div>
                   <div>
-                    <p className="text-sm font-extrabold text-gray-900">Store Status</p>
-                    <p className="text-xs text-gray-500 mt-0.5 font-medium">Turn off to temporarily stop receiving new orders</p>
+                    <p className="text-sm font-extrabold text-gray-900">{t('storeStatusSetting', 'Store Status')}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 font-medium">{t('storeStatusDesc', 'Turn off to temporarily stop receiving new orders')}</p>
                   </div>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
@@ -233,8 +272,8 @@ const Settings = () => {
                     <i className="fa-solid fa-volume-high"></i>
                   </div>
                   <div>
-                    <p className="text-sm font-extrabold text-gray-900">Soundbox Alerts</p>
-                    <p className="text-xs text-gray-500 mt-0.5 font-medium">Play loud audio notification on new orders</p>
+                    <p className="text-sm font-extrabold text-gray-900">{t('soundboxAlerts', 'Soundbox Alerts')}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 font-medium">{t('soundboxAlertsDesc', 'Play loud audio notification on new orders')}</p>
                   </div>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
@@ -246,15 +285,15 @@ const Settings = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 pt-6 border-t border-gray-100">
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Open Time</label>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">{t('openTimeLabel', 'Open Time')}</label>
                 <input type="time" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-bold outline-none focus:border-brand-dark focus:ring-2 focus:ring-green-50 transition-all bg-gray-50 focus:bg-white" value={settingsData.open_time || ''} onChange={e => setSettingsData({...settingsData, open_time: e.target.value})} />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Close Time</label>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">{t('closeTimeLabel', 'Close Time')}</label>
                 <input type="time" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-bold outline-none focus:border-brand-dark focus:ring-2 focus:ring-green-50 transition-all bg-gray-50 focus:bg-white" value={settingsData.close_time || ''} onChange={e => setSettingsData({...settingsData, close_time: e.target.value})} />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Delivery Radius (km)</label>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">{t('deliveryRadiusLabel', 'Delivery Radius (km)')}</label>
                 <div className="relative">
                   <input type="number" step="0.1" className="w-full pl-4 pr-12 py-3 rounded-xl border border-gray-200 text-sm font-bold outline-none focus:border-brand-dark focus:ring-2 focus:ring-green-50 transition-all bg-gray-50 focus:bg-white" value={settingsData.delivery_radius_km || ''} onChange={e => setSettingsData({...settingsData, delivery_radius_km: parseFloat(e.target.value)})} />
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">km</div>
@@ -264,7 +303,7 @@ const Settings = () => {
 
             <div className="pt-8 mt-8 border-t border-gray-100 flex justify-end">
               <button type="submit" disabled={saving} className="btn-primary py-3 px-8 shadow-sm flex items-center gap-2">
-                {saving ? <><i className="fa-solid fa-spinner fa-spin"></i> Saving...</> : <><i className="fa-solid fa-check"></i> Save Operations</>}
+                {saving ? <><i className="fa-solid fa-spinner fa-spin"></i> {t('saving', 'Saving...')}</> : <><i className="fa-solid fa-check"></i> {t('saveOperations', 'Save Operations')}</>}
               </button>
             </div>
           </div>

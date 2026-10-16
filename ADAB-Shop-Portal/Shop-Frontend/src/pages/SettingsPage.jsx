@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useSeller } from '../context/SellerContext';
+import { useTranslation } from '../context/LanguageContext';
 
 export default function SettingsPage() {
   const { profile, store } = useSeller();
+  const { t, language, setLanguage, languages } = useTranslation();
 
   const [storeName, setStoreName] = useState('');
   const [ownerName, setOwnerName] = useState('');
@@ -128,6 +130,27 @@ export default function SettingsPage() {
         </div>
 
         <div className="card p-5 space-y-3">
+          <h3 className="font-bold text-gray-900">{t('appLanguage', 'Language Preference')}</h3>
+          <p className="text-xs text-gray-500">{t('appLanguageDesc', 'Choose your preferred display language')}</p>
+          <div className="flex gap-2">
+            {languages.map((l) => (
+              <button
+                key={l.code}
+                type="button"
+                onClick={() => setLanguage(l.code)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition ${
+                  language === l.code
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                {l.nativeLabel}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="card p-5 space-y-3">
           <h3 className="font-bold text-gray-900">Notification Preferences</h3>
           <label className="flex items-center gap-2 text-sm text-gray-700">
             <input type="checkbox" defaultChecked /> New orders (SMS + app)
@@ -138,7 +161,7 @@ export default function SettingsPage() {
           <label className="flex items-center gap-2 text-sm text-gray-700">
             <input type="checkbox" defaultChecked /> Payment settlements
           </label>
-          <button onClick={handleSave} className="btn-primary !text-xs mt-2">Save Preferences</button>
+          <button onClick={handleSave} className="btn-primary !text-xs mt-2">{t('save', 'Save Preferences')}</button>
         </div>
       </div>
     </section>

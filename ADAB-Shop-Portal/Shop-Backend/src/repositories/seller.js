@@ -48,7 +48,7 @@ class SellerRepository {
   async getStore(userId) {
     const query = `
       SELECT s.id, s.seller_id as owner_id, s.store_name, s.city, s.state, s.pincode, s.address_line, 
-             s.ui_mode, s.is_online, s.delivery_radius_km, s.rating, s.phone, s.email, s.category,
+             s.ui_mode, s.is_online, s.open_time, s.close_time, s.delivery_radius_km, s.rating, s.phone, s.email, s.category,
              s.latitude, s.longitude
       FROM stores s
       JOIN seller_profiles sp ON s.seller_id = sp.id
@@ -127,7 +127,7 @@ class SellerRepository {
     const store = await this.getStore(userId);
     if (!store) throw new Error("Store not found");
 
-    const allowedFields = ['store_name', 'city', 'state', 'pincode', 'address_line', 'phone', 'email', 'category', 'latitude', 'longitude'];
+    const allowedFields = ['store_name', 'city', 'state', 'pincode', 'address_line', 'phone', 'email', 'category', 'latitude', 'longitude', 'is_online', 'open_time', 'close_time'];
     const updatePayload = { ...data };
 
     const addressChanged = (updatePayload.address_line !== undefined && updatePayload.address_line !== store.address_line) ||

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { usePOS } from '../hooks/usePOS';
+import { useTranslation } from '../context/LanguageContext';
 import listingService from '../services/listingService';
 
 export default function POSPage() {
   const { cart, addToCart, updateQuantity, clearCart, cartTotal, checkout, isProcessing } = usePOS();
+  const { t } = useTranslation();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState('cash');
@@ -57,14 +59,14 @@ export default function POSPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-extrabold text-indigo-900">
-            Bill Counter <span className="text-sm font-normal text-indigo-600">(POS)</span>
+            {t('posTitle', 'Bill Counter')} <span className="text-sm font-normal text-indigo-600">(POS)</span>
           </h1>
-          <p className="text-xs text-gray-500 mt-1">Tap live store items or scan barcodes to bill walk-in customers instantly.</p>
+          <p className="text-xs text-gray-500 mt-1">{t('posSubtitle', 'Tap live store items or scan barcodes to bill walk-in customers instantly.')}</p>
         </div>
         <div className="w-full sm:w-64">
           <input 
             type="search" 
-            placeholder="Filter item name..." 
+            placeholder={t('search', 'Filter item name...')} 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full px-3 py-1.5 text-xs rounded-xl border border-gray-200 outline-none focus:border-indigo-500" 
@@ -82,13 +84,13 @@ export default function POSPage() {
                 onClick={() => setCategoryFilter(cat)}
                 className={`px-3 py-1.5 rounded-full text-xs font-bold transition ${categoryFilter === cat ? 'bg-indigo-100 text-indigo-800 border border-indigo-200' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
               >
-                {cat}
+                {cat === 'All' ? t('all', 'All') : cat}
               </button>
             ))}
           </div>
           
           {loading ? (
-            <div className="p-8 text-center text-xs text-gray-400">Loading live catalog...</div>
+            <div className="p-8 text-center text-xs text-gray-400">{t('loading', 'Loading live catalog...')}</div>
           ) : filteredProducts.length === 0 ? (
             <div className="p-8 text-center text-xs text-gray-400">No products found matching filters.</div>
           ) : (
@@ -113,10 +115,10 @@ export default function POSPage() {
         {/* POS Cart Sidebar */}
         <div className="card p-4 flex flex-col h-fit sticky top-20 shadow-sm">
           <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-3">
-            <h3 className="font-bold text-sm text-gray-800">Current Bill</h3>
+            <h3 className="font-bold text-sm text-gray-800">{t('posCurrentBill', 'Current Bill')}</h3>
             {cart.length > 0 && (
               <button onClick={clearCart} className="text-rose-600 text-xs font-semibold hover:underline">
-                Clear
+                {t('cancel', 'Clear')}
               </button>
             )}
           </div>
@@ -125,7 +127,7 @@ export default function POSPage() {
             {cart.length === 0 ? (
               <div className="text-center py-8 text-gray-400 text-xs">
                 <i className="fa-solid fa-basket-shopping text-2xl mb-2 text-gray-300 block"></i>
-                Cart is empty. Tap products to add.
+                {t('posEmptyCart', 'Cart is empty. Tap products to add.')}
               </div>
             ) : (
               cart.map(item => (
@@ -147,7 +149,7 @@ export default function POSPage() {
           {cart.length > 0 && (
             <div className="border-t border-gray-100 pt-3 space-y-3">
               <div className="flex justify-between items-center text-sm font-extrabold text-gray-900">
-                <span>Total Amount:</span>
+                <span>{t('posTotalAmount', 'Total Amount:')}</span>
                 <span className="text-indigo-700 text-base">₹{cartTotal}</span>
               </div>
 
@@ -158,13 +160,13 @@ export default function POSPage() {
                     onClick={() => setPaymentMethod('cash')} 
                     className={`py-1.5 rounded-lg text-xs font-bold border transition ${paymentMethod === 'cash' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-700 border-gray-200'}`}
                   >
-                    Cash
+                    {t('posMethodCash', 'Cash')}
                   </button>
                   <button 
                     onClick={() => setPaymentMethod('upi')} 
                     className={`py-1.5 rounded-lg text-xs font-bold border transition ${paymentMethod === 'upi' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-700 border-gray-200'}`}
                   >
-                    UPI / QR
+                    {t('posMethodUpi', 'UPI / QR')}
                   </button>
                 </div>
               </div>
@@ -175,7 +177,7 @@ export default function POSPage() {
                 className="w-full btn-primary !bg-indigo-600 hover:!bg-indigo-700 !text-xs !py-2.5 flex items-center justify-center gap-2"
               >
                 <i className="fa-solid fa-receipt"></i>
-                {isProcessing ? 'Processing...' : `Print & Pay ₹${cartTotal}`}
+                {isProcessing ? t('loading', 'Processing...') : `${t('posPrintBill', 'Print & Charge')} • ₹${cartTotal}`}
               </button>
             </div>
           )}

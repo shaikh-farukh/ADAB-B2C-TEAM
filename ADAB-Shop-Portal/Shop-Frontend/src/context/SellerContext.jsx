@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import sellerService from '../services/sellerService';
+import { getStoreTimingStatus } from '../utils/storeTiming';
 
 const SellerContext = createContext();
 
@@ -327,12 +328,52 @@ export function SellerProvider({ children }) {
     Boolean(profile?.submitted_at)
   );
 
+  const [currentTime, setCurrentTime] = useState(() => new Date());
+
+  useEffect(() => {
+    // Re-check timing status every 30 seconds to automatically update on open/close boundaries
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 30000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const storeTiming = useMemo(() => {
+    return getStoreTimingStatus(store, currentTime);
+  }, [store, currentTime]);
+
+  const updateStoreSettings = useCallback(async (settingsData) => {
+    try {
+      const res = await sellerService.updateSettings(settingsData);
+      setStore((prev) => {
+        const next = { ...(prev || {}), ...settingsData };
+        localStorage.setItem('seller_store_cache', JSON.stringify(next));
+        return next;
+      });
+      return res?.data;
+    } catch (e) {
+      console.error('Failed to update store settings:', e);
+      throw e;
+    }
+  }, []);
+
+  const toggleStoreOnline = useCallback(async () => {
+    // If store is open, clicking it turns it off (is_online: false).
+    // If store is closed (either manually or outside hours), clicking it turns it online (is_online: true).
+    const currentEffectiveOpen = storeTiming?.isOpen;
+    const nextOnline = !currentEffectiveOpen;
+    return await updateStoreSettings({ is_online: nextOnline });
+  }, [storeTiming?.isOpen, updateStoreSettings]);
+
   return (
     <SellerContext.Provider
       value={{
         isAuthenticated,
         profile,
         store,
+        storeTiming,
+        updateStoreSettings,
+        toggleStoreOnline,
         dashboardMetrics,
         onboardingData,
         kycSteps,
@@ -362,6 +403,23 @@ export function useSeller() {
       isAuthenticated: true,
       profile: null,
       store: null,
+      storeTiming: {
+        isOpen: true,
+        isWithinHours: true,
+        isManuallyClosed: false,
+        openTimeStr: '08:00 AM',
+        closeTimeStr: '10:00 PM',
+        rawOpenTime: '08:00:00',
+        rawCloseTime: '22:00:00',
+        statusLabel: 'Store: Open',
+        reason: 'open_scheduled',
+        badgeClass: 'bg-green-50 text-green-800 border-green-200',
+        dotClass: 'bg-green-500 animate-pulse',
+        tooltip: 'Store is Open',
+        actionPrompt: 'Click to Close Store'
+      },
+      updateStoreSettings: async () => {},
+      toggleStoreOnline: async () => {},
       onboardingData: null,
       kycSteps: DEFAULT_APPROVED_STEPS,
       isCriticalSetupDone: true,

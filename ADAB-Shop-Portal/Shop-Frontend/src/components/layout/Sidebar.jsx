@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useSeller } from '../../context/SellerContext';
+import { useTranslation } from '../../context/LanguageContext';
 
 export default function Sidebar() {
   const {
@@ -14,6 +15,7 @@ export default function Sidebar() {
     isKycRejected = false,
     logout
   } = useSeller();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [showSignOutModal, setShowSignOutModal] = useState(false);
   const storeName = store?.store_name || 'My Store';
@@ -209,23 +211,23 @@ export default function Sidebar() {
         )}
 
         {/* 1. MAIN */}
-        <div className="nav-label" data-i18n="navHome">Main</div>
+        <div className="nav-label" data-i18n="navHome">{t('navSectionMain', 'Main')}</div>
         <NavLink to="/" className={navClass}>
-          <i className="fa-solid fa-house w-4 text-emerald-600"></i> <span data-i18n="navDashboard">Dashboard</span>
+          <i className="fa-solid fa-house w-4 text-emerald-600"></i> <span data-i18n="navDashboard">{t('navDashboard', 'Dashboard')}</span>
           {!isKycApproved && <i className="fa-solid fa-lock ml-auto text-[10px] text-gray-400"></i>}
         </NavLink>
         <NavLink to="/pos" className={posClass}>
-          <i className="fa-solid fa-cash-register w-4 text-indigo-600"></i> <span data-i18n="navPOS">Bill Counter (POS)</span>
+          <i className="fa-solid fa-cash-register w-4 text-indigo-600"></i> <span data-i18n="navPOS">{t('navPOS', 'Bill Counter (POS)')}</span>
           <span className="ml-auto text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800">Fast</span>
         </NavLink>
         <NavLink to="/onboarding" className={onboardingNavClass}>
-          <i className="fa-solid fa-clipboard-check w-4 text-emerald-600"></i> <span>Store KYC</span>
+          <i className="fa-solid fa-clipboard-check w-4 text-emerald-600"></i> <span>{t('navStoreKyc', 'Store KYC')}</span>
           <span className="ml-auto bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full">
             {completedCount}/5
           </span>
         </NavLink>
         <NavLink to="/regstatus" className={trackerNavClass}>
-          <i className="fa-solid fa-clock-rotate-left w-4 text-blue-600"></i> <span>Application Tracker</span>
+          <i className="fa-solid fa-clock-rotate-left w-4 text-blue-600"></i> <span>{t('navTracker', 'Application Tracker')}</span>
           {canAccessTracker ? (
             <span id="navRegStatusDot" className={`ml-auto w-2 h-2 rounded-full ${statusMeta.dotClass}`}></span>
           ) : (
@@ -234,88 +236,88 @@ export default function Sidebar() {
         </NavLink>
 
         {/* 2. SELL & DISPATCH */}
-        <div className="nav-label pt-2" data-i18n="navSell">Sell &amp; Orders</div>
+        <div className="nav-label pt-2" data-i18n="navSell">{t('navSectionSell', 'Sell & Orders')}</div>
         <NavLink to="/orders" className={navClass}>
-          <i className="fa-solid fa-bag-shopping w-4 text-emerald-600"></i> <span data-i18n="navAppOrders">App Orders</span>
+          <i className="fa-solid fa-bag-shopping w-4 text-emerald-600"></i> <span data-i18n="navAppOrders">{t('navAppOrders', 'App Orders')}</span>
           <span className="ml-auto bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">14</span>
         </NavLink>
         <NavLink to="/partner" className={navClass}>
-          <i className="fa-solid fa-store w-4 text-orange-600"></i> <span data-i18n="navStoreOrders">B2B Store Orders</span>
+          <i className="fa-solid fa-store w-4 text-orange-600"></i> <span data-i18n="navStoreOrders">{t('navStoreOrders', 'B2B Store Orders')}</span>
           <span className="ml-auto bg-orange-100 text-orange-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">8</span>
         </NavLink>
         <NavLink to="/products" className={navClass}>
-          <i className="fa-solid fa-boxes-stacked w-4 text-purple-600"></i> <span data-i18n="navMyProducts">My Products Catalog</span>
+          <i className="fa-solid fa-boxes-stacked w-4 text-purple-600"></i> <span data-i18n="navMyProducts">{t('navMyProducts', 'My Products Catalog')}</span>
         </NavLink>
         <NavLink to="/returns" className={navClass}>
-          <i className="fa-solid fa-rotate-left w-4 text-rose-500"></i> <span data-i18n="navReturns">Returns &amp; Refunds</span>
+          <i className="fa-solid fa-rotate-left w-4 text-rose-500"></i> <span data-i18n="navReturns">{t('navReturns', 'Returns & Refunds')}</span>
           <span className="ml-auto bg-rose-100 text-rose-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">3</span>
         </NavLink>
 
         {/* 3. BUY STOCK & CATALOG */}
-        <div className="nav-label pt-2" data-i18n="navBuy">Buy &amp; Restock</div>
+        <div className="nav-label pt-2" data-i18n="navBuy">{t('navSectionBuy', 'Buy & Restock')}</div>
         <NavLink to="/mastersearch" className={navClass}>
-          <i className="fa-solid fa-magnifying-glass w-4 text-blue-600"></i> <span data-i18n="navMasterSearch">Search &amp; Buy</span>
+          <i className="fa-solid fa-magnifying-glass w-4 text-blue-600"></i> <span data-i18n="navMasterSearch">{t('navMasterSearch', 'Search & Buy')}</span>
         </NavLink>
         <NavLink to="/buy" className={navClass}>
-          <i className="fa-solid fa-map-pin w-4 text-teal-600"></i> <span data-i18n="navBuyNearby">Nearby Kiranas</span>
+          <i className="fa-solid fa-map-pin w-4 text-teal-600"></i> <span data-i18n="navBuyNearby">{t('navBuyNearby', 'Nearby Kiranas')}</span>
         </NavLink>
         <NavLink to="/catalog" className={navClass}>
-          <i className="fa-solid fa-book-open w-4 text-indigo-600"></i> <span data-i18n="navMasterCat">National FMCG Catalog</span>
+          <i className="fa-solid fa-book-open w-4 text-indigo-600"></i> <span data-i18n="navMasterCat">{t('navMasterCat', 'National FMCG Catalog')}</span>
         </NavLink>
         <NavLink to="/partnerbrands" className={navClass}>
-          <i className="fa-solid fa-handshake w-4 text-amber-600"></i> <span data-i18n="navPartnerPack">Other Store Brands</span>
+          <i className="fa-solid fa-handshake w-4 text-amber-600"></i> <span data-i18n="navPartnerPack">{t('navPartnerPack', 'Other Store Brands')}</span>
         </NavLink>
         <NavLink to="/recommendations" className={navClass}>
-          <i className="fa-solid fa-wand-magic-sparkles w-4 text-purple-600"></i> <span>Smart AI Restock</span>
+          <i className="fa-solid fa-wand-magic-sparkles w-4 text-purple-600"></i> <span>{t('navSmartRestock', 'Smart AI Restock')}</span>
           <span className="ml-auto bg-purple-100 text-purple-800 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">AI</span>
         </NavLink>
         <NavLink to="/buycart" className={navClass}>
-          <i className="fa-solid fa-cart-shopping w-4 text-blue-600"></i> <span>Purchase Cart</span>
+          <i className="fa-solid fa-cart-shopping w-4 text-blue-600"></i> <span>{t('navPurchaseCart', 'Purchase Cart')}</span>
           <span id="navBuyCartBadge" className="ml-auto bg-blue-600 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">{buyCartCount}</span>
         </NavLink>
 
         {/* 4. FINANCIALS & PAYMENTS */}
-        <div className="nav-label pt-2" data-i18n="navMoney">Finance &amp; Credit</div>
+        <div className="nav-label pt-2" data-i18n="navMoney">{t('navSectionFinance', 'Finance & Credit')}</div>
         <NavLink to="/finance" className={navClass}>
-          <i className="fa-solid fa-wallet w-4 text-emerald-600"></i> <span data-i18n="navMoneyCredit">Bank Payouts &amp; Money</span>
+          <i className="fa-solid fa-wallet w-4 text-emerald-600"></i> <span data-i18n="navMoneyCredit">{t('navMoneyCredit', 'Bank Payouts & Money')}</span>
         </NavLink>
         <NavLink to="/credit-apply" className={navClass}>
-          <i className="fa-solid fa-building-columns w-4 text-purple-600"></i> <span>Bank Credit Lines</span>
+          <i className="fa-solid fa-building-columns w-4 text-purple-600"></i> <span>{t('navBankCreditLines', 'Bank Credit Lines')}</span>
           <span className="ml-auto text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-800">0% Int</span>
         </NavLink>
         <NavLink to="/creditterms" className={navClass}>
-          <i className="fa-solid fa-handshake-angle w-4 text-teal-600"></i> <span>Store Credit Rules</span>
+          <i className="fa-solid fa-handshake-angle w-4 text-teal-600"></i> <span>{t('navStoreCreditRules', 'Store Credit Rules')}</span>
         </NavLink>
         <NavLink to="/points" className={navClass}>
-          <i className="fa-solid fa-star w-4 text-amber-500"></i> <span data-i18n="navPoints">Reward Points</span>
+          <i className="fa-solid fa-star w-4 text-amber-500"></i> <span data-i18n="navPoints">{t('navPoints', 'Reward Points')}</span>
         </NavLink>
         <NavLink to="/marketing" className={navClass}>
-          <i className="fa-solid fa-ticket w-4 text-rose-500"></i> <span>Coupons &amp; Promos</span>
+          <i className="fa-solid fa-ticket w-4 text-rose-500"></i> <span>{t('navMarketing', 'Coupons & Promos')}</span>
         </NavLink>
         <NavLink to="/pricing" className={navClass}>
-          <i className="fa-solid fa-tags w-4 text-purple-600"></i> <span>Pricing Schedules</span>
+          <i className="fa-solid fa-tags w-4 text-purple-600"></i> <span>{t('navPricing', 'Pricing Schedules')}</span>
         </NavLink>
 
         {/* 5. LOGISTICS & OPERATIONS */}
-        <div className="nav-label pt-2" data-i18n="navMore">Operations</div>
+        <div className="nav-label pt-2" data-i18n="navMore">{t('navSectionOperations', 'Operations')}</div>
         <NavLink to="/delivery" className={navClass}>
-          <i className="fa-solid fa-motorcycle w-4 text-emerald-600"></i> <span data-i18n="navDelivery">Delivery</span>
+          <i className="fa-solid fa-motorcycle w-4 text-emerald-600"></i> <span data-i18n="navDelivery">{t('navDelivery', 'Delivery Fleet')}</span>
         </NavLink>
         <NavLink to="/freight" className={navClass}>
-          <i className="fa-solid fa-truck-ramp-box w-4 text-amber-600"></i> <span>Freight &amp; Logistics</span>
+          <i className="fa-solid fa-truck-ramp-box w-4 text-amber-600"></i> <span>{t('navFreight', 'Freight & Logistics')}</span>
         </NavLink>
         <NavLink to="/messages" className={navClass}>
-          <i className="fa-solid fa-comments w-4 text-indigo-600"></i> <span data-i18n="navMessages">Store Messages</span>
+          <i className="fa-solid fa-comments w-4 text-indigo-600"></i> <span data-i18n="navMessages">{t('navMessages', 'Store Messages')}</span>
           <span className="ml-auto bg-indigo-100 text-indigo-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">5</span>
         </NavLink>
         <NavLink to="/recommendations" className={navClass}>
-          <i className="fa-solid fa-wand-magic-sparkles w-4 text-purple-600"></i> <span data-i18n="navRecommend">AI Insights</span>
+          <i className="fa-solid fa-wand-magic-sparkles w-4 text-purple-600"></i> <span data-i18n="navRecommend">{t('navRecommend', 'AI Insights')}</span>
         </NavLink>
         <NavLink to="/reports" className={navClass}>
-          <i className="fa-solid fa-chart-line w-4 text-teal-600"></i> <span data-i18n="navReports">Sales Reports</span>
+          <i className="fa-solid fa-chart-line w-4 text-teal-600"></i> <span data-i18n="navReports">{t('navReports', 'Sales Reports')}</span>
         </NavLink>
         <NavLink to="/settings" className={navClass}>
-          <i className="fa-solid fa-gear w-4 text-gray-500"></i> <span data-i18n="navSettings">Store Settings</span>
+          <i className="fa-solid fa-gear w-4 text-gray-500"></i> <span data-i18n="navSettings">{t('navSettings', 'Store Settings')}</span>
         </NavLink>
         <button
           type="button"
@@ -325,24 +327,24 @@ export default function Sidebar() {
           }}
           className="text-rose-600 hover:bg-rose-50 w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition font-bold cursor-pointer"
         >
-          <i className="fa-solid fa-right-from-bracket w-4 text-rose-500"></i> <span>Sign Out</span>
+          <i className="fa-solid fa-right-from-bracket w-4 text-rose-500"></i> <span>{t('navSignOut', 'Sign Out')}</span>
         </button>
 
         {/* 6. EXPANDABLE MORE UTILITIES */}
         <details className={`mt-2 px-1 border-t border-gray-100 pt-1.5 ${lockedClass}`}>
           <summary className="text-xs font-extrabold text-gray-400 hover:text-gray-700 cursor-pointer py-1 flex items-center justify-between" data-i18n="navShowMore">
-            <span>More Utilities</span> <i className="fa-solid fa-chevron-down text-[10px]"></i>
+            <span>{t('navMoreUtilities', 'More Utilities')}</span> <i className="fa-solid fa-chevron-down text-[10px]"></i>
           </summary>
           <div className="space-y-0.5 mt-1">
-            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Order History Archive</NavLink>
-            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Customer Ratings &amp; Reviews</NavLink>
-            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Help &amp; Support</NavLink>
-            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Merchant FAQ</NavLink>
-            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Driver Management</NavLink>
-            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Export &amp; IEC Trade</NavLink>
-            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Certificates &amp; FSSAI</NavLink>
-            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Store Health &amp; Audits</NavLink>
-            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>Notifications Log</NavLink>
+            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>{t('navOrderHistory', 'Order History Archive')}</NavLink>
+            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>{t('navCustomerReviews', 'Customer Ratings & Reviews')}</NavLink>
+            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>{t('navHelpSupport', 'Help & Support')}</NavLink>
+            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>{t('navMerchantFaq', 'Merchant FAQ')}</NavLink>
+            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>{t('navDriverManagement', 'Driver Management')}</NavLink>
+            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>{t('navExportIec', 'Export & IEC Trade')}</NavLink>
+            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>{t('navCertificatesFssai', 'Certificates & FSSAI')}</NavLink>
+            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>{t('navStoreHealth', 'Store Health & Audits')}</NavLink>
+            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>{t('navNotificationsLog', 'Notifications Log')}</NavLink>
           </div>
         </details>
       </nav>
@@ -365,10 +367,10 @@ export default function Sidebar() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-base font-extrabold text-gray-900">
-                    Sign Out of Store Portal?
+                    {t('signOutModalTitle', 'Sign Out of Store Portal?')}
                   </h3>
                   <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                    Are you sure you want to sign out of <b className="text-gray-800">{storeName}</b>? You can sign back in anytime with your mobile number and PIN.
+                    {t('signOutModalDesc', 'Are you sure you want to sign out of {storeName}? You can sign back in anytime with your mobile number and PIN.', { storeName })}
                   </p>
                 </div>
               </div>
@@ -379,7 +381,7 @@ export default function Sidebar() {
                   onClick={() => setShowSignOutModal(false)}
                   className="px-4 py-2.5 rounded-xl text-xs font-extrabold border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
                 >
-                  Cancel
+                  {t('signOutCancel', 'Cancel')}
                 </button>
                 <button
                   type="button"
@@ -391,7 +393,7 @@ export default function Sidebar() {
                   className="px-4 py-2.5 rounded-xl text-xs font-extrabold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <i className="fa-solid fa-right-from-bracket"></i>
-                  <span>Yes, Sign Out</span>
+                  <span>{t('signOutConfirm', 'Yes, Sign Out')}</span>
                 </button>
               </div>
             </div>

@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useSeller } from '../context/SellerContext';
 import { useOrders } from '../hooks/useOrders';
+import { useTranslation } from '../context/LanguageContext';
 import { sellerApi } from '../api/sellerApi';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 export default function HomePage() {
-  const { profile, store, dashboardMetrics } = useSeller();
+  const { profile, store, dashboardMetrics, storeTiming } = useSeller();
   const { orders } = useOrders();
+  const { t } = useTranslation();
   const [proMode, setProMode] = useState(false);
   const [chartData, setChartData] = useState([]);
   const [analyticsSummary, setAnalyticsSummary] = useState(null);
@@ -44,13 +46,13 @@ export default function HomePage() {
           </div>
           <div>
             <div className="font-extrabold text-sm text-gray-900 flex items-center gap-2">
-              <span>Shopkeeper Mode</span>
+              <span>{t('shopkeeperMode', 'Shopkeeper Mode')}</span>
               <span id="shopModeBadge" className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${proMode ? 'bg-indigo-100 text-indigo-800 border border-indigo-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'}`}>
-                {proMode ? 'ADVANCED PRO' : 'SIMPLE & EASY'}
+                {proMode ? t('modeAdvancedPro', 'ADVANCED PRO') : t('modeSimpleEasy', 'SIMPLE & EASY')}
               </span>
             </div>
             <p className="text-xs text-gray-600">
-              {proMode ? 'Full analytics, margin calculators, and enterprise inventory controls.' : 'Designed for fast counter billing, quick product addition, and daily money tracking without technical complexity.'}
+              {proMode ? t('modeProDesc', 'Full analytics, margin calculators, and enterprise inventory controls.') : t('modeEasyDesc', 'Designed for fast counter billing, quick product addition, and daily money tracking without technical complexity.')}
             </p>
           </div>
         </div>
@@ -60,14 +62,14 @@ export default function HomePage() {
             id="btnModeSimple" 
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${!proMode ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
           >
-            <i className="fa-solid fa-face-smile mr-1"></i> Easy Mode
+            <i className="fa-solid fa-face-smile mr-1"></i> {t('btnEasyMode', 'Easy Mode')}
           </button>
           <button 
             onClick={() => setProMode(true)} 
             id="btnModePro" 
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${proMode ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
           >
-            <i className="fa-solid fa-sliders mr-1"></i> Advanced (Pro)
+            <i className="fa-solid fa-sliders mr-1"></i> {t('btnProMode', 'Advanced (Pro)')}
           </button>
         </div>
       </div>
@@ -83,10 +85,10 @@ export default function HomePage() {
                 <span className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center text-2xl font-bold"><i className="fa-solid fa-cash-register"></i></span>
                 <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-white/25">1-CLICK BILL</span>
               </div>
-              <div className="font-extrabold text-xl">Quick Bill Counter</div>
-              <p className="text-xs text-indigo-100 mt-1">Scan barcode or tap items to bill walk-in customers instantly.</p>
+              <div className="font-extrabold text-xl">{t('quickBillCounter', 'Quick Bill Counter')}</div>
+              <p className="text-xs text-indigo-100 mt-1">{t('quickBillCounterDesc', 'Scan barcode or tap items to bill walk-in customers instantly.')}</p>
               <div className="mt-4 flex items-center gap-1.5 text-xs font-bold text-white bg-white/15 px-3 py-1.5 rounded-lg w-fit">
-                <span>Open POS Counter</span> <i className="fa-solid fa-arrow-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
+                <span>{t('openPosCounter', 'Open POS Counter')}</span> <i className="fa-solid fa-arrow-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
               </div>
             </Link>
 
@@ -95,15 +97,15 @@ export default function HomePage() {
               <div className="flex items-center justify-between mb-3">
                 <span className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center text-2xl font-bold"><i className="fa-solid fa-bag-shopping"></i></span>
                 {pendingCount > 0 ? (
-                  <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-amber-400 text-amber-950 animate-pulse">{pendingCount} PENDING</span>
+                  <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-amber-400 text-amber-950 animate-pulse">{pendingCount} {t('pendingBadge', 'PENDING')}</span>
                 ) : (
-                  <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-300 text-emerald-950">ALL CLEAR</span>
+                  <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-300 text-emerald-950">{t('allClearBadge', 'ALL CLEAR')}</span>
                 )}
               </div>
-              <div className="font-extrabold text-xl">Customer Orders</div>
-              <p className="text-xs text-emerald-100 mt-1">Accept &amp; pack orders from nearby customers ({store?.city || 'Local'} {radius} zone).</p>
+              <div className="font-extrabold text-xl">{t('customerOrders', 'Customer Orders')}</div>
+              <p className="text-xs text-emerald-100 mt-1">{t('customerOrdersDesc', 'Accept & pack orders from nearby customers ({city} {radius} zone).', { city: store?.city || 'Local', radius })}</p>
               <div className="mt-4 flex items-center gap-1.5 text-xs font-bold text-white bg-white/15 px-3 py-1.5 rounded-lg w-fit">
-                <span>View {totalOrdersCount} Orders</span> <i className="fa-solid fa-arrow-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
+                <span>{t('view', 'View')} {totalOrdersCount} {t('customerOrders', 'Orders')}</span> <i className="fa-solid fa-arrow-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
               </div>
             </Link>
 
@@ -113,10 +115,10 @@ export default function HomePage() {
                 <span className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center text-2xl font-bold"><i className="fa-solid fa-plus"></i></span>
                 <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-white/25">CATALOG</span>
               </div>
-              <div className="font-extrabold text-xl">My Products &amp; Stock</div>
-              <p className="text-xs text-amber-100 mt-1">Manage listings, edit prices, live stock, and add items quickly.</p>
+              <div className="font-extrabold text-xl">{t('myProductsStock', 'My Products & Stock')}</div>
+              <p className="text-xs text-amber-100 mt-1">{t('myProductsStockDesc', 'Manage listings, edit prices, live stock, and add items quickly.')}</p>
               <div className="mt-4 flex items-center gap-1.5 text-xs font-bold text-white bg-white/15 px-3 py-1.5 rounded-lg w-fit">
-                <span>Manage Products</span> <i className="fa-solid fa-arrow-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
+                <span>{t('manageProducts', 'Manage Products')}</span> <i className="fa-solid fa-arrow-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
               </div>
             </Link>
 
@@ -126,10 +128,10 @@ export default function HomePage() {
                 <span className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center text-2xl font-bold"><i className="fa-solid fa-building-columns"></i></span>
                 <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-400 text-emerald-950 font-mono">EARNINGS</span>
               </div>
-              <div className="font-extrabold text-xl">My Bank Money</div>
-              <p className="text-xs text-purple-100 mt-1">Direct settlement to linked bank account with zero deductions.</p>
+              <div className="font-extrabold text-xl">{t('myBankMoney', 'My Bank Money')}</div>
+              <p className="text-xs text-purple-100 mt-1">{t('myBankMoneyDesc', 'Direct settlement to linked bank account with zero deductions.')}</p>
               <div className="mt-4 flex items-center gap-1.5 text-xs font-bold text-white bg-white/15 px-3 py-1.5 rounded-lg w-fit">
-                <span>Money Summary</span> <i className="fa-solid fa-arrow-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
+                <span>{t('moneySummary', 'Money Summary')}</span> <i className="fa-solid fa-arrow-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
               </div>
             </Link>
           </div>
@@ -290,18 +292,18 @@ export default function HomePage() {
           </div>
 
           <div>
-            <h2 className="font-bold text-gray-900 mb-3">Quick Actions</h2>
+            <h2 className="font-bold text-gray-900 mb-3">{t('quickActions', 'Quick Actions')}</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              <Link to="/products" className="card p-4 text-left hover:border-green-300 hover:shadow-md transition-all block"><i className="fa-solid fa-plus text-green-600 text-lg mb-2"></i><div className="font-bold text-sm">Manage Products</div><div className="text-xs text-gray-500">Own brand, stock, or listings</div></Link>
-              <Link to="/mastersearch" className="card p-4 text-left hover:border-blue-300 hover:shadow-md transition-all border-blue-100 bg-blue-50/30 block"><i className="fa-solid fa-magnifying-glass text-blue-600 text-lg mb-2"></i><div className="font-bold text-sm">Search &amp; Buy</div><div className="text-xs text-gray-500">Find anything from any store</div></Link>
-              <Link to="/recommendations" className="card p-4 text-left hover:border-purple-300 hover:shadow-md transition-all border-purple-100 bg-purple-50/20 block"><i className="fa-solid fa-wand-magic-sparkles text-purple-600 text-lg mb-2"></i><div className="font-bold text-sm">Smart AI Restock Demand</div><div className="text-xs text-gray-500">Product ideas · what to sell &amp; buy</div></Link>
-              <Link to="/pos" className="card p-4 text-left hover:border-indigo-300 hover:shadow-md transition-all border-indigo-100 bg-indigo-50/30 block"><i className="fa-solid fa-cash-register text-indigo-600 text-lg mb-2"></i><div className="font-bold text-sm">Bill Counter</div><div className="text-xs text-gray-500">POS • customer or store</div></Link>
-              <Link to="/orders" className="card p-4 text-left hover:border-green-300 hover:shadow-md transition-all block"><i className="fa-solid fa-bell text-orange-500 text-lg mb-2"></i><div className="font-bold text-sm">Check Orders</div><div className="text-xs text-gray-500">{totalOrdersCount} total • {pendingCount} need action</div></Link>
-              <Link to="/buy" className="card p-4 text-left hover:border-green-300 hover:shadow-md transition-all block"><i className="fa-solid fa-cart-shopping text-blue-600 text-lg mb-2"></i><div className="font-bold text-sm">Restock Nearby</div><div className="text-xs text-gray-500">Buy from nearby stores</div></Link>
-              <Link to="/credit-apply" className="card p-4 text-left hover:border-purple-300 hover:shadow-md transition-all border-purple-100 block"><i className="fa-solid fa-hand-holding-dollar text-purple-600 text-lg mb-2"></i><div className="font-bold text-sm">Apply for Credit</div><div className="text-xs text-gray-500">ADAB line or shop credit</div></Link>
-              <Link to="/finance" className="card p-4 text-left hover:border-green-300 hover:shadow-md transition-all block"><i className="fa-solid fa-money-bill-transfer text-green-600 text-lg mb-2"></i><div className="font-bold text-sm">Withdraw Money</div><div className="text-xs text-gray-500">View payout settlements</div></Link>
-              <Link to="/returns" className="card p-4 text-left hover:border-rose-300 hover:shadow-md transition-all block"><i className="fa-solid fa-rotate-left text-rose-600 text-lg mb-2"></i><div className="font-bold text-sm">Returns &amp; Refunds</div><div className="text-xs text-gray-500">Customer return requests</div></Link>
-              <Link to="/delivery" className="card p-4 text-left hover:border-emerald-300 hover:shadow-md transition-all block"><i className="fa-solid fa-motorcycle text-emerald-600 text-lg mb-2"></i><div className="font-bold text-sm">Delivery</div><div className="text-xs text-gray-500">Zones, radius &amp; fleet channels</div></Link>
+              <Link to="/products" className="card p-4 text-left hover:border-green-300 hover:shadow-md transition-all block"><i className="fa-solid fa-plus text-green-600 text-lg mb-2"></i><div className="font-bold text-sm">{t('manageProducts', 'Manage Products')}</div><div className="text-xs text-gray-500">{t('myProductsStock', 'Own brand, stock, or listings')}</div></Link>
+              <Link to="/mastersearch" className="card p-4 text-left hover:border-blue-300 hover:shadow-md transition-all border-blue-100 bg-blue-50/30 block"><i className="fa-solid fa-magnifying-glass text-blue-600 text-lg mb-2"></i><div className="font-bold text-sm">{t('navMasterSearch', 'Search & Buy')}</div><div className="text-xs text-gray-500">{t('findAnythingStore', 'Find anything from any store')}</div></Link>
+              <Link to="/recommendations" className="card p-4 text-left hover:border-purple-300 hover:shadow-md transition-all border-purple-100 bg-purple-50/20 block"><i className="fa-solid fa-wand-magic-sparkles text-purple-600 text-lg mb-2"></i><div className="font-bold text-sm">{t('navSmartRestock', 'Smart AI Restock Demand')}</div><div className="text-xs text-gray-500">{t('productIdeasWhatToSell', 'Product ideas · what to sell & buy')}</div></Link>
+              <Link to="/pos" className="card p-4 text-left hover:border-indigo-300 hover:shadow-md transition-all border-indigo-100 bg-indigo-50/30 block"><i className="fa-solid fa-cash-register text-indigo-600 text-lg mb-2"></i><div className="font-bold text-sm">{t('posTitle', 'Bill Counter')}</div><div className="text-xs text-gray-500">{t('billCounterCustomerStore', 'POS • customer or store')}</div></Link>
+              <Link to="/orders" className="card p-4 text-left hover:border-green-300 hover:shadow-md transition-all block"><i className="fa-solid fa-bell text-orange-500 text-lg mb-2"></i><div className="font-bold text-sm">{t('checkOrders', 'Check Orders')}</div><div className="text-xs text-gray-500">{totalOrdersCount} {t('totalOrders', 'total')} • {pendingCount} {t('waiting', 'need action')}</div></Link>
+              <Link to="/buy" className="card p-4 text-left hover:border-green-300 hover:shadow-md transition-all block"><i className="fa-solid fa-cart-shopping text-blue-600 text-lg mb-2"></i><div className="font-bold text-sm">{t('restockNearby', 'Restock Nearby')}</div><div className="text-xs text-gray-500">{t('buyNearbyStores', 'Buy from nearby stores')}</div></Link>
+              <Link to="/credit-apply" className="card p-4 text-left hover:border-purple-300 hover:shadow-md transition-all border-purple-100 block"><i className="fa-solid fa-hand-holding-dollar text-purple-600 text-lg mb-2"></i><div className="font-bold text-sm">{t('applyForCredit', 'Apply for Credit')}</div><div className="text-xs text-gray-500">{t('adabLineOrShopCredit', 'ADAB line or shop credit')}</div></Link>
+              <Link to="/finance" className="card p-4 text-left hover:border-green-300 hover:shadow-md transition-all block"><i className="fa-solid fa-money-bill-transfer text-green-600 text-lg mb-2"></i><div className="font-bold text-sm">{t('withdrawMoney', 'Withdraw Money')}</div><div className="text-xs text-gray-500">{t('viewPayoutSettlements', 'View payout settlements')}</div></Link>
+              <Link to="/returns" className="card p-4 text-left hover:border-rose-300 hover:shadow-md transition-all block"><i className="fa-solid fa-rotate-left text-rose-600 text-lg mb-2"></i><div className="font-bold text-sm">{t('navReturns', 'Returns & Refunds')}</div><div className="text-xs text-gray-500">{t('customerOrders', 'Customer return requests')}</div></Link>
+              <Link to="/delivery" className="card p-4 text-left hover:border-emerald-300 hover:shadow-md transition-all block"><i className="fa-solid fa-motorcycle text-emerald-600 text-lg mb-2"></i><div className="font-bold text-sm">{t('navDelivery', 'Delivery')}</div><div className="text-xs text-gray-500">{t('deliveryZonesFleet', 'Zones, radius & fleet channels')}</div></Link>
             </div>
           </div>
 
@@ -319,7 +321,7 @@ export default function HomePage() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between"><span>GSTIN Status</span><span className="text-green-700 font-bold flex items-center gap-1"><i className="fa-solid fa-circle-check text-green-600"></i> {profile?.gstin ? 'Verified' : 'Active'}</span></div>
                 <div className="flex justify-between"><span>KYC Status</span><span className="text-green-700 font-bold flex items-center gap-1"><i className="fa-solid fa-circle-check text-green-600"></i> {profile?.kyc_status || 'VERIFIED'}</span></div>
-                <div className="flex justify-between"><span>Store Visibility</span><span className="text-green-700 font-bold flex items-center gap-1"><i className="fa-solid fa-circle-check text-green-600"></i> {store?.is_online ? 'Online' : 'Online'}</span></div>
+                <div className="flex justify-between"><span>Store Operating Status</span><span className={`font-bold flex items-center gap-1 ${storeTiming?.isOpen ? 'text-green-700' : 'text-amber-700'}`}><i className={`fa-solid ${storeTiming?.isOpen ? 'fa-circle-check text-green-600' : 'fa-circle-xmark text-amber-600'}`}></i> {storeTiming?.isOpen ? 'Open (Online)' : 'Closed (Offline)'}</span></div>
                 <div className="flex justify-between"><span>Account Health</span><span className="text-green-700 font-bold">Good Standing</span></div>
               </div>
             </Link>

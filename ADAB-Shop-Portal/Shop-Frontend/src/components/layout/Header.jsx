@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useSeller } from '../../context/SellerContext';
+import { useTranslation } from '../../context/LanguageContext';
+import StoreStatusButton from './StoreStatusButton';
+import LanguageSelector from './LanguageSelector';
 
 export default function Header() {
   const navigate = useNavigate();
   const { profile, store } = useSeller();
+  const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState('');
 
   const storeName = store?.store_name || 'My Store';
@@ -37,7 +41,7 @@ export default function Header() {
           </Link>
           <div>
             <Link to="/" className="font-extrabold text-gray-900 leading-tight text-sm sm:text-base hover:text-green-800">
-              ADAB Seller
+              {t('appName', 'ADAB Seller')}
             </Link>
             <div className="text-xs text-gray-500 font-medium hidden xs:block truncate max-w-[140px] sm:max-w-none" id="hdrStoreName">
               {storeName}
@@ -53,26 +57,24 @@ export default function Header() {
               id="globalSearch" 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search to buy..." 
+              placeholder={t('searchToBuyPlaceholder', 'Search to buy...')} 
               className="w-full pl-8 sm:pl-9 pr-14 sm:pr-20 py-2 sm:py-2.5 rounded-xl border-2 border-blue-100 text-xs sm:text-sm outline-none focus:border-blue-500 bg-blue-50/50" 
             />
             <button type="submit" className="absolute right-1 top-1/2 -translate-y-1/2 btn-primary !text-[10px] sm:!text-xs !py-1 sm:!py-1.5 !px-2 sm:!px-3">
-              Search
+              {t('search', 'Search')}
             </button>
           </form>
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <div className={`flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-full text-xs sm:text-sm font-bold border ${store?.is_online !== false ? 'bg-green-50 text-green-800 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
-            <span className={`w-2 h-2 rounded-full ${store?.is_online !== false ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></span> 
-            <span>{store?.is_online !== false ? 'Store: Open' : 'Store: Closed'}</span>
-          </div>
+          <LanguageSelector />
+          <StoreStatusButton />
           <Link to="/onboarding" className="btn-primary text-xs !py-1.5 !px-2.5 hidden xl:flex items-center gap-1">
-            <i className="fa-solid fa-list-check"></i> Setup
+            <i className="fa-solid fa-list-check"></i> {t('setup', 'Setup')}
           </Link>
           <Link to="/settings" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-100 text-xs font-bold text-gray-700 bg-white">
             <i className="fa-solid fa-store text-green-700"></i> 
-            <span className="hidden sm:inline">Store Account</span>
+            <span className="hidden sm:inline">{t('storeAccount', 'Store Account')}</span>
           </Link>
         </div>
       </div>
@@ -80,19 +82,19 @@ export default function Header() {
       {/* Mobile quick horizontal tab strip */}
       <div className="lg:hidden px-3 py-1.5 border-t border-gray-100 flex gap-2 overflow-x-auto hide-scroll text-xs bg-gray-50/50">
         <Link to="/" className="px-3 py-1 rounded-full bg-white border border-gray-200 font-bold whitespace-nowrap text-green-800">
-          <i className="fa-solid fa-house mr-1 text-green-600"></i> Dashboard
+          <i className="fa-solid fa-house mr-1 text-green-600"></i> {t('navDashboard', 'Dashboard')}
         </Link>
         <Link to="/pos" className="px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 font-bold whitespace-nowrap text-indigo-800">
-          <i className="fa-solid fa-cash-register mr-1 text-indigo-600"></i> POS
+          <i className="fa-solid fa-cash-register mr-1 text-indigo-600"></i> {t('navPOS', 'POS')}
         </Link>
         <Link to="/orders" className="px-3 py-1 rounded-full bg-white border border-gray-200 font-bold whitespace-nowrap text-gray-700">
-          <i className="fa-solid fa-bag-shopping mr-1 text-green-600"></i> Orders
+          <i className="fa-solid fa-bag-shopping mr-1 text-green-600"></i> {t('navAppOrders', 'Orders')}
         </Link>
         <Link to="/products" className="px-3 py-1 rounded-full bg-white border border-gray-200 font-bold whitespace-nowrap text-gray-700">
-          <i className="fa-solid fa-box mr-1 text-emerald-600"></i> Products
+          <i className="fa-solid fa-box mr-1 text-emerald-600"></i> {t('navMyProducts', 'Products')}
         </Link>
         <Link to="/finance" className="px-3 py-1 rounded-full bg-white border border-gray-200 font-bold whitespace-nowrap text-gray-700">
-          <i className="fa-solid fa-wallet mr-1 text-emerald-600"></i> Finance
+          <i className="fa-solid fa-wallet mr-1 text-emerald-600"></i> {t('navMoneyCredit', 'Finance')}
         </Link>
       </div>
     </header>
