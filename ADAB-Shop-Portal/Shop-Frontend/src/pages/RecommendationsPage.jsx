@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { sellerApi } from '../api/sellerApi';
+import { useTranslation } from '../context/LanguageContext';
 
 export default function RecommendationsPage() {
+  const { t } = useTranslation();
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('sell');
@@ -27,31 +29,31 @@ export default function RecommendationsPage() {
   return (
     <section id="sec-recommendations" className="space-y-4">
       <div>
-        <h1 className="text-xl font-extrabold" data-i18n="recTitle">Product Recommendations</h1>
-        <p className="text-sm text-gray-500" data-i18n="recDesc">
-          AI-driven market demand — what to sell, what to restock, and buyer opportunities
+        <h1 className="text-xl font-extrabold">{t('recTitle', 'Product Recommendations')}</h1>
+        <p className="text-sm text-gray-500">
+          {t('recSubtitle', 'AI-driven market demand — what to sell, what to restock, and buyer opportunities')}
         </p>
       </div>
 
       <div className="flex gap-2 flex-wrap">
         <button onClick={() => setActiveTab('sell')} className={`px-4 py-2 rounded-xl text-sm font-bold ${activeTab === 'sell' ? 'tab-on' : 'tab-off'}`}>
-          Products to Sell
+          {t('recTabSell', 'Products to Sell')}
         </button>
         <button onClick={() => setActiveTab('buy')} className={`px-4 py-2 rounded-xl text-sm font-bold ${activeTab === 'buy' ? 'tab-on' : 'tab-off'}`}>
-          Restock Alerts
+          {t('recTabBuy', 'Restock Alerts')}
         </button>
       </div>
 
       {loading && (
         <div className="card p-6 text-center text-gray-500 text-sm">
-          <i className="fa-solid fa-spinner fa-spin mr-2"></i> Generating recommendation signals...
+          <i className="fa-solid fa-spinner fa-spin mr-2"></i> {t('recGenerating', 'Generating recommendation signals...')}
         </div>
       )}
 
       {!loading && (
         <div id="recPanelSell">
           <div className="card p-4 bg-indigo-50 border-indigo-200 text-sm text-indigo-900 mb-4">
-            <i className="fa-solid fa-lightbulb mr-1"></i> <strong>Market Insights:</strong> High demand products currently searched in your region.
+            <i className="fa-solid fa-lightbulb mr-1"></i> {t('recMarketInsights', 'Market Insights: High demand products currently searched in your region.')}
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -66,7 +68,7 @@ export default function RecommendationsPage() {
                 </p>
                 <div className="flex gap-2 mt-3">
                   <Link to="/products" className="btn-primary flex-1 !text-xs text-center">
-                    Add to My Store
+                    {t('recAddToStore', 'Add to My Store')}
                   </Link>
                 </div>
               </div>

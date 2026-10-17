@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useFinance } from '../hooks/useFinance';
 import { useSeller } from '../context/SellerContext';
+import { useTranslation } from '../context/LanguageContext';
 
 export default function CreditApplyPage() {
+  const { t } = useTranslation();
   const { submitCreditApplication, isProcessing } = useFinance();
   const { profile } = useSeller();
   
@@ -43,7 +45,7 @@ export default function CreditApplyPage() {
   return (
     <section className="space-y-4">
       <div>
-        <h1 className="text-xl font-extrabold">Apply for Credit</h1>
+        <h1 className="text-xl font-extrabold">{t('creditApplyTitle', 'Apply for Credit')}</h1>
         <p className="text-sm text-gray-500">ADAB platform credit line • track applications • eligibility checker</p>
       </div>
       

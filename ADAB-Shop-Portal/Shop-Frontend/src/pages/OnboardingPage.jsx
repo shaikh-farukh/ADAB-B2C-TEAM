@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useSeller } from '../context/SellerContext';
+import { useTranslation } from '../context/LanguageContext';
+
+export const getStepTitles = (t) => [
+  t ? t('kycStep1Title', 'Store & Owner Profile') : 'Store & Owner Profile',
+  t ? t('kycStep2Title', 'KYC & GST Compliance') : 'KYC & GST Compliance',
+  t ? t('kycStep3Title', 'Bank Account Details') : 'Bank Account Details',
+  t ? t('kycStep4Title', 'Store Operations & Delivery') : 'Store Operations & Delivery',
+  t ? t('kycStep5Title', 'B2B Wholesale & Credit') : 'B2B Wholesale & Credit'
+];
 
 const STEP_TITLES = [
   'Store & Owner Profile',
@@ -17,6 +26,8 @@ const extractCleanPhone = (val) => {
 };
 
 export default function OnboardingPage() {
+  const { t } = useTranslation();
+  const stepTitles = getStepTitles(t);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const {
@@ -246,7 +257,7 @@ export default function OnboardingPage() {
 
   const goToStep = (stepNum, stepsOverride = effectiveKycSteps) => {
     if (isStepLocked(stepNum, stepsOverride)) {
-      setErrorMsg('Please complete & save Critical Steps 1 and 2 first to unlock further steps and portal navigation.');
+      setErrorMsg(t('kycErrLockCritical', 'Please complete & save Critical Steps 1 and 2 first to unlock further steps and portal navigation.'));
       return;
     }
     const next = Math.min(5, Math.max(1, stepNum));
@@ -260,12 +271,12 @@ export default function OnboardingPage() {
   // Skip ONLY the current step (never allowed on critical steps 1 & 2)
   const handleSkipStep = () => {
     if (currentStep <= 2) {
-      setErrorMsg('Steps 1 and 2 contain critical store & tax info and cannot be skipped.');
+      setErrorMsg(t('kycErrSkipCritical', 'Steps 1 and 2 contain critical store & tax info and cannot be skipped.'));
       return;
     }
     setErrorMsg('');
     if (currentStep < 5) {
-      showToast(`Skipped Step ${currentStep}. You can complete it anytime later.`);
+      showToast(t('kycToastSkipped', 'Skipped Step {step}. You can complete it anytime later.', { step: currentStep }));
       goToStep(currentStep + 1);
     } else {
       navigate('/regstatus');
@@ -308,13 +319,13 @@ export default function OnboardingPage() {
       setCity('Surat');
       setStateName('Gujarat');
       setPincode('395007');
-      showToast('Demo data filled for Step 1 (Store & Owner Profile)!');
+      showToast(t('kycToastDemoFilled', 'Demo data filled for Step {step} ({title})!', { step: 1, title: stepTitles[0] }));
     } else if (currentStep === 2) {
       setGstin(`24AAACP${phoneLast4}A1Z5`);
       setPan(`AAACP${phoneLast4}A`);
       setFssai(`1072302600${phoneLast4}`);
       setUdhyam(`UDYAM-GJ-22-001${phoneLast4}`);
-      showToast('Demo data filled for Step 2 (KYC & GST Compliance)!');
+      showToast(t('kycToastDemoFilled', 'Demo data filled for Step {step} ({title})!', { step: 2, title: stepTitles[1] }));
     } else if (currentStep === 3) {
       setBankName('HDFC Bank');
       setAccHolder(legalName || shopName || `Mahadev Supermart Enterprises ${phoneLast4}`);
@@ -322,7 +333,7 @@ export default function OnboardingPage() {
       setAccNumConfirm(`5020004829${phoneLast4}`);
       setIfsc('HDFC0001234');
       setAccType('CURRENT');
-      showToast('Demo data filled for Step 3 (Bank Account Details)!');
+      showToast(t('kycToastDemoFilled', 'Demo data filled for Step {step} ({title})!', { step: 3, title: stepTitles[2] }));
     } else if (currentStep === 4) {
       setOpenTime('08:00');
       setCloseTime('22:00');
@@ -332,13 +343,13 @@ export default function OnboardingPage() {
       setDelivScheduled(true);
       setDelivPickup(true);
       setFleet('SELF');
-      showToast('Demo data filled for Step 4 (Store Operations & Delivery)!');
+      showToast(t('kycToastDemoFilled', 'Demo data filled for Step {step} ({title})!', { step: 4, title: stepTitles[3] }));
     } else if (currentStep === 5) {
       setEnableCredit(true);
       setCreditDays('14');
       setCreditLimit('50000');
       setCreditMinOrder('5000');
-      showToast('Demo data filled for Step 5 (B2B Wholesale & Credit)!');
+      showToast(t('kycToastDemoFilled', 'Demo data filled for Step {step} ({title})!', { step: 5, title: stepTitles[4] }));
     }
   };
 
@@ -351,12 +362,12 @@ export default function OnboardingPage() {
       if (currentStep === 1) {
         const cleanPhoneDigits = extractCleanPhone(phone);
         if (!shopName.trim() || !ownerName.trim() || !address.trim()) {
-          setErrorMsg('Please fill Store Name, Owner Name, and Complete Store Address (or use Demo Fill Up below).');
+          setErrorMsg(t('kycErrFillStep1', 'Please fill Store Name, Owner Name, and Complete Store Address (or use Demo Fill Up below).'));
           setSaving(false);
           return;
         }
         if (!cleanPhoneDigits || cleanPhoneDigits.length !== 10) {
-          setErrorMsg('Please enter a valid 10-digit Registered Mobile Number.');
+          setErrorMsg(t('kycErrInvalidPhone', 'Please enter a valid 10-digit Registered Mobile Number.'));
           setSaving(false);
           return;
         }
@@ -375,7 +386,7 @@ export default function OnboardingPage() {
         };
       } else if (currentStep === 2) {
         if (!gstin.trim() || !pan.trim()) {
-          setErrorMsg('Please enter both GSTIN and PAN Card number (or use Demo Fill Up below).');
+          setErrorMsg(t('kycErrFillStep2', 'Please enter both GSTIN and PAN Card number (or use Demo Fill Up below).'));
           setSaving(false);
           return;
         }
@@ -387,12 +398,12 @@ export default function OnboardingPage() {
         };
       } else if (currentStep === 3) {
         if (!bankName.trim() || !accHolder.trim() || !accNum.trim() || !ifsc.trim()) {
-          setErrorMsg('Please fill Bank Name, Account Holder, Account Number, and IFSC Code (or click Skip).');
+          setErrorMsg(t('kycErrFillStep3', 'Please fill Bank Name, Account Holder, Account Number, and IFSC Code (or click Skip).'));
           setSaving(false);
           return;
         }
         if (accNumConfirm && accNum !== accNumConfirm) {
-          setErrorMsg('Account Number and Confirm Account Number do not match.');
+          setErrorMsg(t('kycErrAccountMismatch', 'Account Number and Confirm Account Number do not match.'));
           setSaving(false);
           return;
         }
@@ -405,7 +416,7 @@ export default function OnboardingPage() {
         };
       } else if (currentStep === 4) {
         if (!delivFast && !delivSame && !delivScheduled && !delivPickup) {
-          setErrorMsg('Please select at least one Delivery Channel to save this step.');
+          setErrorMsg(t('kycErrSelectDeliveryChannel', 'Please select at least one Delivery Channel to save this step.'));
           setSaving(false);
           return;
         }
@@ -450,9 +461,9 @@ export default function OnboardingPage() {
       }));
 
       if (isComplianceStep && wasPreviouslySubmitted && !isKycApproved) {
-        showToast(`Step ${currentStep} (${STEP_TITLES[currentStep - 1]}) saved! Compliance details changed — please Resubmit Application.`);
+        showToast(t('kycToastStepSavedCompliance', 'Step {step} ({title}) saved! Compliance details changed — please Resubmit Application.', { step: currentStep, title: stepTitles[currentStep - 1] }));
       } else {
-        showToast(`Step ${currentStep} (${STEP_TITLES[currentStep - 1]}) saved!`);
+        showToast(t('kycToastStepSaved', 'Step {step} ({title}) saved!', { step: currentStep, title: stepTitles[currentStep - 1] }));
       }
 
       // If redirected from a specific gated page (e.g. /orders, /delivery, /credit-apply, or /finance) and approved, return there once unlocked!
@@ -506,10 +517,10 @@ export default function OnboardingPage() {
             </div>
             <div>
               <div className="font-extrabold text-sm text-rose-950">
-                Verification Rejected by Admin
+                {t('kycBannerRejectedTitle', 'Verification Rejected by Admin')}
               </div>
               <p className="text-xs text-rose-800 mt-0.5">
-                Reason: <b>{profile?.rejection_reason || 'Compliance details require correction. Please review your KYC steps and resubmit.'}</b>
+                {t('kycBannerReason', 'Reason:')} <b>{profile?.rejection_reason || t('kycBannerRejectedDefaultReason', 'Compliance details require correction. Please review your KYC steps and resubmit.')}</b>
               </p>
             </div>
           </div>
@@ -518,7 +529,7 @@ export default function OnboardingPage() {
             onClick={() => navigate('/regstatus')}
             className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shrink-0 self-start sm:self-center"
           >
-            Go to Application &amp; Resubmit →
+            {t('kycBtnGoToAppResubmit', 'Go to Application & Resubmit →')}
           </button>
         </div>
       )}
@@ -532,10 +543,16 @@ export default function OnboardingPage() {
             </div>
             <div>
               <div className="font-extrabold text-sm text-amber-950">
-                Complete Step {currentStep} ({STEP_TITLES[currentStep - 1]}) to unlock {featureName || fromPath}
+                {t('kycBannerUnlockTitle', 'Complete Step {step} ({title}) to unlock {feature}', {
+                  step: currentStep,
+                  title: stepTitles[currentStep - 1],
+                  feature: featureName || fromPath
+                })}
               </div>
               <p className="text-xs text-amber-800 mt-0.5">
-                You skipped this KYC section earlier. Fill and save this step below to immediately access <b>{featureName || fromPath}</b>.
+                {t('kycBannerUnlockDesc', 'You skipped this KYC section earlier. Fill and save this step below to immediately access {feature}.', {
+                  feature: featureName || fromPath
+                })}
               </p>
             </div>
           </div>
@@ -545,7 +562,7 @@ export default function OnboardingPage() {
               onClick={() => navigate('/')}
               className="btn-soft !text-xs !py-1.5 !px-3 self-start sm:self-center shrink-0"
             >
-              Back to Dashboard
+              {t('kycBtnBackDashboard', 'Back to Dashboard')}
             </button>
           )}
         </div>
@@ -556,11 +573,11 @@ export default function OnboardingPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 text-white text-xs font-extrabold mb-2">
-              <i className="fa-solid fa-shield-halved text-green-300"></i> ADAB Verified Merchant Onboarding
+              <i className="fa-solid fa-shield-halved text-green-300"></i> {t('kycBadgeVerified', 'ADAB Verified Merchant Onboarding')}
             </div>
-            <h1 className="text-2xl font-extrabold">Store Registration &amp; KYC Verification</h1>
+            <h1 className="text-2xl font-extrabold">{t('kycHeaderTitle', 'Store Registration & KYC Verification')}</h1>
             <p className="text-green-100 text-sm mt-1 max-w-xl">
-              Complete critical steps (1 &amp; 2) for Admin Verification. Updating compliance steps (1, 2, 3, or 5) requires resubmission.
+              {t('kycHeaderSubtitle', 'Complete critical steps (1 & 2) for Admin Verification. Updating compliance steps (1, 2, 3, or 5) requires resubmission.')}
             </p>
           </div>
           <div className="flex flex-col gap-2 self-start sm:self-center shrink-0">
@@ -575,7 +592,7 @@ export default function OnboardingPage() {
               }`}
             >
               <i className={`fa-solid ${canAccessTracker ? 'fa-clock-rotate-left' : 'fa-lock'} mr-1`}></i>
-              {canAccessTracker ? 'View Application Status' : 'Locked until Critical KYC (1 & 2)'}
+              {canAccessTracker ? t('kycBtnViewStatus', 'View Application Status') : t('kycBtnLockedStatus', 'Locked until Critical KYC (1 & 2)')}
             </button>
 
             <button
@@ -594,23 +611,23 @@ export default function OnboardingPage() {
             >
               {isKycApproved ? (
                 <>
-                  <i className="fa-solid fa-circle-check"></i> Verified &amp; Approved
+                  <i className="fa-solid fa-circle-check"></i> {t('kycBtnVerified', 'Verified & Approved')}
                 </>
               ) : isKycRejected ? (
                 <>
-                  <i className="fa-solid fa-circle-xmark"></i> Rejected — Resubmit
+                  <i className="fa-solid fa-circle-xmark"></i> {t('kycBtnRejected', 'Rejected — Resubmit')}
                 </>
               ) : effectiveKycSteps?.step7 ? (
                 <>
-                  <i className="fa-solid fa-circle-check"></i> Submitted (Review)
+                  <i className="fa-solid fa-circle-check"></i> {t('kycBtnSubmitted', 'Submitted (Review)')}
                 </>
               ) : needsResubmission ? (
                 <>
-                  <i className="fa-solid fa-rotate-right"></i> Resubmit Application
+                  <i className="fa-solid fa-rotate-right"></i> {t('kycBtnResubmit', 'Resubmit Application')}
                 </>
               ) : (
                 <>
-                  <i className={`fa-solid ${effectiveCriticalDone ? 'fa-paper-plane' : 'fa-lock'}`}></i> Submit Application
+                  <i className={`fa-solid ${effectiveCriticalDone ? 'fa-paper-plane' : 'fa-lock'}`}></i> {t('kycBtnSubmit', 'Submit Application')}
                 </>
               )}
             </button>
@@ -621,10 +638,17 @@ export default function OnboardingPage() {
         <div className="mt-6 pt-4 border-t border-white/20">
           <div className="flex justify-between text-xs font-bold text-green-100 mb-2">
             <span>
-              Step <span id="onboardingStepNum" className="text-white font-extrabold">{currentStep}</span> of 5:{' '}
-              <span id="onboardingStepTitle" className="text-white">{STEP_TITLES[currentStep - 1]}</span>
+              {t('kycStepOfFive', 'Step {currentStep} of 5: {title}', {
+                currentStep,
+                title: stepTitles[currentStep - 1]
+              })}
             </span>
-            <span id="onboardingStepPct" className="text-white">{completedPct}% KYC Completed ({completedCount}/5)</span>
+            <span id="onboardingStepPct" className="text-white">
+              {t('kycCompletedProgress', '{completedPct}% KYC Completed ({completedCount}/5)', {
+                completedPct,
+                completedCount
+              })}
+            </span>
           </div>
           <div className="w-full h-2 rounded-full bg-white/20 overflow-hidden">
             <div
@@ -635,11 +659,11 @@ export default function OnboardingPage() {
           </div>
           <div className="grid grid-cols-5 gap-1.5 mt-3 text-[10px] sm:text-xs text-center font-bold">
             {[
-              { num: 1, label: '1. Profile' },
-              { num: 2, label: '2. KYC & GST' },
-              { num: 3, label: '3. Bank A/C' },
-              { num: 4, label: '4. Delivery' },
-              { num: 5, label: '5. Credit' }
+              { num: 1, label: t('kycTabProfile', '1. Profile') },
+              { num: 2, label: t('kycTabKycGst', '2. KYC & GST') },
+              { num: 3, label: t('kycTabBank', '3. Bank A/C') },
+              { num: 4, label: t('kycTabDelivery', '4. Delivery') },
+              { num: 5, label: t('kycTabCredit', '5. Credit') }
             ].map((tab) => {
               const isDone = Boolean(effectiveKycSteps?.[`step${tab.num}`]);
               const isActive = currentStep === tab.num;
@@ -686,17 +710,17 @@ export default function OnboardingPage() {
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-green-100 text-green-800 flex items-center justify-center font-bold">1</div>
                 <div>
-                  <h2 className="font-extrabold text-base text-gray-900">Store &amp; Owner Profile</h2>
-                  <p className="text-xs text-gray-400">Critical info required for store activation</p>
+                  <h2 className="font-extrabold text-base text-gray-900">{t('kycStep1Title', 'Store & Owner Profile')}</h2>
+                  <p className="text-xs text-gray-400">{t('kycStep1Subtitle', 'Critical info required for store activation')}</p>
                 </div>
               </div>
-              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800">Critical Step</span>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800">{t('kycBadgeCriticalStep', 'Critical Step')}</span>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <div
-                  data-title="Store / Trade Display Name"
+                  data-title={t('kycStoreNameLabel', 'Store / Trade Display Name')}
                   className="text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] after:content-['_*'] after:text-rose-600 after:font-extrabold"
                 />
                 <input
@@ -706,12 +730,12 @@ export default function OnboardingPage() {
                   value={shopName}
                   onChange={(e) => setShopName(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 font-bold"
-                  placeholder="e.g. Mahadev Kirana & General"
+                  placeholder={t('kycStoreNamePlaceholder', 'e.g. Mahadev Kirana & General')}
                 />
               </div>
               <div>
                 <div
-                  data-title="Legal Registered Entity Name"
+                  data-title={t('kycLegalNameLabel', 'Legal Registered Entity Name')}
                   className="text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] after:content-['_*'] after:text-rose-600 after:font-extrabold"
                 />
                 <input
@@ -721,7 +745,7 @@ export default function OnboardingPage() {
                   value={legalName}
                   onChange={(e) => setLegalName(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600"
-                  placeholder="As per PAN / GSTIN"
+                  placeholder={t('kycLegalNamePlaceholder', 'As per PAN / GSTIN')}
                 />
               </div>
             </div>
@@ -729,7 +753,7 @@ export default function OnboardingPage() {
             <div className="grid sm:grid-cols-3 gap-4">
               <div>
                 <div
-                  data-title="Business Constitution"
+                  data-title={t('kycEntityTypeLabel', 'Business Constitution')}
                   className="text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] after:content-['_*'] after:text-rose-600 after:font-extrabold"
                 />
                 <select
@@ -739,16 +763,16 @@ export default function OnboardingPage() {
                   onChange={(e) => setEntityType(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white"
                 >
-                  <option value="Sole Proprietorship">Sole Proprietorship</option>
-                  <option value="Partnership Firm">Partnership Firm</option>
-                  <option value="LLP">Limited Liability Partnership (LLP)</option>
-                  <option value="Private Limited">Private Limited Company</option>
-                  <option value="Individual Trader">Individual Trader</option>
+                  <option value="Sole Proprietorship">{t('kycEntitySoleProp', 'Sole Proprietorship')}</option>
+                  <option value="Partnership Firm">{t('kycEntityPartnership', 'Partnership Firm')}</option>
+                  <option value="LLP">{t('kycEntityLlp', 'Limited Liability Partnership (LLP)')}</option>
+                  <option value="Private Limited">{t('kycEntityPvtLtd', 'Private Limited Company')}</option>
+                  <option value="Individual Trader">{t('kycEntityTrader', 'Individual Trader')}</option>
                 </select>
               </div>
               <div>
                 <div
-                  data-title="Primary Category"
+                  data-title={t('kycCategoryLabel', 'Primary Category')}
                   className="text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] after:content-['_*'] after:text-rose-600 after:font-extrabold"
                 />
                 <select
@@ -758,16 +782,16 @@ export default function OnboardingPage() {
                   onChange={(e) => setCategory(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 bg-white"
                 >
-                  <option value="Grocery & Supermarket">Grocery &amp; Supermarket</option>
-                  <option value="Clothing & Textiles">Clothing, Kurtis &amp; Fashion</option>
-                  <option value="Food & Restaurant">Food, Sweets &amp; Bakery</option>
-                  <option value="FMCG & Wholesale">FMCG &amp; General Goods</option>
-                  <option value="Pharmacy & Wellness">Pharmacy &amp; Health</option>
+                  <option value="Grocery & Supermarket">{t('kycCatGrocery', 'Grocery & Supermarket')}</option>
+                  <option value="Clothing & Textiles">{t('kycCatClothing', 'Clothing, Kurtis & Fashion')}</option>
+                  <option value="Food & Restaurant">{t('kycCatFood', 'Food, Sweets & Bakery')}</option>
+                  <option value="FMCG & Wholesale">{t('kycCatFmcg', 'FMCG & General Goods')}</option>
+                  <option value="Pharmacy & Wellness">{t('kycCatPharmacy', 'Pharmacy & Health')}</option>
                 </select>
               </div>
               <div>
                 <div
-                  data-title="Owner / Director Name"
+                  data-title={t('kycOwnerNameLabel', 'Owner / Director Name')}
                   className="text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] after:content-['_*'] after:text-rose-600 after:font-extrabold"
                 />
                 <input
@@ -776,7 +800,7 @@ export default function OnboardingPage() {
                   autoComplete="one-time-code"
                   value={ownerName}
                   onChange={(e) => setOwnerName(e.target.value)}
-                  placeholder="e.g. Rajesh Patel"
+                  placeholder={t('kycOwnerNamePlaceholder', 'e.g. Rajesh Patel')}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600"
                 />
               </div>
@@ -785,7 +809,7 @@ export default function OnboardingPage() {
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <div
-                  data-title="Registered Mobile Number"
+                  data-title={t('kycRegPhoneLabel', 'Registered Mobile Number')}
                   className="text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] after:content-['_*'] after:text-rose-600 after:font-extrabold"
                 />
                 <div className="relative flex items-center">
@@ -807,15 +831,15 @@ export default function OnboardingPage() {
                   <div className="absolute right-2.5 flex items-center pointer-events-none">
                     {isPhoneLogin ? (
                       <span className="px-2 py-1 bg-green-100 text-green-800 text-[11px] font-extrabold rounded-lg shrink-0 flex items-center gap-1 shadow-xs">
-                        <i className="fa-solid fa-circle-check text-green-600"></i> OTP Verified
+                        <i className="fa-solid fa-circle-check text-green-600"></i> {t('kycOtpVerified', 'OTP Verified')}
                       </span>
                     ) : phone.length === 10 ? (
                       <span className="px-2 py-1 bg-blue-50 text-blue-700 text-[11px] font-bold rounded-lg shrink-0 border border-blue-200 flex items-center gap-1">
-                        <i className="fa-solid fa-circle-info text-blue-500"></i> 10 Digits
+                        <i className="fa-solid fa-circle-info text-blue-500"></i> {t('kycTenDigits', '10 Digits')}
                       </span>
                     ) : (
                       <span className="px-2 py-1 bg-amber-50 text-amber-700 text-[11px] font-bold rounded-lg shrink-0 border border-amber-200/60">
-                        {10 - phone.length} digits left
+                        {t('kycDigitsLeft', '{count} digits left', { count: 10 - phone.length })}
                       </span>
                     )}
                   </div>
@@ -823,7 +847,7 @@ export default function OnboardingPage() {
               </div>
               <div>
                 <div
-                  data-title={isEmailLogin ? "Registered Business Email" : "Official Business Email"}
+                  data-title={isEmailLogin ? t('kycRegEmailLabel', 'Registered Business Email') : t('kycOfficialEmailLabel', 'Official Business Email')}
                   className={`text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] ${isEmailLogin ? "after:content-['_*'] after:text-rose-600 after:font-extrabold" : ""}`}
                 />
                 <div className="relative flex items-center">
@@ -841,7 +865,7 @@ export default function OnboardingPage() {
                   {isEmailLogin && (
                     <div className="absolute right-2.5 flex items-center pointer-events-none">
                       <span className="px-2 py-1 bg-green-100 text-green-800 text-[11px] font-extrabold rounded-lg shrink-0 flex items-center gap-1 shadow-xs">
-                        <i className="fa-solid fa-circle-check text-green-600"></i> OTP Verified
+                        <i className="fa-solid fa-circle-check text-green-600"></i> {t('kycOtpVerified', 'OTP Verified')}
                       </span>
                     </div>
                   )}
@@ -851,7 +875,7 @@ export default function OnboardingPage() {
 
             <div>
               <div
-                data-title="Complete Store Address"
+                data-title={t('kycAddressLabel', 'Complete Store Address')}
                 className="text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] after:content-['_*'] after:text-rose-600 after:font-extrabold"
               />
               <input
@@ -861,7 +885,7 @@ export default function OnboardingPage() {
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600 mb-2"
-                placeholder="e.g. Shop 14, Sardar Market"
+                placeholder={t('kycAddressPlaceholder', 'e.g. Shop 14, Sardar Market')}
               />
               <div className="grid grid-cols-3 gap-2">
                 <input
@@ -871,7 +895,7 @@ export default function OnboardingPage() {
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
                   className="px-3 py-2 rounded-xl border border-gray-200 text-sm"
-                  placeholder="e.g. Surat"
+                  placeholder={t('kycCityPlaceholder', 'e.g. Surat')}
                 />
                 <input
                   type="text"
@@ -880,7 +904,7 @@ export default function OnboardingPage() {
                   value={stateName}
                   onChange={(e) => setStateName(e.target.value)}
                   className="px-3 py-2 rounded-xl border border-gray-200 text-sm"
-                  placeholder="e.g. Gujarat"
+                  placeholder={t('kycStatePlaceholder', 'e.g. Gujarat')}
                 />
                 <input
                   type="text"
@@ -890,12 +914,12 @@ export default function OnboardingPage() {
                   value={pincode}
                   onChange={(e) => setPincode(e.target.value)}
                   className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-mono"
-                  placeholder="e.g. 395007"
+                  placeholder={t('kycPincodePlaceholder', 'e.g. 395007')}
                 />
               </div>
               <p className="text-[11px] text-gray-500 mt-2 flex items-center gap-1.5">
                 <i className="fa-solid fa-map-location-dot text-emerald-600"></i>
-                <span>Store coordinates are automatically geocoded from this address for delivery mapping &amp; radius calculation.</span>
+                <span>{t('kycGeocodedNote', 'Store coordinates are automatically geocoded from this address for delivery mapping & radius calculation.')}</span>
               </p>
             </div>
           </div>
@@ -908,17 +932,17 @@ export default function OnboardingPage() {
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-green-100 text-green-800 flex items-center justify-center font-bold">2</div>
                 <div>
-                  <h2 className="font-extrabold text-base text-gray-900">Business KYC &amp; Tax Compliance</h2>
-                  <p className="text-xs text-gray-400">Mandatory tax credentials for invoicing and product publishing</p>
+                  <h2 className="font-extrabold text-base text-gray-900">{t('kycStep2Heading', 'Business KYC & Tax Compliance')}</h2>
+                  <p className="text-xs text-gray-400">{t('kycStep2Subtitle', 'Mandatory tax credentials for invoicing and product publishing')}</p>
                 </div>
               </div>
-              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800">Critical Step</span>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800">{t('kycBadgeCriticalStep', 'Critical Step')}</span>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-bold text-gray-700 block mb-1">
-                  GSTIN (Goods &amp; Services Tax ID) <span className="text-rose-600 font-extrabold">*</span>
+                  {t('kycGstinLabel', 'GSTIN (Goods & Services Tax ID)')} <span className="text-rose-600 font-extrabold">*</span>
                 </label>
                 <input
                   type="text"
@@ -930,13 +954,13 @@ export default function OnboardingPage() {
                 />
                 {gstin && (
                   <div className="mt-1.5 flex items-center gap-1.5 text-xs text-green-700 font-bold">
-                    <i className="fa-solid fa-circle-check text-green-600"></i> Active Taxpayer Format
+                    <i className="fa-solid fa-circle-check text-green-600"></i> {t('kycActiveTaxpayer', 'Active Taxpayer Format')}
                   </div>
                 )}
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-700 block mb-1">
-                  Proprietor / Company PAN Card <span className="text-rose-600 font-extrabold">*</span>
+                  {t('kycPanLabel', 'Proprietor / Company PAN Card')} <span className="text-rose-600 font-extrabold">*</span>
                 </label>
                 <input
                   type="text"
@@ -951,18 +975,18 @@ export default function OnboardingPage() {
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-bold text-gray-700 block mb-1">FSSAI Food License (For Food/Kirana)</label>
+                <label className="text-xs font-bold text-gray-700 block mb-1">{t('kycFssaiLabel', 'FSSAI Food License (For Food/Kirana)')}</label>
                 <input
                   type="text"
                   autoComplete="off"
                   value={fssai}
                   onChange={(e) => setFssai(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono outline-none focus:border-green-600"
-                  placeholder="14-digit FSSAI License Number"
+                  placeholder={t('kycFssaiPlaceholder', '14-digit FSSAI License Number')}
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-700 block mb-1">Udhyam MSME Registration (Optional)</label>
+                <label className="text-xs font-bold text-gray-700 block mb-1">{t('kycUdhyamLabel', 'Udhyam MSME Registration (Optional)')}</label>
                 <input
                   type="text"
                   autoComplete="off"
@@ -983,17 +1007,17 @@ export default function OnboardingPage() {
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-green-100 text-green-800 flex items-center justify-center font-bold">3</div>
                 <div>
-                  <h2 className="font-extrabold text-base text-gray-900">Bank Account &amp; Settlement Setup</h2>
-                  <p className="text-xs text-gray-400">Unlocks Bank Payouts &amp; Money page (/finance)</p>
+                  <h2 className="font-extrabold text-base text-gray-900">{t('kycStep3Heading', 'Bank Account & Settlement Setup')}</h2>
+                  <p className="text-xs text-gray-400">{t('kycStep3Subtitle', 'Unlocks Bank Payouts & Money page (/finance)')}</p>
                 </div>
               </div>
-              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800">Unlocks Payouts</span>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800">{t('kycBadgeUnlocksPayouts', 'Unlocks Payouts')}</span>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-bold text-gray-700 block mb-1">
-                  Beneficiary Bank Name <span className="text-rose-600 font-extrabold">*</span>
+                  {t('kycBankNameLabel', 'Beneficiary Bank Name')} <span className="text-rose-600 font-extrabold">*</span>
                 </label>
                 <select
                   value={bankName}
@@ -1010,14 +1034,14 @@ export default function OnboardingPage() {
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-700 block mb-1">
-                  Account Holder Name <span className="text-rose-600 font-extrabold">*</span>
+                  {t('kycAccHolderLabel', 'Account Holder Name')} <span className="text-rose-600 font-extrabold">*</span>
                 </label>
                 <input
                   type="text"
                   autoComplete="off"
                   value={accHolder}
                   onChange={(e) => setAccHolder(e.target.value)}
-                  placeholder="Beneficiary Name"
+                  placeholder={t('kycAccHolderPlaceholder', 'Beneficiary Name')}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-600"
                 />
               </div>
@@ -1026,7 +1050,7 @@ export default function OnboardingPage() {
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-bold text-gray-700 block mb-1">
-                  Bank Account Number <span className="text-rose-600 font-extrabold">*</span>
+                  {t('kycAccNumLabel', 'Bank Account Number')} <span className="text-rose-600 font-extrabold">*</span>
                 </label>
                 <input
                   type="text"
@@ -1039,14 +1063,14 @@ export default function OnboardingPage() {
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-700 block mb-1">
-                  Confirm Account Number <span className="text-rose-600 font-extrabold">*</span>
+                  {t('kycAccNumConfirmLabel', 'Confirm Account Number')} <span className="text-rose-600 font-extrabold">*</span>
                 </label>
                 <input
                   type="text"
                   autoComplete="off"
                   value={accNumConfirm}
                   onChange={(e) => setAccNumConfirm(e.target.value)}
-                  placeholder="Re-enter Account Number"
+                  placeholder={t('kycAccNumConfirmPlaceholder', 'Re-enter Account Number')}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-mono outline-none focus:border-green-600"
                 />
               </div>
@@ -1055,7 +1079,7 @@ export default function OnboardingPage() {
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-bold text-gray-700 block mb-1">
-                  IFSC Code <span className="text-rose-600 font-extrabold">*</span>
+                  {t('kycIfscLabel', 'IFSC Code')} <span className="text-rose-600 font-extrabold">*</span>
                 </label>
                 <input
                   type="text"
@@ -1067,13 +1091,13 @@ export default function OnboardingPage() {
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-700 block mb-1">Account Type</label>
+                <label className="text-xs font-bold text-gray-700 block mb-1">{t('kycAccTypeLabel', 'Account Type')}</label>
                 <div className="grid grid-cols-2 gap-2">
                   <label className={`flex items-center gap-2 p-2.5 rounded-xl border-2 text-xs font-bold cursor-pointer ${accType === 'CURRENT' ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
-                    <input type="radio" name="obAccType" checked={accType === 'CURRENT'} onChange={() => setAccType('CURRENT')} /> Current A/C
+                    <input type="radio" name="obAccType" checked={accType === 'CURRENT'} onChange={() => setAccType('CURRENT')} /> {t('kycCurrentAc', 'Current A/C')}
                   </label>
                   <label className={`flex items-center gap-2 p-2.5 rounded-xl border-2 text-xs font-bold cursor-pointer ${accType === 'SAVINGS' ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
-                    <input type="radio" name="obAccType" checked={accType === 'SAVINGS'} onChange={() => setAccType('SAVINGS')} /> Savings A/C
+                    <input type="radio" name="obAccType" checked={accType === 'SAVINGS'} onChange={() => setAccType('SAVINGS')} /> {t('kycSavingsAc', 'Savings A/C')}
                   </label>
                 </div>
               </div>
@@ -1088,38 +1112,38 @@ export default function OnboardingPage() {
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-green-100 text-green-800 flex items-center justify-center font-bold">4</div>
                 <div>
-                  <h2 className="font-extrabold text-base text-gray-900">Store Hours &amp; Delivery Logistics</h2>
-                  <p className="text-xs text-gray-400">Unlocks Delivery (/delivery)</p>
+                  <h2 className="font-extrabold text-base text-gray-900">{t('kycStep4Heading', 'Store Hours & Delivery Logistics')}</h2>
+                  <p className="text-xs text-gray-400">{t('kycStep4Subtitle', 'Unlocks Delivery (/delivery)')}</p>
                 </div>
               </div>
-              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-teal-100 text-teal-800">Unlocks Logistics</span>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-teal-100 text-teal-800">{t('kycBadgeUnlocksLogistics', 'Unlocks Logistics')}</span>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-bold text-gray-700 block mb-1">Operating Hours</label>
+                <label className="text-xs font-bold text-gray-700 block mb-1">{t('kycOperatingHoursLabel', 'Operating Hours')}</label>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <input type="time" value={openTime} onChange={(e) => setOpenTime(e.target.value)} className="w-full h-10 px-3 py-2 rounded-xl border border-gray-200 text-sm" />
-                    <span className="text-[10px] font-bold text-gray-400 block mt-1 px-0.5">Opening</span>
+                    <span className="text-[10px] font-bold text-gray-400 block mt-1 px-0.5">{t('kycOpeningLabel', 'Opening')}</span>
                   </div>
                   <div>
                     <input type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} className="w-full h-10 px-3 py-2 rounded-xl border border-gray-200 text-sm" />
-                    <span className="text-[10px] font-bold text-gray-400 block mt-1 px-0.5">Closing</span>
+                    <span className="text-[10px] font-bold text-gray-400 block mt-1 px-0.5">{t('kycClosingLabel', 'Closing')}</span>
                   </div>
                 </div>
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-bold text-gray-700">App Customer Delivery Radius</label>
+                  <label className="text-xs font-bold text-gray-700">{t('kycDeliveryRadiusLabel', 'App Customer Delivery Radius')}</label>
                   <span className="text-[10px] font-bold text-orange-600">
                     {Number(zoneRadius) === 0
-                      ? 'Pickup Only (0km)'
+                      ? t('kycRadiusPickupOnly', 'Pickup Only (0km)')
                       : Number(zoneRadius) <= 5
-                      ? 'Immediate Neighbourhood'
+                      ? t('kycRadiusImmediate', 'Immediate Neighbourhood')
                       : Number(zoneRadius) <= 12
-                      ? 'Standard Town Radius'
-                      : 'Wide City Coverage'}
+                      ? t('kycRadiusStandard', 'Standard Town Radius')
+                      : t('kycRadiusWide', 'Wide City Coverage')}
                   </span>
                 </div>
                 {(() => {
@@ -1134,7 +1158,7 @@ export default function OnboardingPage() {
                           const next = Math.min(20, Math.max(0, radiusVal + delta));
                           setZoneRadius(String(next));
                         }}
-                        title="Drag or scroll to adjust delivery radius (0km – 20km)"
+                        title={t('kycRadiusAdjustTooltip', 'Drag or scroll to adjust delivery radius (0km – 20km)')}
                         className="relative w-full h-10 rounded-xl bg-gray-100 border border-gray-200 overflow-hidden select-none shadow-inner"
                       >
                         {/* Orange Fill Bar with White Text */}
@@ -1186,51 +1210,51 @@ export default function OnboardingPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs font-bold text-gray-700">
-                  Delivery Channels <span className="text-rose-600 font-extrabold">*</span>
+                  {t('kycDeliveryChannelsLabel', 'Delivery Channels')} <span className="text-rose-600 font-extrabold">*</span>
                 </label>
                 {!delivFast && !delivSame && !delivScheduled && !delivPickup && (
                   <span className="text-[10px] font-extrabold text-rose-600">
-                    Select at least 1 channel
+                    {t('kycSelectAtLeastOneChannel', 'Select at least 1 channel')}
                   </span>
                 )}
               </div>
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <label className={`p-3 rounded-xl border-2 flex items-start gap-2.5 cursor-pointer ${delivFast ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
                   <input type="checkbox" checked={delivFast} onChange={(e) => setDelivFast(e.target.checked)} className="mt-0.5" />
-                  <div><div className="font-bold text-xs text-green-900">Express (Under 1h)</div><div className="text-[10px] text-gray-500">Bike dispatch for immediate essentials</div></div>
+                  <div><div className="font-bold text-xs text-green-900">{t('kycChannelExpress', 'Express (Under 1h)')}</div><div className="text-[10px] text-gray-500">{t('kycChannelExpressDesc', 'Bike dispatch for immediate essentials')}</div></div>
                 </label>
                 <label className={`p-3 rounded-xl border-2 flex items-start gap-2.5 cursor-pointer ${delivSame ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
                   <input type="checkbox" checked={delivSame} onChange={(e) => setDelivSame(e.target.checked)} className="mt-0.5" />
-                  <div><div className="font-bold text-xs text-green-900">Same-Day</div><div className="text-[10px] text-gray-500">Same-day city delivery</div></div>
+                  <div><div className="font-bold text-xs text-green-900">{t('kycChannelSameDay', 'Same-Day')}</div><div className="text-[10px] text-gray-500">{t('kycChannelSameDayDesc', 'Same-day city delivery')}</div></div>
                 </label>
                 <label className={`p-3 rounded-xl border-2 flex items-start gap-2.5 cursor-pointer ${delivScheduled ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
                   <input type="checkbox" checked={delivScheduled} onChange={(e) => setDelivScheduled(e.target.checked)} className="mt-0.5" />
-                  <div><div className="font-bold text-xs text-green-900">Scheduled Hours</div><div className="text-[10px] text-gray-500">Morning / Evening slot delivery</div></div>
+                  <div><div className="font-bold text-xs text-green-900">{t('kycChannelScheduled', 'Scheduled Hours')}</div><div className="text-[10px] text-gray-500">{t('kycChannelScheduledDesc', 'Morning / Evening slot delivery')}</div></div>
                 </label>
                 <label className={`p-3 rounded-xl border-2 flex items-start gap-2.5 cursor-pointer ${delivPickup ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
                   <input type="checkbox" checked={delivPickup} onChange={(e) => setDelivPickup(e.target.checked)} className="mt-0.5" />
-                  <div><div className="font-bold text-xs text-green-900">Store Pickup</div><div className="text-[10px] text-gray-500">Customer collects from counter</div></div>
+                  <div><div className="font-bold text-xs text-green-900">{t('kycChannelPickup', 'Store Pickup')}</div><div className="text-[10px] text-gray-500">{t('kycChannelPickupDesc', 'Customer collects from counter')}</div></div>
                 </label>
               </div>
             </div>
 
             <div>
-              <label className="text-xs font-bold text-gray-700 block mb-2">Logistics Fleet Preference</label>
+              <label className="text-xs font-bold text-gray-700 block mb-2">{t('kycFleetPrefLabel', 'Logistics Fleet Preference')}</label>
               <div className="grid sm:grid-cols-2 gap-3">
                 <label className={`p-3 rounded-xl border flex items-center gap-2.5 cursor-pointer ${fleet === 'SELF' ? 'border-2 border-green-500 bg-green-50' : 'border-gray-200'}`}>
                   <input type="radio" name="obFleet" checked={fleet === 'SELF'} onChange={() => setFleet('SELF')} />
-                  <div><div className="font-bold text-xs">Self Riders &amp; Vehicles</div><div className="text-[10px] text-gray-500">You use your own staff for deliveries</div></div>
+                  <div><div className="font-bold text-xs">{t('kycFleetSelf', 'Self Riders & Vehicles')}</div><div className="text-[10px] text-gray-500">{t('kycFleetSelfDesc', 'You use your own staff for deliveries')}</div></div>
                 </label>
                 <label className="p-3 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-between gap-2.5 opacity-60 cursor-not-allowed select-none">
                   <div className="flex items-center gap-2.5">
                     <input type="radio" name="obFleet" checked={false} disabled />
                     <div>
-                      <div className="font-bold text-xs text-gray-500">ADAB Integrated Porter Fleet</div>
-                      <div className="text-[10px] text-gray-400">On-demand partner delivery drivers</div>
+                      <div className="font-bold text-xs text-gray-500">{t('kycFleetIntegrated', 'ADAB Integrated Porter Fleet')}</div>
+                      <div className="text-[10px] text-gray-400">{t('kycFleetIntegratedDesc', 'On-demand partner delivery drivers')}</div>
                     </div>
                   </div>
                   <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-gray-200 text-gray-600 shrink-0">
-                    Unavailable
+                    {t('kycUnavailable', 'Unavailable')}
                   </span>
                 </label>
               </div>
@@ -1245,37 +1269,37 @@ export default function OnboardingPage() {
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-green-100 text-green-800 flex items-center justify-center font-bold">5</div>
                 <div>
-                  <h2 className="font-extrabold text-base text-gray-900">B2B Wholesale &amp; Store Credit Terms</h2>
-                  <p className="text-xs text-gray-400">Unlocks Bank Credit Lines (/credit-apply) &amp; Store Credit Rules (/creditterms)</p>
+                  <h2 className="font-extrabold text-base text-gray-900">{t('kycStep5Heading', 'B2B Wholesale & Store Credit Terms')}</h2>
+                  <p className="text-xs text-gray-400">{t('kycStep5Subtitle', 'Unlocks Bank Credit Lines (/credit-apply) & Store Credit Rules (/creditterms)')}</p>
                 </div>
               </div>
-              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800">Unlocks Credit</span>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800">{t('kycBadgeUnlocksCredit', 'Unlocks Credit')}</span>
             </div>
 
             <label className="p-3.5 rounded-xl border-2 border-orange-400 bg-orange-50 flex items-center gap-3 cursor-pointer">
               <input type="checkbox" checked={enableCredit} onChange={(e) => setEnableCredit(e.target.checked)} className="w-4 h-4" />
               <div>
-                <div className="font-extrabold text-sm text-orange-950">Enable B2B Store-to-Store Credit Selling</div>
-                <div className="text-xs text-orange-800">Allow nearby &amp; nationwide shops to place bulk orders on credit (ADAB guaranteed)</div>
+                <div className="font-extrabold text-sm text-orange-950">{t('kycEnableCreditTitle', 'Enable B2B Store-to-Store Credit Selling')}</div>
+                <div className="text-xs text-orange-800">{t('kycEnableCreditDesc', 'Allow nearby & nationwide shops to place bulk orders on credit (ADAB guaranteed)')}</div>
               </div>
             </label>
 
             <div className="grid sm:grid-cols-3 gap-4">
               <div>
-                <label className="text-xs font-bold text-gray-700 block mb-1">Credit Payment Tenure</label>
+                <label className="text-xs font-bold text-gray-700 block mb-1">{t('kycCreditTenureLabel', 'Credit Payment Tenure')}</label>
                 <select
                   value={creditDays}
                   onChange={(e) => setCreditDays(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-bold bg-white"
                 >
-                  <option value="7">7 Days</option>
-                  <option value="14">14 Days (Standard)</option>
-                  <option value="21">21 Days</option>
-                  <option value="30">30 Days</option>
+                  <option value="7">{t('kycDays7', '7 Days')}</option>
+                  <option value="14">{t('kycDays14', '14 Days (Standard)')}</option>
+                  <option value="21">{t('kycDays21', '21 Days')}</option>
+                  <option value="30">{t('kycDays30', '30 Days')}</option>
                 </select>
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-700 block mb-1">Max Credit per Shop (₹)</label>
+                <label className="text-xs font-bold text-gray-700 block mb-1">{t('kycMaxCreditLabel', 'Max Credit per Shop (₹)')}</label>
                 <input
                   type="number"
                   value={creditLimit}
@@ -1284,7 +1308,7 @@ export default function OnboardingPage() {
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-700 block mb-1">Minimum Order for Credit (₹)</label>
+                <label className="text-xs font-bold text-gray-700 block mb-1">{t('kycMinOrderCreditLabel', 'Minimum Order for Credit (₹)')}</label>
                 <input
                   type="number"
                   value={creditMinOrder}
@@ -1296,7 +1320,7 @@ export default function OnboardingPage() {
 
             <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-900">
               <i className="fa-solid fa-hand-holding-dollar mr-1 text-purple-700"></i>
-              <strong>ADAB Buyer Credit Line:</strong> Completing this step unlocks your <strong>₹2,50,000 credit line</strong> to purchase stock from distributors at 0% interest for 14 days.
+              <strong>{t('kycBuyerCreditTitle', 'ADAB Buyer Credit Line:')}</strong> {t('kycBuyerCreditDesc', 'Completing this step unlocks your ₹2,50,000 credit line to purchase stock from distributors at 0% interest for 14 days.')}
             </div>
           </div>
         )}
@@ -1310,7 +1334,7 @@ export default function OnboardingPage() {
             className="btn-soft !text-xs !py-2 !px-4"
             disabled={currentStep === 1}
           >
-            <i className="fa-solid fa-arrow-left mr-1"></i> Back
+            <i className="fa-solid fa-arrow-left mr-1"></i> {t('back', 'Back')}
           </button>
 
           <div className="text-xs text-gray-400 font-bold">
@@ -1325,12 +1349,12 @@ export default function OnboardingPage() {
                 id="obBtnSkip"
                 className="btn-soft !text-xs !py-2 !px-4 font-bold text-gray-600 hover:text-gray-900"
               >
-                Skip
+                {t('kycBtnSkip', 'Skip')}
               </button>
             )}
             {currentStep <= 2 && !effectiveCriticalDone && (
               <span className="text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2.5 py-1.5 rounded-lg hidden sm:inline-flex items-center gap-1">
-                <i className="fa-solid fa-lock text-[10px]"></i> Critical Step Required
+                <i className="fa-solid fa-lock text-[10px]"></i> {t('kycCriticalStepRequired', 'Critical Step Required')}
               </span>
             )}
             <button
@@ -1340,7 +1364,7 @@ export default function OnboardingPage() {
               id="obBtnNext"
               className="btn-primary !text-xs !py-2 !px-5 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {saving ? 'Saving...' : 'Save & Continue'} <i className="fa-solid fa-arrow-right ml-1"></i>
+              {saving ? t('saving', 'Saving...') : t('kycSaveAndContinue', 'Save & Continue')} <i className="fa-solid fa-arrow-right ml-1"></i>
             </button>
           </div>
         </div>
@@ -1351,7 +1375,10 @@ export default function OnboardingPage() {
             <div>
               <div className="text-xs font-extrabold text-amber-950 flex items-center gap-1.5">
                 <i className="fa-solid fa-wand-magic-sparkles text-amber-600"></i>
-                Demo Fill Up — Step {currentStep} ({STEP_TITLES[currentStep - 1]})
+                {t('kycDemoFillTitle', 'Demo Fill Up — Step {step} ({title})', {
+                  step: currentStep,
+                  title: stepTitles[currentStep - 1]
+                })}
               </div>
               <div className="text-[11px] font-mono font-bold text-amber-800 mt-0.5">
                 {getDemoStepSummary(currentStep)}
@@ -1362,7 +1389,7 @@ export default function OnboardingPage() {
               onClick={handleDemoFillCurrentStep}
               className="px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-extrabold shrink-0 transition shadow-sm flex items-center gap-1.5 self-start sm:self-center"
             >
-              <i className="fa-solid fa-bolt"></i> Demo Fill Up
+              <i className="fa-solid fa-bolt"></i> {t('kycDemoFillBtn', 'Demo Fill Up')}
             </button>
           </div>
         </div>

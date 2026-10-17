@@ -4,8 +4,10 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { sellerApi } from '../api/sellerApi';
 import { useSeller } from '../context/SellerContext';
+import { useTranslation } from '../context/LanguageContext';
 
 export default function PartnerBrandsPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { store } = useSeller();
 
@@ -643,14 +645,14 @@ export default function PartnerBrandsPage() {
           <div className="flex items-center gap-2.5">
             <h1 className="text-xl sm:text-2xl font-black text-gray-900 flex items-center gap-2">
               <i className="fa-solid fa-crown text-amber-500"></i>
-              <span>Other Store Brands</span>
+              <span>{t('navPartnerPack', 'Other Store Brands')}</span>
             </h1>
             <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-100 to-orange-100 text-amber-900 border border-amber-300 text-[11px] font-black tracking-wide uppercase">
-              Own Brand Network
+              {t('ownBrandNetwork', 'Own Brand Network')}
             </span>
           </div>
           <p className="text-xs sm:text-sm text-gray-500 mt-1 max-w-2xl leading-relaxed">
-            Discover authentic <strong>Own Brand</strong> private labels manufactured by verified partner stores. Buy wholesale stock on 14-day credit, or clone them into your store for retail markup.
+            {t('ownBrandSubtitle', 'Discover authentic Own Brand private labels manufactured by verified partner stores. Buy wholesale stock on 14-day credit, or clone them into your store for retail markup.')}
           </p>
         </div>
 
@@ -660,10 +662,10 @@ export default function PartnerBrandsPage() {
             to="/buycart"
             id="btn-header-purchase-cart"
             className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg transition-all flex items-center gap-2.5 group"
-            title="Open Purchase Cart"
+            title={t('navPurchaseCart', 'Purchase Cart')}
           >
             <i className="fa-solid fa-cart-shopping text-blue-200 group-hover:scale-110 transition duration-200"></i>
-            <span>Purchase Cart</span>
+            <span>{t('navPurchaseCart', 'Purchase Cart')}</span>
             {cartCount > 0 ? (
               <span className="bg-white text-emerald-800 text-[11px] font-black px-2 py-0.5 rounded-full shadow-sm animate-pulse">
                 {cartCount} items
@@ -693,7 +695,7 @@ export default function PartnerBrandsPage() {
           }`}
         >
           <i className={`fa-solid fa-boxes-stacked ${viewMode === 'products' ? 'text-white' : 'text-emerald-600'}`}></i>
-          <span>Products ({filteredProducts.length})</span>
+          <span>{t('myProductsStock', 'Products')} ({filteredProducts.length})</span>
         </button>
 
         {/* Tab 2: Stores Directory */}
@@ -707,7 +709,7 @@ export default function PartnerBrandsPage() {
           }`}
         >
           <i className={`fa-solid fa-store ${viewMode === 'stores' ? 'text-white' : 'text-indigo-600'}`}></i>
-          <span>Stores Directory ({filteredStores.length})</span>
+          <span>{t('storesDirectory', 'Stores Directory')} ({filteredStores.length})</span>
         </button>
 
         {/* Tab 3: Partner Map */}
@@ -721,7 +723,7 @@ export default function PartnerBrandsPage() {
           }`}
         >
           <i className={`fa-solid fa-map-location-dot ${viewMode === 'map' ? 'text-white' : 'text-blue-600'}`}></i>
-          <span>Partner Map</span>
+          <span>{t('partnerMap', 'Partner Map')}</span>
         </button>
 
         {/* Tab 4: Resale Catalog */}
@@ -735,7 +737,7 @@ export default function PartnerBrandsPage() {
           }`}
         >
           <i className={`fa-solid fa-tag ${viewMode === 'resale' ? 'text-white' : 'text-amber-600'}`}></i>
-          <span>Resale Catalog ({myAdded.length})</span>
+          <span>{t('resaleCatalog', 'Resale Catalog')} ({myAdded.length})</span>
         </button>
 
         {/* Tab 5: My Stock Requests */}
@@ -749,7 +751,7 @@ export default function PartnerBrandsPage() {
           }`}
         >
           <i className={`fa-solid fa-clipboard-check ${viewMode === 'requests' ? 'text-white' : 'text-teal-600'}`}></i>
-          <span>Stock Requests ({myPurchaseOrders.length})</span>
+          <span>{t('myStockRequests', 'Stock Requests')} ({myPurchaseOrders.length})</span>
           {myPurchaseOrders.some((po) => po.status === 'APPROVED') && (
             <span className="bg-emerald-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full animate-pulse">
               Ready!

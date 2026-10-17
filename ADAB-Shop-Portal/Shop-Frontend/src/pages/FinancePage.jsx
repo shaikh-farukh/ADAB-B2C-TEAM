@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { sellerApi } from '../api/sellerApi';
+import { useTranslation } from '../context/LanguageContext';
 
 function SettlementDetailModal({ settlement, onClose }) {
+  const { t } = useTranslation();
   if (!settlement) return null;
   const items = Array.isArray(settlement.items) ? settlement.items : [];
 
@@ -30,11 +32,11 @@ function SettlementDetailModal({ settlement, onClose }) {
             <div className="flex items-center gap-2">
               <i className="fa-solid fa-file-invoice-dollar text-emerald-700 text-sm"></i>
               <h3 className="font-extrabold text-base text-gray-900">
-                Settlement Breakdown • {settlement.settlement_cycle}
+                {t('financeSettlementBreakdownModal', `Settlement Breakdown • ${settlement.settlement_cycle}`, { cycle: settlement.settlement_cycle })}
               </h3>
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
-              Settled: <span className="font-semibold text-gray-700">{formatDate(settlement.settled_at || settlement.created_at)}</span>
+              {t('financeSettledAt', 'Settled:')} <span className="font-semibold text-gray-700">{formatDate(settlement.settled_at || settlement.created_at)}</span>
               <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
                 {settlement.status}
               </span>
@@ -52,19 +54,19 @@ function SettlementDetailModal({ settlement, onClose }) {
         {/* Summary Strip */}
         <div className="grid grid-cols-3 gap-2 p-4 bg-gray-50 border-b border-gray-100 text-xs">
           <div className="p-2.5 rounded-xl bg-white border border-gray-200">
-            <div className="text-[10px] text-gray-400 font-bold uppercase">Gross Sales</div>
+            <div className="text-[10px] text-gray-400 font-bold uppercase">{t('financeGrossSales', 'Gross Sales')}</div>
             <div className="text-sm font-extrabold text-gray-900 mt-0.5">
               ₹{Number(settlement.total_sales || 0).toLocaleString('en-IN')}
             </div>
           </div>
           <div className="p-2.5 rounded-xl bg-white border border-gray-200">
-            <div className="text-[10px] text-gray-400 font-bold uppercase">Platform Fee</div>
+            <div className="text-[10px] text-gray-400 font-bold uppercase">{t('financePlatformFee', 'Platform Fee')}</div>
             <div className="text-sm font-extrabold text-rose-600 mt-0.5">
               -₹{Number(settlement.total_commission || 0).toLocaleString('en-IN')}
             </div>
           </div>
           <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
-            <div className="text-[10px] text-emerald-700 font-bold uppercase">Net Disbursed</div>
+            <div className="text-[10px] text-emerald-700 font-bold uppercase">{t('financeNetDisbursed', 'Net Disbursed')}</div>
             <div className="text-sm font-extrabold text-emerald-800 mt-0.5">
               ₹{Number(settlement.net_payable || 0).toLocaleString('en-IN')}
             </div>
@@ -128,6 +130,7 @@ function SettlementDetailModal({ settlement, onClose }) {
 }
 
 export default function FinancePage() {
+  const { t } = useTranslation();
   const [finance, setFinance] = useState({
     balance: 0,
     unsettled_orders_count: 0,
@@ -265,9 +268,9 @@ export default function FinancePage() {
     <section id="sec-money" className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-xl font-extrabold text-gray-900">Money, Settlements &amp; Bank Credit</h1>
+          <h1 className="text-xl font-extrabold text-gray-900">{t('financeTitle', 'Money, Settlements & Bank Credit')}</h1>
           <p className="text-sm text-gray-500">
-            Payout-ready summary, order transactions &amp; fee breakdowns, bank settlements, and B2B credit khata
+            {t('financeSubtitle', 'Payout-ready summary, order transactions & fee breakdowns, bank settlements, and B2B credit khata')}
           </p>
         </div>
         <button
@@ -276,7 +279,7 @@ export default function FinancePage() {
           className="btn-soft !text-xs flex items-center gap-1.5 cursor-pointer"
         >
           <i className="fa-solid fa-rotate-right"></i>
-          <span>Sync Ledger</span>
+          <span>{t('financeSyncLedger', 'Sync Ledger')}</span>
         </button>
       </div>
 
@@ -290,12 +293,12 @@ export default function FinancePage() {
       {/* Top 4 Payout & Earnings KPI Cards */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="card p-4 border-2 border-green-200 bg-green-50">
-          <div className="text-xs text-gray-600 font-bold uppercase">Payout-Ready Balance</div>
+          <div className="text-xs text-gray-600 font-bold uppercase">{t('financePayoutReadyBalance', 'Payout-Ready Balance')}</div>
           <div className="text-2xl font-extrabold text-green-800 mt-1">
             ₹{Number(finance.balance || 0).toLocaleString('en-IN')}
           </div>
           <div className="text-[11px] text-green-700 mt-0.5">
-            {finance.unsettled_orders_count || 0} unsettled store order(s)
+            {t('financeUnsettledStoreOrders', `${finance.unsettled_orders_count || 0} unsettled store order(s)`, { count: finance.unsettled_orders_count || 0 })}
           </div>
           <button
             type="button"
@@ -303,25 +306,25 @@ export default function FinancePage() {
             onClick={handleWithdraw}
             className="btn-primary w-full mt-3 !text-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
-            {withdrawing ? 'Processing Settlement...' : 'Withdraw to Bank'}
+            {withdrawing ? t('financeProcessingSettlement', 'Processing Settlement...') : t('financeWithdrawToBank', 'Withdraw to Bank')}
           </button>
         </div>
 
         <div className="card p-4">
-          <div className="text-xs text-gray-600 font-bold uppercase">Gross Sales ({finance.total_orders || 0} orders)</div>
+          <div className="text-xs text-gray-600 font-bold uppercase">{t('financeGrossSales', 'Gross Sales')} ({finance.total_orders || 0} orders)</div>
           <div className="text-2xl font-extrabold text-gray-900 mt-1">
             ₹{Number(finance.gross_sales || 0).toLocaleString('en-IN')}
           </div>
           <div className="text-[11px] text-rose-600 font-semibold mt-1">
-            Commission Deducted: -₹{Number(finance.total_commission || 0).toLocaleString('en-IN')}
+            {t('financeCommissionDeducted', `Commission Deducted: -₹${Number(finance.total_commission || 0).toLocaleString('en-IN')}`, { amount: Number(finance.total_commission || 0).toLocaleString('en-IN') })}
           </div>
           <div className="text-[11px] text-gray-500 mt-0.5">
-            Net Order Earnings: ₹{Number(finance.net_earnings || 0).toLocaleString('en-IN')}
+            {t('financeNetOrderEarnings', `Net Order Earnings: ₹${Number(finance.net_earnings || 0).toLocaleString('en-IN')}`, { amount: Number(finance.net_earnings || 0).toLocaleString('en-IN') })}
           </div>
         </div>
 
         <div className="card p-4">
-          <div className="text-xs text-gray-600 font-bold uppercase">Settled to Bank ({finance.settlements_count || 0})</div>
+          <div className="text-xs text-gray-600 font-bold uppercase">{t('financeSettledToBank', `Settled to Bank (${finance.settlements_count || 0})`, { count: finance.settlements_count || 0 })}</div>
           <div className="text-2xl font-extrabold text-emerald-700 mt-1">
             ₹{Number(finance.settled_amount || 0).toLocaleString('en-IN')}
           </div>
@@ -331,7 +334,7 @@ export default function FinancePage() {
         </div>
 
         <div className="card p-4">
-          <div className="text-xs text-gray-600 font-bold uppercase">Working Capital Credit</div>
+          <div className="text-xs text-gray-600 font-bold uppercase">{t('financeWorkingCapitalCredit', 'Working Capital Credit')}</div>
           <div className="text-2xl font-extrabold text-purple-800 mt-1">
             ₹{Number(finance.available_credit || 0).toLocaleString('en-IN')}
           </div>
@@ -339,7 +342,7 @@ export default function FinancePage() {
             Sanctioned: ₹{Number(finance.sanctioned_limit || 0).toLocaleString('en-IN')} • Utilized: ₹{Number(finance.utilized_credit || 0).toLocaleString('en-IN')}
           </div>
           <Link to="/credit-apply" className="inline-block text-xs font-bold text-purple-700 hover:underline mt-1.5">
-            Apply / Manage Credit →
+            {t('financeApplyManageCredit', 'Apply / Manage Credit →')}
           </Link>
         </div>
       </div>
@@ -356,7 +359,7 @@ export default function FinancePage() {
           }`}
         >
           <i className="fa-solid fa-receipt"></i>
-          <span>Transactions &amp; Fee Breakdown ({transactions.length})</span>
+          <span>{t('financeTransactionsTabFull', `Transactions & Fee Breakdown (${transactions.length})`, { count: transactions.length })}</span>
         </button>
 
         <button
@@ -369,7 +372,7 @@ export default function FinancePage() {
           }`}
         >
           <i className="fa-solid fa-building-columns"></i>
-          <span>Settlements ({settlements.length})</span>
+          <span>{t('financeSettlementsTab', `Settlements (${settlements.length})`, { count: settlements.length })}</span>
         </button>
 
         <button
@@ -382,7 +385,7 @@ export default function FinancePage() {
           }`}
         >
           <i className="fa-solid fa-book"></i>
-          <span>B2B Credit Khata ({khataList.length})</span>
+          <span>{t('financeKhataTab', `B2B Credit Khata (${khataList.length})`, { count: khataList.length })}</span>
         </button>
       </div>
 
@@ -413,13 +416,13 @@ export default function FinancePage() {
               {loading ? (
                 <tr>
                   <td colSpan="9" className="px-4 py-6 text-center text-gray-500 text-xs">
-                    <i className="fa-solid fa-spinner fa-spin mr-2"></i> Loading transaction ledger...
+                    <i className="fa-solid fa-spinner fa-spin mr-2"></i> {t('financeLoadingLedger', 'Loading transaction ledger...')}
                   </td>
                 </tr>
               ) : transactions.length === 0 ? (
                 <tr>
                   <td colSpan="9" className="px-4 py-6 text-center text-gray-500 text-xs">
-                    No order transactions recorded for this store yet.
+                    {t('financeNoTransactions', 'No order transactions recorded for this store yet.')}
                   </td>
                 </tr>
               ) : (
@@ -537,7 +540,7 @@ export default function FinancePage() {
                         onClick={() => setSelectedSettlement(stl)}
                         className="px-2.5 py-1 rounded-lg border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-xs cursor-pointer"
                       >
-                        View Breakdown
+                        {t('financeViewBreakdown', 'View Breakdown')}
                       </button>
                     </td>
                   </tr>
@@ -616,10 +619,10 @@ export default function FinancePage() {
                           onClick={() => handlePayKhata(k)}
                           className="px-2.5 py-1 bg-emerald-700 text-white rounded-lg text-xs font-bold hover:bg-emerald-800 disabled:opacity-50 cursor-pointer"
                         >
-                          {payingKhataId === k.id ? 'Settling...' : 'Mark Paid'}
+                          {payingKhataId === k.id ? 'Settling...' : t('financeMarkPaid', 'Mark Paid')}
                         </button>
                       ) : (
-                        <span className="text-xs text-gray-400 font-semibold">Settled</span>
+                        <span className="text-xs text-gray-400 font-semibold">{t('settled', 'Settled')}</span>
                       )}
                     </td>
                   </tr>

@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useSeller } from '../context/SellerContext';
 import { useOrders } from '../hooks/useOrders';
+import { useTranslation } from '../context/LanguageContext';
 
 export default function ZonesPage() {
   const { store } = useSeller();
   const { orders } = useOrders();
+  const { t } = useTranslation();
   const initialRadius = store?.delivery_radius_km ? parseInt(store.delivery_radius_km, 10).toString() : '10';
 
   const [radius, setRadius] = useState(initialRadius);
@@ -20,13 +22,13 @@ export default function ZonesPage() {
   return (
     <section id="sec-zones" className="space-y-4">
       <div>
-        <h1 className="text-xl font-extrabold text-gray-900">Delivery Zones &amp; Coverage</h1>
-        <p className="text-sm text-gray-500">Nearby App Customers = Hyperlocal Radius • B2B Store Buyers = Nationwide</p>
+        <h1 className="text-xl font-extrabold text-gray-900">{t('zonesTitle', 'Delivery Zones & Coverage')}</h1>
+        <p className="text-sm text-gray-500">{t('zonesSubtitle', 'Nearby App Customers = Hyperlocal Radius • B2B Store Buyers = Nationwide')}</p>
       </div>
 
       {saved && (
         <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold">
-          Delivery radius updated to {radius} km!
+          {t('deliveryRadiusUpdatedToast', 'Delivery radius updated to {radius} km!', { radius })}
         </div>
       )}
 
@@ -34,13 +36,13 @@ export default function ZonesPage() {
         <div className="card p-5 border-2 border-green-200">
           <h2 className="font-bold text-green-800 mb-1 flex items-center gap-1.5">
             <i className="fa-solid fa-mobile-screen"></i>
-            <span>Customer App Zone (Hyperlocal)</span>
+            <span>{t('customerAppZone', 'Customer App Zone (Hyperlocal)')}</span>
           </h2>
-          <p className="text-xs text-gray-500 mb-4">Only customers inside this radius can browse and order from your store catalog</p>
+          <p className="text-xs text-gray-500 mb-4">{t('customerAppZoneDesc', 'Only customers inside this radius can browse and order from your store catalog')}</p>
           
           <div className="space-y-3">
             <div>
-              <label className="text-xs font-bold text-gray-500 block mb-1">Select Delivery Radius</label>
+              <label className="text-xs font-bold text-gray-500 block mb-1">{t('selectDeliveryRadius', 'Select Delivery Radius')}</label>
               <select 
                 id="inpZoneRadius" 
                 value={radius}
@@ -57,30 +59,30 @@ export default function ZonesPage() {
             
             <div className="p-3 rounded-xl bg-green-50 text-sm space-y-1">
               <div className="flex justify-between">
-                <span>Active City</span>
+                <span>{t('activeCity', 'Active City')}</span>
                 <span className="font-bold text-green-800">{store?.city || 'Surat'}</span>
               </div>
               <div className="flex justify-between">
-                <span>Active Orders Today</span>
-                <span className="font-bold text-green-800">{activeOrdersCount} in progress</span>
+                <span>{t('activeOrdersToday', 'Active Orders Today')}</span>
+                <span className="font-bold text-green-800">{activeOrdersCount} {t('inProgress', 'in progress')}</span>
               </div>
             </div>
 
             <div className="h-40 bg-gray-100 rounded-xl flex flex-col items-center justify-center text-gray-400 text-xs border border-gray-200">
               <i className="fa-solid fa-map-location-dot text-2xl mb-1 text-green-600"></i>
-              <span>Active {radius} km Hyperlocal Delivery Circle</span>
+              <span>{t('activeDeliveryCircle', 'Active {radius} km Hyperlocal Delivery Circle', { radius })}</span>
             </div>
           </div>
           
-          <button onClick={handleSave} className="btn-primary !text-xs w-full mt-3">Save Zone Radius</button>
+          <button onClick={handleSave} className="btn-primary !text-xs w-full mt-3">{t('saveZoneRadius', 'Save Zone Radius')}</button>
         </div>
 
         <div className="card p-5 border-2 border-orange-200">
           <h2 className="font-bold text-orange-800 mb-1 flex items-center gap-1.5">
             <i className="fa-solid fa-store"></i>
-            <span>B2B Store-to-Store (Nationwide / Export)</span>
+            <span>{t('b2bStoreToStore', 'B2B Store-to-Store (Nationwide / Export)')}</span>
           </h2>
-          <p className="text-xs text-gray-500 mb-4">Other registered merchants and shops can order wholesale with no radius restriction</p>
+          <p className="text-xs text-gray-500 mb-4">{t('b2bStoreToStoreDesc', 'Other registered merchants and shops can order wholesale with no radius restriction')}</p>
           
           <ul className="text-sm space-y-2 text-gray-600">
             <li className="flex gap-2">

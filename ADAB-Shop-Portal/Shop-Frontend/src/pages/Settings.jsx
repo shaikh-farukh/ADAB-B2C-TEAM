@@ -132,8 +132,8 @@ const Settings = () => {
               <i className="fa-solid fa-building-columns"></i>
             </div>
             <div>
-              <h2 className="text-lg font-extrabold text-gray-900">Legal Entity Details</h2>
-              <p className="text-xs text-gray-500 font-medium">As registered with government authorities</p>
+              <h2 className="text-lg font-extrabold text-gray-900">{t('legalEntityDetails', 'Legal Entity Details')}</h2>
+              <p className="text-xs text-gray-500 font-medium">{t('legalEntitySub', 'As registered with government authorities')}</p>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -174,8 +174,8 @@ const Settings = () => {
               <i className="fa-solid fa-shop"></i>
             </div>
             <div>
-              <h2 className="text-lg font-extrabold text-gray-900">Public Storefront</h2>
-              <p className="text-xs text-gray-500 font-medium">This information is visible to customers on the app</p>
+              <h2 className="text-lg font-extrabold text-gray-900">{t('publicStorefront', 'Public Storefront')}</h2>
+              <p className="text-xs text-gray-500 font-medium">{t('publicStorefrontSub', 'This information is visible to customers on the app')}</p>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -214,8 +214,8 @@ const Settings = () => {
                 <i className="fa-solid fa-truck-fast"></i>
               </div>
               <div>
-                <h2 className="text-lg font-extrabold text-gray-900">Operations & Delivery</h2>
-                <p className="text-xs text-gray-500 font-medium">Control how and when you receive orders</p>
+                <h2 className="text-lg font-extrabold text-gray-900">{t('operationsDelivery', 'Operations & Delivery')}</h2>
+                <p className="text-xs text-gray-500 font-medium">{t('operationsDeliverySub', 'Control how and when you receive orders')}</p>
               </div>
             </div>
             

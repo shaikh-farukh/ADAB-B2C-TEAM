@@ -1,7 +1,9 @@
 import React from 'react';
 import { useB2B } from '../hooks/useB2B';
+import { useTranslation } from '../context/LanguageContext';
 
 export default function PartnerPage() {
+  const { t } = useTranslation();
   const { orders, loading, error } = useB2B();
   const [activeDist, setActiveDist] = React.useState('all');
   const [statusFilter, setStatusFilter] = React.useState('all');
@@ -33,17 +35,17 @@ export default function PartnerPage() {
     <section id="sec-partner" className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-extrabold">Store-to-Store Orders <span className="text-sm font-normal text-orange-700">(Any Distance)</span></h1>
-          <p className="text-sm text-gray-500">Other shops can order from nearby OR far away — truck &amp; freight, no radius limit</p>
+          <h1 className="text-xl font-extrabold">{t('partnerTitle', 'Store-to-Store Orders')} <span className="text-sm font-normal text-orange-700">{t('partnerAnyDistance', '(Any Distance)')}</span></h1>
+          <p className="text-sm text-gray-500">{t('partnerSubtitle', 'Other shops can order from nearby OR far away — truck & freight, no radius limit')}</p>
         </div>
         <button onClick={() => {}} className="card px-4 py-2 text-left text-xs border-orange-200 bg-orange-50"><span className="font-bold text-orange-900">Credit:</span> <span id="partnerCreditBadge">14 days</span> • min ₹5k • <span className="text-green-700 underline">Edit</span></button>
       </div>
 
       <div className="flex gap-2 flex-wrap">
-        <button onClick={() => setActiveDist('all')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${activeDist === 'all' ? 'tab-on' : 'tab-off'}`}>All ({orders.length})</button>
-        <button onClick={() => setActiveDist('near')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${activeDist === 'near' ? 'tab-on' : 'tab-off'}`}>Nearby (&lt;50 km) ({nearCount})</button>
-        <button onClick={() => setActiveDist('far')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${activeDist === 'far' ? 'tab-on' : 'tab-off'}`}>Far / Interstate ({farCount})</button>
-        <button onClick={() => setActiveDist('export')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${activeDist === 'export' ? 'tab-on' : 'tab-off'}`}>Export ({exportCount})</button>
+        <button onClick={() => setActiveDist('all')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${activeDist === 'all' ? 'tab-on' : 'tab-off'}`}>{t('all', 'All')} ({orders.length})</button>
+        <button onClick={() => setActiveDist('near')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${activeDist === 'near' ? 'tab-on' : 'tab-off'}`}>{t('partnerTabNearby', 'Nearby (<50 km) ({count})', { count: nearCount })}</button>
+        <button onClick={() => setActiveDist('far')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${activeDist === 'far' ? 'tab-on' : 'tab-off'}`}>{t('partnerTabFar', 'Far / Interstate ({count})', { count: farCount })}</button>
+        <button onClick={() => setActiveDist('export')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${activeDist === 'export' ? 'tab-on' : 'tab-off'}`}>{t('partnerTabExport', 'Export ({count})', { count: exportCount })}</button>
       </div>
 
       <div className="card p-3 flex flex-col sm:flex-row gap-2 flex-wrap">
@@ -51,7 +53,7 @@ export default function PartnerPage() {
           type="search" 
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search store, order, items..." 
+          placeholder={t('partnerSearchPlaceholder', 'Search store, order, items...')} 
           className="flex-1 min-w-[160px] px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-orange-500" 
         />
         <select 
@@ -87,7 +89,7 @@ export default function PartnerPage() {
             {loading && (
               <tr>
                 <td colSpan="8" className="px-3 py-6 text-center text-gray-500">
-                  <i className="fa-solid fa-spinner fa-spin mr-2"></i> Loading B2B orders...
+                  <i className="fa-solid fa-spinner fa-spin mr-2"></i> {t('partnerLoading', 'Loading B2B orders...')}
                 </td>
               </tr>
             )}
@@ -100,7 +102,7 @@ export default function PartnerPage() {
             )}
             {!loading && !error && filteredOrders.length === 0 && (
               <tr>
-                <td colSpan="8" className="px-3 py-6 text-center text-gray-500">No B2B orders found.</td>
+                <td colSpan="8" className="px-3 py-6 text-center text-gray-500">{t('partnerEmpty', 'No B2B orders found.')}</td>
               </tr>
             )}
             {!loading && !error && filteredOrders.map((order, idx) => {
@@ -156,8 +158,8 @@ export default function PartnerPage() {
       </div>
 
       <div className="card p-4 bg-orange-50 border-orange-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-        <p className="text-sm text-orange-800"><i className="fa-solid fa-truck mr-1"></i> <b>Store orders have no distance limit.</b> Nearby = Porter truck. Far = Delhivery/freight. International = export.</p>
-        <button onClick={() => {}} className="btn-primary !text-xs">Track Shipments</button>
+        <p className="text-sm text-orange-800"><i className="fa-solid fa-truck mr-1"></i> {t('partnerTruckBanner', 'Store orders have no distance limit. Nearby = Porter truck. Far = Delhivery/freight. International = export.')}</p>
+        <button onClick={() => {}} className="btn-primary !text-xs">{t('partnerTrackShipments', 'Track Shipments')}</button>
       </div>
     </section>
   );

@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { sellerApi } from '../api/sellerApi';
 import { useSeller } from '../context/SellerContext';
 import { useSocket } from '../context/SocketProvider';
+import { useTranslation } from '../context/LanguageContext';
 
 export default function MessagesPage() {
+  const { t } = useTranslation();
   const { profile } = useSeller();
   const { socket, isConnected, subscribe } = useSocket();
   const userId = profile?.id || profile?.user_id || localStorage.getItem('seller_user_id') || null;
@@ -27,9 +29,14 @@ export default function MessagesPage() {
     try {
       const res = await sellerApi.getThreads();
       const list = res?.data?.data || res?.data || res || [];
-      setThreads(Array.isArray(list) ? list : []);
-      if (!selectedThreadId && Array.isArray(list) && list.length > 0) {
-        setSelectedThreadId(list[0].thread_id);
+      const arr = Array.isArray(list) ? list : [];
+      setThreads(arr);
+      if (typeof window !== 'undefined') {
+        const unreadTotal = arr.reduce((acc, t) => acc + (Number(t.unread_count) || 0), 0);
+        window.dispatchEvent(new CustomEvent('adab-messages-updated', { detail: { count: unreadTotal > 0 ? unreadTotal : arr.length } }));
+      }
+      if (!selectedThreadId && arr.length > 0) {
+        setSelectedThreadId(arr[0].thread_id);
       }
     } catch (err) {
       console.error('Failed to load threads:', err);
@@ -54,7 +61,14 @@ export default function MessagesPage() {
       const thread = threads.find(t => t.thread_id === threadId);
       if (thread && Number(thread.unread_count) > 0) {
         await sellerApi.markThreadRead(threadId);
-        setThreads(prev => prev.map(t => t.thread_id === threadId ? { ...t, unread_count: 0 } : t));
+        setThreads(prev => {
+          const next = prev.map(t => t.thread_id === threadId ? { ...t, unread_count: 0 } : t);
+          if (typeof window !== 'undefined') {
+            const unreadTotal = next.reduce((acc, t) => acc + (Number(t.unread_count) || 0), 0);
+            window.dispatchEvent(new CustomEvent('adab-messages-updated', { detail: { count: unreadTotal > 0 ? unreadTotal : next.length } }));
+          }
+          return next;
+        });
         if (socket) {
           socket.emit('mark_read', { threadId });
         }
@@ -111,8 +125,8 @@ export default function MessagesPage() {
     });
 
     return () => {
-      unsubReceive();
-      unsubRead();
+      if (typeof unsubReceive === 'function') unsubReceive();
+      if (typeof unsubRead === 'function') unsubRead();
     };
   }, [subscribe, selectedThreadId]);
 
@@ -171,7 +185,7 @@ export default function MessagesPage() {
   if (loading) {
     return (
       <div className="p-6 flex items-center justify-center text-gray-500 h-[500px]">
-        <i className="fa-solid fa-spinner fa-spin mr-2"></i> Loading Messages...
+        <i className="fa-solid fa-spinner fa-spin mr-2"></i> {t('loading', 'Loading Messages...')}
       </div>
     );
   }
@@ -180,15 +194,15 @@ export default function MessagesPage() {
     <div className="fade-in space-y-4 h-[calc(100vh-120px)] flex flex-col">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-extrabold text-gray-900">Store Messages &amp; Chat</h1>
-          <p className="text-sm text-gray-500">Live communication with ordering customers, partner stores, and buyers</p>
+          <h1 className="text-xl font-extrabold text-gray-900">{t('messagesTitle', 'Store Messages & Chat')}</h1>
+          <p className="text-sm text-gray-500">{t('messagesSubtitle', 'Live communication with ordering customers, partner stores, and buyers')}</p>
         </div>
         <div className="flex items-center gap-2">
           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
             isConnected ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
           }`}>
             <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
-            {isConnected ? 'Real-Time Connected' : 'Connecting...'}
+            {isConnected ? t('messagesConnected', 'Real-Time Connected') : t('messagesConnecting', 'Connecting...')}
           </span>
         </div>
       </div>
@@ -203,7 +217,7 @@ export default function MessagesPage() {
                 type="text" 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search conversations..." 
+                placeholder={t('messagesSearchPlaceholder', 'Search conversations...')} 
                 className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-dark bg-white shadow-sm"
               />
             </div>
@@ -213,7 +227,7 @@ export default function MessagesPage() {
             {filteredThreads.length === 0 ? (
               <div className="p-8 text-center text-sm text-gray-400">
                 <i className="fa-regular fa-comments text-3xl mb-3 opacity-30"></i>
-                <div>No conversations yet.</div>
+                <div>{t('messagesNoConversations', 'No conversations yet.')}</div>
               </div>
             ) : (
               filteredThreads.map(t => (
@@ -262,7 +276,7 @@ export default function MessagesPage() {
                   <div>
                     <div className="font-extrabold text-gray-900">{activeThread.customer_name || 'Customer'}</div>
                     <div className="text-xs text-green-600 font-bold flex items-center gap-1.5 mt-0.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Active Conversation
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> {t('messagesActiveChat', 'Active Conversation')}
                     </div>
                   </div>
                 </div>
@@ -272,7 +286,7 @@ export default function MessagesPage() {
               <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-4">
                 {activeChatMessages.length === 0 ? (
                   <div className="text-center text-gray-400 text-sm my-auto">
-                    No messages in this conversation yet. Send a message below!
+                    {t('messagesNoMessagesYet', 'No messages in this conversation yet. Send a message below!')}
                   </div>
                 ) : (
                   activeChatMessages.map((msg, idx) => {
@@ -302,7 +316,7 @@ export default function MessagesPage() {
                     type="text" 
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Type your message here..." 
+                    placeholder={t('messagesInputPlaceholder', 'Type your message here...')} 
                     className="flex-1 py-3 px-4 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none focus:border-brand-dark focus:bg-white focus:ring-2 focus:ring-brand-dark/10 transition"
                     disabled={isSending}
                   />
@@ -319,8 +333,8 @@ export default function MessagesPage() {
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
               <i className="fa-regular fa-comments text-6xl mb-4 opacity-20"></i>
-              <div className="font-semibold text-lg text-gray-600">Your Messages</div>
-              <div className="text-sm">Select a conversation on the left to start chatting.</div>
+              <div className="font-semibold text-lg text-gray-600">{t('messagesYourMessages', 'Your Messages')}</div>
+              <div className="text-sm">{t('messagesSelectConversation', 'Select a conversation on the left to start chatting.')}</div>
             </div>
           )}
         </div>
