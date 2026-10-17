@@ -222,9 +222,12 @@ class SellerRepository {
         (SELECT COUNT(*) FROM seller_orders WHERE store_id = $1) as total_orders,
         (SELECT COALESCE(SUM(subtotal), 0) FROM seller_orders WHERE store_id = $1) as total_revenue,
         (SELECT COUNT(*) FROM seller_listings WHERE store_id = $1) as total_products,
-        (SELECT COUNT(*) FROM seller_orders WHERE store_id = $1 AND (status = 'PLACED' OR status = 'PROCESSING' OR status = 'new' OR status = 'pending')) as pending_orders
+        (SELECT COUNT(*) FROM seller_orders WHERE store_id = $1 AND (status = 'PLACED' OR status = 'PROCESSING' OR status = 'new' OR status = 'pending')) as pending_orders,
+        COALESCE((SELECT COUNT(*) FROM b2b_purchase_orders WHERE buyer_store_id = $1 OR supplier_store_id = $1), 0) as total_b2b_orders,
+        COALESCE((SELECT COUNT(*) FROM returns r JOIN seller_orders so ON r.seller_order_id = so.id WHERE so.store_id = $1), 0) as total_returns,
+        COALESCE((SELECT COUNT(*) FROM messages m JOIN message_threads t ON m.thread_id = t.id WHERE (t.participant_a = $2 OR t.participant_b = $2) AND m.sender_id != $2 AND m.is_read = false), 0) as unread_messages
     `;
-    const res = await pool.query(query, [store.id]);
+    const res = await pool.query(query, [store.id, userId]);
     return res.rows[0];
   }
 

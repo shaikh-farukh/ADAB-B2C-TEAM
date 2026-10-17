@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { sellerApi } from '../api/sellerApi';
+import { useTranslation } from '../context/LanguageContext';
 
 export default function BuyCartPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const [cartItems, setCartItems] = useState([]);
@@ -206,13 +208,13 @@ export default function BuyCartPage() {
         <div>
           <div className="flex items-center gap-2">
             <Link to="/buy" className="text-gray-400 hover:text-emerald-700 transition text-sm">
-              <i className="fa-solid fa-arrow-left mr-1"></i> Nearby Kiranas
+              <i className="fa-solid fa-arrow-left mr-1"></i> {t('buyTabBrowse', 'Nearby Kiranas')}
             </Link>
             <span className="text-gray-300">/</span>
-            <span className="text-sm font-bold text-gray-700">Purchase Cart</span>
+            <span className="text-sm font-bold text-gray-700">{t('buyCartTitle', 'Purchase Cart')}</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-gray-900 mt-1 flex items-center gap-2">
-            <span>B2B Wholesale Purchase Cart</span>
+            <span>{t('buyCartTitle', 'B2B Wholesale Purchase Cart')}</span>
             {cartItems.length > 0 && (
               <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-xs font-black">
                 {cartItems.length} {cartItems.length === 1 ? 'item' : 'items'}
@@ -229,7 +231,7 @@ export default function BuyCartPage() {
             to="/buy"
             className="btn-soft !text-xs !py-2 !px-3 font-bold flex items-center gap-1.5"
           >
-            <i className="fa-solid fa-plus text-emerald-600"></i> Add More Items
+            <i className="fa-solid fa-plus text-emerald-600"></i> {t('add', 'Add More Items')}
           </Link>
           {cartItems.length > 0 && (
             <button
@@ -237,7 +239,7 @@ export default function BuyCartPage() {
               onClick={clearCart}
               className="text-xs text-rose-600 hover:text-rose-800 font-bold px-2 py-1.5 rounded-lg hover:bg-rose-50 transition"
             >
-              Clear Cart
+              {t('clearCart', 'Clear Cart')}
             </button>
           )}
         </div>
@@ -306,14 +308,14 @@ export default function BuyCartPage() {
                 <i className="fa-solid fa-cart-shopping"></i>
               </div>
               <div>
-                <h3 className="font-extrabold text-lg text-gray-900">Your Purchase Cart is Empty</h3>
+                <h3 className="font-extrabold text-lg text-gray-900">{t('buyCartEmpty', 'Your Purchase Cart is Empty')}</h3>
                 <p className="text-xs sm:text-sm text-gray-500 mt-1 max-w-md mx-auto">
                   Browse products from registered nearby kirana stores to restock inventory with 14-day credit terms.
                 </p>
               </div>
               <div className="flex gap-2 justify-center pt-2 flex-wrap">
                 <Link to="/buy" className="btn-primary !text-xs !py-2.5 !px-5 font-bold flex items-center gap-1.5">
-                  <i className="fa-solid fa-map-location-dot"></i> Browse Nearby Kiranas
+                  <i className="fa-solid fa-map-location-dot"></i> {t('buyTabBrowse', 'Browse Nearby Kiranas')}
                 </Link>
                 <Link to="/mastersearch" className="btn-soft !text-xs !py-2.5 !px-5 font-bold flex items-center gap-1.5">
                   <i className="fa-solid fa-magnifying-glass"></i> National FMCG Search &amp; Buy

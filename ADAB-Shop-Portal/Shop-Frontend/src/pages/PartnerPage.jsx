@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useB2B } from '../hooks/useB2B';
 import { useSeller } from '../context/SellerContext';
+import { useTranslation } from '../context/LanguageContext';
 
 // --- Order Detail Modal Component ---
 function B2BOrderDetailModal({ order, onClose, onUpdateStatus, isUpdating }) {
@@ -595,6 +596,7 @@ function B2BOrderDetailModal({ order, onClose, onUpdateStatus, isUpdating }) {
 
 // --- Main Page Component ---
 export default function PartnerPage() {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { orders, loading, error, refreshOrders, updateStatus } = useB2B();
   const { store } = useSeller();
@@ -692,13 +694,13 @@ export default function PartnerPage() {
             <span className="text-xs font-bold text-gray-500">Universal Sourcing &amp; Wholesale</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-gray-900 mt-1 flex items-center gap-2">
-            <span>B2B Store Orders</span>
+            <span>{t('partnerTitle', 'Store-to-Store Orders')}</span>
             <span className="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
               {orders.length} Total
             </span>
           </h1>
           <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-            Manage all inventory restock purchases (Nearby Kiranas, Brand Stores, Factories) and wholesale orders you fulfill.
+            {t('partnerSubtitle', 'Other shops can order from nearby OR far away — truck & freight, no radius limit')}
           </p>
         </div>
 
@@ -918,7 +920,7 @@ export default function PartnerPage() {
               activeDist === 'all' ? 'tab-on' : 'tab-off'
             }`}
           >
-            All Distance
+            {t('all', 'All Distance')}
           </button>
           <button
             type="button"
@@ -927,7 +929,7 @@ export default function PartnerPage() {
               activeDist === 'near' ? 'tab-on' : 'tab-off'
             }`}
           >
-            Nearby (&lt;50 km) ({nearCount})
+            {t('partnerTabNearby', `Nearby (<50 km) (${nearCount})`, { count: nearCount })}
           </button>
           <button
             type="button"
@@ -936,7 +938,7 @@ export default function PartnerPage() {
               activeDist === 'far' ? 'tab-on' : 'tab-off'
             }`}
           >
-            Interstate ({farCount})
+            {t('partnerTabFar', `Interstate (${farCount})`, { count: farCount })}
           </button>
           <button
             type="button"
@@ -945,7 +947,7 @@ export default function PartnerPage() {
               activeDist === 'export' ? 'tab-on' : 'tab-off'
             }`}
           >
-            Export ({exportCount})
+            {t('partnerTabExport', `Export (${exportCount})`, { count: exportCount })}
           </button>
         </div>
       </div>
@@ -958,7 +960,7 @@ export default function PartnerPage() {
             type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search Order #, Partner Store, City, Items..."
+            placeholder={t('partnerSearchPlaceholder', 'Search Order #, Partner Store, City, Items...')}
             className="w-full pl-8 pr-3 py-2 rounded-xl border border-gray-200 text-xs sm:text-sm outline-none focus:border-orange-500"
           />
         </div>
@@ -1171,7 +1173,7 @@ export default function PartnerPage() {
           className="btn-primary !text-xs !py-2 !px-4 font-bold shrink-0 self-start sm:self-auto"
         >
           <i className="fa-solid fa-satellite-dish mr-1.5"></i>
-          <span>Track Freight Fleet</span>
+          <span>{t('partnerTrackShipments', 'Track Shipments')}</span>
         </Link>
       </div>
 

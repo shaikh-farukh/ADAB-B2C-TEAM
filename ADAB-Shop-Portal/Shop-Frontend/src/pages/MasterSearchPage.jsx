@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import listingService from '../services/listingService';
+import { useTranslation } from '../context/LanguageContext';
 
 export default function MasterSearchPage() {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryFromUrl = searchParams.get('q') || '';
   
@@ -79,8 +81,8 @@ export default function MasterSearchPage() {
   return (
     <section id="sec-mastersearch" className="space-y-4">
       <div>
-        <h1 className="text-xl font-extrabold text-gray-900">Search &amp; Buy Anything</h1>
-        <p className="text-sm text-gray-500">Search all registered supplier stores across ADAB — compare prices and restock</p>
+        <h1 className="text-xl font-extrabold text-gray-900">{t('searchBuyTitle', 'Search & Buy Anything')}</h1>
+        <p className="text-sm text-gray-500">{t('searchBuySubtitle', 'Search all registered supplier stores across ADAB — compare prices and restock')}</p>
       </div>
 
       <div className="card p-5 border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-white">
@@ -90,11 +92,11 @@ export default function MasterSearchPage() {
             type="search" 
             value={searchInput} 
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="e.g. sunflower oil, kurti, rice 25kg, garam masala..." 
+            placeholder={t('searchBuyPlaceholder', 'e.g. sunflower oil, kurti, rice 25kg, garam masala...')} 
             className="w-full pl-12 pr-24 py-4 rounded-2xl border-2 border-blue-200 text-base outline-none focus:border-blue-500 bg-white" 
           />
           <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 btn-primary !text-xs !py-2 !px-4">
-            Search
+            {t('search', 'Search')}
           </button>
         </form>
 

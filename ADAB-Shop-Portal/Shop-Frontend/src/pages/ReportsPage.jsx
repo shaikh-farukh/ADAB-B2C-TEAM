@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { sellerApi } from '../api/sellerApi';
+import { useTranslation } from '../context/LanguageContext';
 
 export default function ReportsPage() {
+  const { t } = useTranslation();
   const [stats, setStats] = useState({ total_orders: 0, total_revenue: 0, avg_order_value: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -27,41 +29,41 @@ export default function ReportsPage() {
   return (
     <section id="sec-reports" className="space-y-4">
       <div>
-        <h1 className="text-xl font-extrabold">Reports &amp; Analytics</h1>
-        <p className="text-sm text-gray-500">Business dashboard — live sales, order volume, and channel breakdown</p>
+        <h1 className="text-xl font-extrabold">{t('reportsTitle', 'Reports & Analytics')}</h1>
+        <p className="text-sm text-gray-500">{t('reportsSubtitle', 'Business dashboard — live sales, order volume, and channel breakdown')}</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="card p-4">
-          <div className="text-xs text-gray-500">Total Revenue</div>
+          <div className="text-xs text-gray-500">{t('totalRevenue', 'Total Revenue')}</div>
           <div className="text-2xl font-extrabold mt-1 text-gray-900">
             ₹{Number(stats.total_revenue || 0).toLocaleString('en-IN')}
           </div>
           <div className="text-[10px] text-green-600 font-bold mt-0.5">Live store settlement</div>
         </div>
         <div className="card p-4">
-          <div className="text-xs text-gray-500">Total Orders</div>
+          <div className="text-xs text-gray-500">{t('totalOrders', 'Total Orders')}</div>
           <div className="text-2xl font-extrabold mt-1 text-gray-900">
             {stats.total_orders || 0}
           </div>
           <div className="text-[10px] text-green-600 font-bold mt-0.5">Processed orders</div>
         </div>
         <div className="card p-4">
-          <div className="text-xs text-gray-500">Avg Order Value</div>
+          <div className="text-xs text-gray-500">{t('avgOrderValue', 'Avg Order Value')}</div>
           <div className="text-2xl font-extrabold mt-1 text-gray-900">
             ₹{Math.round(Number(stats.avg_order_value || 0)).toLocaleString('en-IN')}
           </div>
           <div className="text-[10px] text-gray-400 mt-0.5">Per order basket</div>
         </div>
         <div className="card p-4">
-          <div className="text-xs text-gray-500">Platform Health</div>
+          <div className="text-xs text-gray-500">{t('platformHealth', 'Platform Health')}</div>
           <div className="text-2xl font-extrabold mt-1 text-green-700">100%</div>
           <div className="text-[10px] text-green-600 font-bold mt-0.5">All services active</div>
         </div>
       </div>
 
       <div className="card p-5">
-        <h3 className="font-bold mb-3">Download Export Reports</h3>
+        <h3 className="font-bold mb-3">{t('downloadExportReports', 'Download Export Reports')}</h3>
         <div className="grid sm:grid-cols-3 gap-3">
           <button onClick={() => alert('Exporting sales report CSV...')} className="btn-soft !text-xs">
             <i className="fa-solid fa-file-csv mr-1"></i> Sales Report

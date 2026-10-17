@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useOrders } from '../hooks/useOrders';
 import { sellerApi } from '../api/sellerApi';
+import { useTranslation } from '../context/LanguageContext';
 
 function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
   const [rejectNote, setRejectNote] = useState(item?.rejectionReason || '');
@@ -253,11 +254,21 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
 }
 
 export default function ReturnsPage() {
+  const { t } = useTranslation();
   const { orders } = useOrders();
   const [statusFilter, setStatusFilter] = useState('all');
   const [reasonFilter, setReasonFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [returnsList, setReturnsList] = useState([]);
+  const [returnsList, setReturnsList] = useState(() => {
+    try {
+      const cached = localStorage.getItem('seller_returns_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  });
   const [selectedReturn, setSelectedReturn] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -274,6 +285,12 @@ export default function ReturnsPage() {
       const raw = res?.data !== undefined ? res.data : res;
       const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
       setReturnsList(list);
+      try {
+        localStorage.setItem('seller_returns_cache', JSON.stringify(list));
+      } catch (e) {}
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('adab-returns-updated', { detail: { count: list.length, returns: list } }));
+      }
     } catch (err) {
       setError(err.message || 'Failed to load return requests');
     } finally {
@@ -395,34 +412,34 @@ export default function ReturnsPage() {
     if (status === 'pending') {
       return (
         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 whitespace-nowrap">
-          PENDING REVIEW
+          {t('pendingReview', 'PENDING REVIEW')}
         </span>
       );
     }
     if (status === 'approved') {
       return (
         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 whitespace-nowrap">
-          AWAITING ITEM
+          {t('returnsAwaitingItem', 'AWAITING ITEM')}
         </span>
       );
     }
     if (status === 'restocked') {
       return (
         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800 whitespace-nowrap">
-          RESTOCKED
+          {t('returnsRestocked', 'RESTOCKED')}
         </span>
       );
     }
     if (status === 'discarded') {
       return (
         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-200 text-gray-700 whitespace-nowrap">
-          DISCARDED
+          {t('discarded', 'DISCARDED')}
         </span>
       );
     }
     return (
       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 whitespace-nowrap">
-        REJECTED
+        {t('rejected', 'REJECTED')}
       </span>
     );
   };
@@ -431,8 +448,8 @@ export default function ReturnsPage() {
     <section id="sec-returns" className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-xl font-extrabold text-gray-900">Returns &amp; Refunds</h1>
-          <p className="text-sm text-gray-500">1. Approve or reject return requests • 2. Once item reaches store, Add Back to catalog or Discard</p>
+          <h1 className="text-xl font-extrabold text-gray-900">{t('returnsTitle', 'Returns & Refunds')}</h1>
+          <p className="text-sm text-gray-500">{t('returnsSubtitle', '1. Approve or reject return requests • 2. Once item reaches store, Add Back to catalog or Discard')}</p>
         </div>
         <button
           type="button"
@@ -569,7 +586,7 @@ export default function ReturnsPage() {
                               onClick={() => handleAction(item, 'approved')} 
                               className="px-2.5 py-1 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 disabled:opacity-50 cursor-pointer whitespace-nowrap"
                             >
-                              Approve
+                              {t('returnsApprove', 'Approve')}
                             </button>
                             <button 
                               type="button"
@@ -577,7 +594,7 @@ export default function ReturnsPage() {
                               onClick={() => handleAction(item, 'rejected')} 
                               className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-200 disabled:opacity-50 cursor-pointer whitespace-nowrap"
                             >
-                              Reject
+                              {t('returnsReject', 'Reject')}
                             </button>
                           </>
                         ) : item.status === 'approved' ? (
@@ -590,7 +607,7 @@ export default function ReturnsPage() {
                               className="px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 disabled:opacity-50 cursor-pointer whitespace-nowrap flex items-center gap-1"
                             >
                               <i className="fa-solid fa-plus text-[10px]"></i>
-                              <span>Add Back (+{item.quantity || 1})</span>
+                              <span>{t('returnsAddBack', `Add Back (+${item.quantity || 1})`, { count: item.quantity || 1 })}</span>
                             </button>
                             <button
                               type="button"
@@ -599,13 +616,13 @@ export default function ReturnsPage() {
                               title="Product reached store damaged/unsellable — ditch from relisting"
                               className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold hover:bg-amber-100 disabled:opacity-50 cursor-pointer whitespace-nowrap"
                             >
-                              Discard
+                              {t('returnsDiscard', 'Discard')}
                             </button>
                           </>
                         ) : item.status === 'restocked' ? (
                           <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-bold whitespace-nowrap">
                             <i className="fa-solid fa-circle-check text-[11px]"></i>
-                            Added to Catalog (+{item.quantity || 1})
+                            {t('returnsAddedToCatalog', `Added to Catalog (+${item.quantity || 1})`, { count: item.quantity || 1 })}
                           </span>
                         ) : item.status === 'discarded' ? (
                           <span className="inline-flex items-center gap-1 text-xs text-gray-500 font-semibold whitespace-nowrap">

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useSeller } from '../context/SellerContext';
 import { useListings } from '../hooks/useListings';
+import { useTranslation } from '../context/LanguageContext';
 import listingService from '../services/listingService';
 import { sellerApi } from '../api/sellerApi';
 
@@ -17,6 +18,7 @@ const FMCG_MASTER_CATALOG = [
 ];
 
 const Products = () => {
+  const { t } = useTranslation();
   const { 
     listings, 
     loading, 
@@ -591,12 +593,12 @@ const Products = () => {
       {/* Header and Actions */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-extrabold text-gray-900 mb-1">My Products</h1>
-          <p className="text-gray-500 text-sm">{totalItems} items matching criteria</p>
+          <h1 className="text-2xl font-extrabold text-gray-900 mb-1">{t('productsMyProducts', 'My Products')}</h1>
+          <p className="text-gray-500 text-sm">{t('productsItemsMatching', '{total} items matching criteria', { total: totalItems })}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 lg:gap-3">
           <button onClick={handleExportCSV} className="px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2 shadow-sm">
-            <i className="fa-solid fa-download"></i> Export CSV
+            <i className="fa-solid fa-download"></i> {t('productsExportCsv', 'Export CSV')}
           </button>
           <button 
             type="button" 
@@ -604,20 +606,20 @@ const Products = () => {
             className="px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-sm font-bold text-emerald-800 hover:bg-emerald-100 flex items-center gap-2 shadow-sm transition"
             title="Download CSV format template and column guidelines"
           >
-            <i className="fa-solid fa-file-csv text-emerald-600"></i> CSV Template
+            <i className="fa-solid fa-file-csv text-emerald-600"></i> {t('productsCsvTemplate', 'CSV Template')}
           </button>
           <input type="file" ref={fileInputRef} onChange={handleBulkUpload} accept=".csv" className="hidden" />
           <button onClick={() => fileInputRef.current.click()} className="px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2 shadow-sm">
-            <i className="fa-solid fa-upload"></i> Bulk Upload
+            <i className="fa-solid fa-upload"></i> {t('productsBulkUpload', 'Bulk Upload')}
           </button>
           <button className="px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2 shadow-sm">
-            <i className="fa-solid fa-tag"></i> Mass Price
+            <i className="fa-solid fa-tag"></i> {t('productsMassPrice', 'Mass Price')}
           </button>
           <button className="px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2 shadow-sm">
-            <i className="fa-solid fa-barcode"></i> Scan
+            <i className="fa-solid fa-barcode"></i> {t('productsScan', 'Scan')}
           </button>
           <button onClick={openAddModal} className="px-4 py-2 rounded-xl bg-brand-dark hover:bg-green-800 text-white text-sm font-bold flex items-center gap-2 shadow-sm transition">
-            <i className="fa-solid fa-plus"></i> Add Product
+            <i className="fa-solid fa-plus"></i> {t('productsAddProduct', 'Add Product')}
           </button>
         </div>
       </div>
@@ -625,19 +627,19 @@ const Products = () => {
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-          <div className="text-xs text-gray-400 font-bold mb-1">Total SKUs</div>
+          <div className="text-xs text-gray-400 font-bold mb-1">{t('productsTotalSkus', 'Total SKUs')}</div>
           <div className="text-2xl font-extrabold text-gray-900">{globalStats.total}</div>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-          <div className="text-xs text-gray-400 font-bold mb-1">Own Brand</div>
+          <div className="text-xs text-gray-400 font-bold mb-1">{t('productsOwnBrand', 'Own Brand')}</div>
           <div className="text-2xl font-extrabold text-purple-700">{globalStats.ownBrand}</div>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-          <div className="text-xs text-gray-400 font-bold mb-1">Low Stock</div>
+          <div className="text-xs text-gray-400 font-bold mb-1">{t('lowStock', 'Low Stock')}</div>
           <div className="text-2xl font-extrabold text-orange-600">{globalStats.lowStock}</div>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-          <div className="text-xs text-gray-400 font-bold mb-1">Out of Stock</div>
+          <div className="text-xs text-gray-400 font-bold mb-1">{t('outOfStock', 'Out of Stock')}</div>
           <div className="text-2xl font-extrabold text-gray-400">{globalStats.outOfStock}</div>
         </div>
       </div>
@@ -647,34 +649,34 @@ const Products = () => {
         
         {/* Filters Top Row */}
         <div className="flex flex-wrap items-center gap-3 mb-4 text-sm">
-          <span className="font-bold text-gray-500 text-xs">Selling to:</span>
-          <button onClick={() => setBuyerFilter('ALL')} className={`px-3 py-1 rounded-full font-bold text-xs ${buyerFilter === 'ALL' ? 'bg-brand-dark text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>All buyers</button>
-          <button onClick={() => setBuyerFilter('CUSTOMERS')} className={`px-3 py-1 rounded-full font-bold text-xs ${buyerFilter === 'CUSTOMERS' ? 'bg-brand-dark text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Customers</button>
-          <button onClick={() => setBuyerFilter('STORES')} className={`px-3 py-1 rounded-full font-bold text-xs ${buyerFilter === 'STORES' ? 'bg-brand-dark text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Other stores</button>
-          <button onClick={() => setBuyerFilter('BOTH')} className={`px-3 py-1 rounded-full font-bold text-xs ${buyerFilter === 'BOTH' ? 'bg-brand-dark text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Both</button>
+          <span className="font-bold text-gray-500 text-xs">{t('productsSellingTo', 'Selling to:')}</span>
+          <button onClick={() => setBuyerFilter('ALL')} className={`px-3 py-1 rounded-full font-bold text-xs ${buyerFilter === 'ALL' ? 'bg-brand-dark text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{t('productsAllBuyers', 'All buyers')}</button>
+          <button onClick={() => setBuyerFilter('CUSTOMERS')} className={`px-3 py-1 rounded-full font-bold text-xs ${buyerFilter === 'CUSTOMERS' ? 'bg-brand-dark text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{t('productsCustomers', 'Customers')}</button>
+          <button onClick={() => setBuyerFilter('STORES')} className={`px-3 py-1 rounded-full font-bold text-xs ${buyerFilter === 'STORES' ? 'bg-brand-dark text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{t('productsOtherStores', 'Other stores')}</button>
+          <button onClick={() => setBuyerFilter('BOTH')} className={`px-3 py-1 rounded-full font-bold text-xs ${buyerFilter === 'BOTH' ? 'bg-brand-dark text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{t('productsBoth', 'Both')}</button>
         </div>
 
         {/* Search Bar */}
         <div className="flex gap-2 mb-4">
           <div className="flex-1 relative">
             <i className="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search product name or barcode..." className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl outline-none focus:border-green-500 text-sm bg-gray-50/50" />
+            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={t('productsSearchPlaceholder', 'Search product name or barcode...')} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl outline-none focus:border-green-500 text-sm bg-gray-50/50" />
           </div>
           <select value={stockFilter} onChange={(e) => setStockFilter(e.target.value)} className="px-4 py-3 border border-gray-200 rounded-xl outline-none focus:border-green-500 text-sm font-semibold bg-gray-50/50">
-            <option>All stock</option>
-            <option>In stock</option>
-            <option>Out of stock</option>
+            <option>{t('productsAllStock', 'All stock')}</option>
+            <option>{t('productsInStockFilter', 'In stock')}</option>
+            <option>{t('productsOutOfStockFilter', 'Out of stock')}</option>
           </select>
         </div>
 
         {/* Pills Row */}
         <div className="flex flex-wrap gap-2 mb-4">
-          <button onClick={() => setTypeFilter('ALL')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'ALL' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>All ({globalStats.total})</button>
-          <button onClick={() => setTypeFilter('OWN_BRAND')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'OWN_BRAND' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>Own Brand ({globalStats.ownBrand})</button>
-          <button onClick={() => setTypeFilter('LOOSE_WEIGHT')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'LOOSE_WEIGHT' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>Loose / Weight ({globalStats.loose})</button>
+          <button onClick={() => setTypeFilter('ALL')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'ALL' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>{t('all', 'All')} ({globalStats.total})</button>
+          <button onClick={() => setTypeFilter('OWN_BRAND')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'OWN_BRAND' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>{t('typeOwnBrand', 'Own Brand')} ({globalStats.ownBrand})</button>
+          <button onClick={() => setTypeFilter('LOOSE_WEIGHT')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'LOOSE_WEIGHT' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>{t('typeLoose', 'Loose / Weight')} ({globalStats.loose})</button>
           <button onClick={() => setTypeFilter('NATIONAL_PACK')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'NATIONAL_PACK' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>National Pack (0)</button>
           <button onClick={() => setTypeFilter('PARTNER_PACK')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'PARTNER_PACK' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>Partner Pack (0)</button>
-          <button onClick={() => setTypeFilter('FOOD')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'FOOD' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>Food ({globalStats.food})</button>
+          <button onClick={() => setTypeFilter('FOOD')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'FOOD' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>{t('typeFood', 'Food')} ({globalStats.food})</button>
         </div>
 
         {/* Batch Selection Action Bar */}
@@ -685,7 +687,7 @@ const Products = () => {
                 {selectedIds.length}
               </span>
               <span className="text-sm font-extrabold text-emerald-950">
-                {selectedIds.length} {selectedIds.length === 1 ? 'product' : 'products'} selected
+                {t('productsSelectedCount', '{count} products selected', { count: selectedIds.length })}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -694,14 +696,14 @@ const Products = () => {
                 onClick={clearSelection} 
                 className="px-3.5 py-2 rounded-xl bg-white border border-emerald-200 text-xs font-bold text-gray-700 hover:bg-emerald-100/50 transition"
               >
-                Deselect All
+                {t('productsDeselectAll', 'Deselect All')}
               </button>
               <button 
                 type="button" 
                 onClick={() => setBatchDeleteConfirm(true)} 
                 className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-extrabold shadow-sm flex items-center gap-2 transition"
               >
-                <i className="fa-solid fa-trash-can"></i> Delete Selected ({selectedIds.length})
+                <i className="fa-solid fa-trash-can"></i> {t('productsDeleteSelected', 'Delete Selected ({count})', { count: selectedIds.length })}
               </button>
             </div>
           </div>
@@ -720,22 +722,22 @@ const Products = () => {
                     className="rounded text-brand-dark focus:ring-brand-dark cursor-pointer" 
                   />
                 </th>
-                <th className="px-4 py-4">Product</th>
-                <th className="px-4 py-4">Category</th>
-                <th className="px-4 py-4">Brand / Label</th>
-                <th className="px-4 py-4">Barcode / SKU</th>
-                <th className="px-4 py-4">Type</th>
-                <th className="px-4 py-4">Price</th>
-                <th className="px-4 py-4">Stock</th>
-                <th className="px-4 py-4">Who can buy?</th>
-                <th className="px-4 py-4 text-right">Action</th>
+                <th className="px-4 py-4">{t('colProduct', 'Product')}</th>
+                <th className="px-4 py-4">{t('colCategory', 'Category')}</th>
+                <th className="px-4 py-4">{t('colBrandLabel', 'Brand / Label')}</th>
+                <th className="px-4 py-4">{t('colBarcodeSku', 'Barcode / SKU')}</th>
+                <th className="px-4 py-4">{t('colType', 'Type')}</th>
+                <th className="px-4 py-4">{t('priceCol', 'Price')}</th>
+                <th className="px-4 py-4">{t('stockCol', 'Stock')}</th>
+                <th className="px-4 py-4">{t('colWhoCanBuy', 'Who can buy?')}</th>
+                <th className="px-4 py-4 text-right">{t('actions', 'Action')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan="10" className="text-center py-8 text-gray-500 font-bold">Loading your catalog...</td></tr>
+                <tr><td colSpan="10" className="text-center py-8 text-gray-500 font-bold">{t('loadingCatalog', 'Loading your catalog...')}</td></tr>
               ) : paginatedListings.length === 0 ? (
-                <tr><td colSpan="10" className="text-center py-8 text-gray-500 font-bold">No products match your filters.</td></tr>
+                <tr><td colSpan="10" className="text-center py-8 text-gray-500 font-bold">{t('noProductsMatchFilters', 'No products match your filters.')}</td></tr>
               ) : (
                 paginatedListings.map(l => {
                   const issues = listingIssues[l.id] || [];
@@ -763,13 +765,13 @@ const Products = () => {
                             <div>
                               <div className="font-bold text-gray-900 flex items-center gap-2 flex-wrap">
                                 <span>{l.title}</span>
-                                {l.approval_status === 'DRAFT' && <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-gray-200">DRAFT</span>} 
-                                {l.approval_status === 'SUBMITTED' && <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-blue-200">SUBMITTED</span>}
-                                {l.approval_status === 'UNDER_REVIEW' && <span className="bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-yellow-200">UNDER REVIEW</span>}
-                                {l.approval_status === 'APPROVED' && <span className="bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-teal-200">APPROVED</span>}
-                                {l.approval_status === 'CHANGES_REQUIRED' && <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-orange-200">CHANGES REQUIRED</span>}
-                                {l.approval_status === 'REJECTED' && <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-red-200">REJECTED</span>}
-                                {l.approval_status === 'PUBLISHED' && <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-green-200">PUBLISHED</span>}
+                                {l.approval_status === 'DRAFT' && <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-gray-200">{t('badgeDraft', 'DRAFT')}</span>} 
+                                {l.approval_status === 'SUBMITTED' && <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-blue-200">{t('badgeSubmitted', 'SUBMITTED')}</span>}
+                                {l.approval_status === 'UNDER_REVIEW' && <span className="bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-yellow-200">{t('badgeUnderReview', 'UNDER REVIEW')}</span>}
+                                {l.approval_status === 'APPROVED' && <span className="bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-teal-200">{t('badgeApproved', 'APPROVED')}</span>}
+                                {l.approval_status === 'CHANGES_REQUIRED' && <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-orange-200">{t('badgeChangesRequired', 'CHANGES REQUIRED')}</span>}
+                                {l.approval_status === 'REJECTED' && <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-red-200">{t('badgeRejected', 'REJECTED')}</span>}
+                                {l.approval_status === 'PUBLISHED' && <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-green-200">{t('badgePublished', 'PUBLISHED')}</span>}
                               </div>
                             </div>
                           </div>
@@ -802,10 +804,10 @@ const Products = () => {
                           {!l.barcode && !l.sku && <span className="text-gray-300">—</span>}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
-                          {l.product_type === 'PACKED_ITEM' && <span className="px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-extrabold border border-blue-100">Packed</span>}
-                          {l.product_type === 'LOOSE_WEIGHT' && <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 text-[10px] font-extrabold border border-amber-100">Loose</span>}
-                          {l.product_type === 'OWN_BRAND' && <span className="px-2 py-1 rounded-lg bg-purple-50 text-purple-700 text-[10px] font-extrabold border border-purple-100">Own Brand</span>}
-                          {l.product_type === 'FOOD' && <span className="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 text-[10px] font-extrabold border border-rose-100">Food</span>}
+                          {l.product_type === 'PACKED_ITEM' && <span className="px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-extrabold border border-blue-100">{t('typePacked', 'Packed')}</span>}
+                          {l.product_type === 'LOOSE_WEIGHT' && <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 text-[10px] font-extrabold border border-amber-100">{t('typeLoose', 'Loose')}</span>}
+                          {l.product_type === 'OWN_BRAND' && <span className="px-2 py-1 rounded-lg bg-purple-50 text-purple-700 text-[10px] font-extrabold border border-purple-100">{t('typeOwnBrand', 'Own Brand')}</span>}
+                          {l.product_type === 'FOOD' && <span className="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 text-[10px] font-extrabold border border-rose-100">{t('typeFood', 'Food')}</span>}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap font-bold text-brand-dark">₹{l.sell_price}</td>
                         <td className="px-4 py-4 whitespace-nowrap text-gray-600 text-sm">
@@ -818,7 +820,7 @@ const Products = () => {
                               title="Partner Brand product — only sold directly to retail consumers"
                             >
                               <i className="fa-solid fa-lock text-[10px] text-amber-600"></i>
-                              <span>Customers Only</span>
+                              <span>{t('customersOnly', 'Customers Only')}</span>
                             </span>
                           ) : l.product_type === 'OWN_BRAND' ? (
                             <button
@@ -844,25 +846,25 @@ const Products = () => {
                               ></span>
                               <span>
                                 {l.allowed_buyers === 'ALL' || l.allowed_buyers === 'STORES_ONLY'
-                                  ? `B2B Open (₹${l.wholesale_price || l.sell_price})`
-                                  : 'Shop Exclusive'}
+                                  ? t('b2bOpen', 'B2B Open (₹{price})', { price: l.wholesale_price || l.sell_price })
+                                  : t('shopExclusive', 'Shop Exclusive')}
                               </span>
                             </button>
                           ) : (
                             <span className="text-gray-500 text-xs">
                               {l.allowed_buyers === 'ALL'
-                                ? 'Customers + Stores'
+                                ? t('customersAndStores', 'Customers + Stores')
                                 : l.allowed_buyers === 'CUSTOMERS_ONLY'
-                                ? 'Customers only'
-                                : 'Stores only'}
+                                ? t('customersOnly', 'Customers only')
+                                : t('storesOnly', 'Stores only')}
                             </span>
                           )}
                         </td>
                         <td className="px-4 py-4 text-right space-x-3 whitespace-nowrap">
-                          <button onClick={() => openEdit(l)} className="text-gray-400 hover:text-brand-dark transition tooltip-trigger" title="Edit">
+                          <button onClick={() => openEdit(l)} className="text-gray-400 hover:text-brand-dark transition tooltip-trigger" title={t('edit', 'Edit')}>
                             <i className="fa-solid fa-pen"></i>
                           </button>
-                          <button onClick={() => setDeleteConfirm(l.id)} className="text-gray-400 hover:text-red-500 transition tooltip-trigger" title="Delete">
+                          <button onClick={() => setDeleteConfirm(l.id)} className="text-gray-400 hover:text-red-500 transition tooltip-trigger" title={t('delete', 'Delete')}>
                             <i className="fa-solid fa-trash"></i>
                           </button>
                         </td>
@@ -897,11 +899,15 @@ const Products = () => {
           <div className="flex flex-col md:flex-row justify-between items-center mt-4 px-2 py-4 gap-4">
             <div className="flex items-center text-sm text-gray-500 font-medium">
               <span>
-                Showing <strong className="text-gray-900">{(currentPage - 1) * itemsPerPage + 1}</strong> to <strong className="text-gray-900">{Math.min(currentPage * itemsPerPage, totalItems)}</strong> of <strong className="text-brand-dark">{totalItems}</strong> items
+                {t('showingItemsPagination', 'Showing {start} to {end} of {total} items', {
+                  start: (currentPage - 1) * itemsPerPage + 1,
+                  end: Math.min(currentPage * itemsPerPage, totalItems),
+                  total: totalItems
+                })}
               </span>
               <span className="mx-4 text-gray-300">|</span>
               <div className="flex items-center gap-2">
-                <span>Rows per page:</span>
+                <span>{t('rowsPerPage', 'Rows per page:')}</span>
                 <select 
                   value={itemsPerPage} 
                   onChange={(e) => setItemsPerPage(Number(e.target.value))}
@@ -921,7 +927,7 @@ const Products = () => {
                 disabled={currentPage === 1}
                 className="px-3 py-1.5 rounded border border-gray-200 bg-white text-gray-500 text-sm font-semibold hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
               >
-                <i className="fa-solid fa-chevron-left text-[10px]"></i> Prev
+                <i className="fa-solid fa-chevron-left text-[10px]"></i> {t('btnPrev', 'Prev')}
               </button>
               
               {getPageNumbers().map((num, i) => (
@@ -946,7 +952,7 @@ const Products = () => {
                 disabled={currentPage === totalPages}
                 className="px-3 py-1.5 rounded border border-gray-200 bg-white text-gray-500 text-sm font-semibold hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
               >
-                Next <i className="fa-solid fa-chevron-right text-[10px]"></i>
+                {t('btnNext', 'Next')} <i className="fa-solid fa-chevron-right text-[10px]"></i>
               </button>
             </div>
           </div>
@@ -960,8 +966,8 @@ const Products = () => {
               <div className="flex gap-4">
                 <div className="w-12 h-12 rounded-full bg-green-50 text-brand-dark flex items-center justify-center text-xl shrink-0"><i className="fa-solid fa-plus"></i></div>
                 <div>
-                  <h2 className="text-xl font-extrabold text-gray-900">{editingListing ? 'Edit Product' : 'Add a Product'}</h2>
-                  <p className="text-xs font-bold text-gray-400">Fast listing for your shop catalog</p>
+                  <h2 className="text-xl font-extrabold text-gray-900">{editingListing ? t('editProductTitle', 'Edit Product') : t('addProductTitle', 'Add a Product')}</h2>
+                  <p className="text-xs font-bold text-gray-400">{t('fastListingSubtitle', 'Fast listing for your shop catalog')}</p>
                 </div>
               </div>
               <button onClick={() => setShowModal(false)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition"><i className="fa-solid fa-xmark"></i></button>
@@ -971,19 +977,19 @@ const Products = () => {
               
               {/* Product Type Selector */}
               <div>
-                <label className="block text-sm font-bold text-gray-900 mb-2">What type of product?</label>
+                <label className="block text-sm font-bold text-gray-900 mb-2">{t('whatTypeOfProduct', 'What type of product?')}</label>
                 <div className="grid grid-cols-3 gap-2">
                   <button type="button" onClick={() => handleProductTypeChange('OWN_BRAND')} className={`p-3 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition ${formData.product_type === 'OWN_BRAND' ? 'border-brand-dark bg-green-50/50' : 'border-gray-100 bg-white hover:border-green-200'}`}>
                     <i className={`fa-solid fa-tag text-lg ${formData.product_type === 'OWN_BRAND' ? 'text-brand-dark' : 'text-purple-500'}`}></i>
-                    <span className={`text-xs font-bold ${formData.product_type === 'OWN_BRAND' ? 'text-brand-dark' : 'text-gray-700'}`}>Own Brand</span>
+                    <span className={`text-xs font-bold ${formData.product_type === 'OWN_BRAND' ? 'text-brand-dark' : 'text-gray-700'}`}>{t('typeOwnBrand', 'Own Brand')}</span>
                   </button>
                   <button type="button" onClick={() => handleProductTypeChange('LOOSE_WEIGHT')} className={`p-3 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition ${formData.product_type === 'LOOSE_WEIGHT' ? 'border-brand-dark bg-green-50/50' : 'border-gray-100 bg-white hover:border-green-200'}`}>
                     <i className={`fa-solid fa-scale-balanced text-lg ${formData.product_type === 'LOOSE_WEIGHT' ? 'text-brand-dark' : 'text-amber-500'}`}></i>
-                    <span className={`text-xs font-bold ${formData.product_type === 'LOOSE_WEIGHT' ? 'text-brand-dark' : 'text-gray-700'}`}>Loose / Weight</span>
+                    <span className={`text-xs font-bold ${formData.product_type === 'LOOSE_WEIGHT' ? 'text-brand-dark' : 'text-gray-700'}`}>{t('typeLoose', 'Loose / Weight')}</span>
                   </button>
                   <button type="button" onClick={() => handleProductTypeChange('PACKED_ITEM')} className={`p-3 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition ${formData.product_type === 'PACKED_ITEM' ? 'border-brand-dark bg-green-50/50' : 'border-gray-100 bg-white hover:border-green-200'}`}>
                     <i className={`fa-solid fa-box text-lg ${formData.product_type === 'PACKED_ITEM' ? 'text-brand-dark' : 'text-blue-500'}`}></i>
-                    <span className={`text-xs font-bold ${formData.product_type === 'PACKED_ITEM' ? 'text-brand-dark' : 'text-gray-700'}`}>Packed Item</span>
+                    <span className={`text-xs font-bold ${formData.product_type === 'PACKED_ITEM' ? 'text-brand-dark' : 'text-gray-700'}`}>{t('typePacked', 'Packed Item')}</span>
                   </button>
                 </div>
               </div>
@@ -1251,13 +1257,13 @@ const Products = () => {
 
               {/* Standard Inputs */}
               <div>
-                <label className="block text-sm font-bold text-gray-900 mb-2">Product Name</label>
+                <label className="block text-sm font-bold text-gray-900 mb-2">{t('productNameLabel', 'Product Name')}</label>
                 <input type="text" name="title" required value={formData.title} onChange={handleFormChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-dark" placeholder="e.g. Balaji Silk Kurti or Handcrafted Shirt" />
               </div>
 
               {/* Category Selector (For All Products) */}
               <div>
-                <label className="block text-sm font-bold text-gray-900 mb-2">Category</label>
+                <label className="block text-sm font-bold text-gray-900 mb-2">{t('colCategory', 'Category')}</label>
                 <select 
                   name="category_id" 
                   value={formData.category_id || ''} 
@@ -1273,18 +1279,18 @@ const Products = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-900 mb-2">Printed MRP (₹)</label>
+                  <label className="block text-sm font-bold text-gray-900 mb-2">{t('printedMrpLabel', 'Printed MRP (₹)')}</label>
                   <input type="number" name="mrp" required min="0" value={formData.mrp || ''} onChange={handleFormChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-dark" placeholder="999" />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-900 mb-2">Sell Price (₹)</label>
+                  <label className="block text-sm font-bold text-gray-900 mb-2">{t('sellPriceLabel', 'Sell Price (₹)')}</label>
                   <input type="number" name="sell_price" required min="0" value={formData.sell_price} onChange={handleFormChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-dark" placeholder="899" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-900 mb-2">Product Image</label>
+                  <label className="block text-sm font-bold text-gray-900 mb-2">{t('productImageLabel', 'Product Image')}</label>
                   <div className="flex items-center gap-3">
                     {formData.image_url && (
                       <img src={formData.image_url} alt="Product" className="w-12 h-12 rounded-lg object-cover border border-gray-200" />
@@ -1305,7 +1311,7 @@ const Products = () => {
 
               {/* Checkboxes Group */}
               <div>
-                <label className="block text-sm font-bold text-gray-900 mb-2">Who can buy this?</label>
+                <label className="block text-sm font-bold text-gray-900 mb-2">{t('whoCanBuyThis', 'Who can buy this?')}</label>
                 <div className="space-y-2">
                   <label className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:bg-gray-50 cursor-pointer transition">
                     <input type="checkbox" checked={formData.allowed_buyers === 'ALL' || formData.allowed_buyers === 'CUSTOMERS_ONLY'} onChange={(e) => setFormData({...formData, allowed_buyers: e.target.checked ? 'ALL' : 'STORES_ONLY'})} className="w-4 h-4 text-brand-dark rounded focus:ring-brand-dark" />
@@ -1349,10 +1355,10 @@ const Products = () => {
                   ) : (
                     <>
                       <button type="button" onClick={(e) => saveListing(e, false)} className="flex-1 py-3.5 rounded-xl bg-white border-2 border-gray-200 hover:border-gray-300 text-gray-700 font-extrabold text-sm transition flex justify-center items-center gap-2">
-                        <i className="fa-solid fa-save"></i> Save as Draft
+                        <i className="fa-solid fa-save"></i> {t('saveAsDraftBtn', 'Save as Draft')}
                       </button>
                       <button type="button" onClick={(e) => saveListing(e, true)} className="flex-1 py-3.5 rounded-xl bg-brand-dark hover:bg-green-800 text-white font-extrabold text-sm shadow-md transition flex justify-center items-center gap-2">
-                        <i className="fa-solid fa-paper-plane"></i> {editingListing?.approval_status === 'REJECTED' ? 'Re-Submit for Review' : 'Submit for Review'}
+                        <i className="fa-solid fa-paper-plane"></i> {editingListing?.approval_status === 'REJECTED' ? t('reSubmitForReviewBtn', 'Re-Submit for Review') : t('submitForReviewBtn', 'Submit for Review')}
                       </button>
                     </>
                   )}
@@ -1374,14 +1380,14 @@ const Products = () => {
             <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
               <i className="fa-solid fa-triangle-exclamation text-red-500 text-2xl"></i>
             </div>
-            <h3 className="text-lg font-extrabold text-gray-900 mb-2">Delete Product</h3>
-            <p className="text-sm text-gray-500 mb-6 leading-relaxed">Are you sure you want to permanently delete this product? This action cannot be undone.</p>
+            <h3 className="text-lg font-extrabold text-gray-900 mb-2">{t('deleteProductModalTitle', 'Delete Product')}</h3>
+            <p className="text-sm text-gray-500 mb-6 leading-relaxed">{t('deleteProductModalDesc', 'Are you sure you want to permanently delete this product? This action cannot be undone.')}</p>
             <div className="flex gap-3">
               <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-700 font-bold text-sm hover:bg-gray-50 transition">
-                Cancel
+                {t('cancel', 'Cancel')}
               </button>
               <button onClick={handleDeleteListing} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-bold text-sm hover:bg-red-600 shadow-md shadow-red-500/20 transition">
-                Delete
+                {t('delete', 'Delete')}
               </button>
             </div>
           </div>
@@ -1396,7 +1402,7 @@ const Products = () => {
             <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
               <i className="fa-solid fa-trash-can text-red-500 text-2xl"></i>
             </div>
-            <h3 className="text-lg font-extrabold text-gray-900 mb-2">Delete {selectedIds.length} Products?</h3>
+            <h3 className="text-lg font-extrabold text-gray-900 mb-2">{t('productsDeleteSelected', 'Delete Selected ({count})', { count: selectedIds.length })}</h3>
             <p className="text-sm text-gray-500 mb-6 leading-relaxed">
               Are you sure you want to permanently delete these <strong>{selectedIds.length}</strong> selected products? This action cannot be undone.
             </p>
@@ -1407,7 +1413,7 @@ const Products = () => {
                 disabled={isDeletingBatch} 
                 className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-700 font-bold text-sm hover:bg-gray-50 transition"
               >
-                Cancel
+                {t('cancel', 'Cancel')}
               </button>
               <button 
                 type="button" 
@@ -1417,11 +1423,11 @@ const Products = () => {
               >
                 {isDeletingBatch ? (
                   <>
-                    <i className="fa-solid fa-spinner fa-spin"></i> Deleting...
+                    <i className="fa-solid fa-spinner fa-spin"></i> {t('loading', 'Deleting...')}
                   </>
                 ) : (
                   <>
-                    <i className="fa-solid fa-trash"></i> Delete ({selectedIds.length})
+                    <i className="fa-solid fa-trash"></i> {t('delete', 'Delete')} ({selectedIds.length})
                   </>
                 )}
               </button>
@@ -1442,7 +1448,7 @@ const Products = () => {
                   <i className="fa-solid fa-file-csv"></i>
                 </div>
                 <div>
-                  <h3 className="text-xl font-extrabold text-gray-900">Bulk Product CSV Template</h3>
+                  <h3 className="text-xl font-extrabold text-gray-900">{t('productsCsvTemplate', 'Bulk Product CSV Template')}</h3>
                   <p className="text-xs text-gray-500">Download formatted template & instructions for inventory upload</p>
                 </div>
               </div>
@@ -1478,7 +1484,7 @@ const Products = () => {
                   onClick={handleDownloadTemplate}
                   className="px-5 py-2.5 rounded-xl bg-brand-dark hover:bg-green-800 text-white font-extrabold text-sm shadow-md transition flex items-center gap-2"
                 >
-                  <i className="fa-solid fa-download"></i> Download Template (.csv)
+                  <i className="fa-solid fa-download"></i> {t('download', 'Download')} {t('productsCsvTemplate', 'Template (.csv)')}
                 </button>
                 <button
                   type="button"
@@ -1488,7 +1494,7 @@ const Products = () => {
                   }}
                   className="px-4 py-2.5 rounded-xl bg-white border border-emerald-300 hover:bg-emerald-100/50 text-emerald-900 font-bold text-sm transition flex items-center gap-2"
                 >
-                  <i className="fa-solid fa-upload"></i> Upload CSV Now
+                  <i className="fa-solid fa-upload"></i> {t('productsBulkUpload', 'Upload CSV Now')}
                 </button>
               </div>
             </div>
@@ -1597,7 +1603,7 @@ const Products = () => {
                 onClick={() => setShowTemplateModal(false)}
                 className="px-5 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm transition"
               >
-                Close Guide
+                {t('close', 'Close Guide')}
               </button>
             </div>
           </div>

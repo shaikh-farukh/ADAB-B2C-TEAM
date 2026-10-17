@@ -1,13 +1,15 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from '../context/LanguageContext';
 
 export default function CreditTermsPage() {
+  const { t } = useTranslation();
   return (
 <>
 <section id="sec-creditterms" className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div><h1 className="text-xl font-extrabold">Store Credit Terms</h1><p className="text-sm text-gray-500">Credit you give · credit from other shops · ADAB buying line — with per-shop and max-shop limits</p></div>
-        <button onClick={() => {}} className="btn-primary !text-xs"><i className="fa-solid fa-credit-card mr-1"></i> Apply for Credit</button>
+        <div><h1 className="text-xl font-extrabold">{t('creditTermsTitle', 'Store Credit Terms')}</h1><p className="text-sm text-gray-500">Credit you give · credit from other shops · ADAB buying line — with per-shop and max-shop limits</p></div>
+        <button onClick={() => {}} className="btn-primary !text-xs"><i className="fa-solid fa-credit-card mr-1"></i> {t('creditApplyTitle', 'Apply for Credit')}</button>
       </div>
       <div className="grid lg:grid-cols-3 gap-4">
         <div className="card p-5 border-2 border-orange-200">

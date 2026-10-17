@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSeller } from '../context/SellerContext';
+import { useTranslation } from '../context/LanguageContext';
 
 export default function RegStatusPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const {
     profile,
@@ -64,7 +66,7 @@ export default function RegStatusPage() {
 
   // Dynamic Hero Status Config
   let statusConfig = {
-    badgeText: 'Draft • Not Submitted',
+    badgeText: t('trackerBadgeDraft', 'Draft • Not Submitted'),
     badgeClass: 'bg-gray-100 text-gray-800 border border-gray-300',
     iconClass: 'fa-file-pen',
     iconBoxClass: 'bg-gray-100 text-gray-700'
@@ -72,28 +74,28 @@ export default function RegStatusPage() {
 
   if (isApproved) {
     statusConfig = {
-      badgeText: 'Verified Merchant',
+      badgeText: t('trackerBadgeVerified', 'Verified Merchant'),
       badgeClass: 'bg-emerald-100 text-emerald-800 border border-emerald-300',
       iconClass: 'fa-circle-check',
       iconBoxClass: 'bg-emerald-100 text-emerald-700'
     };
   } else if (isRejected) {
     statusConfig = {
-      badgeText: 'KYC Rejected',
+      badgeText: t('trackerBadgeRejected', 'KYC Rejected'),
       badgeClass: 'bg-rose-100 text-rose-800 border border-rose-300',
       iconClass: 'fa-circle-xmark',
       iconBoxClass: 'bg-rose-100 text-rose-700'
     };
   } else if (needsResubmission) {
     statusConfig = {
-      badgeText: 'Resubmission Required',
+      badgeText: t('trackerBadgeResubmit', 'Resubmission Required'),
       badgeClass: 'bg-amber-100 text-amber-900 border border-amber-300',
       iconClass: 'fa-rotate-right',
       iconBoxClass: 'bg-amber-100 text-amber-700'
     };
   } else if (isSubmitted) {
     statusConfig = {
-      badgeText: 'Under Admin Review',
+      badgeText: t('trackerBadgeReview', 'Under Admin Review'),
       badgeClass: 'badge-pending bg-blue-100 text-blue-800 border border-blue-200',
       iconClass: 'fa-clock',
       iconBoxClass: 'bg-blue-100 text-blue-700'
@@ -112,11 +114,11 @@ export default function RegStatusPage() {
 
   const handleSubmitApplication = async () => {
     if (!isCriticalSetupDone) {
-      setErrorMsg('Please complete Critical Steps 1 (Store Profile) and 2 (KYC & Tax) before submitting.');
+      setErrorMsg(t('trackerErrCritical', 'Please complete Critical Steps 1 (Store Profile) and 2 (KYC & Tax) before submitting.'));
       return;
     }
     if (!agreeTerms) {
-      setErrorMsg('Please agree to the merchant declaration below before submitting your application.');
+      setErrorMsg(t('trackerErrAgree', 'Please agree to the merchant declaration below before submitting your application.'));
       return;
     }
     setErrorMsg('');
@@ -126,7 +128,7 @@ export default function RegStatusPage() {
       if (refreshSellerData) {
         await refreshSellerData(true);
       }
-      setToastMsg('Application submitted for Admin Verification!');
+      setToastMsg(t('trackerToastSubmitted', 'Application submitted for Admin Verification!'));
       setTimeout(() => setToastMsg(''), 3500);
     } catch (err) {
       const msg = err?.response?.data?.error || err?.message || 'Failed to submit application';
@@ -180,19 +182,26 @@ export default function RegStatusPage() {
                 </span>
               </div>
               <p className="text-xs text-gray-500 mt-0.5">
-                Application ID: <strong id="regStatusReqId" className="font-mono text-gray-800">{reqId}</strong>
+                {t('trackerAppId', 'Application ID:')} <strong id="regStatusReqId" className="font-mono text-gray-800">{reqId}</strong>
                 {' • '}
                 <span id="regStatusSubmitTime">
                   {formattedSubmitTime
-                    ? `${needsResubmission || isRejected ? 'Last submitted on' : 'Submitted on'} ${formattedSubmitTime}`
+                    ? needsResubmission || isRejected
+                      ? t('trackerLastSubmittedOn', 'Last submitted on {time}', { time: formattedSubmitTime })
+                      : t('trackerSubmittedOn', 'Submitted on {time}', { time: formattedSubmitTime })
                     : isApproved
-                    ? 'Verified by Admin'
+                    ? t('trackerVerifiedByAdmin', 'Verified by Admin')
                     : isRejected
-                    ? 'Rejected by Admin'
-                    : 'Not submitted yet'}
+                    ? t('trackerRejectedByAdmin', 'Rejected by Admin')
+                    : t('trackerNotSubmittedYet', 'Not submitted yet')}
                 </span>
                 {' • '}
-                <span className="font-bold text-emerald-700">{completedCount}/5 KYC Modules Saved ({completedPct}%)</span>
+                <span className="font-bold text-emerald-700">
+                  {t('trackerSavedModules', '{count}/5 KYC Modules Saved ({pct}%)', {
+                    count: completedCount,
+                    pct: completedPct
+                  })}
+                </span>
               </p>
             </div>
           </div>
@@ -205,14 +214,14 @@ export default function RegStatusPage() {
               className="btn-soft !text-xs !py-2 !px-3"
             >
               <i className={`fa-solid fa-arrows-rotate mr-1 ${refreshing ? 'animate-spin' : ''}`}></i>
-              {refreshing ? 'Refreshing...' : 'Refresh Status'}
+              {refreshing ? t('trackerRefreshing', 'Refreshing...') : t('trackerRefreshStatus', 'Refresh Status')}
             </button>
             <button
               type="button"
               onClick={() => navigate('/onboarding')}
               className="btn-soft !text-xs !py-2 !px-3 font-bold"
             >
-              <i className="fa-solid fa-pen-to-square mr-1"></i> Edit Store KYC
+              <i className="fa-solid fa-pen-to-square mr-1"></i> {t('trackerEditStoreKyc', 'Edit Store KYC')}
             </button>
           </div>
         </div>
@@ -228,9 +237,9 @@ export default function RegStatusPage() {
                 <i className="fa-solid fa-circle-check"></i>
               </div>
               <div>
-                <div className="font-extrabold text-sm">Congratulations! Your store is Verified &amp; Active</div>
+                <div className="font-extrabold text-sm">{t('trackerApprovedBannerTitle', 'Congratulations! Your store is Verified & Active')}</div>
                 <div className="text-xs text-green-100">
-                  Your store is live on the ADAB Customer App and B2B Wholesale Directory.
+                  {t('trackerApprovedBannerDesc', 'Your store is live on the ADAB Customer App and B2B Wholesale Directory.')}
                 </div>
               </div>
             </div>
@@ -239,7 +248,7 @@ export default function RegStatusPage() {
               onClick={() => navigate('/')}
               className="px-4 py-2 rounded-xl bg-white text-green-800 font-extrabold text-xs shadow-sm hover:bg-green-50 shrink-0 self-start sm:self-center"
             >
-              Go to Seller Dashboard →
+              {t('trackerGoToDashboard', 'Go to Seller Dashboard →')}
             </button>
           </div>
         )}
@@ -251,9 +260,9 @@ export default function RegStatusPage() {
                 <i className="fa-solid fa-triangle-exclamation"></i>
               </div>
               <div>
-                <div className="font-extrabold text-sm">Verification Rejected by Admin</div>
+                <div className="font-extrabold text-sm">{t('trackerRejectedBannerTitle', 'Verification Rejected by Admin')}</div>
                 <div className="text-xs text-rose-800 mt-0.5">
-                  Reason: <b>{profile?.rejection_reason || 'Compliance details require correction. Please review and resubmit.'}</b>
+                  {t('trackerRejectedReasonLabel', 'Reason:')} <b>{profile?.rejection_reason || t('trackerRejectedDefaultReason', 'Compliance details require correction. Please review and resubmit.')}</b>
                 </div>
               </div>
             </div>
@@ -263,7 +272,7 @@ export default function RegStatusPage() {
                 onClick={() => navigate('/onboarding')}
                 className="px-3.5 py-2 rounded-xl bg-white border border-rose-300 hover:bg-rose-100 text-rose-800 font-extrabold text-xs"
               >
-                Edit KYC Steps
+                {t('trackerEditKycSteps', 'Edit KYC Steps')}
               </button>
             </div>
           </div>
@@ -276,9 +285,9 @@ export default function RegStatusPage() {
                 <i className="fa-solid fa-rotate-right"></i>
               </div>
               <div>
-                <div className="font-extrabold text-sm">Compliance Changes Need Resubmission</div>
+                <div className="font-extrabold text-sm">{t('trackerResubmitBannerTitle', 'Compliance Changes Need Resubmission')}</div>
                 <div className="text-xs text-amber-800 mt-0.5">
-                  You updated compliance details (Store Profile, Tax/GST, Bank Account, or Credit Terms) after your previous submission. Please review details and submit your application below.
+                  {t('trackerResubmitBannerDesc', 'You updated compliance details (Store Profile, Tax/GST, Bank Account, or Credit Terms) after your previous submission. Please review details and submit your application below.')}
                 </div>
               </div>
             </div>
@@ -287,7 +296,7 @@ export default function RegStatusPage() {
               onClick={() => navigate('/onboarding')}
               className="px-3.5 py-2 rounded-xl bg-white border border-amber-300 hover:bg-amber-100 text-amber-800 font-extrabold text-xs shrink-0 self-start sm:self-center"
             >
-              Edit KYC Steps
+              {t('trackerEditKycSteps', 'Edit KYC Steps')}
             </button>
           </div>
         )}
@@ -299,9 +308,9 @@ export default function RegStatusPage() {
                 <i className="fa-solid fa-paper-plane"></i>
               </div>
               <div>
-                <div className="font-extrabold text-sm">Ready for Admin Verification Submission</div>
+                <div className="font-extrabold text-sm">{t('trackerReadyBannerTitle', 'Ready for Admin Verification Submission')}</div>
                 <div className="text-xs text-blue-800 mt-0.5">
-                  Your critical store &amp; tax steps are saved ({completedCount}/5 modules complete). Review details and submit your application below to send it to the Admin verification queue.
+                  {t('trackerReadyBannerDesc', 'Your critical store & tax steps are saved ({count}/5 modules complete). Review details and submit your application below to send it to the Admin verification queue.', { count: completedCount })}
                 </div>
               </div>
             </div>
@@ -310,14 +319,14 @@ export default function RegStatusPage() {
               onClick={() => navigate('/onboarding')}
               className="px-3.5 py-2 rounded-xl bg-white border border-blue-300 hover:bg-blue-100 text-blue-800 font-extrabold text-xs shrink-0 self-start sm:self-center"
             >
-              Edit KYC Steps
+              {t('trackerEditKycSteps', 'Edit KYC Steps')}
             </button>
           </div>
         )}
 
         {/* 4-Stage Verification Stepper */}
         <div className="py-6">
-          <div className="text-xs font-bold text-gray-700 mb-3">Verification Progress Pipeline</div>
+          <div className="text-xs font-bold text-gray-700 mb-3">{t('trackerPipelineTitle', 'Verification Progress Pipeline')}</div>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 relative">
             {/* Stage 1: Critical KYC Saved */}
             <div
@@ -336,12 +345,15 @@ export default function RegStatusPage() {
                     <i className={`fa-solid ${isCriticalSetupDone ? 'fa-check' : 'fa-clock'}`}></i>
                   </span>
                   <span className={`text-[10px] font-extrabold ${isCriticalSetupDone ? 'text-green-800' : 'text-amber-800'}`}>
-                    {isCriticalSetupDone ? 'Completed' : 'In Progress'}
+                    {isCriticalSetupDone ? t('trackerStageCompleted', 'Completed') : t('trackerStageInProgress', 'In Progress')}
                   </span>
                 </div>
-                <div className="font-bold text-xs text-gray-900">1. Critical KYC &amp; Profile</div>
+                <div className="font-bold text-xs text-gray-900">{t('trackerStage1Title', '1. Critical KYC & Profile')}</div>
                 <p className="text-[10px] text-gray-600 mt-1">
-                  Store profile, address, GSTIN ({profile?.gstin || 'Pending'}) &amp; PAN ({profile?.pan && profile.pan !== 'PENDING00P' ? profile.pan : 'Pending'}).
+                  {t('trackerStage1Desc', 'Store profile, address, GSTIN ({gstin}) & PAN ({pan}).', {
+                    gstin: profile?.gstin || t('trackerPending', 'Pending'),
+                    pan: profile?.pan && profile.pan !== 'PENDING00P' ? profile.pan : t('trackerPending', 'Pending')
+                  })}
                 </p>
               </div>
             </div>
@@ -386,21 +398,21 @@ export default function RegStatusPage() {
                     }`}
                   >
                     {isApproved || isSubmitted
-                      ? 'Submitted'
+                      ? t('trackerStageSubmitted', 'Submitted')
                       : needsResubmission || isRejected
-                      ? 'Resubmit Needed'
-                      : 'Not Submitted'}
+                      ? t('trackerStageResubmitNeeded', 'Resubmit Needed')
+                      : t('trackerStageNotSubmitted', 'Not Submitted')}
                   </span>
                 </div>
-                <div className="font-bold text-xs text-gray-900">2. Application Submission</div>
+                <div className="font-bold text-xs text-gray-900">{t('trackerStage2Title', '2. Application Submission')}</div>
                 <p className="text-[10px] text-gray-600 mt-1">
                   {isApproved || isSubmitted
-                    ? `Submitted to Admin queue (${completedCount}/5 modules).`
+                    ? t('trackerStage2DescSubmitted', 'Submitted to Admin queue ({count}/5 modules).', { count: completedCount })
                     : isRejected
-                    ? 'Application rejected by Admin — please update & resubmit.'
+                    ? t('trackerStage2DescRejected', 'Application rejected by Admin — please update & resubmit.')
                     : needsResubmission
-                    ? 'Compliance step modified — requires resubmission.'
-                    : 'Awaiting merchant declaration & submission.'}
+                    ? t('trackerStage2DescResubmit', 'Compliance step modified — requires resubmission.')
+                    : t('trackerStage2DescAwaiting', 'Awaiting merchant declaration & submission.')}
                 </p>
               </div>
             </div>
@@ -453,23 +465,23 @@ export default function RegStatusPage() {
                     }`}
                   >
                     {isApproved
-                      ? 'Verified'
+                      ? t('trackerStageVerified', 'Verified')
                       : isRejected
-                      ? 'Rejected'
+                      ? t('trackerStageRejected', 'Rejected')
                       : isSubmitted
-                      ? 'In Progress'
-                      : 'Waiting'}
+                      ? t('trackerStageInProgress', 'In Progress')
+                      : t('trackerStageWaiting', 'Waiting')}
                   </span>
                 </div>
-                <div className="font-bold text-xs text-gray-900">3. Admin Compliance Review</div>
+                <div className="font-bold text-xs text-gray-900">{t('trackerStage3Title', '3. Admin Compliance Review')}</div>
                 <p className="text-[10px] text-gray-600 mt-1">
                   {isApproved
-                    ? 'All compliance & tax credentials verified by Admin.'
+                    ? t('trackerStage3DescVerified', 'All compliance & tax credentials verified by Admin.')
                     : isRejected
-                    ? profile?.rejection_reason || 'Verification rejected.'
+                    ? profile?.rejection_reason || t('trackerStage3DescRejected', 'Verification rejected.')
                     : isSubmitted
-                    ? 'Admin is auditing Profile, GSTIN/PAN, Bank & Credit.'
-                    : 'Starts once your application is submitted.'}
+                    ? t('trackerStage3DescReview', 'Admin is auditing Profile, GSTIN/PAN, Bank & Credit.')
+                    : t('trackerStage3DescWaiting', 'Starts once your application is submitted.')}
                 </p>
               </div>
             </div>
@@ -491,14 +503,14 @@ export default function RegStatusPage() {
                     {isApproved ? <i className="fa-solid fa-check"></i> : '4'}
                   </span>
                   <span className={`text-[10px] font-extrabold ${isApproved ? 'text-green-800' : 'text-gray-500'}`}>
-                    {isApproved ? 'Live' : 'Pending'}
+                    {isApproved ? t('trackerStageLive', 'Live') : t('trackerStagePending', 'Pending')}
                   </span>
                 </div>
-                <div className="font-bold text-xs text-gray-900">4. Live on ADAB App</div>
+                <div className="font-bold text-xs text-gray-900">{t('trackerStage4Title', '4. Live on ADAB App')}</div>
                 <p className="text-[10px] text-gray-600 mt-1">
                   {isApproved
-                    ? 'Store catalogue & settlements active across ADAB.'
-                    : 'Unlocks full Verified Merchant badge upon Admin approval.'}
+                    ? t('trackerStage4DescLive', 'Store catalogue & settlements active across ADAB.')
+                    : t('trackerStage4DescPending', 'Unlocks full Verified Merchant badge upon Admin approval.')}
                 </p>
               </div>
             </div>
@@ -509,11 +521,11 @@ export default function RegStatusPage() {
         <div className="mt-2 pt-4 border-t border-gray-100">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3">
             <div className="text-xs font-extrabold text-gray-800">
-              Saved KYC Modules ({completedCount} of 5 Completed)
+              {t('trackerSavedModulesTitle', 'Saved KYC Modules ({count} of 5 Completed)', { count: completedCount })}
             </div>
             <span className="text-[11px] text-gray-500">
               <i className="fa-solid fa-shield-halved text-amber-600 mr-1"></i>
-              Editing Compliance modules (1, 2, 3, 5) requires resubmission
+              {t('trackerEditingComplianceWarning', 'Editing Compliance modules (1, 2, 3, 5) requires resubmission')}
             </span>
           </div>
 
@@ -523,26 +535,26 @@ export default function RegStatusPage() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-gray-400 font-bold uppercase tracking-wider text-[10px]">
-                    1. Store Profile • Compliance
+                    {t('trackerMod1Title', '1. Store Profile • Compliance')}
                   </span>
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
                       kycSteps?.step1 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                     }`}
                   >
-                    {kycSteps?.step1 ? 'Saved ✓' : 'Required'}
+                    {kycSteps?.step1 ? t('trackerModSaved', 'Saved ✓') : t('trackerModRequired', 'Required')}
                   </span>
                 </div>
                 <div className="font-extrabold text-gray-900 truncate" id="statusRecapShop">
-                  {store?.store_name || 'Not set'}
+                  {store?.store_name || t('trackerNotSet', 'Not set')}
                 </div>
                 <div className="text-gray-600 text-[11px] truncate">
-                  {profile?.full_name || 'Owner not set'} • {profile?.phone || store?.phone || ''}
+                  {profile?.full_name || t('trackerOwnerNotSet', 'Owner not set')} • {profile?.phone || store?.phone || ''}
                 </div>
                 <div className="text-gray-500 text-[11px] truncate mt-0.5">
                   {store?.address_line
                     ? `${store.address_line}, ${store.city || ''}, ${store.state || ''} - ${store.pincode || ''}`
-                    : 'Address not set'}
+                    : t('trackerAddressNotSet', 'Address not set')}
                 </div>
               </div>
               <button
@@ -550,7 +562,7 @@ export default function RegStatusPage() {
                 onClick={() => navigate('/onboarding?step=1')}
                 className="text-[11px] font-extrabold text-green-700 hover:underline self-start"
               >
-                Edit Step 1 →
+                {t('trackerEditStep1', 'Edit Step 1 →')}
               </button>
             </div>
 
@@ -559,21 +571,21 @@ export default function RegStatusPage() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-gray-400 font-bold uppercase tracking-wider text-[10px]">
-                    2. KYC &amp; Tax • Compliance
+                    {t('trackerMod2Title', '2. KYC & Tax • Compliance')}
                   </span>
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
                       kycSteps?.step2 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                     }`}
                   >
-                    {kycSteps?.step2 ? 'Saved ✓' : 'Required'}
+                    {kycSteps?.step2 ? t('trackerModSaved', 'Saved ✓') : t('trackerModRequired', 'Required')}
                   </span>
                 </div>
                 <div className="font-mono font-bold text-gray-900 text-[11px]" id="statusRecapGstin">
-                  GSTIN: {profile?.gstin || 'Pending'}
+                  GSTIN: {profile?.gstin || t('trackerPending', 'Pending')}
                 </div>
                 <div className="font-mono text-gray-600 text-[11px]">
-                  PAN: {profile?.pan && profile.pan !== 'PENDING00P' ? profile.pan : 'Pending'}
+                  PAN: {profile?.pan && profile.pan !== 'PENDING00P' ? profile.pan : t('trackerPending', 'Pending')}
                 </div>
                 <div className="text-gray-500 text-[11px] truncate mt-0.5">
                   FSSAI: {profile?.fssai_license || '—'} • MSME: {profile?.udhyam_msme || '—'}
@@ -584,7 +596,7 @@ export default function RegStatusPage() {
                 onClick={() => navigate('/onboarding?step=2')}
                 className="text-[11px] font-extrabold text-green-700 hover:underline self-start"
               >
-                Edit Step 2 →
+                {t('trackerEditStep2', 'Edit Step 2 →')}
               </button>
             </div>
 
@@ -593,25 +605,31 @@ export default function RegStatusPage() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-gray-400 font-bold uppercase tracking-wider text-[10px]">
-                    3. Bank Account • Compliance
+                    {t('trackerMod3Title', '3. Bank Account • Compliance')}
                   </span>
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
                       kycSteps?.step3 ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-700'
                     }`}
                   >
-                    {kycSteps?.step3 ? 'Saved ✓' : 'Skipped'}
+                    {kycSteps?.step3 ? t('trackerModSaved', 'Saved ✓') : t('trackerModSkipped', 'Skipped')}
                   </span>
                 </div>
                 <div className="font-extrabold text-gray-900 truncate" id="statusRecapBank">
                   {kycSteps?.step3 && bank?.account_number
-                    ? `${bank.bank_name} • A/C ...${String(bank.account_number).slice(-4)}`
-                    : 'No Bank Account Linked'}
+                    ? t('trackerBankAcPreview', '{bankName} • A/C ...{last4}', {
+                        bankName: bank.bank_name,
+                        last4: String(bank.account_number).slice(-4),
+                      })
+                    : t('trackerNoBankLinked', 'No Bank Account Linked')}
                 </div>
                 <div className="text-gray-600 font-mono text-[11px]">
                   {kycSteps?.step3 && bank?.ifsc_code
-                    ? `IFSC: ${bank.ifsc_code} (${bank.account_type || 'CURRENT'})`
-                    : 'Unlocks Payouts & Finance'}
+                    ? t('trackerIfscAcType', 'IFSC: {ifsc} ({accType})', {
+                        ifsc: bank.ifsc_code,
+                        accType: bank.account_type || 'CURRENT',
+                      })
+                    : t('trackerUnlocksPayoutsFinance', 'Unlocks Payouts & Finance')}
                 </div>
               </div>
               <button
@@ -619,7 +637,7 @@ export default function RegStatusPage() {
                 onClick={() => navigate('/onboarding?step=3')}
                 className="text-[11px] font-extrabold text-green-700 hover:underline self-start"
               >
-                {kycSteps?.step3 ? 'Edit Step 3 →' : 'Add Bank Account →'}
+                {kycSteps?.step3 ? t('trackerEditStep3', 'Edit Step 3 →') : t('trackerAddBankAccount', 'Add Bank Account →')}
               </button>
             </div>
 
@@ -628,25 +646,32 @@ export default function RegStatusPage() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-gray-400 font-bold uppercase tracking-wider text-[10px]">
-                    4. Delivery &amp; Hours • Ops
+                    {t('trackerMod4Title', '4. Delivery & Hours • Ops')}
                   </span>
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
                       kycSteps?.step4 ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-700'
                     }`}
                   >
-                    {kycSteps?.step4 ? 'Saved ✓' : 'Skipped'}
+                    {kycSteps?.step4 ? t('trackerModSaved', 'Saved ✓') : t('trackerModSkipped', 'Skipped')}
                   </span>
                 </div>
                 <div className="font-extrabold text-gray-900" id="statusRecapZone">
                   {kycSteps?.step4
-                    ? `${Math.round(Number(store?.delivery_radius_km ?? deliveryCfg?.delivery_radius_km ?? 10))} km radius • ${store?.city || 'Surat'}`
-                    : 'Delivery Logistics Skipped'}
+                    ? t('trackerRadiusKmCity', '{radius} km radius • {city}', {
+                        radius: Math.round(Number(store?.delivery_radius_km ?? deliveryCfg?.delivery_radius_km ?? 10)),
+                        city: store?.city || 'Surat',
+                      })
+                    : t('trackerDeliverySkipped', 'Delivery Logistics Skipped')}
                 </div>
                 <div className="text-gray-600 text-[11px]">
                   {kycSteps?.step4
-                    ? `Hours: ${String(store?.open_time || '08:00').slice(0, 5)} – ${String(store?.close_time || '22:00').slice(0, 5)} (${deliveryCfg?.fleet || 'SELF'} Fleet)`
-                    : 'Unlocks Delivery Fleet & Zones'}
+                    ? t('trackerOperatingHoursFleet', 'Hours: {open} – {close} ({fleet} Fleet)', {
+                        open: String(store?.open_time || '08:00').slice(0, 5),
+                        close: String(store?.close_time || '22:00').slice(0, 5),
+                        fleet: deliveryCfg?.fleet || 'SELF',
+                      })
+                    : t('trackerUnlocksDeliveryFleet', 'Unlocks Delivery Fleet & Zones')}
                 </div>
               </div>
               <button
@@ -654,7 +679,7 @@ export default function RegStatusPage() {
                 onClick={() => navigate('/onboarding?step=4')}
                 className="text-[11px] font-extrabold text-green-700 hover:underline self-start"
               >
-                {kycSteps?.step4 ? 'Edit Step 4 →' : 'Configure Delivery →'}
+                {kycSteps?.step4 ? t('trackerEditStep4', 'Edit Step 4 →') : t('trackerConfigureDelivery', 'Configure Delivery →')}
               </button>
             </div>
 
@@ -663,25 +688,30 @@ export default function RegStatusPage() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-gray-400 font-bold uppercase tracking-wider text-[10px]">
-                    5. B2B Credit • Compliance
+                    {t('trackerMod5Title', '5. B2B Credit • Compliance')}
                   </span>
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
                       kycSteps?.step5 ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-700'
                     }`}
                   >
-                    {kycSteps?.step5 ? 'Saved ✓' : 'Skipped'}
+                    {kycSteps?.step5 ? t('trackerModSaved', 'Saved ✓') : t('trackerModSkipped', 'Skipped')}
                   </span>
                 </div>
                 <div className="font-extrabold text-gray-900">
                   {kycSteps?.step5
-                    ? `${creditCfg?.creditDays || 14} Days Credit • ₹${Number(creditCfg?.creditLimit || 50000).toLocaleString('en-IN')} Limit`
-                    : 'B2B Credit Terms Skipped'}
+                    ? t('trackerCreditDaysLimit', '{days} Days Credit • ₹{limit} Limit', {
+                        days: creditCfg?.creditDays || 14,
+                        limit: Number(creditCfg?.creditLimit || 50000).toLocaleString('en-IN'),
+                      })
+                    : t('trackerCreditSkipped', 'B2B Credit Terms Skipped')}
                 </div>
                 <div className="text-gray-600 text-[11px]">
                   {kycSteps?.step5
-                    ? `Min Order: ₹${Number(creditCfg?.creditMinOrder || 5000).toLocaleString('en-IN')}`
-                    : 'Unlocks Credit Line & Trade Rules'}
+                    ? t('trackerMinOrderVal', 'Min Order: ₹{minOrder}', {
+                        minOrder: Number(creditCfg?.creditMinOrder || 5000).toLocaleString('en-IN'),
+                      })
+                    : t('trackerUnlocksCreditLine', 'Unlocks Credit Line & Trade Rules')}
                 </div>
               </div>
               <button
@@ -689,7 +719,7 @@ export default function RegStatusPage() {
                 onClick={() => navigate('/onboarding?step=5')}
                 className="text-[11px] font-extrabold text-green-700 hover:underline self-start"
               >
-                {kycSteps?.step5 ? 'Edit Step 5 →' : 'Setup Credit Terms →'}
+                {kycSteps?.step5 ? t('trackerEditStep5', 'Edit Step 5 →') : t('trackerSetupCreditTerms', 'Setup Credit Terms →')}
               </button>
             </div>
           </div>
@@ -708,7 +738,10 @@ export default function RegStatusPage() {
                     className="mt-0.5"
                   />
                   <span>
-                    I hereby certify that all provided GSTIN, PAN, and merchant details are authentic. I agree to ADAB platform merchant terms and settlement guidelines.
+                    {t(
+                      'trackerDeclarationText',
+                      'I hereby certify that all provided GSTIN, PAN, and merchant details are authentic. I agree to ADAB platform merchant terms and settlement guidelines.'
+                    )}
                   </span>
                 </label>
               </div>
@@ -741,12 +774,12 @@ export default function RegStatusPage() {
                 }`}
               ></i>
               {submitting
-                ? 'Submitting Application...'
+                ? t('trackerBtnSubmitting', 'Submitting Application...')
                 : isSubmitted && !needsResubmission && !isRejected
-                ? 'Application Submitted — Under Admin Review'
+                ? t('trackerBtnUnderReview', 'Application Submitted — Under Admin Review')
                 : isRejected || needsResubmission
-                ? 'Resubmit Store for Admin Verification'
-                : 'Submit Store for Admin Verification'}
+                ? t('trackerBtnResubmit', 'Resubmit Store for Admin Verification')
+                : t('trackerBtnSubmit', 'Submit Store for Admin Verification')}
             </button>
           </div>
         )}

@@ -7,14 +7,15 @@ import L from 'leaflet';
 
 function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating = false }) {
   if (!order) return null;
+  const { t } = useTranslation();
   const [submitting, setSubmitting] = useState(false);
   const busy = isUpdating || submitting;
   const items = Array.isArray(order.items) ? order.items : [];
   const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '—';
-  const displayCustomer = order.customer || order.customer_name || 'Customer';
+  const displayCustomer = order.customer || order.customer_name || t('colCustomer', 'Customer');
   const displayAmount = order.amount !== undefined ? order.amount : (order.total_amount || 0);
   const addr = order.delivery_address || {};
-  const addressString = [addr.address_line, addr.city, addr.state, addr.pincode].filter(Boolean).join(', ') || 'No delivery address recorded';
+  const addressString = [addr.address_line, addr.city, addr.state, addr.pincode].filter(Boolean).join(', ') || t('orderModalNoAddress', 'No delivery address recorded');
   const s = (order.status || 'new').toLowerCase();
 
   const runAction = async (nextStatus) => {
@@ -36,10 +37,10 @@ function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating
           <div>
             <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
               <i className="fa-solid fa-basket-shopping text-emerald-600"></i>
-              <span>Order Detail • {displayId}</span>
+              <span>{t('orderModalTitle', 'Order Detail • {id}', { id: displayId })}</span>
             </h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              Customer: <span className="font-semibold text-gray-700">{displayCustomer}</span>
+              {t('orderModalCustomer', 'Customer: ')}<span className="font-semibold text-gray-700">{displayCustomer}</span>
               {order.customer_phone && <span className="ml-2 font-mono text-gray-600">({order.customer_phone})</span>}
             </p>
           </div>
@@ -48,7 +49,7 @@ function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating
             disabled={busy}
             onClick={onClose}
             className="w-8 h-8 rounded-full bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors text-base font-bold shadow-xs cursor-pointer disabled:opacity-50"
-            title="Close"
+            title={t('orderModalClose', 'Close')}
           >
             &times;
           </button>
@@ -58,11 +59,11 @@ function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating
         <div className="px-5 py-3 bg-gray-50/80 border-b border-gray-100 flex items-start gap-2.5">
           <i className="fa-solid fa-location-dot text-emerald-600 text-xs mt-1"></i>
           <div className="text-xs">
-            <span className="font-bold text-gray-700 block">Shipping Address</span>
+            <span className="font-bold text-gray-700 block">{t('orderModalShippingAddress', 'Shipping Address')}</span>
             <span className="text-gray-600">{addressString}</span>
             {order.distance && (
               <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                {order.distance} km away
+                {t('orderModalDistanceAway', '{distance} km away', { distance: order.distance })}
               </span>
             )}
           </div>
@@ -71,15 +72,15 @@ function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating
         {/* Items List */}
         <div className="p-5 max-h-[300px] overflow-y-auto">
           {items.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-6">No itemized records found for this order.</p>
+            <p className="text-sm text-gray-500 text-center py-6">{t('orderModalNoItems', 'No itemized records found for this order.')}</p>
           ) : (
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="border-b border-gray-200 text-gray-400 font-bold uppercase text-[10px]">
-                  <th className="pb-2">Item</th>
-                  <th className="pb-2 text-center">Qty</th>
-                  <th className="pb-2 text-right">Unit Price</th>
-                  <th className="pb-2 text-right">Total</th>
+                  <th className="pb-2">{t('orderModalColItem', 'Item')}</th>
+                  <th className="pb-2 text-center">{t('orderModalColQty', 'Qty')}</th>
+                  <th className="pb-2 text-right">{t('orderModalColUnitPrice', 'Unit Price')}</th>
+                  <th className="pb-2 text-right">{t('orderModalColTotal', 'Total')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -89,7 +90,7 @@ function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating
                   const itemTotal = Number(item.total_price) || (qty * unitPrice);
                   return (
                     <tr key={idx} className="hover:bg-gray-50/70">
-                      <td className="py-2.5 font-semibold text-gray-800">{item.name || 'Item'}</td>
+                      <td className="py-2.5 font-semibold text-gray-800">{item.name || t('orderModalColItem', 'Item')}</td>
                       <td className="py-2.5 text-center font-bold text-gray-600">{qty}</td>
                       <td className="py-2.5 text-right text-gray-500">₹{unitPrice.toLocaleString('en-IN')}</td>
                       <td className="py-2.5 text-right font-extrabold text-gray-900">₹{itemTotal.toLocaleString('en-IN')}</td>
@@ -104,7 +105,7 @@ function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating
         {/* Footer with Action Buttons */}
         <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between flex-wrap gap-3">
           <div>
-            <span className="text-[10px] text-gray-400 uppercase font-bold block leading-tight">Grand Total ({items.length} items)</span>
+            <span className="text-[10px] text-gray-400 uppercase font-bold block leading-tight">{t('orderModalGrandTotal', 'Grand Total ({count} items)', { count: items.length })}</span>
             <span className="text-base font-extrabold text-emerald-700">₹{Number(displayAmount).toLocaleString('en-IN')}</span>
           </div>
           <div className="flex items-center gap-2">
@@ -116,7 +117,7 @@ function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating
                   onClick={() => runAction('packing')}
                   className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {busy ? 'Updating...' : 'Accept Order'}
+                  {busy ? t('orderUpdating', 'Updating...') : t('orderModalAcceptOrder', 'Accept Order')}
                 </button>
                 <button
                   type="button"
@@ -124,7 +125,7 @@ function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating
                   onClick={() => { if (!busy) { onClose(); if (onDecline) onDecline(order); } }}
                   className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Decline
+                  {t('orderModalDecline', 'Decline')}
                 </button>
               </>
             )}
@@ -136,7 +137,7 @@ function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating
                   onClick={() => runAction('packed')}
                   className="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {busy ? 'Updating...' : 'Pack Order'}
+                  {busy ? t('orderUpdating', 'Updating...') : t('orderModalPackOrder', 'Pack Order')}
                 </button>
                 <button
                   type="button"
@@ -144,7 +145,7 @@ function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating
                   onClick={() => { if (!busy) { onClose(); if (onDecline) onDecline(order); } }}
                   className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Decline
+                  {t('orderModalDecline', 'Decline')}
                 </button>
               </>
             )}
@@ -156,7 +157,7 @@ function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating
                   onClick={() => runAction('dispatched')}
                   className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {busy ? 'Updating...' : 'Send Package'}
+                  {busy ? t('orderUpdating', 'Updating...') : t('orderModalSendPackage', 'Send Package')}
                 </button>
                 <button
                   type="button"
@@ -164,7 +165,7 @@ function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating
                   onClick={() => { if (!busy) { onClose(); if (onDecline) onDecline(order); } }}
                   className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Decline
+                  {t('orderModalDecline', 'Decline')}
                 </button>
               </>
             )}
@@ -175,7 +176,7 @@ function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating
                 onClick={() => runAction('delivered')}
                 className="px-3 py-1.5 rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {busy ? 'Updating...' : 'Mark Delivered'}
+                {busy ? t('orderUpdating', 'Updating...') : t('orderModalMarkDelivered', 'Mark Delivered')}
               </button>
             )}
             <button 
@@ -184,7 +185,7 @@ function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating
               onClick={onClose}
               className="btn-soft !py-1.5 !px-3 !text-xs font-bold cursor-pointer disabled:opacity-50"
             >
-              Close
+              {t('orderModalClose', 'Close')}
             </button>
           </div>
         </div>
@@ -195,20 +196,21 @@ function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating
 
 function DeclineOrderModal({ order, onClose, onConfirm }) {
   if (!order) return null;
-  const [selectedReason, setSelectedReason] = useState('Item(s) Out of Stock');
+  const { t } = useTranslation();
+  const reasons = [
+    { id: 'stock', label: t('reasonOutOfStock', 'Item(s) Out of Stock'), icon: 'fa-box-open' },
+    { id: 'busy', label: t('reasonStoreBusy', 'Store is Closing / Too Busy'), icon: 'fa-clock' },
+    { id: 'distance', label: t('reasonOutsideReach', 'Delivery Address Outside Reach'), icon: 'fa-route' },
+    { id: 'customer', label: t('reasonCustomerRequested', 'Customer Requested Cancellation'), icon: 'fa-user-xmark' },
+    { id: 'pricing', label: t('reasonPriceMismatch', 'Price / Catalog Mismatch'), icon: 'fa-tag' }
+  ];
+
+  const [selectedReason, setSelectedReason] = useState(reasons[0].label);
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const reasons = [
-    { id: 'stock', label: 'Item(s) Out of Stock', icon: 'fa-box-open' },
-    { id: 'busy', label: 'Store is Closing / Too Busy', icon: 'fa-clock' },
-    { id: 'distance', label: 'Delivery Address Outside Reach', icon: 'fa-route' },
-    { id: 'customer', label: 'Customer Requested Cancellation', icon: 'fa-user-xmark' },
-    { id: 'pricing', label: 'Price / Catalog Mismatch', icon: 'fa-tag' }
-  ];
-
   const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '—';
-  const displayCustomer = order.customer || order.customer_name || 'Customer';
+  const displayCustomer = order.customer || order.customer_name || t('colCustomer', 'Customer');
 
   const handleDecline = async () => {
     setSubmitting(true);
@@ -227,15 +229,15 @@ function DeclineOrderModal({ order, onClose, onConfirm }) {
               <i className="fa-solid fa-ban"></i>
             </div>
             <div>
-              <h3 className="font-extrabold text-sm text-gray-900">Decline Order • {displayId}</h3>
-              <p className="text-[11px] text-gray-500">Customer: <span className="font-semibold text-gray-700">{displayCustomer}</span></p>
+              <h3 className="font-extrabold text-sm text-gray-900">{t('declineModalTitle', 'Decline Order • {id}', { id: displayId })}</h3>
+              <p className="text-[11px] text-gray-500">{t('orderModalCustomer', 'Customer: ')}<span className="font-semibold text-gray-700">{displayCustomer}</span></p>
             </div>
           </div>
           <button 
             type="button"
             onClick={onClose}
             className="w-7 h-7 rounded-full bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center text-sm font-bold shadow-2xs cursor-pointer"
-            title="Close"
+            title={t('orderModalClose', 'Close')}
           >
             &times;
           </button>
@@ -243,7 +245,7 @@ function DeclineOrderModal({ order, onClose, onConfirm }) {
 
         {/* Body */}
         <div className="p-5 space-y-3.5">
-          <p className="text-xs font-semibold text-gray-700">Please choose a reason for declining this order:</p>
+          <p className="text-xs font-semibold text-gray-700">{t('declineModalPrompt', 'Please choose a reason for declining this order:')}</p>
           <div className="space-y-2">
             {reasons.map((r) => (
               <label 
@@ -267,12 +269,12 @@ function DeclineOrderModal({ order, onClose, onConfirm }) {
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-gray-600 mb-1">Internal Note (Optional):</label>
+            <label className="block text-[11px] font-bold text-gray-600 mb-1">{t('declineInternalNote', 'Internal Note (Optional):')}</label>
             <input
               type="text"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="e.g., ran out of inventory"
+              placeholder={t('declineNotePlaceholder', 'e.g., ran out of inventory')}
               className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:border-rose-400 outline-none"
             />
           </div>
@@ -286,7 +288,7 @@ function DeclineOrderModal({ order, onClose, onConfirm }) {
             disabled={submitting}
             className="btn-soft !py-1.5 !px-3 !text-xs font-bold cursor-pointer"
           >
-            Keep Order
+            {t('declineBtnKeepOrder', 'Keep Order')}
           </button>
           <button
             type="button"
@@ -295,7 +297,7 @@ function DeclineOrderModal({ order, onClose, onConfirm }) {
             className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
           >
             <i className="fa-solid fa-ban text-xs"></i>
-            {submitting ? 'Declining...' : 'Confirm Decline'}
+            {submitting ? t('declineBtnDeclining', 'Declining...') : t('declineBtnConfirm', 'Confirm Decline')}
           </button>
         </div>
       </div>
@@ -305,11 +307,12 @@ function DeclineOrderModal({ order, onClose, onConfirm }) {
 
 function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
   if (!order) return null;
+  const { t } = useTranslation();
   const mapContainerRef = useRef(null);
   const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '—';
-  const displayCustomer = order.customer || order.customer_name || 'Customer';
+  const displayCustomer = order.customer || order.customer_name || t('colCustomer', 'Customer');
   const addr = order.delivery_address || {};
-  const addrText = [addr.address_line, addr.city, addr.state, addr.pincode].filter(Boolean).join(', ') || 'No delivery address recorded';
+  const addrText = [addr.address_line, addr.city, addr.state, addr.pincode].filter(Boolean).join(', ') || t('orderModalNoAddress', 'No delivery address recorded');
   const distance = order.distance != null ? parseFloat(order.distance) : null;
 
   // Active Store Location and Details from database
@@ -410,12 +413,12 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
           <div>
             <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
               <i className="fa-solid fa-map-location-dot text-blue-600"></i>
-              <span>Customer Location • {displayId}</span>
+              <span>{t('mapModalTitle', 'Customer Location • {id}', { id: displayId })}</span>
             </h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              Customer: <span className="font-semibold text-gray-700">{displayCustomer}</span>
+              {t('orderModalCustomer', 'Customer: ')}<span className="font-semibold text-gray-700">{displayCustomer}</span>
               {distance != null && (
-                <> • <span className="text-green-700 font-bold">{distance} km away</span></>
+                <> • <span className="text-green-700 font-bold">{t('orderModalDistanceAway', '{distance} km away', { distance })}</span></>
               )}
             </p>
           </div>
@@ -423,7 +426,7 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
             type="button"
             onClick={onClose}
             className="w-8 h-8 rounded-full bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors text-base font-bold shadow-xs cursor-pointer"
-            title="Close"
+            title={t('orderModalClose', 'Close')}
           >
             &times;
           </button>
@@ -445,7 +448,7 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
           </div>
           {radiusKm > 0 && (
             <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-green-100 text-green-800 border border-green-200 shrink-0">
-              Zone: {radiusKm} km
+              {t('ordersZoneBadge', 'Zone: {radius} km', { radius: radiusKm })}
             </span>
           )}
         </div>
@@ -457,12 +460,12 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
               <div ref={mapContainerRef} className="w-full h-full z-1"></div>
               <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-[11px] font-bold text-gray-800 shadow-sm flex items-center gap-1.5 z-10 pointer-events-none">
                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                <span>{storeName} Zone: {radiusKm} km</span>
+                <span>{t('mapModalStoreZone', '{storeName} Zone: {radius} km', { storeName, radius: radiusKm })}</span>
               </div>
             </>
           ) : (
             <div className="text-xs text-gray-500 p-4 text-center">
-              GPS coordinates not recorded for this delivery address.
+              {t('mapModalNoGps', 'GPS coordinates not recorded for this delivery address.')}
             </div>
           )}
         </div>
@@ -471,7 +474,7 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
         <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
           <div className="text-xs text-gray-500 flex items-center gap-1.5">
             <i className="fa-solid fa-motorcycle text-green-600"></i>
-            <span>Delivery Mode: {order.delivery_mode || 'Normal'}</span>
+            <span>{t('mapModalDeliveryMode', 'Delivery Mode: {mode}', { mode: order.delivery_mode || t('deliveryBadgeNormal', 'Normal') })}</span>
           </div>
           <div className="flex items-center gap-2">
             <button 
@@ -480,7 +483,7 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
               className="btn-soft !py-1.5 !px-3 !text-xs font-bold flex items-center gap-1.5 cursor-pointer"
             >
               <i className="fa-solid fa-diamond-turn-right text-xs text-blue-600"></i>
-              Directions
+              {t('mapModalDirections', 'Directions')}
             </button>
             {((order.status || '').toLowerCase() === 'new') && (
               <>
@@ -493,7 +496,7 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
                   className="btn-primary !py-1.5 !px-3 !text-xs font-bold flex items-center gap-1.5 cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
                 >
                   <i className="fa-solid fa-check text-xs"></i>
-                  Accept Order
+                  {t('orderModalAcceptOrder', 'Accept Order')}
                 </button>
                 <button 
                   type="button"
@@ -504,7 +507,7 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
                   className="px-3 py-1.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
                 >
                   <i className="fa-solid fa-ban text-xs"></i>
-                  Decline
+                  {t('orderModalDecline', 'Decline')}
                 </button>
               </>
             )}
@@ -519,7 +522,7 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
                   className="btn-primary !py-1.5 !px-3 !text-xs font-bold flex items-center gap-1.5 cursor-pointer bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
                 >
                   <i className="fa-solid fa-box text-xs"></i>
-                  Pack
+                  {t('orderActionPack', 'Pack')}
                 </button>
                 <button 
                   type="button"
@@ -530,7 +533,7 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
                   className="px-3 py-1.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
                 >
                   <i className="fa-solid fa-ban text-xs"></i>
-                  Decline
+                  {t('orderModalDecline', 'Decline')}
                 </button>
               </>
             )}
@@ -545,7 +548,7 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
                   className="btn-primary !py-1.5 !px-3 !text-xs font-bold flex items-center gap-1.5 cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
                 >
                   <i className="fa-solid fa-paper-plane text-xs"></i>
-                  Send
+                  {t('orderActionSend', 'Send')}
                 </button>
                 <button 
                   type="button"
@@ -556,7 +559,7 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
                   className="px-3 py-1.5 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
                 >
                   <i className="fa-solid fa-ban text-xs"></i>
-                  Decline
+                  {t('orderModalDecline', 'Decline')}
                 </button>
               </>
             )}
@@ -570,7 +573,7 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
                 className="btn-primary !py-1.5 !px-3 !text-xs font-bold flex items-center gap-1.5 cursor-pointer bg-teal-600 hover:bg-teal-700 text-white shadow-xs"
               >
                 <i className="fa-solid fa-check-double text-xs"></i>
-                Delivered
+                {t('orderActionDelivered', 'Delivered')}
               </button>
             )}
             <button 
@@ -578,7 +581,7 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
               onClick={onClose}
               className="btn-soft !py-1.5 !px-3 !text-xs font-bold cursor-pointer"
             >
-              Close
+              {t('orderModalClose', 'Close')}
             </button>
           </div>
         </div>
@@ -588,35 +591,37 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
 }
 
 function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, isUpdating = false }) {
+  const { t } = useTranslation();
+
   const getStatusBadge = (status) => {
     switch (status?.toLowerCase()) {
-      case 'new': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">New</span>;
+      case 'new': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">{t('statusBadgeNew', 'New')}</span>;
       case 'packing':
-      case 'processing': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">Packing</span>;
-      case 'packed': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800">Packed</span>;
+      case 'processing': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">{t('statusBadgePacking', 'Packing')}</span>;
+      case 'packed': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800">{t('statusBadgePacked', 'Packed')}</span>;
       case 'dispatched':
-      case 'shipped': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800">Dispatched</span>;
-      case 'ready': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800">Ready</span>;
-      case 'delivered': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">Delivered</span>;
+      case 'shipped': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800">{t('statusBadgeDispatched', 'Dispatched')}</span>;
+      case 'ready': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800">{t('statusBadgeReady', 'Ready')}</span>;
+      case 'delivered': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">{t('statusBadgeDelivered', 'Delivered')}</span>;
       case 'cancelled':
-      case 'declined': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">Declined</span>;
-      default: return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-800">{status || 'Pending'}</span>;
+      case 'declined': return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">{t('statusBadgeDeclined', 'Declined')}</span>;
+      default: return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-800">{status || t('statusBadgePending', 'Pending')}</span>;
     }
   };
 
   const getDeliveryBadge = (type) => {
-    const t = (type || '').toLowerCase();
-    if (t.includes('fast') || t.includes('express')) return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-800">Fast 45m</span>;
-    if (t.includes('same')) return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">Same-day</span>;
-    if (t.includes('pickup')) return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800">Pickup</span>;
-    return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800">Normal</span>;
+    const dType = (type || '').toLowerCase();
+    if (dType.includes('fast') || dType.includes('express')) return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-800">{t('deliveryBadgeFast', 'Fast 45m')}</span>;
+    if (dType.includes('same')) return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">{t('deliveryBadgeSame', 'Same-day')}</span>;
+    if (dType.includes('pickup')) return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800">{t('deliveryBadgePickup', 'Pickup')}</span>;
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800">{t('deliveryBadgeNormal', 'Normal')}</span>;
   };
 
   const getActionBtn = (status) => {
     if (isUpdating) {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-gray-500 bg-gray-100 border border-gray-200 whitespace-nowrap select-none">
-          <i className="fa-solid fa-spinner fa-spin text-[10px]"></i> Updating...
+          <i className="fa-solid fa-spinner fa-spin text-[10px]"></i> {t('orderUpdating', 'Updating...')}
         </span>
       );
     }
@@ -630,18 +635,18 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
             disabled={isUpdating}
             onClick={() => onUpdateStatus(order.id, 'packing')} 
             className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Accept Order"
+            title={t('tooltipAcceptOrder', 'Accept Order')}
           >
-            Accept
+            {t('orderActionAccept', 'Accept')}
           </button>
           <button 
             type="button"
             disabled={isUpdating}
             onClick={() => onDecline(order)} 
             className="px-2 py-1 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Decline Order"
+            title={t('tooltipDeclineOrder', 'Decline Order')}
           >
-            Decline
+            {t('orderActionDecline', 'Decline')}
           </button>
         </div>
       );
@@ -654,18 +659,18 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
             disabled={isUpdating}
             onClick={() => onUpdateStatus(order.id, 'packed')} 
             className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-blue-600 hover:bg-blue-700 text-white shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Mark Order Packed"
+            title={t('tooltipPackOrder', 'Mark Order Packed')}
           >
-            Pack
+            {t('orderActionPack', 'Pack')}
           </button>
           <button 
             type="button"
             disabled={isUpdating}
             onClick={() => onDecline(order)} 
             className="px-2 py-1 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Decline Order"
+            title={t('tooltipDeclineOrder', 'Decline Order')}
           >
-            Decline
+            {t('orderActionDecline', 'Decline')}
           </button>
         </div>
       );
@@ -678,18 +683,18 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
             disabled={isUpdating}
             onClick={() => onUpdateStatus(order.id, 'dispatched')} 
             className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Dispatch / Send Package"
+            title={t('tooltipSendPackage', 'Dispatch / Send Package')}
           >
-            Send
+            {t('orderActionSend', 'Send')}
           </button>
           <button 
             type="button"
             disabled={isUpdating}
             onClick={() => onDecline(order)} 
             className="px-2 py-1 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Decline Order"
+            title={t('tooltipDeclineOrder', 'Decline Order')}
           >
-            Decline
+            {t('orderActionDecline', 'Decline')}
           </button>
         </div>
       );
@@ -701,35 +706,35 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
           disabled={isUpdating}
           onClick={() => onUpdateStatus(order.id, 'delivered')}
           className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-teal-600 hover:bg-teal-700 text-white shadow-2xs flex items-center gap-1 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Mark Delivered"
+          title={t('tooltipMarkDelivered', 'Mark Delivered')}
         >
           <i className="fa-solid fa-check-double text-[10px]"></i>
-          Delivered
+          {t('orderActionDelivered', 'Delivered')}
         </button>
       );
     }
     if (s === 'delivered') {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 whitespace-nowrap">
-          <i className="fa-solid fa-circle-check text-[10px]"></i> Done
+          <i className="fa-solid fa-circle-check text-[10px]"></i> {t('statusBadgeDone', 'Done')}
         </span>
       );
     }
     if (s === 'cancelled' || s === 'declined') {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 whitespace-nowrap">
-          <i className="fa-solid fa-ban text-[10px]"></i> Declined
+          <i className="fa-solid fa-ban text-[10px]"></i> {t('statusBadgeDeclined', 'Declined')}
         </span>
       );
     }
-    return <button disabled className="btn-soft !text-xs !py-1 !px-2 opacity-50 cursor-not-allowed whitespace-nowrap">Done</button>;
+    return <button disabled className="btn-soft !text-xs !py-1 !px-2 opacity-50 cursor-not-allowed whitespace-nowrap">{t('statusBadgeDone', 'Done')}</button>;
   };
 
   const itemsList = Array.isArray(order.items) ? order.items : [];
   const itemCount = itemsList.length;
 
   const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '—';
-  const displayCustomer = order.customer || order.customer_name || 'Customer';
+  const displayCustomer = order.customer || order.customer_name || t('colCustomer', 'Customer');
   const displayAmount = order.amount !== undefined ? order.amount : (order.total_amount || 0);
   const displayDistance = order.distance != null ? `${order.distance} km` : '—';
   const deliveryType = order.delivery_mode || order.delivery_type || 'normal';
@@ -747,7 +752,7 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
             type="button"
             onClick={() => onOpenMap(order)}
             className="w-6 h-6 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors text-xs font-bold cursor-pointer shrink-0 shadow-2xs" 
-            title="View on Map"
+            title={t('viewOnMapTooltip', 'View on Map')}
           >
             <i className="fa-solid fa-location-dot"></i>
           </button>
@@ -758,10 +763,10 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
           type="button"
           onClick={() => onViewItems(order)}
           className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-colors shadow-2xs cursor-pointer"
-          title="Click to view all items ordered"
+          title={t('viewItemsTooltip', 'Click to view all items ordered')}
         >
           <i className="fa-solid fa-basket-shopping text-[11px] text-emerald-600"></i>
-          <span>{itemCount > 0 ? `${itemCount} items` : (order.item_summary || '0 items')}</span>
+          <span>{itemCount > 0 ? t('itemsCount', '{count} items', { count: itemCount }) : (order.item_summary || t('itemsCount', '0 items', { count: 0 }))}</span>
           <i className="fa-solid fa-chevron-right text-[9px] text-emerald-500 group-hover:translate-x-0.5 transition-transform"></i>
         </button>
       </td>
@@ -807,17 +812,17 @@ export default function OrdersPage() {
       const clean = orderId ? orderId.toString().replace(/^#/, '') : '';
       let msg = `Order #${clean} status updated`;
       if (newStatus === 'packing') {
-        msg = `Order #${clean} accepted (ORDER_ACCEPTED) • Moved to Packing`;
+        msg = t('toastOrderAccepted', 'Order #{id} accepted (ORDER_ACCEPTED) • Moved to Packing', { id: clean });
       } else if (newStatus === 'packed') {
-        msg = `Order #${clean} packed (ORDER_PACKED)`;
+        msg = t('toastOrderPacked', 'Order #{id} packed (ORDER_PACKED)', { id: clean });
       } else if (newStatus === 'dispatched') {
-        msg = `Order #${clean} shipped (ORDER_SHIPPED)`;
+        msg = t('toastOrderShipped', 'Order #{id} shipped (ORDER_SHIPPED)', { id: clean });
       } else if (newStatus === 'delivered') {
-        msg = `Order #${clean} marked Delivered`;
+        msg = t('toastOrderDelivered', 'Order #{id} marked Delivered', { id: clean });
       } else if (newStatus === 'cancelled') {
         msg = prevStatus === 'new'
-          ? `Order #${clean} declined (ORDER_CANCELLED) • Listing stock restored`
-          : `Order #${clean} cancelled (ORDER_CANCELLED) • Listing stock restored`;
+          ? t('toastOrderDeclinedStockRestored', 'Order #{id} declined (ORDER_CANCELLED) • Listing stock restored', { id: clean })
+          : t('toastOrderCancelledStockRestored', 'Order #{id} cancelled (ORDER_CANCELLED) • Listing stock restored', { id: clean });
       }
       setToastMessage(msg);
       setTimeout(() => setToastMessage(null), 4000);
@@ -879,14 +884,14 @@ export default function OrdersPage() {
       {/* Header Section */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-extrabold text-gray-900">App Orders <span className="text-sm font-normal text-green-700">(Nearby Only)</span></h1>
-          <p className="text-sm text-gray-500">Customers within your delivery zone — bike/van • not for far locations</p>
+          <h1 className="text-xl font-extrabold text-gray-900">{t('ordersHeaderTitle', 'App Orders')} <span className="text-sm font-normal text-green-700">{t('ordersHeaderNearbyOnly', '(Nearby Only)')}</span></h1>
+          <p className="text-sm text-gray-500">{t('ordersHeaderSubtitle', 'Customers within your delivery zone — bike/van • not for far locations')}</p>
         </div>
         <div className="flex gap-2 flex-wrap items-center">
           <span className="px-3 py-1.5 rounded-full bg-green-100 text-green-800 text-xs font-bold border border-green-200">
-            <i className="fa-solid fa-circle-dot mr-1"></i> Zone: <span id="ordersZoneRadius">{store?.delivery_radius_km ?? 0} km</span>
+            <i className="fa-solid fa-circle-dot mr-1"></i> {t('ordersZoneBadge', 'Zone: {radius} km', { radius: store?.delivery_radius_km ?? 0 })}
           </span>
-          <Link to="/zones" className="btn-soft !text-xs">Edit Zone</Link>
+          <Link to="/zones" className="btn-soft !text-xs">{t('ordersEditZone', 'Edit Zone')}</Link>
         </div>
       </div>
 
@@ -918,10 +923,10 @@ export default function OrdersPage() {
 
       {/* Delivery Mode Pills */}
       <div className="flex gap-1.5 text-xs font-bold flex-wrap">
-        <span className="px-2 py-1 rounded-lg bg-orange-100 text-orange-800">{fastCount} Fast</span>
-        <span className="px-2 py-1 rounded-lg bg-blue-100 text-blue-800">{sameCount} Same-day</span>
-        <span className="px-2 py-1 rounded-lg bg-green-100 text-green-800">{normalCount} Normal</span>
-        <span className="px-2 py-1 rounded-lg bg-purple-100 text-purple-800">{pickupCount} Pickup</span>
+        <span className="px-2 py-1 rounded-lg bg-orange-100 text-orange-800">{t('ordersPillFast', '{count} Fast', { count: fastCount })}</span>
+        <span className="px-2 py-1 rounded-lg bg-blue-100 text-blue-800">{t('ordersPillSameDay', '{count} Same-day', { count: sameCount })}</span>
+        <span className="px-2 py-1 rounded-lg bg-green-100 text-green-800">{t('ordersPillNormal', '{count} Normal', { count: normalCount })}</span>
+        <span className="px-2 py-1 rounded-lg bg-purple-100 text-purple-800">{t('ordersPillPickup', '{count} Pickup', { count: pickupCount })}</span>
       </div>
 
       {/* Filter Bar */}
@@ -931,7 +936,7 @@ export default function OrdersPage() {
           id="ordersSearch" 
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search order, customer, items..." 
+          placeholder={t('ordersSearchPlaceholder', 'Search order, customer, items...')} 
           className="flex-1 min-w-[160px] px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-green-500"
         />
         <select 
@@ -940,12 +945,12 @@ export default function OrdersPage() {
           onChange={(e) => setStatusFilter(e.target.value)} 
           className="px-3 py-2 rounded-xl border border-gray-200 text-sm"
         >
-          <option value="all">All status</option>
-          <option value="new">New / Action needed</option>
-          <option value="packing">Processing / Packing</option>
-          <option value="dispatched">Shipped / Out for delivery</option>
-          <option value="delivered">Delivered</option>
-          <option value="declined">Declined / Cancelled</option>
+          <option value="all">{t('ordersFilterAllStatus', 'All status')}</option>
+          <option value="new">{t('ordersFilterNew', 'New / Action needed')}</option>
+          <option value="packing">{t('ordersFilterPacking', 'Processing / Packing')}</option>
+          <option value="dispatched">{t('ordersFilterDispatched', 'Shipped / Out for delivery')}</option>
+          <option value="delivered">{t('ordersFilterDelivered', 'Delivered')}</option>
+          <option value="declined">{t('ordersFilterDeclined', 'Declined / Cancelled')}</option>
         </select>
         <select 
           id="ordersDelivery" 
@@ -953,14 +958,14 @@ export default function OrdersPage() {
           onChange={(e) => setDeliveryFilter(e.target.value)} 
           className="px-3 py-2 rounded-xl border border-gray-200 text-sm"
         >
-          <option value="all">All delivery types</option>
-          <option value="fast">Fast</option>
-          <option value="same">Same-day</option>
-          <option value="normal">Normal / scheduled</option>
-          <option value="pickup">Pickup</option>
+          <option value="all">{t('ordersFilterAllDeliveryTypes', 'All delivery types')}</option>
+          <option value="fast">{t('ordersFilterFast', 'Fast')}</option>
+          <option value="same">{t('ordersFilterSame', 'Same-day')}</option>
+          <option value="normal">{t('ordersFilterNormal', 'Normal / scheduled')}</option>
+          <option value="pickup">{t('ordersFilterPickup', 'Pickup')}</option>
         </select>
         <button onClick={() => alert('Filtered orders exported')} className="btn-soft !text-xs">
-          <i className="fa-solid fa-download mr-1"></i> Export
+          <i className="fa-solid fa-download mr-1"></i> {t('ordersBtnExport', 'Export')}
         </button>
       </div>
       
@@ -969,21 +974,21 @@ export default function OrdersPage() {
         <table className="w-full text-sm text-left">
           <thead className="bg-gray-50 text-gray-500 text-xs border-b border-gray-200">
             <tr>
-              <th className="px-4 py-3.5">Order</th>
-              <th className="px-4 py-3.5">Customer</th>
-              <th className="px-4 py-3.5">Distance</th>
-              <th className="px-4 py-3.5">Items</th>
-              <th className="px-4 py-3.5">Delivery</th>
-              <th className="px-4 py-3.5">Total</th>
-              <th className="px-4 py-3.5 text-center">Status</th>
-              <th className="px-4 py-3.5">Action</th>
+              <th className="px-4 py-3.5">{t('colOrder', 'Order')}</th>
+              <th className="px-4 py-3.5">{t('colCustomer', 'Customer')}</th>
+              <th className="px-4 py-3.5">{t('colDistance', 'Distance')}</th>
+              <th className="px-4 py-3.5">{t('colItems', 'Items')}</th>
+              <th className="px-4 py-3.5">{t('colDelivery', 'Delivery')}</th>
+              <th className="px-4 py-3.5">{t('colTotal', 'Total')}</th>
+              <th className="px-4 py-3.5 text-center">{t('colStatus', 'Status')}</th>
+              <th className="px-4 py-3.5">{t('colAction', 'Action')}</th>
             </tr>
           </thead>
           <tbody>
-            {loading && (
+            {loading && orders.length === 0 && (
               <tr>
                 <td colSpan="8" className="px-4 py-8 text-center text-gray-500">
-                  <i className="fa-solid fa-spinner fa-spin mr-2"></i> Loading orders from server...
+                  <i className="fa-solid fa-spinner fa-spin mr-2"></i> {t('ordersLoadingFromServer', 'Loading orders from server...')}
                 </td>
               </tr>
             )}
@@ -999,18 +1004,18 @@ export default function OrdersPage() {
                       onClick={() => window.location.reload()} 
                       className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-900 rounded font-bold text-[10px] shrink-0"
                     >
-                      Retry
+                      {t('ordersRetry', 'Retry')}
                     </button>
                   </div>
                 </td>
               </tr>
             )}
-            {!loading && !error && filteredOrders.length === 0 && (
+            {!(loading && orders.length === 0) && !error && filteredOrders.length === 0 && (
               <tr>
-                <td colSpan="8" className="px-4 py-8 text-center text-gray-500">No orders found.</td>
+                <td colSpan="8" className="px-4 py-8 text-center text-gray-500">{t('ordersNoOrdersFound', 'No orders found.')}</td>
               </tr>
             )}
-            {!loading && !error && filteredOrders.map(order => (
+            {!(loading && orders.length === 0) && !error && filteredOrders.map(order => (
               <OrderRow 
                 key={order.id} 
                 order={order} 
@@ -1026,8 +1031,8 @@ export default function OrdersPage() {
       </div>
       
       <div className="card p-4 bg-green-50 border-green-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-        <p className="text-sm text-green-800"><i className="fa-solid fa-motorcycle mr-1"></i> <b>App orders are always nearby.</b> Customers outside your zone cannot order from the app.</p>
-        <button className="btn-primary !text-xs whitespace-nowrap">Manage Delivery Zone</button>
+        <p className="text-sm text-green-800"><i className="fa-solid fa-motorcycle mr-1"></i> <b>{t('ordersBottomBannerText', 'App orders are always nearby. Customers outside your zone cannot order from the app.')}</b></p>
+        <button className="btn-primary !text-xs whitespace-nowrap">{t('ordersManageDeliveryZone', 'Manage Delivery Zone')}</button>
       </div>
 
       {/* Itemized Order Detail Modal */}

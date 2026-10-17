@@ -35,7 +35,13 @@ export function SellerProvider({ children }) {
     }
     return null;
   });
-  const [dashboardMetrics, setDashboardMetrics] = useState(null);
+  const [dashboardMetrics, setDashboardMetrics] = useState(() => {
+    try {
+      const saved = localStorage.getItem('seller_dashboard_metrics');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return null;
+  });
   const [onboardingData, setOnboardingData] = useState(() => {
     const saved = localStorage.getItem('seller_onboarding_cache');
     if (saved) {
@@ -93,6 +99,14 @@ export function SellerProvider({ children }) {
       localStorage.setItem('seller_onboarding_cache', JSON.stringify(onboardingData));
     }
   }, [onboardingData]);
+
+  useEffect(() => {
+    if (dashboardMetrics) {
+      try {
+        localStorage.setItem('seller_dashboard_metrics', JSON.stringify(dashboardMetrics));
+      } catch (e) {}
+    }
+  }, [dashboardMetrics]);
 
   const fetchSellerData = useCallback(async (backgroundOnly = false) => {
     if (!isTestEnv && !localStorage.getItem('seller_token')) {
@@ -264,6 +278,11 @@ export function SellerProvider({ children }) {
     localStorage.removeItem('seller_login_email');
     localStorage.removeItem('seller_auth_mode');
     localStorage.removeItem('seller_login_identifier');
+    localStorage.removeItem('seller_dashboard_metrics');
+    localStorage.removeItem('seller_orders_cache');
+    localStorage.removeItem('seller_b2b_cache');
+    localStorage.removeItem('seller_returns_cache');
+    localStorage.removeItem('seller_sidebar_counts');
     setIsAuthenticated(false);
     setProfile(null);
     setStore(null);

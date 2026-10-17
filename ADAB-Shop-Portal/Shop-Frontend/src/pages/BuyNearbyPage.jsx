@@ -4,8 +4,10 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { sellerApi } from '../api/sellerApi';
 import { useSeller } from '../context/SellerContext';
+import { useTranslation } from '../context/LanguageContext';
 
 export default function BuyNearbyPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { store } = useSeller();
 
@@ -711,17 +713,13 @@ export default function BuyNearbyPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-200 pb-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-black text-gray-900">Nearby Kiranas &amp; Restock</h1>
+            <h1 className="text-xl sm:text-2xl font-black text-gray-900">{t('buyNearbyTitle', 'Nearby Kiranas & Restock')}</h1>
             <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[11px] font-black uppercase tracking-wide">
               B2B Wholesale
             </span>
           </div>
           <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-            Restock directly from partner kiranas within your local delivery radius · or use{' '}
-            <Link to="/mastersearch" className="text-blue-700 font-bold hover:underline">
-              Search &amp; Buy
-            </Link>{' '}
-            nationwide.
+            {t('buyNearbySubtitle', 'Restock directly from partner kiranas within your local delivery radius · or use')}
           </p>
         </div>
 
@@ -763,7 +761,7 @@ export default function BuyNearbyPage() {
           }`}
         >
           <i className="fa-solid fa-store"></i>
-          <span>Nearby Kiranas</span>
+          <span>{t('buyTabBrowse', 'Nearby Kiranas')}</span>
         </button>
 
         <Link
@@ -771,7 +769,7 @@ export default function BuyNearbyPage() {
           className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black bg-white text-gray-700 hover:bg-gray-100 border border-gray-200 transition flex items-center gap-2"
         >
           <i className="fa-solid fa-cart-shopping text-blue-600"></i>
-          <span>Purchase Cart</span>
+          <span>{t('buyCartTitle', 'Purchase Cart')}</span>
           {cartCount > 0 && (
             <span className="bg-blue-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">
               {cartCount}
@@ -789,7 +787,7 @@ export default function BuyNearbyPage() {
           }`}
         >
           <i className="fa-solid fa-receipt"></i>
-          <span>My Purchase Orders</span>
+          <span>{t('buyTabMyRestock', 'My Purchase Orders')}</span>
           {orders.length > 0 && (
             <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-1.5 py-0.5 rounded-full">
               {orders.length}
@@ -820,8 +818,8 @@ export default function BuyNearbyPage() {
                 onChange={(e) => setSelectedDistance(e.target.value)}
                 className="w-full sm:w-auto px-3 py-2 rounded-xl border border-gray-200 text-xs sm:text-sm font-semibold outline-none focus:border-emerald-500 bg-white"
               >
-                <option value="all">Any Distance</option>
-                <option value="5">Within 5 km (Express)</option>
+                <option value="all">{t('buyAllDistances', 'Any Distance')}</option>
+                <option value="5">{t('buyUnder5km', 'Within 5 km (Express)')}</option>
                 <option value="15">Within 15 km (Van)</option>
                 <option value="50">Within 50 km (Porter)</option>
               </select>
@@ -859,7 +857,7 @@ export default function BuyNearbyPage() {
                   viewMode === 'products' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
-                <i className="fa-solid fa-boxes-stacked"></i> Products ({filteredProducts.length})
+                <i className="fa-solid fa-boxes-stacked"></i> {t('buyViewProducts', 'Products')} ({filteredProducts.length})
               </button>
               <button
                 type="button"
@@ -868,7 +866,7 @@ export default function BuyNearbyPage() {
                   viewMode === 'stores' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
-                <i className="fa-solid fa-store"></i> Shops ({filteredStores.length})
+                <i className="fa-solid fa-store"></i> {t('buyViewStores', 'Shops')} ({filteredStores.length})
               </button>
               <button
                 type="button"
@@ -877,7 +875,7 @@ export default function BuyNearbyPage() {
                   viewMode === 'map' ? 'bg-white text-emerald-800 shadow-sm' : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
-                <i className="fa-solid fa-map-location-dot text-emerald-600"></i> Map View
+                <i className="fa-solid fa-map-location-dot text-emerald-600"></i> {t('buyViewMap', 'Map View')}
               </button>
             </div>
           </div>

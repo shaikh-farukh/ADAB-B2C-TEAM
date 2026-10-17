@@ -4,6 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useSeller } from '../context/SellerContext';
 import { useOrders } from '../hooks/useOrders';
+import { useTranslation } from '../context/LanguageContext';
 
 const DEFAULT_RATES = {
   fast: 49,
@@ -55,6 +56,7 @@ const extractBaseline = (storeObj, obData) => {
 };
 
 export default function DeliveryPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { store, onboardingData, saveOnboardingStep } = useSeller();
@@ -524,9 +526,9 @@ export default function DeliveryPage() {
     <section id="sec-delivery" ref={sectionRef} className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl font-extrabold text-gray-900">Delivery Zones &amp; Fleet Settings</h1>
+          <h1 className="text-xl font-extrabold text-gray-900">{t('deliveryPageTitle', 'Delivery Zones & Fleet Settings')}</h1>
           <p className="text-sm text-gray-500 truncate">
-            Customer delivery radius, mode rates &amp; B2B logistics (Synced with Store KYC)
+            {t('deliveryPageSubtitle', 'Customer delivery radius, mode rates & B2B logistics (Synced with Store KYC)')}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -538,7 +540,7 @@ export default function DeliveryPage() {
               className="h-10 px-3.5 rounded-xl text-xs font-extrabold border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <i className="fa-solid fa-rotate-left"></i>
-              <span>Discard</span>
+              <span>{t('deliveryDiscard', 'Discard')}</span>
             </button>
           )}
           <button
@@ -554,18 +556,18 @@ export default function DeliveryPage() {
             {saving ? (
               <>
                 <i className="fa-solid fa-spinner fa-spin"></i>
-                <span>Saving...</span>
+                <span>{t('deliverySaving', 'Saving...')}</span>
               </>
             ) : hasUnsavedChanges ? (
               <>
                 <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
                 <i className="fa-solid fa-floppy-disk"></i>
-                <span>Save Delivery Settings</span>
+                <span>{t('deliverySaveSettings', 'Save Delivery Settings')}</span>
               </>
             ) : (
               <>
                 <i className="fa-solid fa-check text-emerald-600"></i>
-                <span>All Changes Saved</span>
+                <span>{t('deliveryAllSaved', 'All Changes Saved')}</span>
               </>
             )}
           </button>
@@ -592,25 +594,25 @@ export default function DeliveryPage() {
         <div className="card p-5 border-2 border-green-200">
           <h2 className="font-bold text-green-800 mb-1 flex items-center gap-1.5">
             <i className="fa-solid fa-map-location-dot"></i>
-            <span>Store Coverage &amp; Radius Map</span>
+            <span>{t('deliveryCoverageMapTitle', 'Store Coverage & Radius Map')}</span>
           </h2>
           <p className="text-xs text-gray-500 mb-4">
-            Only customers inside this radius can browse and order from your store catalog
+            {t('deliveryCoverageMapDesc', 'Only customers inside this radius can browse and order from your store catalog')}
           </p>
 
           <div className="space-y-3.5">
             {/* Orange Bar / Scroll Selector (0km to 20km) — Synced with Store KYC Step 4 */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-bold text-gray-700">App Customer Delivery Radius</label>
+                <label className="text-xs font-bold text-gray-700">{t('deliveryCustRadiusLabel', 'App Customer Delivery Radius')}</label>
                 <span className="text-[10px] font-bold text-orange-600">
                   {radiusVal === 0
-                    ? 'Pickup Only (0km)'
+                    ? t('kycRadiusPickupOnly', 'Pickup Only (0km)')
                     : radiusVal <= 5
-                    ? 'Immediate Neighbourhood'
+                    ? t('kycRadiusImmediate', 'Immediate Neighbourhood')
                     : radiusVal <= 12
-                    ? 'Standard Town Radius'
-                    : 'Wide City Coverage'}
+                    ? t('kycRadiusStandard', 'Standard Town Radius')
+                    : t('kycRadiusWide', 'Wide City Coverage')}
                 </span>
               </div>
 
@@ -673,14 +675,14 @@ export default function DeliveryPage() {
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-extrabold text-gray-700 flex items-center gap-1">
-                    <i className="fa-solid fa-location-dot text-emerald-600"></i> Pin:
+                    <i className="fa-solid fa-location-dot text-emerald-600"></i> {t('deliveryPinLabel', 'Pin:')}
                   </span>
                   <span className="font-mono bg-gray-100 px-2 py-0.5 rounded border border-gray-200 text-gray-800 font-bold text-[11px]">
                     {currentLat.toFixed(4)}, {currentLng.toFixed(4)}
                   </span>
                   {isLocationChanged && (
                     <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold border border-amber-200">
-                      Moved (Unsaved)
+                      {t('deliveryMovedUnsaved', 'Moved (Unsaved)')}
                     </span>
                   )}
                 </div>
@@ -688,7 +690,7 @@ export default function DeliveryPage() {
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow-2xs">
                     <i className="fa-solid fa-hand-pointer text-emerald-600 text-[10px]"></i>
-                    <span>Drag pin to adjust</span>
+                    <span>{t('deliveryDragPinToAdjust', 'Drag pin to adjust')}</span>
                   </span>
                   {isLocationChanged && (
                     <button
@@ -698,7 +700,7 @@ export default function DeliveryPage() {
                       title="Reset pin to saved store position"
                     >
                       <i className="fa-solid fa-rotate-left"></i>
-                      <span>Reset Pin</span>
+                      <span>{t('deliveryResetPin', 'Reset Pin')}</span>
                     </button>
                   )}
                 </div>
@@ -717,23 +719,23 @@ export default function DeliveryPage() {
             <div className="flex items-center justify-between gap-2 mb-1">
               <h2 className="font-bold text-green-800 flex items-center gap-1.5">
                 <i className="fa-solid fa-bolt text-green-700"></i>
-                <span>Customer Delivery Modes &amp; Rates</span>
+                <span>{t('deliveryCustModesTitle', 'Customer Delivery Modes & Rates')}</span>
               </h2>
               {noChannelSelected ? (
                 <span className="text-xs font-extrabold text-rose-600">
-                  Select at least 1 channel
+                  {t('kycSelectAtLeastOneChannel', 'Select at least 1 channel')}
                 </span>
               ) : toCleanRate(fastRate, DEFAULT_RATES.fast) === DEFAULT_RATES.fast &&
                 toCleanRate(sameDayRate, DEFAULT_RATES.sameDay) === DEFAULT_RATES.sameDay &&
                 toCleanRate(scheduledRate, DEFAULT_RATES.scheduled) === DEFAULT_RATES.scheduled &&
                 toCleanRate(pickupRate, DEFAULT_RATES.pickup) === DEFAULT_RATES.pickup ? (
                 <span className="text-xs font-extrabold text-green-800 bg-green-100 border border-green-300 px-3 py-1 rounded-full shadow-xs">
-                  Default Rates (₹) / Order
+                  {t('deliveryDefaultRatesPerOrder', 'Default Rates (₹) / Order')}
                 </span>
               ) : (
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-extrabold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
-                    Custom Rates (₹) / Order
+                    {t('deliveryCustomRatesPerOrder', 'Custom Rates (₹) / Order')}
                   </span>
                   <button
                     type="button"
@@ -745,13 +747,13 @@ export default function DeliveryPage() {
                     }}
                     className="text-xs font-extrabold text-green-700 hover:text-green-900 underline cursor-pointer"
                   >
-                    Reset Defaults
+                    {t('deliveryResetDefaults', 'Reset Defaults')}
                   </button>
                 </div>
               )}
             </div>
             <p className="text-xs text-gray-500 mb-4">
-              Toggle delivery options for customers inside your <b>{radiusVal} km</b> zone and scroll or type your fee
+              {t('deliveryToggleDesc', 'Toggle delivery options for customers inside your {radius} km zone and scroll or type your fee', { radius: radiusVal })}
             </p>
             <div className="space-y-3">
               {/* Express (Under 1h) */}
@@ -761,8 +763,8 @@ export default function DeliveryPage() {
                 }`}
               >
                 <label htmlFor="chk-mode-express" className="cursor-pointer flex-1 min-w-0">
-                  <div className="font-bold text-orange-900">⚡ Express (Under 1h)</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Bike dispatch for immediate essentials</div>
+                  <div className="font-bold text-orange-900">⚡ {t('kycChannelExpress', 'Express (Under 1h)')}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">{t('kycChannelExpressDesc', 'Bike dispatch for immediate essentials')}</div>
                 </label>
                 <div
                   data-no-page-scroll="true"
@@ -771,7 +773,7 @@ export default function DeliveryPage() {
                 >
                   {Number(fastRate) === 0 && (
                     <span className="px-2 py-0.5 rounded-full bg-green-100 border border-green-200 text-green-800 text-[10px] font-extrabold">
-                      FREE
+                      {t('deliveryFree', 'FREE')}
                     </span>
                   )}
                   <div
@@ -808,8 +810,8 @@ export default function DeliveryPage() {
                 }`}
               >
                 <label htmlFor="chk-mode-sameday" className="cursor-pointer flex-1 min-w-0">
-                  <div className="font-bold text-blue-900">🚚 Same-Day</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Same-day city delivery</div>
+                  <div className="font-bold text-blue-900">🚚 {t('kycChannelSameDay', 'Same-Day')}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">{t('kycChannelSameDayDesc', 'Same-day city delivery')}</div>
                 </label>
                 <div
                   data-no-page-scroll="true"
@@ -818,7 +820,7 @@ export default function DeliveryPage() {
                 >
                   {Number(sameDayRate) === 0 && (
                     <span className="px-2 py-0.5 rounded-full bg-green-100 border border-green-200 text-green-800 text-[10px] font-extrabold">
-                      FREE
+                      {t('deliveryFree', 'FREE')}
                     </span>
                   )}
                   <div
@@ -855,8 +857,8 @@ export default function DeliveryPage() {
                 }`}
               >
                 <label htmlFor="chk-mode-scheduled" className="cursor-pointer flex-1 min-w-0">
-                  <div className="font-bold text-green-900">📅 Scheduled Hours</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Morning / Evening slot delivery</div>
+                  <div className="font-bold text-green-900">📅 {t('kycChannelScheduled', 'Scheduled Hours')}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">{t('kycChannelScheduledDesc', 'Morning / Evening slot delivery')}</div>
                 </label>
                 <div
                   data-no-page-scroll="true"
@@ -865,7 +867,7 @@ export default function DeliveryPage() {
                 >
                   {Number(scheduledRate) === 0 && (
                     <span className="px-2 py-0.5 rounded-full bg-green-100 border border-green-200 text-green-800 text-[10px] font-extrabold">
-                      FREE
+                      {t('deliveryFree', 'FREE')}
                     </span>
                   )}
                   <div
@@ -902,8 +904,8 @@ export default function DeliveryPage() {
                 }`}
               >
                 <label htmlFor="chk-mode-pickup" className="cursor-pointer flex-1 min-w-0">
-                  <div className="font-bold text-purple-900">🏪 Store Pickup</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Customer collects directly from counter</div>
+                  <div className="font-bold text-purple-900">🏪 {t('kycChannelPickup', 'Store Pickup')}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">{t('kycChannelPickupDesc', 'Customer collects from counter')}</div>
                 </label>
                 <div
                   data-no-page-scroll="true"
@@ -912,7 +914,7 @@ export default function DeliveryPage() {
                 >
                   {Number(pickupRate) === 0 && (
                     <span className="px-2 py-0.5 rounded-full bg-green-100 border border-green-200 text-green-800 text-[10px] font-extrabold">
-                      FREE
+                      {t('deliveryFree', 'FREE')}
                     </span>
                   )}
                   <div
@@ -943,7 +945,7 @@ export default function DeliveryPage() {
               </div>
             </div>
           </div>
-          <p className="text-xs text-gray-500 mt-3">Riders dispatch directly from your shop counter.</p>
+          <p className="text-xs text-gray-500 mt-3">{t('deliveryRidersCounterDesc', 'Riders dispatch directly from your shop counter.')}</p>
         </div>
       </div>
 
@@ -954,37 +956,31 @@ export default function DeliveryPage() {
           <div>
             <h2 className="font-bold text-orange-800 mb-1 flex items-center gap-1.5">
               <i className="fa-solid fa-earth-asia"></i>
-              <span>Nationwide B2B &amp; Export Network</span>
+              <span>{t('deliveryNationwideB2BTitle', 'Nationwide B2B & Export Network')}</span>
             </h2>
             <p className="text-xs text-gray-500 mb-4">
-              Other registered merchants and shops can order wholesale with no radius restriction
+              {t('deliveryNationwideB2BDesc', 'Other registered merchants and shops can order wholesale with no radius restriction')}
             </p>
 
             <ul className="text-sm space-y-2.5 text-gray-600">
               <li className="flex gap-2">
                 <i className="fa-solid fa-check text-green-600 mt-0.5"></i>
-                <span>
-                  <b>Intracity (&lt;50 km):</b> Porter mini-trucks with same-day delivery
-                </span>
+                <span>{t('deliveryIntracityPorter', 'Intracity (<50 km): Porter mini-trucks with same-day delivery')}</span>
               </li>
               <li className="flex gap-2">
                 <i className="fa-solid fa-check text-green-600 mt-0.5"></i>
-                <span>
-                  <b>Interstate:</b> Delhivery freight cargo (2–4 business days)
-                </span>
+                <span>{t('deliveryInterstateDelhivery', 'Interstate: Delhivery freight cargo (2–4 business days)')}</span>
               </li>
               <li className="flex gap-2">
                 <i className="fa-solid fa-check text-green-600 mt-0.5"></i>
-                <span>
-                  <b>Export Trade:</b> Customs cleared air/sea freight logistics
-                </span>
+                <span>{t('deliveryExportTrade', 'Export Trade: Customs cleared air/sea freight logistics')}</span>
               </li>
             </ul>
           </div>
 
           <div className="mt-6 p-3.5 rounded-xl bg-orange-50 border border-orange-200 text-xs text-orange-900">
             <i className="fa-solid fa-shield-halved mr-1"></i>
-            <b>Wholesale Protection:</b> B2B pricing and bulk packaging are applied automatically.
+            <b>{t('deliveryWholesaleProtection', 'Wholesale Protection:')}</b> {t('deliveryWholesaleProtectionDesc', 'B2B pricing and bulk packaging are applied automatically.')}
           </div>
         </div>
 
@@ -994,18 +990,18 @@ export default function DeliveryPage() {
             <div className="flex items-center justify-between gap-2 mb-1">
               <h2 className="font-bold text-orange-800 flex items-center gap-1.5">
                 <i className="fa-solid fa-truck-fast text-orange-600"></i>
-                <span>B2B Freight Carriers &amp; Shipping Rates</span>
+                <span>{t('deliveryB2BCarriersTitle', 'B2B Freight Carriers & Shipping Rates')}</span>
               </h2>
               {toCleanRate(porterRate, DEFAULT_RATES.porter) === DEFAULT_RATES.porter &&
               toCleanRate(delhiveryRate, DEFAULT_RATES.delhivery) === DEFAULT_RATES.delhivery &&
               toCleanRate(exportFreightRate, DEFAULT_RATES.exportFreight) === DEFAULT_RATES.exportFreight ? (
                 <span className="text-xs font-extrabold text-orange-800 bg-orange-100 border border-orange-300 px-3 py-1 rounded-full shadow-xs">
-                  Default Base Rates (₹)
+                  {t('deliveryDefaultBaseRates', 'Default Base Rates (₹)')}
                 </span>
               ) : (
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-extrabold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
-                    Custom Base Rates (₹)
+                    {t('deliveryCustomBaseRates', 'Custom Base Rates (₹)')}
                   </span>
                   <button
                     type="button"
@@ -1016,13 +1012,13 @@ export default function DeliveryPage() {
                     }}
                     className="text-xs font-extrabold text-orange-700 hover:text-orange-900 underline cursor-pointer"
                   >
-                    Reset Defaults
+                    {t('deliveryResetDefaults', 'Reset Defaults')}
                   </button>
                 </div>
               )}
             </div>
             <p className="text-xs text-gray-500 mb-4">
-              Enable commercial truck &amp; freight carriers and scroll or type your base shipping charge
+              {t('deliveryEnableCommercialDesc', 'Enable commercial truck & freight carriers and scroll or type your base shipping charge')}
             </p>
             <div className="space-y-3">
               {/* Porter (Intra-city LCV) */}
@@ -1032,8 +1028,8 @@ export default function DeliveryPage() {
                 }`}
               >
                 <label htmlFor="chk-mode-porter" className="cursor-pointer flex-1 min-w-0">
-                  <div className="font-bold text-gray-900">Porter (Intra-city LCV)</div>
-                  <div className="text-xs text-gray-500 mt-0.5">Same city wholesale • 2–6 hours</div>
+                  <div className="font-bold text-gray-900">{t('deliveryPorterName', 'Porter (Intra-city LCV)')}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{t('deliveryPorterDesc', 'Same city wholesale • 2–6 hours')}</div>
                 </label>
                 <div
                   data-no-page-scroll="true"
@@ -1042,7 +1038,7 @@ export default function DeliveryPage() {
                 >
                   {Number(porterRate) === 0 && (
                     <span className="px-2 py-0.5 rounded-full bg-green-100 border border-green-200 text-green-800 text-[10px] font-extrabold">
-                      FREE
+                      {t('deliveryFree', 'FREE')}
                     </span>
                   )}
                   <div
@@ -1079,8 +1075,8 @@ export default function DeliveryPage() {
                 }`}
               >
                 <label htmlFor="chk-mode-delhivery" className="cursor-pointer flex-1 min-w-0">
-                  <div className="font-bold text-gray-900">Delhivery &amp; Express Cargo</div>
-                  <div className="text-xs text-gray-500 mt-0.5">Nationwide surface express • 1–3 days</div>
+                  <div className="font-bold text-gray-900">{t('deliveryDelhiveryName', 'Delhivery & Express Cargo')}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{t('deliveryDelhiveryDesc', 'Nationwide surface express • 1–3 days')}</div>
                 </label>
                 <div
                   data-no-page-scroll="true"
@@ -1089,7 +1085,7 @@ export default function DeliveryPage() {
                 >
                   {Number(delhiveryRate) === 0 && (
                     <span className="px-2 py-0.5 rounded-full bg-green-100 border border-green-200 text-green-800 text-[10px] font-extrabold">
-                      FREE
+                      {t('deliveryFree', 'FREE')}
                     </span>
                   )}
                   <div
@@ -1126,8 +1122,8 @@ export default function DeliveryPage() {
                 }`}
               >
                 <label htmlFor="chk-mode-export" className="cursor-pointer flex-1 min-w-0">
-                  <div className="font-bold text-gray-900">Export Freight (Air / Sea)</div>
-                  <div className="text-xs text-gray-500 mt-0.5">International shipments (requires IEC)</div>
+                  <div className="font-bold text-gray-900">{t('deliveryExportName', 'Export Freight (Air / Sea)')}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{t('deliveryExportDesc', 'International shipments (requires IEC)')}</div>
                 </label>
                 <div
                   data-no-page-scroll="true"
@@ -1136,7 +1132,7 @@ export default function DeliveryPage() {
                 >
                   {Number(exportFreightRate) === 0 && (
                     <span className="px-2 py-0.5 rounded-full bg-green-100 border border-green-200 text-green-800 text-[10px] font-extrabold">
-                      FREE
+                      {t('deliveryFree', 'FREE')}
                     </span>
                   )}
                   <div
@@ -1169,7 +1165,7 @@ export default function DeliveryPage() {
           </div>
           <div className="mt-4 p-3 rounded-xl bg-blue-50 text-xs text-blue-800">
             <i className="fa-solid fa-circle-info mr-1"></i>
-            <b>Automatic Fallback:</b> When your riders are busy, ADAB automatically dispatches fleet partners.
+            <b>{t('deliveryAutomaticFallback', 'Automatic Fallback:')}</b> {t('deliveryAutomaticFallbackDesc', 'When your riders are busy, ADAB automatically dispatches fleet partners.')}
           </div>
         </div>
       </div>
@@ -1195,10 +1191,10 @@ export default function DeliveryPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-base font-extrabold text-gray-900">
-                  Unsaved Delivery Changes
+                  {t('deliveryUnsavedModalTitle', 'Unsaved Delivery Changes')}
                 </h3>
                 <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                  You have unsaved changes to your delivery zone, modes, or rates. Would you like to save them before leaving
+                  {t('deliveryUnsavedModalDesc', 'You have unsaved changes to your delivery zone, modes, or rates. Would you like to save them before leaving')}
                   {pendingNavLabel ? (
                     <>
                       {' '}for <b className="text-gray-800">{pendingNavLabel}</b>
@@ -1211,7 +1207,7 @@ export default function DeliveryPage() {
 
             {noChannelSelected && (
               <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-700">
-                Please enable at least one Customer Delivery Mode before saving, or discard changes to leave.
+                {t('deliverySelectAtLeastOne', 'Please select at least one Customer Delivery Channel before saving.')}
               </div>
             )}
 
@@ -1225,7 +1221,7 @@ export default function DeliveryPage() {
                 }}
                 className="px-3.5 py-2.5 rounded-xl text-xs font-bold border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition cursor-pointer"
               >
-                Stay on Page
+                {t('deliveryStayOnPage', 'Stay on Page')}
               </button>
               <button
                 type="button"
@@ -1233,7 +1229,7 @@ export default function DeliveryPage() {
                 onClick={handleModalDiscardAndLeave}
                 className="px-3.5 py-2.5 rounded-xl text-xs font-extrabold border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition cursor-pointer"
               >
-                Discard &amp; Leave
+                {t('deliveryDiscardAndLeave', 'Discard & Leave')}
               </button>
               <button
                 type="button"
@@ -1242,7 +1238,7 @@ export default function DeliveryPage() {
                 className="px-4 py-2.5 rounded-xl text-xs font-extrabold bg-green-700 hover:bg-green-800 text-white shadow-md disabled:opacity-50 transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <i className="fa-solid fa-floppy-disk"></i>
-                <span>{saving ? 'Saving...' : 'Save & Continue'}</span>
+                <span>{saving ? t('deliverySaving', 'Saving...') : t('deliverySaveAndContinue', 'Save & Continue')}</span>
               </button>
             </div>
           </div>

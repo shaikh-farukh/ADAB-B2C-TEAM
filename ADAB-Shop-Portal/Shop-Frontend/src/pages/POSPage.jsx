@@ -66,7 +66,7 @@ export default function POSPage() {
         <div className="w-full sm:w-64">
           <input 
             type="search" 
-            placeholder={t('search', 'Filter item name...')} 
+            placeholder={t('posSearchPlaceholder', 'Filter item name...')} 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full px-3 py-1.5 text-xs rounded-xl border border-gray-200 outline-none focus:border-indigo-500" 
@@ -78,21 +78,24 @@ export default function POSPage() {
         {/* Products Grid */}
         <div className="card p-4 shadow-sm">
           <div className="flex gap-2 overflow-x-auto pb-2 mb-3 hide-scroll">
-            {['All', 'Grocery', 'Dairy', 'Snacks', 'Clothing'].map(cat => (
-              <button 
-                key={cat}
-                onClick={() => setCategoryFilter(cat)}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold transition ${categoryFilter === cat ? 'bg-indigo-100 text-indigo-800 border border-indigo-200' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
-              >
-                {cat === 'All' ? t('all', 'All') : cat}
-              </button>
-            ))}
+            {['All', 'Grocery', 'Dairy', 'Snacks', 'Clothing'].map(cat => {
+              const catKey = cat === 'All' ? 'catAll' : `cat${cat}`;
+              return (
+                <button 
+                  key={cat}
+                  onClick={() => setCategoryFilter(cat)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold transition ${categoryFilter === cat ? 'bg-indigo-100 text-indigo-800 border border-indigo-200' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
+                >
+                  {t(catKey, cat)}
+                </button>
+              );
+            })}
           </div>
           
           {loading ? (
-            <div className="p-8 text-center text-xs text-gray-400">{t('loading', 'Loading live catalog...')}</div>
+            <div className="p-8 text-center text-xs text-gray-400">{t('posLoadingCatalog', 'Loading live catalog...')}</div>
           ) : filteredProducts.length === 0 ? (
-            <div className="p-8 text-center text-xs text-gray-400">No products found matching filters.</div>
+            <div className="p-8 text-center text-xs text-gray-400">{t('posNoProducts', 'No products found matching filters.')}</div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {filteredProducts.map(product => (
@@ -104,7 +107,7 @@ export default function POSPage() {
                   <div className="font-bold text-sm truncate text-gray-800 group-hover:text-indigo-900">{product.name}</div>
                   <div className="flex items-center justify-between mt-1">
                     <span className="text-indigo-700 font-extrabold text-sm">₹{product.price}</span>
-                    <span className="text-[10px] text-gray-400">Qty: {product.stock}</span>
+                    <span className="text-[10px] text-gray-400">{t('posQtyLabel', 'Qty')}: {product.stock}</span>
                   </div>
                 </button>
               ))}
@@ -118,7 +121,7 @@ export default function POSPage() {
             <h3 className="font-bold text-sm text-gray-800">{t('posCurrentBill', 'Current Bill')}</h3>
             {cart.length > 0 && (
               <button onClick={clearCart} className="text-rose-600 text-xs font-semibold hover:underline">
-                {t('cancel', 'Clear')}
+                {t('posClearCart', 'Clear')}
               </button>
             )}
           </div>
@@ -154,7 +157,9 @@ export default function POSPage() {
               </div>
 
               <div>
-                <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1">Payment Method</label>
+                <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1">
+                  {t('posPaymentMethod', 'Payment Method')}
+                </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button 
                     onClick={() => setPaymentMethod('cash')} 
@@ -177,7 +182,7 @@ export default function POSPage() {
                 className="w-full btn-primary !bg-indigo-600 hover:!bg-indigo-700 !text-xs !py-2.5 flex items-center justify-center gap-2"
               >
                 <i className="fa-solid fa-receipt"></i>
-                {isProcessing ? t('loading', 'Processing...') : `${t('posPrintBill', 'Print & Charge')} • ₹${cartTotal}`}
+                {isProcessing ? t('posProcessing', 'Processing...') : `${t('posPrintBill', 'Print & Charge')} • ₹${cartTotal}`}
               </button>
             </div>
           )}

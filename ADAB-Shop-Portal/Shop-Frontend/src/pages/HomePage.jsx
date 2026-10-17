@@ -83,7 +83,7 @@ export default function HomePage() {
             <Link to="/pos" className="p-5 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white text-left shadow-lg shadow-indigo-500/20 hover:scale-[1.02] transition-all relative overflow-hidden group block">
               <div className="flex items-center justify-between mb-3">
                 <span className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center text-2xl font-bold"><i className="fa-solid fa-cash-register"></i></span>
-                <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-white/25">1-CLICK BILL</span>
+                <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-white/25">{t('oneClickBillBadge', '1-CLICK BILL')}</span>
               </div>
               <div className="font-extrabold text-xl">{t('quickBillCounter', 'Quick Bill Counter')}</div>
               <p className="text-xs text-indigo-100 mt-1">{t('quickBillCounterDesc', 'Scan barcode or tap items to bill walk-in customers instantly.')}</p>
@@ -113,7 +113,7 @@ export default function HomePage() {
             <Link to="/products" className="p-5 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white text-left shadow-lg shadow-amber-500/20 hover:scale-[1.02] transition-all relative overflow-hidden group block">
               <div className="flex items-center justify-between mb-3">
                 <span className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center text-2xl font-bold"><i className="fa-solid fa-plus"></i></span>
-                <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-white/25">CATALOG</span>
+                <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-white/25">{t('catalogBadge', 'CATALOG')}</span>
               </div>
               <div className="font-extrabold text-xl">{t('myProductsStock', 'My Products & Stock')}</div>
               <p className="text-xs text-amber-100 mt-1">{t('myProductsStockDesc', 'Manage listings, edit prices, live stock, and add items quickly.')}</p>
@@ -126,7 +126,7 @@ export default function HomePage() {
             <Link to="/finance" className="p-5 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-800 text-white text-left shadow-lg shadow-purple-600/20 hover:scale-[1.02] transition-all relative overflow-hidden group block">
               <div className="flex items-center justify-between mb-3">
                 <span className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center text-2xl font-bold"><i className="fa-solid fa-building-columns"></i></span>
-                <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-400 text-emerald-950 font-mono">EARNINGS</span>
+                <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-400 text-emerald-950 font-mono">{t('earningsBadge', 'EARNINGS')}</span>
               </div>
               <div className="font-extrabold text-xl">{t('myBankMoney', 'My Bank Money')}</div>
               <p className="text-xs text-purple-100 mt-1">{t('myBankMoneyDesc', 'Direct settlement to linked bank account with zero deductions.')}</p>
@@ -144,14 +144,14 @@ export default function HomePage() {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-extrabold text-gray-900 text-base">Smart AI Restock Demand &amp; Product Ideas</h3>
-                  <span className="bg-purple-100 text-purple-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">AI DRIVEN</span>
+                  <h3 className="font-extrabold text-gray-900 text-base">{t('smartAiRestockDemand', 'Smart AI Restock Demand & Product Ideas')}</h3>
+                  <span className="bg-purple-100 text-purple-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">{t('aiDrivenBadge', 'AI DRIVEN')}</span>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">Discover what items are in high demand nearby, what to restock, and buyer opportunities.</p>
+                <p className="text-xs text-gray-500 mt-0.5">{t('smartAiRestockDemandDesc', 'Discover what items are in high demand nearby, what to restock, and buyer opportunities.')}</p>
               </div>
             </div>
             <div className="btn-primary !bg-purple-600 hover:!bg-purple-700 !text-xs !py-2 !px-4 flex items-center gap-1.5 shrink-0 hidden sm:flex">
-              <span>Open AI Ideas</span> <i className="fa-solid fa-arrow-right text-[10px]"></i>
+              <span>{t('openAiIdeas', 'Open AI Ideas')}</span> <i className="fa-solid fa-arrow-right text-[10px]"></i>
             </div>
           </Link>
 
@@ -161,7 +161,7 @@ export default function HomePage() {
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-green-200 text-green-700 flex items-center justify-center text-xl shadow-sm"><i className="fa-solid fa-indian-rupee-sign"></i></div>
                 <div>
-                  <div className="text-[10px] font-extrabold text-green-800 uppercase tracking-widest mb-0.5">LIFETIME SALES</div>
+                  <div className="text-[10px] font-extrabold text-green-800 uppercase tracking-widest mb-0.5">{t('lifetimeSales', 'LIFETIME SALES')}</div>
                   <div className="text-3xl font-black text-gray-900">₹{parseFloat(dashboardMetrics?.total_revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
                 </div>
               </div>
@@ -171,23 +171,23 @@ export default function HomePage() {
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-orange-200 text-orange-700 flex items-center justify-center text-xl shadow-sm"><i className="fa-solid fa-box-open"></i></div>
                 <div>
-                  <div className="text-[10px] font-extrabold text-orange-800 uppercase tracking-widest mb-0.5">TO PACK & SHIP</div>
-                  <div className="text-3xl font-black text-gray-900">{pendingCount} <span className="text-sm font-bold text-orange-600 tracking-normal">waiting</span></div>
+                  <div className="text-[10px] font-extrabold text-orange-800 uppercase tracking-widest mb-0.5">{t('toPackAndShip', 'TO PACK & SHIP')}</div>
+                  <div className="text-3xl font-black text-gray-900">{pendingCount} <span className="text-sm font-bold text-orange-600 tracking-normal">{t('waiting', 'waiting')}</span></div>
                 </div>
               </div>
             </div>
           </div>
 
           <div className="card p-5">
-            <h2 className="font-bold mb-3">3 Simple Steps</h2>
+            <h2 className="font-bold mb-3">{t('threeSimpleSteps', '3 Simple Steps')}</h2>
             <div className="grid sm:grid-cols-2 gap-4 text-sm mb-4">
-              <div className="p-4 rounded-xl bg-green-50 border border-green-200"><div className="font-bold text-green-800 mb-1"><i className="fa-solid fa-mobile-screen mr-1"></i> App Orders = Nearby Only</div><p className="text-gray-600 text-xs">Customers within your <strong id="homeZoneRadius">{radius}</strong> zone • bike/van delivery • fast &amp; same-day</p></div>
-              <div className="p-4 rounded-xl bg-orange-50 border border-orange-200"><div className="font-bold text-orange-800 mb-1"><i className="fa-solid fa-store mr-1"></i> Store Orders = Any Distance</div><p className="text-gray-600 text-xs">Other shops can order from anywhere • truck, freight, export • no radius limit</p></div>
+              <div className="p-4 rounded-xl bg-green-50 border border-green-200"><div className="font-bold text-green-800 mb-1"><i className="fa-solid fa-mobile-screen mr-1"></i> {t('appOrdersNearbyOnly', 'App Orders = Nearby Only')}</div><p className="text-gray-600 text-xs">{t('appOrdersNearbyDesc', 'Customers within your {radius} zone • bike/van delivery • fast & same-day', { radius })}</p></div>
+              <div className="p-4 rounded-xl bg-orange-50 border border-orange-200"><div className="font-bold text-orange-800 mb-1"><i className="fa-solid fa-store mr-1"></i> {t('storeOrdersAnyDistance', 'Store Orders = Any Distance')}</div><p className="text-gray-600 text-xs">{t('storeOrdersAnyDistanceDesc', 'Other shops can order from anywhere • truck, freight, export • no radius limit')}</p></div>
             </div>
             <div className="grid sm:grid-cols-3 gap-4 text-sm">
-              <div className="p-4 rounded-xl bg-green-50 text-center"><div className="w-10 h-10 rounded-full bg-green-600 text-white font-extrabold flex items-center justify-center mx-auto mb-2">1</div><div className="font-bold text-green-800 mb-1">Sell</div><p className="text-gray-600 text-xs">Nearby customers + far-away stores</p></div>
-              <div className="p-4 rounded-xl bg-blue-50 text-center"><div className="w-10 h-10 rounded-full bg-blue-600 text-white font-extrabold flex items-center justify-center mx-auto mb-2">2</div><div className="font-bold text-blue-800 mb-1">Buy</div><p className="text-gray-600 text-xs">Search any store nationwide</p></div>
-              <div className="p-4 rounded-xl bg-purple-50 text-center"><div className="w-10 h-10 rounded-full bg-purple-600 text-white font-extrabold flex items-center justify-center mx-auto mb-2">3</div><div className="font-bold text-purple-800 mb-1">Get Paid</div><p className="text-gray-600 text-xs">Bank payouts • points on sell &amp; buy</p></div>
+              <div className="p-4 rounded-xl bg-green-50 text-center"><div className="w-10 h-10 rounded-full bg-green-600 text-white font-extrabold flex items-center justify-center mx-auto mb-2">1</div><div className="font-bold text-green-800 mb-1">{t('stepSellTitle', 'Sell')}</div><p className="text-gray-600 text-xs">{t('stepSellDesc', 'Nearby customers + far-away stores')}</p></div>
+              <div className="p-4 rounded-xl bg-blue-50 text-center"><div className="w-10 h-10 rounded-full bg-blue-600 text-white font-extrabold flex items-center justify-center mx-auto mb-2">2</div><div className="font-bold text-blue-800 mb-1">{t('stepBuyTitle', 'Buy')}</div><p className="text-gray-600 text-xs">{t('stepBuyDesc', 'Search any store nationwide')}</p></div>
+              <div className="p-4 rounded-xl bg-purple-50 text-center"><div className="w-10 h-10 rounded-full bg-purple-600 text-white font-extrabold flex items-center justify-center mx-auto mb-2">3</div><div className="font-bold text-purple-800 mb-1">{t('stepGetPaidTitle', 'Get Paid')}</div><p className="text-gray-600 text-xs">{t('stepGetPaidDesc', 'Bank payouts • points on sell & buy')}</p></div>
             </div>
           </div>
         </>
@@ -197,16 +197,16 @@ export default function HomePage() {
           <div className="p-6 rounded-2xl text-white shadow-md border border-green-700/30 bg-gradient-to-br from-green-700 to-emerald-600">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-green-100 text-sm">Welcome back</p>
+                <p className="text-green-100 text-sm">{t('welcomeBack', 'Welcome back')}</p>
                 <h1 className="text-2xl font-extrabold mt-0.5">{ownerName} • {storeName}</h1>
-                <p className="text-green-100 text-xs sm:text-sm mt-1 max-w-lg">Everything you need to sell to customers, restock goods, and manage daily payouts.</p>
+                <p className="text-green-100 text-xs sm:text-sm mt-1 max-w-lg">{t('welcomeDesc', 'Everything you need to sell to customers, restock goods, and manage daily payouts.')}</p>
               </div>
               <div className="flex gap-2">
                 <Link to="/onboarding" className="px-3.5 py-2 rounded-xl bg-white/20 backdrop-blur text-white text-xs font-bold border border-white/30 hover:bg-white/30 transition flex items-center gap-1.5">
-                  <i className="fa-solid fa-id-card"></i> KYC &amp; Verification
+                  <i className="fa-solid fa-id-card"></i> {t('kycAndVerification', 'KYC & Verification')}
                 </Link>
                 <Link to="/pos" className="px-4 py-2 rounded-xl bg-white text-green-800 text-xs font-extrabold shadow-sm hover:bg-green-50 transition flex items-center gap-1.5">
-                  <i className="fa-solid fa-bolt text-amber-500"></i> Open Counter
+                  <i className="fa-solid fa-bolt text-amber-500"></i> {t('openCounter', 'Open Counter')}
                 </Link>
               </div>
             </div>
@@ -214,36 +214,40 @@ export default function HomePage() {
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" id="proStatsBar">
             <div className="card p-4 border-l-4 border-l-blue-500">
-              <div className="text-xs text-gray-500">Total Orders</div>
+              <div className="text-xs text-gray-500">{t('totalOrders', 'Total Orders')}</div>
               <div className="text-2xl font-extrabold mt-1 text-gray-900">{totalOrdersCount}</div>
-              <div className="text-[10px] text-green-600 font-bold mt-1">Lifetime customer orders</div>
+              <div className="text-[10px] text-green-600 font-bold mt-1">{t('lifetimeCustomerOrders', 'Lifetime customer orders')}</div>
             </div>
             <div className="card p-4 border-l-4 border-l-orange-500">
-              <div className="text-xs text-gray-500">Action Required</div>
+              <div className="text-xs text-gray-500">{t('actionRequired', 'Action Required')}</div>
               <div className="text-2xl font-extrabold mt-1 text-orange-600">{pendingCount}</div>
-              <div className="text-[10px] text-orange-600 font-bold mt-1">{pendingCount > 0 ? `${pendingCount} orders to process` : 'All caught up'}</div>
+              <div className="text-[10px] text-orange-600 font-bold mt-1">
+                {pendingCount > 0
+                  ? t('ordersToProcess', '{count} orders to process', { count: pendingCount })
+                  : t('allCaughtUp', 'All caught up')}
+              </div>
             </div>
             <div className="card p-4 border-l-4 border-l-green-500">
-              <div className="text-xs text-gray-500">Total Revenue</div>
+              <div className="text-xs text-gray-500">{t('totalRevenue', 'Total Revenue')}</div>
               <div className="text-2xl font-extrabold mt-1 text-green-700">₹{parseFloat(totalRevenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
-              <div className="text-[10px] text-gray-400 mt-0.5">Lifetime revenue</div>
+              <div className="text-[10px] text-gray-400 mt-0.5">{t('lifetimeRevenue', 'Lifetime revenue')}</div>
             </div>
             <div className="card p-4 border-l-4 border-l-purple-500">
-              <div className="text-xs text-gray-500">Active Products</div>
+              <div className="text-xs text-gray-500">{t('activeProducts', 'Active Products')}</div>
               <div className="text-2xl font-extrabold mt-1 text-purple-700">{dashboardMetrics?.total_products || 0}</div>
-              <div className="text-[10px] text-gray-400 mt-0.5">Listings in your store</div>
+              <div className="text-[10px] text-gray-400 mt-0.5">{t('listingsInStore', 'Listings in your store')}</div>
             </div>
           </div>
 
           {/* Interactive Analytics Dashboard */}
           <div className="card p-6 bg-white border border-gray-100 shadow-sm rounded-2xl">
             <h2 className="font-bold text-gray-900 mb-6 flex justify-between items-center">
-              <span>Sales & Revenue Analytics <span className="text-xs font-normal text-gray-500 ml-2">(Last 30 Days)</span></span>
+              <span>{t('salesRevenueAnalytics', 'Sales & Revenue Analytics')} <span className="text-xs font-normal text-gray-500 ml-2">{t('last30Days', '(Last 30 Days)')}</span></span>
             </h2>
             <div className="grid lg:grid-cols-2 gap-8">
               {/* Revenue Area Chart */}
               <div className="h-64">
-                <h3 className="text-xs font-extrabold text-gray-500 uppercase tracking-wider mb-4">Daily Revenue (₹)</h3>
+                <h3 className="text-xs font-extrabold text-gray-500 uppercase tracking-wider mb-4">{t('dailyRevenue', 'Daily Revenue (₹)')}</h3>
                 {chartData && chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
@@ -258,19 +262,21 @@ export default function HomePage() {
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                       <RechartsTooltip 
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                        formatter={(value) => [`₹${value}`, 'Revenue']}
+                        formatter={(value) => [`₹${value}`, t('totalRevenue', 'Revenue')]}
                       />
                       <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-sm text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">Not enough data to display chart</div>
+                  <div className="h-full flex items-center justify-center text-sm text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                    {t('notEnoughDataChart', 'Not enough data to display chart')}
+                  </div>
                 )}
               </div>
               
               {/* Orders Bar Chart */}
               <div className="h-64">
-                <h3 className="text-xs font-extrabold text-gray-500 uppercase tracking-wider mb-4">Daily Orders</h3>
+                <h3 className="text-xs font-extrabold text-gray-500 uppercase tracking-wider mb-4">{t('dailyOrders', 'Daily Orders')}</h3>
                 {chartData && chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
@@ -285,7 +291,9 @@ export default function HomePage() {
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-sm text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">Not enough data to display chart</div>
+                  <div className="h-full flex items-center justify-center text-sm text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                    {t('notEnoughDataChart', 'Not enough data to display chart')}
+                  </div>
                 )}
               </div>
             </div>
@@ -309,20 +317,48 @@ export default function HomePage() {
 
           <div className="grid sm:grid-cols-2 gap-4 mt-6">
             <div className="card p-5">
-              <h3 className="font-bold mb-2">Delivery Status</h3>
+              <h3 className="font-bold mb-2">{t('deliveryStatus', 'Delivery Status')}</h3>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-orange-700 font-bold flex items-center gap-1.5"><i className="fa-solid fa-bolt text-amber-500"></i> Fast 45m</span><span>{orders.filter(o => (o.delivery_mode || '').includes('fast')).length} orders</span></div>
-                <div className="flex justify-between"><span className="text-blue-700 font-bold flex items-center gap-1.5"><i className="fa-solid fa-truck-fast text-blue-600"></i> Same-day</span><span>{orders.filter(o => (o.delivery_mode || '').includes('same')).length} orders</span></div>
-                <div className="flex justify-between"><span className="text-green-700 font-bold flex items-center gap-1.5"><i className="fa-solid fa-calendar-days text-green-600"></i> Normal</span><span>{orders.filter(o => !(o.delivery_mode || '').includes('fast') && !(o.delivery_mode || '').includes('same')).length} orders</span></div>
+                <div className="flex justify-between">
+                  <span className="text-orange-700 font-bold flex items-center gap-1.5"><i className="fa-solid fa-bolt text-amber-500"></i> {t('fast45m', 'Fast 45m')}</span>
+                  <span>{t('ordersCountSuffix', '{count} orders', { count: orders.filter(o => (o.delivery_mode || '').includes('fast')).length })}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-blue-700 font-bold flex items-center gap-1.5"><i className="fa-solid fa-truck-fast text-blue-600"></i> {t('sameDay', 'Same-day')}</span>
+                  <span>{t('ordersCountSuffix', '{count} orders', { count: orders.filter(o => (o.delivery_mode || '').includes('same')).length })}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-green-700 font-bold flex items-center gap-1.5"><i className="fa-solid fa-calendar-days text-green-600"></i> {t('normalDelivery', 'Normal')}</span>
+                  <span>{t('ordersCountSuffix', '{count} orders', { count: orders.filter(o => !(o.delivery_mode || '').includes('fast') && !(o.delivery_mode || '').includes('same')).length })}</span>
+                </div>
               </div>
             </div>
             <Link to="/regstatus" className="card p-5 cursor-pointer hover:border-green-300 transition-all block">
-              <h3 className="font-bold mb-2 text-gray-900">Store Verification Status <i className="fa-solid fa-chevron-right text-xs text-gray-400 ml-1"></i></h3>
+              <h3 className="font-bold mb-2 text-gray-900">{t('storeVerificationStatus', 'Store Verification Status')} <i className="fa-solid fa-chevron-right text-xs text-gray-400 ml-1"></i></h3>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span>GSTIN Status</span><span className="text-green-700 font-bold flex items-center gap-1"><i className="fa-solid fa-circle-check text-green-600"></i> {profile?.gstin ? 'Verified' : 'Active'}</span></div>
-                <div className="flex justify-between"><span>KYC Status</span><span className="text-green-700 font-bold flex items-center gap-1"><i className="fa-solid fa-circle-check text-green-600"></i> {profile?.kyc_status || 'VERIFIED'}</span></div>
-                <div className="flex justify-between"><span>Store Operating Status</span><span className={`font-bold flex items-center gap-1 ${storeTiming?.isOpen ? 'text-green-700' : 'text-amber-700'}`}><i className={`fa-solid ${storeTiming?.isOpen ? 'fa-circle-check text-green-600' : 'fa-circle-xmark text-amber-600'}`}></i> {storeTiming?.isOpen ? 'Open (Online)' : 'Closed (Offline)'}</span></div>
-                <div className="flex justify-between"><span>Account Health</span><span className="text-green-700 font-bold">Good Standing</span></div>
+                <div className="flex justify-between">
+                  <span>{t('gstinStatus', 'GSTIN Status')}</span>
+                  <span className="text-green-700 font-bold flex items-center gap-1">
+                    <i className="fa-solid fa-circle-check text-green-600"></i> {profile?.gstin ? t('verified', 'Verified') : t('active', 'Active')}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>{t('kycStatus', 'KYC Status')}</span>
+                  <span className="text-green-700 font-bold flex items-center gap-1">
+                    <i className="fa-solid fa-circle-check text-green-600"></i> {profile?.kyc_status ? (profile.kyc_status === 'APPROVED' ? t('verified', 'Verified') : profile.kyc_status) : t('verified', 'Verified')}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>{t('storeOperatingStatus', 'Store Operating Status')}</span>
+                  <span className={`font-bold flex items-center gap-1 ${storeTiming?.isOpen ? 'text-green-700' : 'text-amber-700'}`}>
+                    <i className={`fa-solid ${storeTiming?.isOpen ? 'fa-circle-check text-green-600' : 'fa-circle-xmark text-amber-600'}`}></i>
+                    {storeTiming?.isOpen ? t('openOnline', 'Open (Online)') : t('closedOffline', 'Closed (Offline)')}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>{t('accountHealth', 'Account Health')}</span>
+                  <span className="text-green-700 font-bold">{t('goodStanding', 'Good Standing')}</span>
+                </div>
               </div>
             </Link>
           </div>

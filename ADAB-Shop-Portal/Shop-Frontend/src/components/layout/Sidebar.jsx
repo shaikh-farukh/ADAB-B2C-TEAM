@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useSeller } from '../../context/SellerContext';
 import { useTranslation } from '../../context/LanguageContext';
+import { sellerApi } from '../../api/sellerApi';
 
 export default function Sidebar() {
   const {
@@ -13,6 +14,7 @@ export default function Sidebar() {
     isApplicationSubmitted = false,
     isKycApproved = false,
     isKycRejected = false,
+    dashboardMetrics,
     logout
   } = useSeller();
   const { t } = useTranslation();
@@ -30,6 +32,72 @@ export default function Sidebar() {
     }
   });
 
+  const [ordersCount, setOrdersCount] = useState(() => {
+    try {
+      const cachedCounts = JSON.parse(localStorage.getItem('seller_sidebar_counts') || '{}');
+      if (typeof cachedCounts.orders === 'number') return cachedCounts.orders;
+      const cachedOrders = JSON.parse(localStorage.getItem('seller_orders_cache') || '[]');
+      if (Array.isArray(cachedOrders) && cachedOrders.length > 0) return cachedOrders.length;
+    } catch (e) {}
+    return parseInt(dashboardMetrics?.total_orders, 10) || 0;
+  });
+  const [b2bCount, setB2bCount] = useState(() => {
+    try {
+      const cachedCounts = JSON.parse(localStorage.getItem('seller_sidebar_counts') || '{}');
+      if (typeof cachedCounts.b2b === 'number') return cachedCounts.b2b;
+      const cachedB2B = JSON.parse(localStorage.getItem('seller_b2b_cache') || '[]');
+      if (Array.isArray(cachedB2B) && cachedB2B.length > 0) return cachedB2B.length;
+    } catch (e) {}
+    return parseInt(dashboardMetrics?.total_b2b_orders, 10) || 0;
+  });
+  const [returnsCount, setReturnsCount] = useState(() => {
+    try {
+      const cachedCounts = JSON.parse(localStorage.getItem('seller_sidebar_counts') || '{}');
+      if (typeof cachedCounts.returns === 'number') return cachedCounts.returns;
+      const cachedReturns = JSON.parse(localStorage.getItem('seller_returns_cache') || '[]');
+      if (Array.isArray(cachedReturns) && cachedReturns.length > 0) return cachedReturns.length;
+    } catch (e) {}
+    return parseInt(dashboardMetrics?.total_returns, 10) || 0;
+  });
+  const [messagesCount, setMessagesCount] = useState(() => {
+    try {
+      const cachedCounts = JSON.parse(localStorage.getItem('seller_sidebar_counts') || '{}');
+      if (typeof cachedCounts.messages === 'number') return cachedCounts.messages;
+    } catch (e) {}
+    return parseInt(dashboardMetrics?.unread_messages, 10) || 0;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('seller_sidebar_counts', JSON.stringify({
+        orders: ordersCount,
+        b2b: b2bCount,
+        returns: returnsCount,
+        messages: messagesCount
+      }));
+    } catch (e) {}
+  }, [ordersCount, b2bCount, returnsCount, messagesCount]);
+
+  useEffect(() => {
+    if (dashboardMetrics?.total_orders !== undefined) {
+      setOrdersCount(parseInt(dashboardMetrics.total_orders, 10) || 0);
+    }
+    if (dashboardMetrics?.total_b2b_orders !== undefined) {
+      setB2bCount(parseInt(dashboardMetrics.total_b2b_orders, 10) || 0);
+    }
+    if (dashboardMetrics?.total_returns !== undefined) {
+      setReturnsCount(parseInt(dashboardMetrics.total_returns, 10) || 0);
+    }
+    if (dashboardMetrics?.unread_messages !== undefined) {
+      setMessagesCount(parseInt(dashboardMetrics.unread_messages, 10) || 0);
+    }
+  }, [
+    dashboardMetrics?.total_orders,
+    dashboardMetrics?.total_b2b_orders,
+    dashboardMetrics?.total_returns,
+    dashboardMetrics?.unread_messages
+  ]);
+
   useEffect(() => {
     const handleCartUpdate = () => {
       try {
@@ -41,6 +109,89 @@ export default function Sidebar() {
     };
     window.addEventListener('adab-cart-updated', handleCartUpdate);
     return () => window.removeEventListener('adab-cart-updated', handleCartUpdate);
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    // Fetch live counts from respective endpoints
+    sellerApi.getOrders()
+      .then((res) => {
+        if (!isMounted) return;
+        const raw = res?.data !== undefined ? res.data : res;
+        const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
+        setOrdersCount(list.length);
+      })
+      .catch(() => {});
+
+    sellerApi.getB2BOrders()
+      .then((res) => {
+        if (!isMounted) return;
+        const raw = res?.data !== undefined ? res.data : res;
+        const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
+        setB2bCount(list.length);
+      })
+      .catch(() => {});
+
+    sellerApi.getReturns()
+      .then((res) => {
+        if (!isMounted) return;
+        const raw = res?.data !== undefined ? res.data : res;
+        const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
+        setReturnsCount(list.length);
+      })
+      .catch(() => {});
+
+    sellerApi.getThreads()
+      .then((res) => {
+        if (!isMounted) return;
+        const list = res?.data?.data || res?.data || res || [];
+        if (Array.isArray(list)) {
+          const unreadTotal = list.reduce((acc, t) => acc + (Number(t.unread_count) || 0), 0);
+          setMessagesCount(unreadTotal > 0 ? unreadTotal : list.length);
+        }
+      })
+      .catch(() => {});
+
+    const handleOrdersUpdate = (e) => {
+      const count = e.detail?.count !== undefined ? e.detail.count : (Array.isArray(e.detail?.orders) ? e.detail.orders.length : null);
+      if (typeof count === 'number') {
+        setOrdersCount(count);
+      }
+    };
+
+    const handleB2bUpdate = (e) => {
+      const count = e.detail?.count !== undefined ? e.detail.count : (Array.isArray(e.detail?.orders) ? e.detail.orders.length : null);
+      if (typeof count === 'number') {
+        setB2bCount(count);
+      }
+    };
+
+    const handleReturnsUpdate = (e) => {
+      const count = e.detail?.count !== undefined ? e.detail.count : (Array.isArray(e.detail?.returns) ? e.detail.returns.length : null);
+      if (typeof count === 'number') {
+        setReturnsCount(count);
+      }
+    };
+
+    const handleMessagesUpdate = (e) => {
+      if (typeof e.detail?.count === 'number') {
+        setMessagesCount(e.detail.count);
+      }
+    };
+
+    window.addEventListener('adab-orders-updated', handleOrdersUpdate);
+    window.addEventListener('adab-b2b-updated', handleB2bUpdate);
+    window.addEventListener('adab-returns-updated', handleReturnsUpdate);
+    window.addEventListener('adab-messages-updated', handleMessagesUpdate);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('adab-orders-updated', handleOrdersUpdate);
+      window.removeEventListener('adab-b2b-updated', handleB2bUpdate);
+      window.removeEventListener('adab-returns-updated', handleReturnsUpdate);
+      window.removeEventListener('adab-messages-updated', handleMessagesUpdate);
+    };
   }, []);
 
   const completedCount = [1, 2, 3, 4, 5].filter((s) => Boolean(kycSteps?.[`step${s}`])).length;
@@ -239,18 +390,18 @@ export default function Sidebar() {
         <div className="nav-label pt-2" data-i18n="navSell">{t('navSectionSell', 'Sell & Orders')}</div>
         <NavLink to="/orders" className={navClass}>
           <i className="fa-solid fa-bag-shopping w-4 text-emerald-600"></i> <span data-i18n="navAppOrders">{t('navAppOrders', 'App Orders')}</span>
-          <span className="ml-auto bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">14</span>
+          <span id="navOrdersBadge" className="ml-auto bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{ordersCount}</span>
         </NavLink>
         <NavLink to="/partner" className={navClass}>
           <i className="fa-solid fa-store w-4 text-orange-600"></i> <span data-i18n="navStoreOrders">{t('navStoreOrders', 'B2B Store Orders')}</span>
-          <span className="ml-auto bg-orange-100 text-orange-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">8</span>
+          <span id="navB2BBadge" className="ml-auto bg-orange-100 text-orange-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{b2bCount}</span>
         </NavLink>
         <NavLink to="/products" className={navClass}>
           <i className="fa-solid fa-boxes-stacked w-4 text-purple-600"></i> <span data-i18n="navMyProducts">{t('navMyProducts', 'My Products Catalog')}</span>
         </NavLink>
         <NavLink to="/returns" className={navClass}>
           <i className="fa-solid fa-rotate-left w-4 text-rose-500"></i> <span data-i18n="navReturns">{t('navReturns', 'Returns & Refunds')}</span>
-          <span className="ml-auto bg-rose-100 text-rose-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">3</span>
+          <span id="navReturnsBadge" className="ml-auto bg-rose-100 text-rose-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{returnsCount}</span>
         </NavLink>
 
         {/* 3. BUY STOCK & CATALOG */}
@@ -308,7 +459,7 @@ export default function Sidebar() {
         </NavLink>
         <NavLink to="/messages" className={navClass}>
           <i className="fa-solid fa-comments w-4 text-indigo-600"></i> <span data-i18n="navMessages">{t('navMessages', 'Store Messages')}</span>
-          <span className="ml-auto bg-indigo-100 text-indigo-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">5</span>
+          <span id="navMessagesBadge" className="ml-auto bg-indigo-100 text-indigo-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{messagesCount}</span>
         </NavLink>
         <NavLink to="/recommendations" className={navClass}>
           <i className="fa-solid fa-wand-magic-sparkles w-4 text-purple-600"></i> <span data-i18n="navRecommend">{t('navRecommend', 'AI Insights')}</span>
