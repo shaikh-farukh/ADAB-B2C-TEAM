@@ -1338,15 +1338,28 @@ export default function BuyNearbyPage() {
       {/* MY PURCHASE ORDERS TAB CONTENT */}
       {activeTab === 'orders' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-black text-gray-900">Purchase Orders Placed with Partner Kiranas</h2>
-            <button
-              type="button"
-              onClick={loadData}
-              className="btn-soft !text-xs !py-1.5 !px-3 font-bold flex items-center gap-1"
-            >
-              <i className="fa-solid fa-rotate-right"></i> Refresh Orders
-            </button>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div>
+              <h2 className="text-lg font-black text-gray-900">Purchase Orders Placed with Partner Kiranas</h2>
+              <p className="text-xs text-gray-500">Track peer-to-peer restock orders and logistics with local shops</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                to="/partner?direction=BOUGHT&source=NEARBY_KIRANA"
+                className="btn-primary !text-xs !py-1.5 !px-3 font-bold flex items-center gap-1.5 bg-orange-600 hover:bg-orange-700 text-white shadow-xs"
+              >
+                <i className="fa-solid fa-store"></i>
+                <span>Open in B2B Store Orders</span>
+                <i className="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+              </Link>
+              <button
+                type="button"
+                onClick={loadData}
+                className="btn-soft !text-xs !py-1.5 !px-3 font-bold flex items-center gap-1"
+              >
+                <i className="fa-solid fa-rotate-right"></i> Refresh
+              </button>
+            </div>
           </div>
 
           {orders.length === 0 ? (

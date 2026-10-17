@@ -43,8 +43,14 @@ export const sellerApi = {
   getProducts: () => apiClient.get('/inventory'),
   addProduct: (productData) => apiClient.post('/inventory', productData),
 
-  // B2B Orders (Checkout Order to Wholesaler)
+  // B2B Orders (Checkout Order to Wholesaler & Store-to-Store)
   getB2BOrders: () => apiClient.get('/b2b-orders'),
+  updateB2BOrderStatus: (orderId, status, metadata = {}) =>
+    apiClient.patch(
+      `/b2b-orders/${encodeURIComponent(orderId)}/status`,
+      { status, ...metadata },
+      buildIdempotencyHeaders(`b2b-order-${orderId}-${status}`)
+    ),
   placeB2BOrder: (orderData) => apiClient.post('/buystock/purchase-orders', orderData),
 
   // Coupons & Offers

@@ -43,6 +43,7 @@ router.patch('/orders/:id/status', idempotencyMiddleware, sellerController.updat
 router.get('/returns', sellerController.getReturns);
 router.patch('/returns/:id/status', idempotencyMiddleware, sellerController.updateReturnStatus);
 router.get('/b2b-orders', sellerController.getB2BOrders);
+router.patch('/b2b-orders/:id/status', idempotencyMiddleware, (req, res) => sellerController.updateB2BOrderStatus(req, res));
 router.get('/points', sellerController.getPoints);
 router.get('/analytics', sellerController.getAnalytics);
 router.get('/nearby-catalog', sellerController.getNearbyCatalog);

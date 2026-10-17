@@ -74,6 +74,10 @@ class SellerService {
     return await sellerRepository.getB2BOrders(storeId);
   }
 
+  async updateB2BOrderStatus(orderId, status, metadata = {}, storeId = null) {
+    return await sellerRepository.updateB2BOrderStatus(orderId, status, metadata, storeId);
+  }
+
   async getCoupons(storeId = null) {
     return await sellerRepository.getCoupons(storeId);
   }

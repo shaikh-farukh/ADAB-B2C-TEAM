@@ -1454,9 +1454,19 @@ export default function PartnerBrandsPage() {
                 Track requests sent to Own Brand makers. Zero money is deducted until approved. Once approved, click "Pay & Activate" to instantly stock in your store catalog!
               </p>
             </div>
-            <span className="px-2.5 py-1 rounded-full bg-teal-50 text-teal-900 border border-teal-200 text-xs font-bold self-start sm:self-auto">
-              {myPurchaseOrders.length} total orders / requests
-            </span>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <Link
+                to="/partner?source=OTHER_STORE_BRANDS"
+                className="btn-primary !text-xs !py-1.5 !px-3 font-bold flex items-center gap-1.5 bg-orange-600 hover:bg-orange-700 text-white shadow-xs"
+              >
+                <i className="fa-solid fa-store"></i>
+                <span>Open in B2B Store Orders</span>
+                <i className="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+              </Link>
+              <span className="px-2.5 py-1 rounded-full bg-teal-50 text-teal-900 border border-teal-200 text-xs font-bold">
+                {myPurchaseOrders.length} orders
+              </span>
+            </div>
           </div>
 
           {myPurchaseOrders.length === 0 ? (

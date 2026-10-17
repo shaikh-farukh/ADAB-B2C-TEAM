@@ -1023,22 +1023,268 @@ class SellerRepository {
 
 
   async getB2BOrders(storeId = null) {
-    const query = `
-      SELECT bpo.id, bpo.po_number, bpo.status, bpo.total_amount, bpo.created_at,
-             s.name as supplier_name,
-             buyer.store_name as buyer_store_name
-      FROM b2b_purchase_orders bpo
-      LEFT JOIN suppliers s ON bpo.supplier_id = s.id
-      LEFT JOIN stores buyer ON bpo.buyer_store_id = buyer.id
-      WHERE ($1::uuid IS NULL OR bpo.buyer_store_id = $1::uuid OR bpo.supplier_store_id = $1::uuid)
-      ORDER BY bpo.created_at DESC
-      LIMIT 50
-    `;
     try {
+      await this.ensureB2BPurchaseTables();
+      const query = `
+        SELECT 
+          bpo.id,
+          bpo.po_number,
+          bpo.status,
+          bpo.total_amount,
+          bpo.payment_terms,
+          COALESCE(bpo.payment_status, 'PENDING') as payment_status,
+          COALESCE(bpo.payment_method, bpo.payment_terms) as payment_method,
+          bpo.payment_reference,
+          bpo.delivery_method,
+          COALESCE(bpo.delivery_fee, 0) as delivery_fee,
+          bpo.notes,
+          bpo.rejection_reason,
+          bpo.created_at,
+          bpo.updated_at,
+          bpo.buyer_store_id,
+          bpo.supplier_store_id,
+          buyer.store_name as buyer_store_name,
+          buyer.phone as buyer_phone,
+          buyer.city as buyer_city,
+          buyer.latitude as buyer_lat,
+          buyer.longitude as buyer_lng,
+          supp.store_name as supplier_store_name,
+          supp.phone as supplier_phone,
+          supp.city as supplier_city,
+          supp.latitude as supplier_lat,
+          supp.longitude as supplier_lng,
+          (
+            SELECT json_agg(json_build_object(
+              'id', bpi.id,
+              'listing_id', bpi.listing_id,
+              'item_name', bpi.item_name,
+              'quantity', bpi.quantity,
+              'unit_price', bpi.unit_price,
+              'total_price', bpi.total_price,
+              'unit', COALESCE(bpi.unit, 'pcs'),
+              'brand', bpi.brand_tag,
+              'mrp', bpi.mrp,
+              'category_name', bpi.category_name,
+              'resale_sell_price', bpi.resale_sell_price,
+              'image_url', bpi.image_url
+            ))
+            FROM b2b_purchase_items bpi
+            WHERE bpi.purchase_order_id = bpo.id
+          ) as items
+        FROM b2b_purchase_orders bpo
+        LEFT JOIN stores buyer ON bpo.buyer_store_id = buyer.id
+        LEFT JOIN stores supp ON bpo.supplier_store_id = supp.id
+        WHERE ($1::uuid IS NULL OR bpo.buyer_store_id = $1::uuid OR bpo.supplier_store_id = $1::uuid)
+        ORDER BY bpo.created_at DESC
+        LIMIT 100
+      `;
+
       const res = await pool.query(query, [storeId || null]);
-      return res.rows;
+      return res.rows.map(row => {
+        const isBuyer = storeId ? row.buyer_store_id === storeId : true;
+        const orderDirection = isBuyer ? 'BOUGHT' : 'SOLD';
+        const partnerName = isBuyer ? (row.supplier_store_name || 'Supplier Store') : (row.buyer_store_name || 'Buyer Store');
+        const partnerPhone = isBuyer ? row.supplier_phone : row.buyer_phone;
+        const partnerCity = isBuyer ? (row.supplier_city || 'Surat') : (row.buyer_city || 'Ahmedabad');
+
+        // Source channel classification
+        const poNum = String(row.po_number || '').toUpperCase();
+        let sourceChannel = 'DIRECT_B2B';
+        let sourceLabel = 'Direct B2B';
+        let partnerRole = 'Kirana Wholesale';
+
+        if (poNum.startsWith('REQ-') || String(row.notes || '').toLowerCase().includes('resale')) {
+          sourceChannel = 'OTHER_STORE_BRANDS';
+          sourceLabel = 'Other Store Brands';
+          partnerRole = 'Brand Store';
+        } else if (poNum.startsWith('PO-B2B-') || poNum.startsWith('PO-NK-')) {
+          sourceChannel = 'NEARBY_KIRANA';
+          sourceLabel = 'Nearby Kirana';
+          partnerRole = 'Partner Kirana';
+        } else if (poNum.startsWith('PO-MFG-')) {
+          sourceChannel = 'MANUFACTURER';
+          sourceLabel = 'Manufacturer';
+          partnerRole = 'Manufacturer';
+        } else if (poNum.startsWith('PO-DIST-')) {
+          sourceChannel = 'DISTRIBUTOR';
+          sourceLabel = 'Distributor';
+          partnerRole = 'Distributor';
+        }
+
+        // Distance calculation
+        let distanceKm = null;
+        if (row.buyer_lat && row.buyer_lng && row.supplier_lat && row.supplier_lng) {
+          const toRad = (x) => (x * Math.PI) / 180;
+          const R = 6371;
+          const dLat = toRad(Number(row.supplier_lat) - Number(row.buyer_lat));
+          const dLon = toRad(Number(row.supplier_lng) - Number(row.buyer_lng));
+          const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(toRad(Number(row.buyer_lat))) * Math.cos(toRad(Number(row.supplier_lat))) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          distanceKm = Math.round(R * c * 10) / 10;
+        }
+        if (!distanceKm || isNaN(distanceKm)) {
+          const sameCity = (row.buyer_city && row.supplier_city && row.buyer_city.toLowerCase() === row.supplier_city.toLowerCase());
+          distanceKm = sameCity ? 12.5 : 285.0;
+        }
+
+        let distanceTier = 'near';
+        if (distanceKm > 1500) {
+          distanceTier = 'export';
+        } else if (distanceKm > 50) {
+          distanceTier = 'far';
+        }
+
+        // Freight transporter
+        let freightPartner = 'Porter Truck';
+        if (distanceTier === 'far') {
+          freightPartner = 'Delhivery Freight';
+        } else if (distanceTier === 'export') {
+          freightPartner = 'Air Cargo / Freight';
+        } else if (row.delivery_method && !row.delivery_method.includes('DIRECT')) {
+          freightPartner = row.delivery_method;
+        }
+
+        return {
+          ...row,
+          order_direction: orderDirection,
+          source_channel: sourceChannel,
+          source_label: sourceLabel,
+          partner_name: partnerName,
+          partner_phone: partnerPhone,
+          partner_city: partnerCity,
+          partner_role: partnerRole,
+          distance: distanceKm,
+          distance_tier: distanceTier,
+          freight_partner: freightPartner,
+          items: Array.isArray(row.items) ? row.items : []
+        };
+      });
     } catch (e) {
+      console.error('getB2BOrders error:', e);
       return [];
+    }
+  }
+
+  async updateB2BOrderStatus(orderId, status, metadata = {}, storeId = null) {
+    await this.ensureB2BPurchaseTables();
+    const cleanId = orderId ? orderId.toString().replace(/^#/, '') : orderId;
+    const normalizedStatus = String(status || '').trim().toUpperCase();
+
+    const lookup = await pool.query(
+      `SELECT * FROM b2b_purchase_orders 
+       WHERE id::text = $1 OR po_number = $1 OR po_number = ('PO-' || $1) OR po_number = ('REQ-' || $1)
+       LIMIT 1`,
+      [cleanId]
+    );
+    if (lookup.rows.length === 0) {
+      throw new Error(`B2B Order '${orderId}' not found`);
+    }
+    const order = lookup.rows[0];
+
+    if (storeId && order.buyer_store_id !== storeId && order.supplier_store_id !== storeId) {
+      throw new Error('Unauthorized: You are neither the buyer nor the supplier for this B2B order.');
+    }
+
+    const { delivery_method, rejection_reason, payment_status, payment_reference, auto_add_stock } = metadata || {};
+
+    const updateRes = await pool.query(
+      `UPDATE b2b_purchase_orders
+       SET status = COALESCE($1, status),
+           delivery_method = COALESCE($2, delivery_method),
+           rejection_reason = COALESCE($3, rejection_reason),
+           payment_status = COALESCE($4, payment_status),
+           payment_reference = COALESCE($5, payment_reference),
+           updated_at = NOW()
+       WHERE id = $6
+       RETURNING *`,
+      [
+        normalizedStatus || null,
+        delivery_method || null,
+        rejection_reason || null,
+        payment_status || null,
+        payment_reference || null,
+        order.id
+      ]
+    );
+
+    if ((normalizedStatus === 'DELIVERED' || normalizedStatus === 'RECEIVED') && auto_add_stock) {
+      await this.addB2BOrderItemsToInventory(order.id, order.buyer_store_id);
+    }
+
+    return updateRes.rows[0];
+  }
+
+  async addB2BOrderItemsToInventory(orderId, buyerStoreId) {
+    try {
+      const itemsRes = await pool.query(
+        `SELECT * FROM b2b_purchase_items WHERE purchase_order_id = $1`,
+        [orderId]
+      );
+      for (const item of itemsRes.rows) {
+        const addedQty = Number(item.quantity) || 1;
+        let targetListingId = item.listing_id;
+
+        if (!targetListingId && item.item_name) {
+          const matchRes = await pool.query(
+            `SELECT id FROM seller_listings WHERE store_id = $1 AND LOWER(TRIM(title)) = LOWER(TRIM($2)) LIMIT 1`,
+            [buyerStoreId, item.item_name]
+          );
+          targetListingId = matchRes.rows[0]?.id || null;
+        }
+
+        if (targetListingId) {
+          await pool.query(
+            `UPDATE seller_listings 
+             SET stock_qty = COALESCE(stock_qty, 0) + $1, updated_at = NOW() 
+             WHERE id = $2`,
+            [addedQty, targetListingId]
+          );
+          await pool.query(
+            `INSERT INTO inventory (listing_id, stock_quantity, reserved_quantity, low_stock_threshold, updated_at)
+             VALUES ($1, $2, 0, 5, NOW())
+             ON CONFLICT (listing_id) DO UPDATE 
+             SET stock_quantity = inventory.stock_quantity + EXCLUDED.stock_quantity,
+                 updated_at = NOW()`,
+            [targetListingId, addedQty]
+          );
+        } else if (item.item_name) {
+          const unitPrice = Number(item.unit_price) || 0;
+          const targetSellPrice = Number(item.resale_sell_price) || (unitPrice > 0 ? unitPrice * 1.2 : 50);
+          const effectiveMrp = Number(item.mrp) || targetSellPrice * 1.15;
+
+          const newListingRes = await pool.query(
+            `INSERT INTO seller_listings (
+              store_id, product_type, title, sku, brand_tag, mrp, sell_price, unit,
+              min_order_qty, allowed_buyers, approval_status, is_active, stock_qty, rating, review_count
+            ) VALUES (
+              $1, 'PACKED', $2, $3, $4, $5, $6, $7, 1, 'CUSTOMERS_AND_STORES', 'PUBLISHED', true, $8, 5.0, 0
+            ) RETURNING id`,
+            [
+              buyerStoreId,
+              item.item_name,
+              `SKU-B2B-${Date.now().toString().slice(-6)}`,
+              item.brand_tag || null,
+              effectiveMrp,
+              targetSellPrice,
+              item.unit || 'pcs',
+              addedQty
+            ]
+          );
+          const newId = newListingRes.rows[0]?.id;
+          if (newId) {
+            await pool.query(
+              `INSERT INTO inventory (listing_id, stock_quantity, reserved_quantity, low_stock_threshold, updated_at)
+               VALUES ($1, $2, 0, 5, NOW())
+               ON CONFLICT DO NOTHING`,
+              [newId, addedQty]
+            );
+          }
+        }
+      }
+    } catch (err) {
+      console.error('addB2BOrderItemsToInventory error:', err);
     }
   }
 
@@ -1420,7 +1666,7 @@ class SellerRepository {
         ALTER TABLE cart_items DROP CONSTRAINT IF EXISTS cart_items_listing_id_fkey;
         ALTER TABLE cart_items ADD CONSTRAINT cart_items_listing_id_fkey FOREIGN KEY (listing_id) REFERENCES seller_listings(id) ON DELETE CASCADE;
         ALTER TABLE b2b_purchase_orders DROP CONSTRAINT IF EXISTS b2b_purchase_orders_status_check;
-        ALTER TABLE b2b_purchase_orders ADD CONSTRAINT b2b_purchase_orders_status_check CHECK (status IN ('REQUESTED', 'APPROVED', 'DECLINED', 'PLACED', 'CONFIRMED', 'DISPATCHED', 'RECEIVED', 'CANCELLED'));
+        ALTER TABLE b2b_purchase_orders ADD CONSTRAINT b2b_purchase_orders_status_check CHECK (status IN ('REQUESTED', 'APPROVED', 'DECLINED', 'PLACED', 'CONFIRMED', 'PACKING', 'PACKED', 'DISPATCHED', 'IN_TRANSIT', 'SHIPPED', 'DELIVERED', 'RECEIVED', 'CANCELLED'));
       `);
       this._b2bPurchaseTablesReady = true;
     } catch (_) {

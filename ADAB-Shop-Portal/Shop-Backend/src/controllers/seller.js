@@ -177,6 +177,23 @@ class SellerController {
     }
   }
 
+  async updateB2BOrderStatus(req, res) {
+    try {
+      const { storeId } = await resolveSellerStoreId(req);
+      const { id } = req.params;
+      const { status, metadata, delivery_method, rejection_reason, auto_add_stock } = req.body || {};
+      const payloadMetadata = metadata || {
+        delivery_method,
+        rejection_reason,
+        auto_add_stock: auto_add_stock !== undefined ? auto_add_stock : (status === 'DELIVERED' || status === 'RECEIVED')
+      };
+      const updated = await sellerService.updateB2BOrderStatus(id, status, payloadMetadata, storeId);
+      res.json({ success: true, data: updated, message: 'B2B order status updated successfully' });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
   async getCoupons(req, res) {
     try {
       const { storeId } = await resolveSellerStoreId(req);

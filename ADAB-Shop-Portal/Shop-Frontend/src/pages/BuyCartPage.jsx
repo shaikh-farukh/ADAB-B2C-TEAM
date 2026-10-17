@@ -275,10 +275,10 @@ export default function BuyCartPage() {
             <div className="flex flex-col sm:flex-row gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => navigate('/buy')}
-                className="btn-primary flex-1 !py-2.5 !text-xs font-bold"
+                onClick={() => navigate('/partner?direction=BOUGHT&source=NEARBY_KIRANA')}
+                className="btn-primary flex-1 !py-2.5 !text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white"
               >
-                <i className="fa-solid fa-receipt mr-1.5"></i> View in "My Purchase Orders"
+                <i className="fa-solid fa-store mr-1.5"></i> View in B2B Store Orders
               </button>
               <button
                 type="button"

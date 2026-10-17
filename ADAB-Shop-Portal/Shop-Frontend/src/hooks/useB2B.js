@@ -26,5 +26,17 @@ export function useB2B() {
     fetchOrders();
   }, [fetchOrders]);
 
-  return { orders, loading, error, refreshOrders: fetchOrders };
+  const updateStatus = useCallback(async (orderId, status, metadata = {}) => {
+    try {
+      const res = await sellerApi.updateB2BOrderStatus(orderId, status, metadata);
+      // Optimistically or after fetch update list
+      await fetchOrders();
+      return res?.data?.data || res?.data || res;
+    } catch (err) {
+      console.error('Failed to update B2B order status:', err);
+      throw err;
+    }
+  }, [fetchOrders]);
+
+  return { orders, loading, error, refreshOrders: fetchOrders, updateStatus };
 }
