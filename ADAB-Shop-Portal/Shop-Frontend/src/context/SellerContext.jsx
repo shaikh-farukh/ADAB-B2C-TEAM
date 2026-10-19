@@ -255,6 +255,15 @@ export function SellerProvider({ children }) {
     return data;
   };
 
+  const loginWithOtp = async (phone, otp, extra = {}) => {
+    const res = await sellerService.loginWithOtp(phone, otp, extra);
+    const data = res?.data || res;
+    const mode = extra.idMode || (extra.email && !phone ? 'email' : 'phone');
+    localStorage.setItem('seller_auth_mode', mode);
+    handleAuthSuccess(data);
+    return data;
+  };
+
   const signup = async (phone, password, extra = {}) => {
     const res = await sellerService.signup(phone, password, extra);
     const data = res?.data || res;
@@ -403,6 +412,7 @@ export function SellerProvider({ children }) {
         loading,
         refreshSellerData: fetchSellerData,
         login,
+        loginWithOtp,
         signup,
         logout,
         saveOnboardingStep,
@@ -448,6 +458,7 @@ export function useSeller() {
       loading: false,
       refreshSellerData: () => {},
       login: async () => {},
+      loginWithOtp: async () => {},
       signup: async () => {},
       logout: () => {},
       saveOnboardingStep: async () => {},

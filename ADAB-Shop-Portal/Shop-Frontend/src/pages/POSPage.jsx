@@ -116,7 +116,7 @@ export default function POSPage() {
         </div>
 
         {/* POS Cart Sidebar */}
-        <div className="card p-4 flex flex-col h-fit sticky top-20 shadow-sm">
+        <div className="card p-4 flex flex-col h-fit sticky top-4 shadow-sm">
           <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-3">
             <h3 className="font-bold text-sm text-gray-800">{t('posCurrentBill', 'Current Bill')}</h3>
             {cart.length > 0 && (

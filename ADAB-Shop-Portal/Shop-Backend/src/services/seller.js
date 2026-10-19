@@ -219,6 +219,14 @@ class SellerService {
     return await sellerRepository.loginWithPassword(phone, password, extra);
   }
 
+  async loginWithOtp(phone, otp, extra = {}) {
+    return await sellerRepository.loginWithOtp(phone, otp, extra);
+  }
+
+  async resetPassword(phone, otp, newPassword, extra = {}) {
+    return await sellerRepository.resetPassword(phone, otp, newPassword, extra);
+  }
+
   async signupWithPin(phone, password, extra = {}) {
     return await sellerRepository.signupWithPassword(phone, password, extra);
   }

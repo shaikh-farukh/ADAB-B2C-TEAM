@@ -284,7 +284,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside id="sellerDrawer" className="mobile-seller-drawer lg:static lg:transform-none lg:w-60 lg:p-0 lg:bg-transparent lg:shadow-none shrink-0">
+    <aside id="sellerDrawer" className="mobile-seller-drawer lg:static lg:transform-none lg:w-64 lg:h-full lg:overflow-y-auto lg:border-r lg:border-gray-200/80 lg:bg-white lg:p-3.5 lg:shadow-none shrink-0 sidebar-scroll z-20">
       <div className="lg:hidden flex items-center justify-between pb-3 mb-2 border-b border-gray-100">
         <div className="font-extrabold text-base flex items-center gap-2 text-green-900">
           <div className="w-7 h-7 rounded-lg bg-green-700 text-white flex items-center justify-center text-sm">A</div> 
@@ -319,7 +319,7 @@ export default function Sidebar() {
             closeDrawer();
           }
         }}
-        className="card p-2.5 text-sm sticky top-20 sidebar-scroll shadow-sm border border-gray-200/80 space-y-1"
+        className="text-sm space-y-1"
       >
         {/* Dynamic Store Quick Profile Badge in Sidebar */}
         <div className={`p-2.5 mb-2 rounded-xl bg-gradient-to-r ${statusMeta.cardClass} border flex items-center gap-2.5`}>

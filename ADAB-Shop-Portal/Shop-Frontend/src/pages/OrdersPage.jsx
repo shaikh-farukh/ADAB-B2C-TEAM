@@ -5,11 +5,15 @@ import { useSeller } from '../context/SellerContext';
 import { useTranslation } from '../context/LanguageContext';
 import L from 'leaflet';
 
-function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating = false }) {
+function OrderItemsModal({ order, store: propStore, onClose, onUpdateStatus, onDecline, isUpdating = false }) {
   if (!order) return null;
   const { t } = useTranslation();
+  const sellerCtx = useSeller();
+  const store = propStore || sellerCtx?.store;
   const [submitting, setSubmitting] = useState(false);
   const busy = isUpdating || submitting;
+  const mapContainerRef = useRef(null);
+
   const items = Array.isArray(order.items) ? order.items : [];
   const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '—';
   const displayCustomer = order.customer || order.customer_name || t('colCustomer', 'Customer');
@@ -17,6 +21,129 @@ function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating
   const addr = order.delivery_address || {};
   const addressString = [addr.address_line, addr.city, addr.state, addr.pincode].filter(Boolean).join(', ') || t('orderModalNoAddress', 'No delivery address recorded');
   const s = (order.status || 'new').toLowerCase();
+  const distance = order.distance != null ? parseFloat(order.distance) : null;
+
+  // Active Store Location and Details from database
+  const storeName = store?.store_name || 'Store';
+  const hasStoreCoords = store?.latitude != null && store?.longitude != null;
+  const storeLat = hasStoreCoords ? Number(store.latitude) : null;
+  const storeLng = hasStoreCoords ? Number(store.longitude) : null;
+  const radiusKm = Number(store?.delivery_radius_km ?? 0);
+
+  // Exact Customer Coordinates from delivery_address in orders table
+  const hasCustomerCoords = addr.latitude != null && addr.longitude != null;
+  const custLat = hasCustomerCoords ? Number(addr.latitude) : null;
+  const custLng = hasCustomerCoords ? Number(addr.longitude) : null;
+
+  const totalAmount = Number(displayAmount) || 0;
+  const recordedTax = order.tax_amount != null && !isNaN(Number(order.tax_amount)) ? Number(order.tax_amount) : null;
+  const computedTax = Math.round((totalAmount * 5 / 105) * 100) / 100;
+  const taxAmount = recordedTax != null ? recordedTax : computedTax;
+  const taxableAmount = Math.max(0, Math.round((totalAmount - taxAmount) * 100) / 100);
+  const cgst = (taxAmount / 2).toFixed(2);
+  const sgst = (taxAmount / 2).toFixed(2);
+  const invoiceNumber = order.invoice_number || null;
+  const invoicePdfUrl = order.invoice_pdf_url || null;
+  const invoiceDate = order.invoice_date 
+    ? new Date(order.invoice_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) 
+    : (order.created_at ? new Date(order.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : null);
+
+  useEffect(() => {
+    if (!mapContainerRef.current || (!hasStoreCoords && !hasCustomerCoords)) return;
+    let map = null;
+    let timer = null;
+    try {
+      const leaflet = typeof window !== 'undefined' ? (window.L || L) : null;
+      if (!leaflet || !leaflet.map) return;
+
+      const centerLat = hasStoreCoords ? storeLat : custLat;
+      const centerLng = hasStoreCoords ? storeLng : custLng;
+
+      map = leaflet.map(mapContainerRef.current, {
+        zoomControl: true,
+        attributionControl: false
+      }).setView([centerLat, centerLng], 12);
+
+      leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18
+      }).addTo(map);
+
+      if (hasStoreCoords && radiusKm > 0) {
+        leaflet.circle([storeLat, storeLng], {
+          radius: radiusKm * 1000,
+          color: '#22C55E',
+          fillColor: '#22C55E',
+          fillOpacity: 0.08,
+          weight: 2,
+          dashArray: '6 4'
+        }).addTo(map);
+      }
+
+      if (hasStoreCoords) {
+        const storeIcon = leaflet.divIcon({
+          className: 'border-0 bg-transparent',
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
+          popupAnchor: [0, -16],
+          html: '<div style="width:32px;height:32px;background:#15803D;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 3px 8px rgba(0,0,0,0.35);border:2.5px solid white;cursor:pointer;"><i class="fa-solid fa-store"></i></div>'
+        });
+        leaflet.marker([storeLat, storeLng], { icon: storeIcon })
+          .addTo(map)
+          .bindPopup(`<b>${storeName}</b><br>${radiusKm} km delivery radius`);
+      }
+
+      if (hasCustomerCoords) {
+        const customerIcon = leaflet.divIcon({
+          className: 'border-0 bg-transparent',
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
+          popupAnchor: [0, -16],
+          html: '<div style="width:32px;height:32px;background:#2563EB;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 3px 8px rgba(0,0,0,0.35);border:2.5px solid white;cursor:pointer;"><i class="fa-solid fa-location-dot"></i></div>'
+        });
+        leaflet.marker([custLat, custLng], { icon: customerIcon })
+          .addTo(map)
+          .bindPopup(`<b>${displayCustomer}</b><br>${addressString}${distance != null ? `<br><b>Distance:</b> ${distance} km` : ''}`)
+          .openPopup();
+      }
+
+      if (hasStoreCoords && hasCustomerCoords) {
+        leaflet.polyline([[storeLat, storeLng], [custLat, custLng]], {
+          color: '#3B82F6',
+          weight: 2.5,
+          dashArray: '6 6',
+          opacity: 0.85
+        }).addTo(map);
+
+        map.fitBounds([
+          [storeLat, storeLng],
+          [custLat, custLng]
+        ], { padding: [40, 40] });
+      }
+
+      timer = setTimeout(() => {
+        try {
+          if (map) {
+            map.invalidateSize();
+            if (hasStoreCoords && hasCustomerCoords) {
+              map.fitBounds([
+                [storeLat, storeLng],
+                [custLat, custLng]
+              ], { padding: [40, 40] });
+            }
+          }
+        } catch (e) {}
+      }, 150);
+    } catch (e) {
+      console.warn('Map initialization skipped:', e);
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      if (map) {
+        try { map.remove(); } catch (e) {}
+      }
+    };
+  }, [hasStoreCoords, hasCustomerCoords, storeLat, storeLng, custLat, custLng, radiusKm, distance, displayCustomer, addressString, storeName]);
 
   const runAction = async (nextStatus) => {
     if (busy || !onUpdateStatus) return;
@@ -30,165 +157,302 @@ function OrderItemsModal({ order, onClose, onUpdateStatus, onDecline, isUpdating
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-200">
-        {/* Header */}
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-emerald-50">
-          <div>
-            <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
-              <i className="fa-solid fa-basket-shopping text-emerald-600"></i>
-              <span>{t('orderModalTitle', 'Order Detail • {id}', { id: displayId })}</span>
-            </h3>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {t('orderModalCustomer', 'Customer: ')}<span className="font-semibold text-gray-700">{displayCustomer}</span>
-              {order.customer_phone && <span className="ml-2 font-mono text-gray-600">({order.customer_phone})</span>}
-            </p>
-          </div>
-          <button 
-            type="button"
-            disabled={busy}
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors text-base font-bold shadow-xs cursor-pointer disabled:opacity-50"
-            title={t('orderModalClose', 'Close')}
-          >
-            &times;
-          </button>
-        </div>
-
-        {/* Customer Shipping Address */}
-        <div className="px-5 py-3 bg-gray-50/80 border-b border-gray-100 flex items-start gap-2.5">
-          <i className="fa-solid fa-location-dot text-emerald-600 text-xs mt-1"></i>
-          <div className="text-xs">
-            <span className="font-bold text-gray-700 block">{t('orderModalShippingAddress', 'Shipping Address')}</span>
-            <span className="text-gray-600">{addressString}</span>
-            {order.distance && (
-              <span className="ml-2 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                {t('orderModalDistanceAway', '{distance} km away', { distance: order.distance })}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/45 backdrop-blur-xs">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl lg:max-w-5xl w-full max-h-[92vh] flex flex-col md:flex-row overflow-hidden border border-gray-200">
+        
+        {/* LEFT SIDE: Interactive Map & Delivery Route */}
+        <div className="w-full md:w-5/12 lg:w-1/2 flex flex-col border-b md:border-b-0 md:border-r border-gray-200 bg-gray-50 shrink-0">
+          {/* Map Header */}
+          <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs shadow-2xs">
+                <i className="fa-solid fa-map-location-dot"></i>
+              </div>
+              <div>
+                <h4 className="font-extrabold text-xs text-gray-900">{t('mapModalTitle', 'Customer Location • {id}', { id: displayId })}</h4>
+                <p className="text-[11px] text-gray-500">
+                  {distance != null ? (
+                    <span className="text-emerald-700 font-bold">{t('orderModalDistanceAway', '{distance} km away', { distance })}</span>
+                  ) : t('ordersNearbyOnly', 'Nearby Delivery')}
+                  {radiusKm > 0 && ` • Zone: ${radiusKm} km`}
+                </p>
+              </div>
+            </div>
+            {radiusKm > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800 border border-green-200">
+                {radiusKm} km zone
               </span>
             )}
           </div>
-        </div>
 
-        {/* Items List */}
-        <div className="p-5 max-h-[300px] overflow-y-auto">
-          {items.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-6">{t('orderModalNoItems', 'No itemized records found for this order.')}</p>
-          ) : (
-            <table className="w-full text-xs text-left">
-              <thead>
-                <tr className="border-b border-gray-200 text-gray-400 font-bold uppercase text-[10px]">
-                  <th className="pb-2">{t('orderModalColItem', 'Item')}</th>
-                  <th className="pb-2 text-center">{t('orderModalColQty', 'Qty')}</th>
-                  <th className="pb-2 text-right">{t('orderModalColUnitPrice', 'Unit Price')}</th>
-                  <th className="pb-2 text-right">{t('orderModalColTotal', 'Total')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {items.map((item, idx) => {
-                  const qty = Number(item.quantity) || 1;
-                  const unitPrice = Number(item.unit_price) || 0;
-                  const itemTotal = Number(item.total_price) || (qty * unitPrice);
-                  return (
-                    <tr key={idx} className="hover:bg-gray-50/70">
-                      <td className="py-2.5 font-semibold text-gray-800">{item.name || t('orderModalColItem', 'Item')}</td>
-                      <td className="py-2.5 text-center font-bold text-gray-600">{qty}</td>
-                      <td className="py-2.5 text-right text-gray-500">₹{unitPrice.toLocaleString('en-IN')}</td>
-                      <td className="py-2.5 text-right font-extrabold text-gray-900">₹{itemTotal.toLocaleString('en-IN')}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {/* Footer with Action Buttons */}
-        <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <span className="text-[10px] text-gray-400 uppercase font-bold block leading-tight">{t('orderModalGrandTotal', 'Grand Total ({count} items)', { count: items.length })}</span>
-            <span className="text-base font-extrabold text-emerald-700">₹{Number(displayAmount).toLocaleString('en-IN')}</span>
+          {/* Interactive Map Container */}
+          <div className="relative flex-1 min-h-[220px] sm:min-h-[280px] md:min-h-[380px] w-full bg-gray-100 overflow-hidden flex items-center justify-center">
+            {hasStoreCoords || hasCustomerCoords ? (
+              <>
+                <div ref={mapContainerRef} className="w-full h-full z-1"></div>
+                <div className="absolute top-2.5 left-2.5 bg-white/95 backdrop-blur-xs px-2 py-1 rounded-md border border-gray-200 text-[10px] font-bold text-gray-800 shadow-2xs flex items-center gap-1.5 z-10 pointer-events-none">
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                  <span>{storeName} • {radiusKm} km zone</span>
+                </div>
+              </>
+            ) : (
+              <div className="text-xs text-gray-400 p-4 text-center">
+                <i className="fa-solid fa-location-slash text-2xl mb-1 text-gray-300 block"></i>
+                {t('mapModalNoGps', 'GPS coordinates not recorded for this delivery address.')}
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            {s === 'new' && onUpdateStatus && (
-              <>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => runAction('packing')}
-                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {busy ? t('orderUpdating', 'Updating...') : t('orderModalAcceptOrder', 'Accept Order')}
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => { if (!busy) { onClose(); if (onDecline) onDecline(order); } }}
-                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {t('orderModalDecline', 'Decline')}
-                </button>
-              </>
-            )}
-            {(s === 'packing' || s === 'processing') && onUpdateStatus && (
-              <>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => runAction('packed')}
-                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {busy ? t('orderUpdating', 'Updating...') : t('orderModalPackOrder', 'Pack Order')}
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => { if (!busy) { onClose(); if (onDecline) onDecline(order); } }}
-                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {t('orderModalDecline', 'Decline')}
-                </button>
-              </>
-            )}
-            {s === 'packed' && onUpdateStatus && (
-              <>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => runAction('dispatched')}
-                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {busy ? t('orderUpdating', 'Updating...') : t('orderModalSendPackage', 'Send Package')}
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => { if (!busy) { onClose(); if (onDecline) onDecline(order); } }}
-                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {t('orderModalDecline', 'Decline')}
-                </button>
-              </>
-            )}
-            {(s === 'dispatched' || s === 'shipped') && onUpdateStatus && (
+
+          {/* Address & Navigation Footer */}
+          <div className="p-3 bg-white border-t border-gray-100 text-xs">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2 min-w-0 flex-1">
+                <i className="fa-solid fa-location-dot text-blue-600 mt-0.5 text-xs shrink-0"></i>
+                <div className="min-w-0">
+                  <span className="font-bold text-gray-700 block text-[11px]">{t('orderModalShippingAddress', 'Shipping Address')}</span>
+                  <span className="font-bold text-gray-900 block truncate">{addr.full_name || displayCustomer}</span>
+                  <span className="text-gray-500 text-[11px] line-clamp-2">{addressString}</span>
+                  {order.customer_phone && (
+                    <span className="text-gray-400 font-mono text-[10px] mt-0.5 block">
+                      <i className="fa-solid fa-phone text-[9px] mr-1"></i>{order.customer_phone}
+                    </span>
+                  )}
+                </div>
+              </div>
               <button
                 type="button"
-                disabled={busy}
-                onClick={() => runAction('delivered')}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => alert(`Starting navigation to ${addressString}`)}
+                className="btn-soft !py-1 !px-2.5 !text-[11px] font-bold shrink-0 flex items-center gap-1 cursor-pointer"
+                title={t('mapModalDirections', 'Directions')}
               >
-                {busy ? t('orderUpdating', 'Updating...') : t('orderModalMarkDelivered', 'Mark Delivered')}
+                <i className="fa-solid fa-diamond-turn-right text-blue-600"></i>
+                <span>{t('mapModalDirections', 'Directions')}</span>
               </button>
-            )}
-            <button 
-              type="button"
-              disabled={busy}
-              onClick={onClose}
-              className="btn-soft !py-1.5 !px-3 !text-xs font-bold cursor-pointer disabled:opacity-50"
-            >
-              {t('orderModalClose', 'Close')}
-            </button>
+            </div>
           </div>
         </div>
+
+        {/* RIGHT SIDE: Order Details, Items, GST, Actions */}
+        <div className="w-full md:w-7/12 lg:w-1/2 flex flex-col flex-1 overflow-hidden bg-white">
+          {/* Header */}
+          <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between bg-emerald-50">
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
+                  <i className="fa-solid fa-basket-shopping text-emerald-600"></i>
+                  <span>{t('orderModalTitle', 'Order Detail • {id}', { id: displayId })}</span>
+                </h3>
+                {invoiceNumber && (
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-100 border border-emerald-300 text-emerald-800 text-[11px] font-mono font-bold flex items-center gap-1">
+                    <i className="fa-solid fa-file-invoice text-emerald-600"></i>
+                    <span>{invoiceNumber}</span>
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-gray-500 mt-1 flex items-center gap-3 flex-wrap">
+                <span>
+                  {t('orderModalCustomer', 'Customer: ')}<span className="font-semibold text-gray-700">{displayCustomer}</span>
+                </span>
+                {invoiceDate && (
+                  <span className="text-[11px] text-gray-400">
+                    <i className="fa-regular fa-clock mr-1"></i>{invoiceDate}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {invoicePdfUrl && (
+                <a
+                  href={invoicePdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-gray-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1 shadow-2xs transition-colors"
+                  title={t('orderModalDownloadInvoice', 'Download Tax Invoice')}
+                >
+                  <i className="fa-solid fa-file-pdf text-rose-500"></i>
+                  <span className="hidden sm:inline">{t('orderModalInvoicePdf', 'Invoice PDF')}</span>
+                </a>
+              )}
+              <button 
+                type="button"
+                disabled={busy}
+                onClick={onClose}
+                className="w-8 h-8 rounded-full bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors text-base font-bold shadow-xs cursor-pointer disabled:opacity-50"
+                title={t('orderModalClose', 'Close')}
+              >
+                &times;
+              </button>
+            </div>
+          </div>
+
+          {/* Delivery & Payment Badges Banner */}
+          <div className="px-5 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between text-xs flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500 font-medium">{t('orderModalDeliveryMode', 'Delivery Mode:')}</span>
+              <span className="font-bold text-gray-800 capitalize">{order.delivery_mode || 'Normal'}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold">
+                {order.payment_method ? order.payment_method.toUpperCase() : 'PREPAID'} • {order.payment_status ? order.payment_status.toUpperCase() : 'PAID'}
+              </span>
+            </div>
+          </div>
+
+          {/* Items List (scrollable) */}
+          <div className="p-4 sm:p-5 flex-1 overflow-y-auto max-h-[240px]">
+            {items.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-6">{t('orderModalNoItems', 'No itemized records found for this order.')}</p>
+            ) : (
+              <table className="w-full text-xs text-left">
+                <thead>
+                  <tr className="border-b border-gray-200 text-gray-400 font-bold uppercase text-[10px]">
+                    <th className="pb-2">{t('orderModalColItem', 'Item')}</th>
+                    <th className="pb-2 text-center">{t('orderModalColQty', 'Qty')}</th>
+                    <th className="pb-2 text-right">{t('orderModalColUnitPrice', 'Unit Price')}</th>
+                    <th className="pb-2 text-right">{t('orderModalColTotal', 'Total')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {items.map((item, idx) => {
+                    const qty = Number(item.quantity) || 1;
+                    const unitPrice = Number(item.unit_price) || 0;
+                    const itemTotal = Number(item.total_price) || (qty * unitPrice);
+                    return (
+                      <tr key={idx} className="hover:bg-gray-50/70">
+                        <td className="py-2.5 font-semibold text-gray-800">{item.name || t('orderModalColItem', 'Item')}</td>
+                        <td className="py-2.5 text-center font-bold text-gray-600">{qty}</td>
+                        <td className="py-2.5 text-right text-gray-500">₹{unitPrice.toLocaleString('en-IN')}</td>
+                        <td className="py-2.5 text-right font-extrabold text-gray-900">₹{itemTotal.toLocaleString('en-IN')}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* GST & Financial Summary */}
+          <div className="px-5 py-3 bg-emerald-50/40 border-t border-b border-emerald-100/70 text-xs shrink-0">
+            <div className="flex items-center justify-between font-semibold text-gray-700 py-0.5">
+              <span className="flex items-center gap-1.5 text-gray-600">
+                <i className="fa-solid fa-calculator text-[10px] text-emerald-600"></i>
+                <span>{t('orderModalTaxableSubtotal', 'Taxable Amount (Excl. Tax)')}</span>
+              </span>
+              <span>₹{taxableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+            <div className="flex items-center justify-between text-gray-600 py-0.5">
+              <span className="flex items-center gap-1 pl-4 text-[11px]">
+                <span>{t('orderModalCGST', 'CGST (2.5%)')}</span>
+              </span>
+              <span className="font-mono text-[11px]">₹{cgst}</span>
+            </div>
+            <div className="flex items-center justify-between text-gray-600 py-0.5">
+              <span className="flex items-center gap-1 pl-4 text-[11px]">
+                <span>{t('orderModalSGST', 'SGST (2.5%)')}</span>
+              </span>
+              <span className="font-mono text-[11px]">₹{sgst}</span>
+            </div>
+            <div className="flex items-center justify-between font-bold text-emerald-800 pt-1 border-t border-dashed border-emerald-200 mt-1">
+              <span className="flex items-center gap-1.5">
+                <i className="fa-solid fa-receipt text-[10px] text-emerald-600"></i>
+                <span>{t('orderModalTotalTax', 'Total GST (5% Inclusive)')}</span>
+                {recordedTax != null ? (
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-200 text-emerald-900 font-bold uppercase">{t('orderModalVerifiedTax', 'Invoice Verified')}</span>
+                ) : null}
+              </span>
+              <span>₹{taxAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+          </div>
+
+          {/* Footer with Action Buttons */}
+          <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between flex-wrap gap-3 shrink-0">
+            <div>
+              <span className="text-[10px] text-gray-400 uppercase font-bold block leading-tight">{t('orderModalGrandTotal', 'Grand Total ({count} items)', { count: items.length })}</span>
+              <span className="text-base font-extrabold text-emerald-700">₹{Number(displayAmount).toLocaleString('en-IN')}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {s === 'new' && onUpdateStatus && (
+                <>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => runAction('packing')}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {busy ? t('orderUpdating', 'Updating...') : t('orderModalAcceptOrder', 'Accept Order')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => { if (!busy) { onClose(); if (onDecline) onDecline(order); } }}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {t('orderModalDecline', 'Decline')}
+                  </button>
+                </>
+              )}
+              {(s === 'packing' || s === 'processing') && onUpdateStatus && (
+                <>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => runAction('packed')}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {busy ? t('orderUpdating', 'Updating...') : t('orderModalPackOrder', 'Pack Order')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => { if (!busy) { onClose(); if (onDecline) onDecline(order); } }}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {t('orderModalDecline', 'Decline')}
+                  </button>
+                </>
+              )}
+              {s === 'packed' && onUpdateStatus && (
+                <>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => runAction('dispatched')}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {busy ? t('orderUpdating', 'Updating...') : t('orderModalSendPackage', 'Send Package')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => { if (!busy) { onClose(); if (onDecline) onDecline(order); } }}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {t('orderModalDecline', 'Decline')}
+                  </button>
+                </>
+              )}
+              {(s === 'dispatched' || s === 'shipped') && onUpdateStatus && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => runAction('delivered')}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {busy ? t('orderUpdating', 'Updating...') : t('orderModalMarkDelivered', 'Mark Delivered')}
+                </button>
+              )}
+              <button 
+                type="button"
+                disabled={busy}
+                onClick={onClose}
+                className="btn-soft !py-1.5 !px-3 !text-xs font-bold cursor-pointer disabled:opacity-50"
+              >
+                {t('orderModalClose', 'Close')}
+              </button>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   );
@@ -629,11 +893,11 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
     const s = (status || '').toLowerCase();
     if (s === 'new') {
       return (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
           <button 
             type="button"
             disabled={isUpdating}
-            onClick={() => onUpdateStatus(order.id, 'packing')} 
+            onClick={(e) => { e.stopPropagation(); onUpdateStatus(order.id, 'packing'); }} 
             className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             title={t('tooltipAcceptOrder', 'Accept Order')}
           >
@@ -642,7 +906,7 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
           <button 
             type="button"
             disabled={isUpdating}
-            onClick={() => onDecline(order)} 
+            onClick={(e) => { e.stopPropagation(); onDecline(order); }} 
             className="px-2 py-1 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             title={t('tooltipDeclineOrder', 'Decline Order')}
           >
@@ -653,11 +917,11 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
     }
     if (s === 'packing' || s === 'processing') {
       return (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
           <button 
             type="button"
             disabled={isUpdating}
-            onClick={() => onUpdateStatus(order.id, 'packed')} 
+            onClick={(e) => { e.stopPropagation(); onUpdateStatus(order.id, 'packed'); }} 
             className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-blue-600 hover:bg-blue-700 text-white shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             title={t('tooltipPackOrder', 'Mark Order Packed')}
           >
@@ -666,7 +930,7 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
           <button 
             type="button"
             disabled={isUpdating}
-            onClick={() => onDecline(order)} 
+            onClick={(e) => { e.stopPropagation(); onDecline(order); }} 
             className="px-2 py-1 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             title={t('tooltipDeclineOrder', 'Decline Order')}
           >
@@ -677,11 +941,11 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
     }
     if (s === 'packed') {
       return (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
           <button 
             type="button"
             disabled={isUpdating}
-            onClick={() => onUpdateStatus(order.id, 'dispatched')} 
+            onClick={(e) => { e.stopPropagation(); onUpdateStatus(order.id, 'dispatched'); }} 
             className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             title={t('tooltipSendPackage', 'Dispatch / Send Package')}
           >
@@ -690,7 +954,7 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
           <button 
             type="button"
             disabled={isUpdating}
-            onClick={() => onDecline(order)} 
+            onClick={(e) => { e.stopPropagation(); onDecline(order); }} 
             className="px-2 py-1 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             title={t('tooltipDeclineOrder', 'Decline Order')}
           >
@@ -701,16 +965,18 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
     }
     if (s === 'dispatched' || s === 'shipped') {
       return (
-        <button 
-          type="button"
-          disabled={isUpdating}
-          onClick={() => onUpdateStatus(order.id, 'delivered')}
-          className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-teal-600 hover:bg-teal-700 text-white shadow-2xs flex items-center gap-1 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-          title={t('tooltipMarkDelivered', 'Mark Delivered')}
-        >
-          <i className="fa-solid fa-check-double text-[10px]"></i>
-          {t('orderActionDelivered', 'Delivered')}
-        </button>
+        <div onClick={(e) => e.stopPropagation()}>
+          <button 
+            type="button"
+            disabled={isUpdating}
+            onClick={(e) => { e.stopPropagation(); onUpdateStatus(order.id, 'delivered'); }}
+            className="btn-primary !text-xs !py-1 !px-2.5 font-bold cursor-pointer bg-teal-600 hover:bg-teal-700 text-white shadow-2xs flex items-center gap-1 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+            title={t('tooltipMarkDelivered', 'Mark Delivered')}
+          >
+            <i className="fa-solid fa-check-double text-[10px]"></i>
+            {t('orderActionDelivered', 'Delivered')}
+          </button>
+        </div>
       );
     }
     if (s === 'delivered') {
@@ -740,41 +1006,64 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
   const deliveryType = order.delivery_mode || order.delivery_type || 'normal';
 
   return (
-    <tr className="border-b border-gray-100 hover:bg-gray-50 transition">
-      <td className="px-4 py-3.5 font-bold text-gray-900">{displayId}</td>
-      <td className="px-4 py-3.5 font-medium text-gray-700">{displayCustomer}</td>
-      <td className="px-4 py-3.5">
-        <div className="inline-flex items-center gap-1.5">
-          <span className="text-[10px] font-bold bg-green-100 text-green-800 px-2 py-0.5 rounded whitespace-nowrap">
-            {displayDistance}
-          </span>
-          <button 
-            type="button"
-            onClick={() => onOpenMap(order)}
-            className="w-6 h-6 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors text-xs font-bold cursor-pointer shrink-0 shadow-2xs" 
-            title={t('viewOnMapTooltip', 'View on Map')}
-          >
-            <i className="fa-solid fa-location-dot"></i>
-          </button>
+    <tr 
+      onClick={() => onViewItems(order)}
+      className="border-b border-gray-100 hover:bg-emerald-50/50 cursor-pointer transition select-none group"
+      title={t('orderRowClickToView', 'Click to view order details & invoice')}
+    >
+      <td className="px-4 py-3.5 font-bold text-gray-900">
+        <div className="flex flex-col">
+          <div className="flex items-center gap-1.5">
+            <span className="group-hover:text-emerald-700 transition-colors">{displayId}</span>
+            <i className="fa-solid fa-arrow-up-right-from-square text-[9px] text-gray-300 group-hover:text-emerald-600 transition-colors"></i>
+          </div>
+          {order.invoice_number ? (
+            <span className="text-[10px] font-mono font-medium text-emerald-700 mt-0.5 inline-flex items-center gap-1">
+              <i className="fa-solid fa-file-invoice text-[9px]"></i>
+              {order.invoice_number}
+            </span>
+          ) : (
+            order.created_at ? (
+              <span className="text-[10px] font-medium text-gray-400 mt-0.5">
+                {new Date(order.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+              </span>
+            ) : null
+          )}
         </div>
       </td>
+      <td className="px-4 py-3.5 font-medium text-gray-700">
+        <div>{displayCustomer}</div>
+        {order.customer_phone && <div className="text-[11px] font-mono text-gray-400">{order.customer_phone}</div>}
+      </td>
       <td className="px-4 py-3.5">
-        <button
-          type="button"
-          onClick={() => onViewItems(order)}
-          className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-colors shadow-2xs cursor-pointer"
+        <span className="text-[10px] font-bold bg-green-100 text-green-800 px-2 py-0.5 rounded whitespace-nowrap inline-flex items-center gap-1">
+          <i className="fa-solid fa-route text-[9px] text-green-700"></i>
+          {displayDistance}
+        </span>
+      </td>
+      <td className="px-4 py-3.5">
+        <span 
           title={t('viewItemsTooltip', 'Click to view all items ordered')}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200"
         >
           <i className="fa-solid fa-basket-shopping text-[11px] text-emerald-600"></i>
           <span>{itemCount > 0 ? t('itemsCount', '{count} items', { count: itemCount }) : (order.item_summary || t('itemsCount', '0 items', { count: 0 }))}</span>
-          <i className="fa-solid fa-chevron-right text-[9px] text-emerald-500 group-hover:translate-x-0.5 transition-transform"></i>
-        </button>
+        </span>
       </td>
       <td className="px-4 py-3.5">
         {getDeliveryBadge(deliveryType)}
       </td>
       <td className="px-4 py-3.5 font-bold text-gray-900">
-        ₹{displayAmount}
+        <div>₹{displayAmount}</div>
+        {order.tax_amount != null && order.tax_amount > 0 ? (
+          <span className="text-[10px] font-medium text-emerald-700 block whitespace-nowrap">
+            {t('orderRowTaxIncluded', 'Incl. ₹{tax} GST', { tax: Number(order.tax_amount).toFixed(2) })}
+          </span>
+        ) : (
+          <span className="text-[10px] font-medium text-gray-400 block whitespace-nowrap">
+            {t('orderRowGstInclusive', 'Incl. 5% GST')}
+          </span>
+        )}
       </td>
       <td className="px-4 py-3.5 text-center">
         {getStatusBadge(order.status)}
@@ -1035,10 +1324,11 @@ export default function OrdersPage() {
         <button className="btn-primary !text-xs whitespace-nowrap">{t('ordersManageDeliveryZone', 'Manage Delivery Zone')}</button>
       </div>
 
-      {/* Itemized Order Detail Modal */}
+      {/* Itemized Order Detail Modal with Integrated Map */}
       {selectedOrder && (
         <OrderItemsModal 
           order={selectedOrder} 
+          store={store}
           onClose={() => setSelectedOrder(null)}
           onUpdateStatus={handleStatusUpdate}
           onDecline={setDeclineOrder}

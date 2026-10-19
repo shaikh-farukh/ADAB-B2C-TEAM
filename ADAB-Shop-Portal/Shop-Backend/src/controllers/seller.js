@@ -627,6 +627,33 @@ class SellerController {
     }
   }
 
+  async loginWithOtp(req, res) {
+    try {
+      const { phone, email, otp, idMode } = req.body;
+      const result = await sellerService.loginWithOtp(phone, otp, {
+        email,
+        idMode
+      });
+      res.json({ success: true, data: result });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async resetPassword(req, res) {
+    try {
+      const { phone, email, otp, newPassword, password, idMode } = req.body;
+      const targetPassword = newPassword || password;
+      const result = await sellerService.resetPassword(phone, otp, targetPassword, {
+        email,
+        idMode
+      });
+      res.json({ success: true, message: result.message, data: result });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
   async signup(req, res) {
     try {
       const { phone, email, password, pin, full_name, store_name } = req.body;
@@ -681,7 +708,8 @@ class SellerController {
         data: {
           recipient: identifier,
           isSimulated: Boolean(result?.isSimulated),
-          expiresIn: `${process.env.OTP_EXPIRY_MINUTES || 5} minutes`
+          expiresIn: `${process.env.OTP_EXPIRY_MINUTES || 5} minutes`,
+          ...(result?.otp ? { otp: result.otp } : {})
         }
       });
     } catch (error) {

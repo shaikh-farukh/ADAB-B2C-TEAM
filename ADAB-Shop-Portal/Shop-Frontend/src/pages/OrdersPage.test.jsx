@@ -93,8 +93,8 @@ describe('OrdersPage Component', () => {
       expect(screen.getByText('2 items')).toBeDefined();
     });
 
-    // Click on the 2 items pill button
-    fireEvent.click(screen.getByText('2 items').closest('button'));
+    // Click on the 2 items pill
+    fireEvent.click(screen.getByText('2 items'));
 
     await waitFor(() => {
       expect(screen.getByText('banana chip')).toBeDefined();
@@ -102,7 +102,7 @@ describe('OrdersPage Component', () => {
     });
   });
 
-  it('opens delivery map modal when map icon button is clicked', async () => {
+  it('opens order popup with delivery map on the left side when order is clicked', async () => {
     sellerApi.getOrders.mockResolvedValue({
       success: true,
       data: [
@@ -129,10 +129,10 @@ describe('OrdersPage Component', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTitle('View on Map')).toBeDefined();
+      expect(screen.getByText('Pooja Sharma')).toBeDefined();
     });
 
-    fireEvent.click(screen.getByTitle('View on Map'));
+    fireEvent.click(screen.getByText('Pooja Sharma'));
 
     await waitFor(() => {
       expect(screen.getByText(/Customer Location • #ORD-6840/i)).toBeDefined();
@@ -141,7 +141,7 @@ describe('OrdersPage Component', () => {
     });
   });
 
-  it('accepts order from within the map modal and updates status', async () => {
+  it('accepts order from within the order popup and updates status', async () => {
     sellerApi.getOrders.mockResolvedValue({
       success: true,
       data: [
@@ -165,10 +165,10 @@ describe('OrdersPage Component', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTitle('View on Map')).toBeDefined();
+      expect(screen.getByText('Pooja Sharma')).toBeDefined();
     });
 
-    fireEvent.click(screen.getByTitle('View on Map'));
+    fireEvent.click(screen.getByText('Pooja Sharma'));
 
     await waitFor(() => {
       expect(screen.getByText('Accept Order')).toBeDefined();
@@ -289,4 +289,56 @@ describe('OrdersPage Component', () => {
       expect(screen.getAllByText('Delivered').length).toBeGreaterThanOrEqual(2);
     });
   });
+
+  it('opens order modal when the entire order row is clicked, displaying GST and invoice information', async () => {
+    sellerApi.getOrders.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'ORD-9999',
+          customer: 'Vikram Patel',
+          customer_phone: '9876543210',
+          distance: '3.2',
+          delivery_mode: 'normal',
+          items: [
+            { name: 'Organic Honey', quantity: 2, unit_price: 250, total_price: 500 }
+          ],
+          amount: 500,
+          tax_amount: 23.81,
+          invoice_number: 'INV-ORD-9999-5432',
+          invoice_pdf_url: '/api/v1/orders/123/invoice/pdf',
+          invoice_date: '2026-10-18T10:00:00Z',
+          status: 'new'
+        }
+      ]
+    });
+
+    render(
+      <BrowserRouter>
+        <OrdersPage />
+      </BrowserRouter>
+    );
+
+    // Verify invoice number and tax included badge appear on the table row
+    await waitFor(() => {
+      expect(screen.getByText('INV-ORD-9999-5432')).toBeDefined();
+      expect(screen.getByText(/Incl. ₹23.81 GST/i)).toBeDefined();
+    });
+
+    // Click on the order table row (not specifically the items pill)
+    const customerCell = screen.getByText('Vikram Patel');
+    fireEvent.click(customerCell);
+
+    // Verify modal opens with full GST tax breakdown & invoice badge
+    await waitFor(() => {
+      expect(screen.getByText(/Order Detail • #ORD-9999/i)).toBeDefined();
+      expect(screen.getByText('Taxable Amount (Excl. Tax)')).toBeDefined();
+      expect(screen.getByText('CGST (2.5%)')).toBeDefined();
+      expect(screen.getByText('SGST (2.5%)')).toBeDefined();
+      expect(screen.getByText(/Total GST \(5% Inclusive\)/i)).toBeDefined();
+      expect(screen.getByText('Invoice Verified')).toBeDefined();
+      expect(screen.getByText('Invoice PDF')).toBeDefined();
+    });
+  });
 });
+

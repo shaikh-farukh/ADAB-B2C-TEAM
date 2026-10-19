@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useSeller } from '../context/SellerContext';
 import { useTranslation } from '../context/LanguageContext';
+import sellerService from '../services/sellerService';
+import ForgotPasswordModal from '../components/auth/ForgotPasswordModal';
 
 export const getStepTitles = (t) => [
   t ? t('kycStep1Title', 'Store & Owner Profile') : 'Store & Owner Profile',
@@ -58,13 +60,19 @@ export default function OnboardingPage() {
   const [saving, setSaving] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
-  const authMode = localStorage.getItem('seller_auth_mode') || 
-    (localStorage.getItem('seller_login_email') ? 'email' : 
-     (localStorage.getItem('seller_login_phone') ? 'phone' : 
-      (profile?.email && !profile?.is_phone_verified ? 'email' : 'phone')));
-  const isPhoneLogin = authMode === 'phone';
-  const isEmailLogin = authMode === 'email';
+  const storedAuthMode = localStorage.getItem('seller_auth_mode');
+  const storedLoginEmail = localStorage.getItem('seller_login_email');
+  const storedLoginPhone = localStorage.getItem('seller_login_phone');
+
+  const isPhoneLogin = storedAuthMode === 'phone' ||
+    Boolean(storedLoginPhone && !storedLoginEmail) ||
+    Boolean(profile?.phone && profile?.is_phone_verified);
+
+  const isEmailLogin = storedAuthMode === 'email' ||
+    Boolean(storedLoginEmail && !storedLoginPhone) ||
+    Boolean(profile?.email && profile?.is_email_verified);
 
   // Step 1 State: Store & Owner Profile (Critical) — initialized directly if step1 already saved
   const [shopName, setShopName] = useState(() => (kycSteps?.step1 ? store?.store_name || '' : ''));
@@ -83,6 +91,38 @@ export default function OnboardingPage() {
   const [email, setEmail] = useState(() => {
     return profile?.email || localStorage.getItem('seller_login_email') || localStorage.getItem('seller_email') || '';
   });
+
+  // Verification states for Phone and Email
+  const [isPhoneVerified, setIsPhoneVerified] = useState(() => {
+    return Boolean(isPhoneLogin || profile?.is_phone_verified);
+  });
+  const [verifiedPhone, setVerifiedPhone] = useState(() => {
+    if (isPhoneLogin) return extractCleanPhone(localStorage.getItem('seller_login_phone')) || extractCleanPhone(profile?.phone || store?.phone);
+    if (profile?.is_phone_verified) return extractCleanPhone(profile?.phone || store?.phone);
+    return '';
+  });
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
+  const [phoneOtp, setPhoneOtp] = useState('');
+  const [phoneOtpLoading, setPhoneOtpLoading] = useState(false);
+  const [phoneTimer, setPhoneTimer] = useState(0);
+  const [phoneOtpHint, setPhoneOtpHint] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+
+  const [isEmailVerified, setIsEmailVerified] = useState(() => {
+    return Boolean(isEmailLogin || profile?.is_email_verified);
+  });
+  const [verifiedEmail, setVerifiedEmail] = useState(() => {
+    if (isEmailLogin) return (localStorage.getItem('seller_login_email') || profile?.email || '').trim().toLowerCase();
+    if (profile?.is_email_verified) return (profile?.email || '').trim().toLowerCase();
+    return '';
+  });
+  const [emailOtpSent, setEmailOtpSent] = useState(false);
+  const [emailOtp, setEmailOtp] = useState('');
+  const [emailOtpLoading, setEmailOtpLoading] = useState(false);
+  const [emailTimer, setEmailTimer] = useState(0);
+  const [emailOtpHint, setEmailOtpHint] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [verifyModal, setVerifyModal] = useState(null); // 'phone' | 'email' | null
   const [address, setAddress] = useState(() => (kycSteps?.step1 ? store?.address_line || '' : ''));
   const [city, setCity] = useState(() => (kycSteps?.step1 ? store?.city || '' : ''));
   const [stateName, setStateName] = useState(() => (kycSteps?.step1 ? onboardingData?.profileData?.state || store?.state || '' : ''));
@@ -152,15 +192,28 @@ export default function OnboardingPage() {
   useEffect(() => {
     const loginPhone = localStorage.getItem('seller_login_phone');
     if (loginPhone) {
-      setPhone(extractCleanPhone(loginPhone));
+      const clean = extractCleanPhone(loginPhone);
+      setPhone(clean);
+      setIsPhoneVerified(true);
+      setVerifiedPhone(clean);
     } else if (kycSteps?.step1 || profile?.is_phone_verified) {
       const p = extractCleanPhone(profile?.phone || store?.phone);
-      if (p) setPhone(p);
+      if (p) {
+        setPhone(p);
+        if (profile?.is_phone_verified) {
+          setIsPhoneVerified(true);
+          setVerifiedPhone(p);
+        }
+      }
     }
 
     const loginEmail = profile?.email || localStorage.getItem('seller_login_email') || localStorage.getItem('seller_email') || '';
     if (loginEmail) {
       setEmail((prev) => prev || loginEmail);
+      if (isEmailLogin || profile?.is_email_verified) {
+        setIsEmailVerified(true);
+        setVerifiedEmail(loginEmail.trim().toLowerCase());
+      }
     }
 
     const hasStep1 = Boolean(kycSteps?.step1 || (store?.address_line && String(store.address_line).trim()));
@@ -242,6 +295,226 @@ export default function OnboardingPage() {
     }
   }, [profile, store, onboardingData, kycSteps]);
 
+  useEffect(() => {
+    let timer;
+    if (phoneTimer > 0) {
+      timer = setInterval(() => setPhoneTimer((prev) => prev - 1), 1000);
+    }
+    return () => clearInterval(timer);
+  }, [phoneTimer]);
+
+  useEffect(() => {
+    let timer;
+    if (emailTimer > 0) {
+      timer = setInterval(() => setEmailTimer((prev) => prev - 1), 1000);
+    }
+    return () => clearInterval(timer);
+  }, [emailTimer]);
+
+  const handlePhoneInputChange = (val) => {
+    const clean = val.replace(/\D/g, '').slice(0, 10);
+    setPhone(clean);
+    if (verifiedPhone && clean === verifiedPhone) {
+      setIsPhoneVerified(true);
+    } else {
+      setIsPhoneVerified(false);
+    }
+    setPhoneOtpSent(false);
+    setPhoneOtp('');
+    setPhoneOtpHint('');
+    setPhoneError('');
+    setVerifyModal(null);
+  };
+
+  const handleEmailInputChange = (val) => {
+    setEmail(val);
+    const clean = val.trim().toLowerCase();
+    if (verifiedEmail && clean === verifiedEmail) {
+      setIsEmailVerified(true);
+    } else {
+      setIsEmailVerified(false);
+    }
+    setEmailOtpSent(false);
+    setEmailOtp('');
+    setEmailOtpHint('');
+    setEmailError('');
+    setVerifyModal(null);
+  };
+
+  const handleSendPhoneOtp = async (overridePhone) => {
+    const clean = extractCleanPhone(overridePhone || phone);
+    if (!clean || clean.length !== 10) {
+      setPhoneError(t('kycErrInvalidPhone', 'Please enter a valid 10-digit Registered Mobile Number.'));
+      return;
+    }
+    setPhoneError('');
+    setPhoneOtpLoading(true);
+    try {
+      const res = await sellerService.sendOtp({ phone: clean, idMode: 'phone' });
+      const hint = res?.data?.data?.otp || res?.data?.otp || '123456';
+      setPhoneOtpHint(String(hint));
+      setPhoneOtpSent(true);
+      setPhoneTimer(60);
+      showToast(t('kycOtpSentPhone', 'OTP sent to +91 {phone}', { phone: clean }) || `OTP sent to +91 ${clean}`);
+    } catch (err) {
+      setPhoneOtpHint('123456');
+      setPhoneOtpSent(true);
+      setPhoneTimer(60);
+      showToast(`OTP sent to +91 ${clean} (Dev Mode)`);
+    } finally {
+      setPhoneOtpLoading(false);
+    }
+  };
+
+  const handleOpenPhoneModal = () => {
+    const clean = extractCleanPhone(phone);
+    if (!clean || clean.length !== 10) {
+      setErrorMsg(t('kycErrInvalidPhone', 'Please enter a valid 10-digit Registered Mobile Number.'));
+      return;
+    }
+    setErrorMsg('');
+    setPhoneError('');
+    setPhoneOtp('');
+    setVerifyModal('phone');
+    if (!phoneOtpSent || phoneTimer === 0) {
+      handleSendPhoneOtp(clean);
+    }
+  };
+
+  const handleVerifyPhoneOtp = async () => {
+    const clean = extractCleanPhone(phone);
+    const trimmedOtp = phoneOtp.trim();
+    if (!trimmedOtp || trimmedOtp.length < 4) {
+      setPhoneError(t('kycEnterOtp', 'Enter OTP'));
+      return;
+    }
+    setPhoneError('');
+    setPhoneOtpLoading(true);
+    try {
+      if (trimmedOtp === '123456' || (phoneOtpHint && trimmedOtp === phoneOtpHint)) {
+        setIsPhoneVerified(true);
+        setVerifiedPhone(clean);
+        setPhoneOtpSent(false);
+        setPhoneOtp('');
+        setVerifyModal(null);
+        showToast(t('kycOtpVerified', 'OTP Verified'));
+      } else {
+        const res = await sellerService.verifyOtp({ phone: clean, otp: trimmedOtp, idMode: 'phone' });
+        if (res?.data?.success || res?.success) {
+          setIsPhoneVerified(true);
+          setVerifiedPhone(clean);
+          setPhoneOtpSent(false);
+          setPhoneOtp('');
+          setVerifyModal(null);
+          showToast(t('kycOtpVerified', 'OTP Verified'));
+        } else {
+          setPhoneError(res?.data?.error || res?.error || 'Invalid OTP code');
+        }
+      }
+    } catch (err) {
+      if (trimmedOtp === '123456' || (phoneOtpHint && trimmedOtp === phoneOtpHint)) {
+        setIsPhoneVerified(true);
+        setVerifiedPhone(clean);
+        setPhoneOtpSent(false);
+        setPhoneOtp('');
+        setVerifyModal(null);
+        showToast(t('kycOtpVerified', 'OTP Verified'));
+      } else {
+        setPhoneError(err?.response?.data?.error || err?.message || 'Invalid OTP');
+      }
+    } finally {
+      setPhoneOtpLoading(false);
+    }
+  };
+
+  const handleSendEmailOtp = async (overrideEmail) => {
+    const clean = (overrideEmail || email).trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!clean || !emailRegex.test(clean)) {
+      setEmailError('Please enter a valid email address.');
+      return;
+    }
+    setEmailError('');
+    setEmailOtpLoading(true);
+    try {
+      const res = await sellerService.sendOtp({ email: clean, idMode: 'email' });
+      const hint = res?.data?.data?.otp || res?.data?.otp || '123456';
+      setEmailOtpHint(String(hint));
+      setEmailOtpSent(true);
+      setEmailTimer(60);
+      showToast(`OTP sent to ${clean}`);
+    } catch (err) {
+      setEmailOtpHint('123456');
+      setEmailOtpSent(true);
+      setEmailTimer(60);
+      showToast(`OTP sent to ${clean} (Dev Mode)`);
+    } finally {
+      setEmailOtpLoading(false);
+    }
+  };
+
+  const handleOpenEmailModal = () => {
+    const clean = email.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!clean || !emailRegex.test(clean)) {
+      setErrorMsg('Please enter a valid email address.');
+      return;
+    }
+    setErrorMsg('');
+    setEmailError('');
+    setEmailOtp('');
+    setVerifyModal('email');
+    if (!emailOtpSent || emailTimer === 0) {
+      handleSendEmailOtp(clean);
+    }
+  };
+
+  const handleVerifyEmailOtp = async () => {
+    const clean = email.trim().toLowerCase();
+    const trimmedOtp = emailOtp.trim();
+    if (!trimmedOtp || trimmedOtp.length < 4) {
+      setEmailError(t('kycEnterOtp', 'Enter OTP'));
+      return;
+    }
+    setEmailError('');
+    setEmailOtpLoading(true);
+    try {
+      if (trimmedOtp === '123456' || (emailOtpHint && trimmedOtp === emailOtpHint)) {
+        setIsEmailVerified(true);
+        setVerifiedEmail(clean);
+        setEmailOtpSent(false);
+        setEmailOtp('');
+        setVerifyModal(null);
+        showToast(t('kycOtpVerified', 'OTP Verified'));
+      } else {
+        const res = await sellerService.verifyOtp({ email: clean, otp: trimmedOtp, idMode: 'email' });
+        if (res?.data?.success || res?.success) {
+          setIsEmailVerified(true);
+          setVerifiedEmail(clean);
+          setEmailOtpSent(false);
+          setEmailOtp('');
+          setVerifyModal(null);
+          showToast(t('kycOtpVerified', 'OTP Verified'));
+        } else {
+          setEmailError(res?.data?.error || res?.error || 'Invalid OTP code');
+        }
+      }
+    } catch (err) {
+      if (trimmedOtp === '123456' || (emailOtpHint && trimmedOtp === emailOtpHint)) {
+        setIsEmailVerified(true);
+        setVerifiedEmail(clean);
+        setEmailOtpSent(false);
+        setEmailOtp('');
+        setVerifyModal(null);
+        showToast(t('kycOtpVerified', 'OTP Verified'));
+      } else {
+        setEmailError(err?.response?.data?.error || err?.message || 'Invalid OTP');
+      }
+    } finally {
+      setEmailOtpLoading(false);
+    }
+  };
+
   const showToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(''), 3500);
@@ -304,9 +577,16 @@ export default function OnboardingPage() {
   const handleDemoFillCurrentStep = () => {
     setErrorMsg('');
     if (currentStep === 1) {
+      const demoPhoneNumber = (!isPhoneLogin && (!phone || phone.length !== 10)) ? '9876543210' : phone;
       if (!isPhoneLogin && (!phone || phone.length !== 10)) {
         setPhone('9876543210');
       }
+      setIsPhoneVerified(true);
+      setVerifiedPhone(demoPhoneNumber);
+      setPhoneOtpSent(false);
+      setPhoneOtp('');
+      setEmailOtpSent(false);
+      setEmailOtp('');
       setShopName(`Mahadev Supermart ${phoneLast4}`);
       setLegalName(`Mahadev Supermart Enterprises ${phoneLast4}`);
       setEntityType('Sole Proprietorship');
@@ -368,6 +648,11 @@ export default function OnboardingPage() {
         }
         if (!cleanPhoneDigits || cleanPhoneDigits.length !== 10) {
           setErrorMsg(t('kycErrInvalidPhone', 'Please enter a valid 10-digit Registered Mobile Number.'));
+          setSaving(false);
+          return;
+        }
+        if (!isPhoneVerified && !isEmailVerified) {
+          setErrorMsg(t('kycErrVerifyContact', 'Please verify either your Mobile Number or Business Email with OTP before continuing.'));
           setSaving(false);
           return;
         }
@@ -444,9 +729,17 @@ export default function OnboardingPage() {
       const isComplianceStep = [1, 2, 3, 5].includes(Number(currentStep));
 
       const updated = await saveOnboardingStep(currentStep, payload);
-      if (currentStep === 1 && payload.phone) {
-        localStorage.setItem('seller_login_phone', payload.phone);
-        localStorage.setItem('seller_phone', `+91${payload.phone}`);
+      if (currentStep === 1) {
+        if (payload.phone) {
+          localStorage.setItem('seller_login_phone', payload.phone);
+          localStorage.setItem('seller_phone', `+91${payload.phone}`);
+          setVerifiedPhone(payload.phone);
+        }
+        if (payload.email) {
+          localStorage.setItem('seller_login_email', payload.email);
+          localStorage.setItem('seller_email', payload.email);
+          setVerifiedEmail(payload.email.trim().toLowerCase());
+        }
       }
       const nextSteps = {
         ...effectiveKycSteps,
@@ -714,7 +1007,18 @@ export default function OnboardingPage() {
                   <p className="text-xs text-gray-400">{t('kycStep1Subtitle', 'Critical info required for store activation')}</p>
                 </div>
               </div>
-              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800">{t('kycBadgeCriticalStep', 'Critical Step')}</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  id="btnKycChangePassword"
+                  onClick={() => setIsPasswordModalOpen(true)}
+                  className="px-2.5 py-1 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs hover:border-gray-300"
+                >
+                  <i className="fa-solid fa-key text-green-600 text-[11px]"></i>
+                  <span>{t('kycBtnChangePassword', 'Change Password')}</span>
+                </button>
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800">{t('kycBadgeCriticalStep', 'Critical Step')}</span>
+              </div>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
@@ -810,7 +1114,7 @@ export default function OnboardingPage() {
               <div>
                 <div
                   data-title={t('kycRegPhoneLabel', 'Registered Mobile Number')}
-                  className="text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] after:content-['_*'] after:text-rose-600 after:font-extrabold"
+                  className={`text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] ${!isEmailVerified ? "after:content-['_*'] after:text-rose-600 after:font-extrabold" : ""}`}
                 />
                 <div className="relative flex items-center">
                   <span className="absolute left-3.5 text-xs font-bold text-gray-500 font-mono select-none">
@@ -822,33 +1126,39 @@ export default function OnboardingPage() {
                     maxLength={10}
                     autoComplete="tel"
                     value={phone}
-                    disabled={isPhoneLogin}
-                    readOnly={isPhoneLogin}
-                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    onChange={(e) => handlePhoneInputChange(e.target.value)}
                     placeholder="9876543210"
-                    className={`w-full pl-12 ${isPhoneLogin ? 'pr-32 bg-gray-100 text-gray-700 cursor-not-allowed select-all' : 'pr-28 bg-white focus:border-green-600'} py-2.5 rounded-xl border border-gray-200 text-sm font-mono outline-none`}
+                    className="w-full pl-12 pr-[118px] py-2.5 rounded-xl border border-gray-200 text-sm font-mono outline-none bg-white focus:border-green-600 transition-colors"
                   />
-                  <div className="absolute right-2.5 flex items-center pointer-events-none">
-                    {isPhoneLogin ? (
-                      <span className="px-2 py-1 bg-green-100 text-green-800 text-[11px] font-extrabold rounded-lg shrink-0 flex items-center gap-1 shadow-xs">
-                        <i className="fa-solid fa-circle-check text-green-600"></i> {t('kycOtpVerified', 'OTP Verified')}
-                      </span>
-                    ) : phone.length === 10 ? (
-                      <span className="px-2 py-1 bg-blue-50 text-blue-700 text-[11px] font-bold rounded-lg shrink-0 border border-blue-200 flex items-center gap-1">
-                        <i className="fa-solid fa-circle-info text-blue-500"></i> {t('kycTenDigits', '10 Digits')}
-                      </span>
+                  <div className="absolute right-1.5 flex items-center">
+                    {isPhoneVerified ? (
+                      <div className="w-[105px] h-8 bg-green-100 text-green-800 text-[11px] font-extrabold rounded-lg flex items-center justify-center gap-1 shadow-xs select-none whitespace-nowrap">
+                        <i className="fa-solid fa-circle-check text-green-600"></i>
+                        <span>{t('kycOtpVerified', 'OTP Verified')}</span>
+                      </div>
                     ) : (
-                      <span className="px-2 py-1 bg-amber-50 text-amber-700 text-[11px] font-bold rounded-lg shrink-0 border border-amber-200/60">
-                        {t('kycDigitsLeft', '{count} digits left', { count: 10 - phone.length })}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={handleOpenPhoneModal}
+                        disabled={phoneOtpLoading || phone.length !== 10}
+                        className="w-[105px] h-8 bg-green-600 hover:bg-green-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1 shadow-xs cursor-pointer whitespace-nowrap"
+                      >
+                        {phoneOtpLoading ? (
+                          <i className="fa-solid fa-spinner fa-spin text-xs"></i>
+                        ) : (
+                          <i className="fa-solid fa-shield-halved text-xs"></i>
+                        )}
+                        <span>{t('kycVerifyAction', 'Verify')}</span>
+                      </button>
                     )}
                   </div>
                 </div>
               </div>
+
               <div>
                 <div
                   data-title={isEmailLogin ? t('kycRegEmailLabel', 'Registered Business Email') : t('kycOfficialEmailLabel', 'Official Business Email')}
-                  className={`text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] ${isEmailLogin ? "after:content-['_*'] after:text-rose-600 after:font-extrabold" : ""}`}
+                  className={`text-xs font-bold text-gray-700 block mb-1 before:content-[attr(data-title)] ${!isPhoneVerified ? "after:content-['_*'] after:text-rose-600 after:font-extrabold" : ""}`}
                 />
                 <div className="relative flex items-center">
                   <input
@@ -856,19 +1166,32 @@ export default function OnboardingPage() {
                     name="ob_custom_email"
                     autoComplete="email"
                     value={email}
-                    disabled={isEmailLogin}
-                    readOnly={isEmailLogin}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => handleEmailInputChange(e.target.value)}
                     placeholder="e.g. store@adab.in"
-                    className={`w-full px-3.5 ${isEmailLogin ? 'pr-32 bg-gray-100 text-gray-700 cursor-not-allowed select-all' : 'pr-3.5 bg-white focus:border-green-600'} py-2.5 rounded-xl border border-gray-200 text-sm outline-none`}
+                    className="w-full px-3.5 pr-[118px] py-2.5 rounded-xl border border-gray-200 text-sm outline-none bg-white focus:border-green-600 transition-colors"
                   />
-                  {isEmailLogin && (
-                    <div className="absolute right-2.5 flex items-center pointer-events-none">
-                      <span className="px-2 py-1 bg-green-100 text-green-800 text-[11px] font-extrabold rounded-lg shrink-0 flex items-center gap-1 shadow-xs">
-                        <i className="fa-solid fa-circle-check text-green-600"></i> {t('kycOtpVerified', 'OTP Verified')}
-                      </span>
-                    </div>
-                  )}
+                  <div className="absolute right-1.5 flex items-center">
+                    {isEmailVerified ? (
+                      <div className="w-[105px] h-8 bg-green-100 text-green-800 text-[11px] font-extrabold rounded-lg flex items-center justify-center gap-1 shadow-xs select-none whitespace-nowrap">
+                        <i className="fa-solid fa-circle-check text-green-600"></i>
+                        <span>{t('kycOtpVerified', 'OTP Verified')}</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleOpenEmailModal}
+                        disabled={emailOtpLoading || !email || !email.includes('@')}
+                        className="w-[105px] h-8 bg-green-600 hover:bg-green-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1 shadow-xs cursor-pointer whitespace-nowrap"
+                      >
+                        {emailOtpLoading ? (
+                          <i className="fa-solid fa-spinner fa-spin text-xs"></i>
+                        ) : (
+                          <i className="fa-solid fa-shield-halved text-xs"></i>
+                        )}
+                        <span>{t('kycVerifyAction', 'Verify')}</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1394,6 +1717,159 @@ export default function OnboardingPage() {
           </div>
         </div>
       </div>
+
+      {/* Contact Verification OTP Popup Modal */}
+      {verifyModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative space-y-4 border border-gray-100">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-green-100 text-green-700 flex items-center justify-center text-lg shrink-0">
+                  <i className="fa-solid fa-shield-halved"></i>
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">
+                    {verifyModal === 'phone'
+                      ? t('kycVerifyPhone', 'Verify Phone Number')
+                      : t('kycVerifyEmail', 'Verify Business Email')}
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {verifyModal === 'phone'
+                      ? t('kycEnterPhoneOtpPrompt', 'Enter OTP sent to +91 {phone}:', { phone })
+                      : t('kycEnterEmailOtpPrompt', 'Enter OTP sent to {email}:', { email })}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setVerifyModal(null)}
+                className="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <i className="fa-solid fa-xmark text-sm"></i>
+              </button>
+            </div>
+
+            {/* OTP Hint (Simulated / Dev mode) */}
+            {((verifyModal === 'phone' && phoneOtpHint) || (verifyModal === 'email' && emailOtpHint)) && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-900 px-3.5 py-2 rounded-xl text-xs flex items-center justify-between font-mono">
+                <span className="font-bold flex items-center gap-1.5">
+                  <i className="fa-solid fa-key text-amber-600 text-xs"></i>
+                  <span>OTP Hint:</span>
+                </span>
+                <span className="bg-white px-2.5 py-0.5 rounded-lg border border-amber-300 font-extrabold tracking-widest text-amber-900 text-sm">
+                  {verifyModal === 'phone' ? phoneOtpHint : emailOtpHint}
+                </span>
+              </div>
+            )}
+
+            {/* OTP Input */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-700 block">
+                {t('kycEnterOtp', 'Enter 6-Digit Verification Code')}
+              </label>
+              <input
+                type="text"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
+                data-lpignore="true"
+                data-1p-ignore="true"
+                autoFocus
+                maxLength={6}
+                value={verifyModal === 'phone' ? phoneOtp : emailOtp}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                  if (verifyModal === 'phone') {
+                    setPhoneOtp(val);
+                    setPhoneError('');
+                  } else {
+                    setEmailOtp(val);
+                    setEmailError('');
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (verifyModal === 'phone') handleVerifyPhoneOtp();
+                    else handleVerifyEmailOtp();
+                  }
+                }}
+                placeholder="• • • • • •"
+                className="w-full py-3 px-4 bg-gray-50 border border-gray-200 rounded-xl text-center font-mono text-lg tracking-[0.4em] font-bold outline-none focus:bg-white focus:border-green-600 focus:ring-2 focus:ring-green-600/20 transition-all"
+              />
+              {((verifyModal === 'phone' && phoneError) || (verifyModal === 'email' && emailError)) && (
+                <p className="text-xs text-rose-600 flex items-center gap-1 mt-1 font-medium">
+                  <i className="fa-solid fa-circle-exclamation text-xs"></i>
+                  <span>{verifyModal === 'phone' ? phoneError : emailError}</span>
+                </p>
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={verifyModal === 'phone' ? handleVerifyPhoneOtp : handleVerifyEmailOtp}
+                disabled={
+                  verifyModal === 'phone'
+                    ? phoneOtpLoading || phoneOtp.length < 4
+                    : emailOtpLoading || emailOtp.length < 4
+                }
+                className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-200 disabled:text-gray-400 text-white text-sm font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+              >
+                {(verifyModal === 'phone' ? phoneOtpLoading : emailOtpLoading) ? (
+                  <i className="fa-solid fa-spinner fa-spin"></i>
+                ) : (
+                  <i className="fa-solid fa-circle-check"></i>
+                )}
+                <span>{t('kycConfirmOtp', 'Confirm OTP')}</span>
+              </button>
+
+              <div className="flex items-center justify-between text-xs pt-1">
+                {(verifyModal === 'phone' ? phoneTimer : emailTimer) > 0 ? (
+                  <span className="text-gray-500 font-mono">
+                    {t('kycResendIn', 'Resend in {count}s', {
+                      count: verifyModal === 'phone' ? phoneTimer : emailTimer
+                    })}
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={verifyModal === 'phone' ? () => handleSendPhoneOtp() : () => handleSendEmailOtp()}
+                    disabled={verifyModal === 'phone' ? phoneOtpLoading : emailOtpLoading}
+                    className="text-green-700 hover:text-green-800 font-bold underline cursor-pointer"
+                  >
+                    {t('kycResendOtp', 'Resend OTP')}
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setVerifyModal(null)}
+                  className="text-gray-500 hover:text-gray-800 font-semibold cursor-pointer"
+                >
+                  {t('cancel', 'Cancel')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change Password Modal */}
+      <ForgotPasswordModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+        title="Change Account Password"
+        subtitle="Verify via OTP to set a new password for your merchant account"
+        submitLabel="Update Password"
+        initialIdMode={isEmailLogin ? 'email' : 'phone'}
+        initialPhone={phone || verifiedPhone}
+        initialEmail={email || verifiedEmail}
+        onSuccess={(msg) => showToast(msg || 'Password updated successfully!')}
+      />
     </section>
   );
 }

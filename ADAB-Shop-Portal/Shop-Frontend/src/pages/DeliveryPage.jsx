@@ -11,9 +11,13 @@ const DEFAULT_RATES = {
   sameDay: 29,
   scheduled: 19,
   pickup: 0,
-  porter: 250,
+  selfDelivery: 200,
+  thirdParty: 450,
+  b2bPickup: 0,
+  // Backwards compatibility aliases
+  porter: 200,
   delhivery: 450,
-  exportFreight: 2500
+  exportFreight: 0
 };
 
 const toCleanRate = (val, fallback) => {
@@ -34,6 +38,16 @@ const extractBaseline = (storeObj, obData) => {
   const lat = Number.isFinite(rawLat) ? Number(rawLat.toFixed(7)) : 21.1702;
   const lng = Number.isFinite(rawLng) ? Number(rawLng.toFixed(7)) : 72.8311;
 
+  const selfDelivery = cfg.b2bSelfDelivery !== undefined
+    ? Boolean(cfg.b2bSelfDelivery)
+    : (cfg.porter !== undefined ? Boolean(cfg.porter) : true);
+  const thirdParty = cfg.b2bThirdParty !== undefined
+    ? Boolean(cfg.b2bThirdParty)
+    : (cfg.delhivery !== undefined ? Boolean(cfg.delhivery) : true);
+  const b2bPickup = cfg.b2bPickup !== undefined
+    ? Boolean(cfg.b2bPickup)
+    : (cfg.exportFreight !== undefined ? Boolean(cfg.exportFreight) : true);
+
   return {
     lat,
     lng,
@@ -42,16 +56,22 @@ const extractBaseline = (storeObj, obData) => {
     sameDay: cfg.delivSame !== undefined ? Boolean(cfg.delivSame) : true,
     scheduledDelivery: cfg.delivScheduled !== undefined ? Boolean(cfg.delivScheduled) : true,
     pickup: cfg.delivPickup !== undefined ? Boolean(cfg.delivPickup) : true,
-    porter: cfg.porter !== undefined ? Boolean(cfg.porter) : true,
-    delhivery: cfg.delhivery !== undefined ? Boolean(cfg.delhivery) : true,
-    exportFreight: cfg.exportFreight !== undefined ? Boolean(cfg.exportFreight) : false,
+    selfDelivery,
+    thirdParty,
+    b2bPickup,
+    porter: selfDelivery,
+    delhivery: thirdParty,
+    exportFreight: b2bPickup,
     fastRate: toCleanRate(cfg.delivFastRate, DEFAULT_RATES.fast),
     sameDayRate: toCleanRate(cfg.delivSameRate, DEFAULT_RATES.sameDay),
     scheduledRate: toCleanRate(cfg.delivScheduledRate, DEFAULT_RATES.scheduled),
     pickupRate: toCleanRate(cfg.delivPickupRate, DEFAULT_RATES.pickup),
-    porterRate: toCleanRate(cfg.porterRate, DEFAULT_RATES.porter),
-    delhiveryRate: toCleanRate(cfg.delhiveryRate, DEFAULT_RATES.delhivery),
-    exportFreightRate: toCleanRate(cfg.exportFreightRate, DEFAULT_RATES.exportFreight)
+    selfDeliveryRate: toCleanRate(cfg.b2bSelfDeliveryRate ?? cfg.porterRate, DEFAULT_RATES.selfDelivery),
+    thirdPartyRate: toCleanRate(cfg.b2bThirdPartyRate ?? cfg.delhiveryRate, DEFAULT_RATES.thirdParty),
+    b2bPickupRate: toCleanRate(cfg.b2bPickupRate ?? (cfg.exportFreightRate !== undefined && cfg.exportFreightRate !== 2500 ? cfg.exportFreightRate : DEFAULT_RATES.b2bPickup), DEFAULT_RATES.b2bPickup),
+    porterRate: toCleanRate(cfg.b2bSelfDeliveryRate ?? cfg.porterRate, DEFAULT_RATES.selfDelivery),
+    delhiveryRate: toCleanRate(cfg.b2bThirdPartyRate ?? cfg.delhiveryRate, DEFAULT_RATES.thirdParty),
+    exportFreightRate: toCleanRate(cfg.b2bPickupRate ?? (cfg.exportFreightRate !== undefined && cfg.exportFreightRate !== 2500 ? cfg.exportFreightRate : DEFAULT_RATES.b2bPickup), DEFAULT_RATES.b2bPickup)
   };
 };
 
@@ -75,18 +95,18 @@ export default function DeliveryPage() {
   const [scheduledDelivery, setScheduledDelivery] = useState(initialBaseline.scheduledDelivery);
   const [pickup, setPickup] = useState(initialBaseline.pickup);
 
-  const [porter, setPorter] = useState(initialBaseline.porter);
-  const [delhivery, setDelhivery] = useState(initialBaseline.delhivery);
-  const [exportFreight, setExportFreight] = useState(initialBaseline.exportFreight);
+  const [selfDelivery, setSelfDelivery] = useState(initialBaseline.selfDelivery);
+  const [thirdParty, setThirdParty] = useState(initialBaseline.thirdParty);
+  const [b2bPickup, setB2bPickup] = useState(initialBaseline.b2bPickup);
 
   // Seller-defined rates (₹) for all Customer & B2B delivery modes
   const [fastRate, setFastRate] = useState(String(initialBaseline.fastRate));
   const [sameDayRate, setSameDayRate] = useState(String(initialBaseline.sameDayRate));
   const [scheduledRate, setScheduledRate] = useState(String(initialBaseline.scheduledRate));
   const [pickupRate, setPickupRate] = useState(String(initialBaseline.pickupRate));
-  const [porterRate, setPorterRate] = useState(String(initialBaseline.porterRate));
-  const [delhiveryRate, setDelhiveryRate] = useState(String(initialBaseline.delhiveryRate));
-  const [exportFreightRate, setExportFreightRate] = useState(String(initialBaseline.exportFreightRate));
+  const [selfDeliveryRate, setSelfDeliveryRate] = useState(String(initialBaseline.selfDeliveryRate));
+  const [thirdPartyRate, setThirdPartyRate] = useState(String(initialBaseline.thirdPartyRate));
+  const [b2bPickupRate, setB2bPickupRate] = useState(String(initialBaseline.b2bPickupRate));
 
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
@@ -113,16 +133,16 @@ export default function DeliveryPage() {
     sameDay !== savedBaseline.sameDay ||
     scheduledDelivery !== savedBaseline.scheduledDelivery ||
     pickup !== savedBaseline.pickup ||
-    porter !== savedBaseline.porter ||
-    delhivery !== savedBaseline.delhivery ||
-    exportFreight !== savedBaseline.exportFreight ||
-    toCleanRate(fastRate, 49) !== savedBaseline.fastRate ||
-    toCleanRate(sameDayRate, 29) !== savedBaseline.sameDayRate ||
-    toCleanRate(scheduledRate, 19) !== savedBaseline.scheduledRate ||
-    toCleanRate(pickupRate, 0) !== savedBaseline.pickupRate ||
-    toCleanRate(porterRate, 250) !== savedBaseline.porterRate ||
-    toCleanRate(delhiveryRate, 450) !== savedBaseline.delhiveryRate ||
-    toCleanRate(exportFreightRate, 2500) !== savedBaseline.exportFreightRate;
+    selfDelivery !== savedBaseline.selfDelivery ||
+    thirdParty !== savedBaseline.thirdParty ||
+    b2bPickup !== savedBaseline.b2bPickup ||
+    toCleanRate(fastRate, DEFAULT_RATES.fast) !== savedBaseline.fastRate ||
+    toCleanRate(sameDayRate, DEFAULT_RATES.sameDay) !== savedBaseline.sameDayRate ||
+    toCleanRate(scheduledRate, DEFAULT_RATES.scheduled) !== savedBaseline.scheduledRate ||
+    toCleanRate(pickupRate, DEFAULT_RATES.pickup) !== savedBaseline.pickupRate ||
+    toCleanRate(selfDeliveryRate, DEFAULT_RATES.selfDelivery) !== savedBaseline.selfDeliveryRate ||
+    toCleanRate(thirdPartyRate, DEFAULT_RATES.thirdParty) !== savedBaseline.thirdPartyRate ||
+    toCleanRate(b2bPickupRate, DEFAULT_RATES.b2bPickup) !== savedBaseline.b2bPickupRate;
 
   const hasUnsavedRef = useRef(hasUnsavedChanges);
   hasUnsavedRef.current = hasUnsavedChanges;
@@ -139,16 +159,16 @@ export default function DeliveryPage() {
     setSameDay(nextBase.sameDay);
     setScheduledDelivery(nextBase.scheduledDelivery);
     setPickup(nextBase.pickup);
-    setPorter(nextBase.porter);
-    setDelhivery(nextBase.delhivery);
-    setExportFreight(nextBase.exportFreight);
+    setSelfDelivery(nextBase.selfDelivery);
+    setThirdParty(nextBase.thirdParty);
+    setB2bPickup(nextBase.b2bPickup);
     setFastRate(String(nextBase.fastRate));
     setSameDayRate(String(nextBase.sameDayRate));
     setScheduledRate(String(nextBase.scheduledRate));
     setPickupRate(String(nextBase.pickupRate));
-    setPorterRate(String(nextBase.porterRate));
-    setDelhiveryRate(String(nextBase.delhiveryRate));
-    setExportFreightRate(String(nextBase.exportFreightRate));
+    setSelfDeliveryRate(String(nextBase.selfDeliveryRate));
+    setThirdPartyRate(String(nextBase.thirdPartyRate));
+    setB2bPickupRate(String(nextBase.b2bPickupRate));
   }, [store, onboardingData]);
 
   // Intercept internal link navigation & browser tab close when there are unsaved buffer changes
@@ -220,16 +240,16 @@ export default function DeliveryPage() {
     setSameDay(savedBaseline.sameDay);
     setScheduledDelivery(savedBaseline.scheduledDelivery);
     setPickup(savedBaseline.pickup);
-    setPorter(savedBaseline.porter);
-    setDelhivery(savedBaseline.delhivery);
-    setExportFreight(savedBaseline.exportFreight);
+    setSelfDelivery(savedBaseline.selfDelivery);
+    setThirdParty(savedBaseline.thirdParty);
+    setB2bPickup(savedBaseline.b2bPickup);
     setFastRate(String(savedBaseline.fastRate));
     setSameDayRate(String(savedBaseline.sameDayRate));
     setScheduledRate(String(savedBaseline.scheduledRate));
     setPickupRate(String(savedBaseline.pickupRate));
-    setPorterRate(String(savedBaseline.porterRate));
-    setDelhiveryRate(String(savedBaseline.delhiveryRate));
-    setExportFreightRate(String(savedBaseline.exportFreightRate));
+    setSelfDeliveryRate(String(savedBaseline.selfDeliveryRate));
+    setThirdPartyRate(String(savedBaseline.thirdPartyRate));
+    setB2bPickupRate(String(savedBaseline.b2bPickupRate));
     setErrorMsg('');
   };
 
@@ -435,16 +455,22 @@ export default function DeliveryPage() {
       sameDay,
       scheduledDelivery,
       pickup,
-      porter,
-      delhivery,
-      exportFreight,
-      fastRate: toCleanRate(fastRate, 49),
-      sameDayRate: toCleanRate(sameDayRate, 29),
-      scheduledRate: toCleanRate(scheduledRate, 19),
-      pickupRate: toCleanRate(pickupRate, 0),
-      porterRate: toCleanRate(porterRate, 250),
-      delhiveryRate: toCleanRate(delhiveryRate, 450),
-      exportFreightRate: toCleanRate(exportFreightRate, 2500)
+      selfDelivery,
+      thirdParty,
+      b2bPickup,
+      porter: selfDelivery,
+      delhivery: thirdParty,
+      exportFreight: b2bPickup,
+      fastRate: toCleanRate(fastRate, DEFAULT_RATES.fast),
+      sameDayRate: toCleanRate(sameDayRate, DEFAULT_RATES.sameDay),
+      scheduledRate: toCleanRate(scheduledRate, DEFAULT_RATES.scheduled),
+      pickupRate: toCleanRate(pickupRate, DEFAULT_RATES.pickup),
+      selfDeliveryRate: toCleanRate(selfDeliveryRate, DEFAULT_RATES.selfDelivery),
+      thirdPartyRate: toCleanRate(thirdPartyRate, DEFAULT_RATES.thirdParty),
+      b2bPickupRate: toCleanRate(b2bPickupRate, DEFAULT_RATES.b2bPickup),
+      porterRate: toCleanRate(selfDeliveryRate, DEFAULT_RATES.selfDelivery),
+      delhiveryRate: toCleanRate(thirdPartyRate, DEFAULT_RATES.thirdParty),
+      exportFreightRate: toCleanRate(b2bPickupRate, DEFAULT_RATES.b2bPickup)
     };
 
     try {
@@ -476,12 +502,18 @@ export default function DeliveryPage() {
           delivScheduledRate: nextSnapshot.scheduledRate,
           delivPickupRate: nextSnapshot.pickupRate,
           fleet: onboardingData?.deliveryConfig?.fleet || 'SELF',
-          porter: nextSnapshot.porter,
-          delhivery: nextSnapshot.delhivery,
-          exportFreight: nextSnapshot.exportFreight,
-          porterRate: nextSnapshot.porterRate,
-          delhiveryRate: nextSnapshot.delhiveryRate,
-          exportFreightRate: nextSnapshot.exportFreightRate
+          b2bSelfDelivery: nextSnapshot.selfDelivery,
+          b2bThirdParty: nextSnapshot.thirdParty,
+          b2bPickup: nextSnapshot.b2bPickup,
+          b2bSelfDeliveryRate: nextSnapshot.selfDeliveryRate,
+          b2bThirdPartyRate: nextSnapshot.thirdPartyRate,
+          b2bPickupRate: nextSnapshot.b2bPickupRate,
+          porter: nextSnapshot.selfDelivery,
+          delhivery: nextSnapshot.thirdParty,
+          exportFreight: nextSnapshot.b2bPickup,
+          porterRate: nextSnapshot.selfDeliveryRate,
+          delhiveryRate: nextSnapshot.thirdPartyRate,
+          exportFreightRate: nextSnapshot.b2bPickupRate
         });
       }
 
@@ -733,23 +765,9 @@ export default function DeliveryPage() {
                   {t('deliveryDefaultRatesPerOrder', 'Default Rates (₹) / Order')}
                 </span>
               ) : (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-extrabold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
-                    {t('deliveryCustomRatesPerOrder', 'Custom Rates (₹) / Order')}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFastRate(String(DEFAULT_RATES.fast));
-                      setSameDayRate(String(DEFAULT_RATES.sameDay));
-                      setScheduledRate(String(DEFAULT_RATES.scheduled));
-                      setPickupRate(String(DEFAULT_RATES.pickup));
-                    }}
-                    className="text-xs font-extrabold text-green-700 hover:text-green-900 underline cursor-pointer"
-                  >
-                    {t('deliveryResetDefaults', 'Reset Defaults')}
-                  </button>
-                </div>
+                <span className="text-xs font-extrabold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
+                  {t('deliveryCustomRatesPerOrder', 'Custom Rates (₹) / Order')}
+                </span>
               )}
             </div>
             <p className="text-xs text-gray-500 mb-4">
@@ -965,15 +983,15 @@ export default function DeliveryPage() {
             <ul className="text-sm space-y-2.5 text-gray-600">
               <li className="flex gap-2">
                 <i className="fa-solid fa-check text-green-600 mt-0.5"></i>
-                <span>{t('deliveryIntracityPorter', 'Intracity (<50 km): Porter mini-trucks with same-day delivery')}</span>
+                <span>{t('deliveryB2BSelfBullet', 'Self Delivery: Direct dispatch by store fleet or staff for local bulk orders')}</span>
               </li>
               <li className="flex gap-2">
                 <i className="fa-solid fa-check text-green-600 mt-0.5"></i>
-                <span>{t('deliveryInterstateDelhivery', 'Interstate: Delhivery freight cargo (2–4 business days)')}</span>
+                <span>{t('deliveryB2BThirdPartyBullet', '3rd Party: Commercial transport partners (Porter, Delhivery & cargo freight)')}</span>
               </li>
               <li className="flex gap-2">
                 <i className="fa-solid fa-check text-green-600 mt-0.5"></i>
-                <span>{t('deliveryExportTrade', 'Export Trade: Customs cleared air/sea freight logistics')}</span>
+                <span>{t('deliveryB2BPickupBullet', 'Pickup: Buyers collect directly from store or warehouse with ₹0 shipping fee')}</span>
               </li>
             </ul>
           </div>
@@ -992,171 +1010,161 @@ export default function DeliveryPage() {
                 <i className="fa-solid fa-truck-fast text-orange-600"></i>
                 <span>{t('deliveryB2BCarriersTitle', 'B2B Freight Carriers & Shipping Rates')}</span>
               </h2>
-              {toCleanRate(porterRate, DEFAULT_RATES.porter) === DEFAULT_RATES.porter &&
-              toCleanRate(delhiveryRate, DEFAULT_RATES.delhivery) === DEFAULT_RATES.delhivery &&
-              toCleanRate(exportFreightRate, DEFAULT_RATES.exportFreight) === DEFAULT_RATES.exportFreight ? (
+              {toCleanRate(selfDeliveryRate, DEFAULT_RATES.selfDelivery) === DEFAULT_RATES.selfDelivery &&
+              toCleanRate(thirdPartyRate, DEFAULT_RATES.thirdParty) === DEFAULT_RATES.thirdParty &&
+              toCleanRate(b2bPickupRate, DEFAULT_RATES.b2bPickup) === DEFAULT_RATES.b2bPickup ? (
                 <span className="text-xs font-extrabold text-orange-800 bg-orange-100 border border-orange-300 px-3 py-1 rounded-full shadow-xs">
                   {t('deliveryDefaultBaseRates', 'Default Base Rates (₹)')}
                 </span>
               ) : (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-extrabold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
-                    {t('deliveryCustomBaseRates', 'Custom Base Rates (₹)')}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPorterRate(String(DEFAULT_RATES.porter));
-                      setDelhiveryRate(String(DEFAULT_RATES.delhivery));
-                      setExportFreightRate(String(DEFAULT_RATES.exportFreight));
-                    }}
-                    className="text-xs font-extrabold text-orange-700 hover:text-orange-900 underline cursor-pointer"
-                  >
-                    {t('deliveryResetDefaults', 'Reset Defaults')}
-                  </button>
-                </div>
+                <span className="text-xs font-extrabold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
+                  {t('deliveryCustomBaseRates', 'Custom Base Rates (₹)')}
+                </span>
               )}
             </div>
             <p className="text-xs text-gray-500 mb-4">
-              {t('deliveryEnableCommercialDesc', 'Enable commercial truck & freight carriers and scroll or type your base shipping charge')}
+              {t('deliveryEnableCommercialDesc', 'Enable B2B delivery options (Self Delivery, 3rd Party, Pickup) and scroll or type your base shipping charge')}
             </p>
             <div className="space-y-3">
-              {/* Porter (Intra-city LCV) */}
+              {/* 1. Self Delivery */}
               <div
                 className={`p-3.5 rounded-xl border border-gray-200 flex justify-between items-center gap-3 transition ${
-                  !porter ? 'opacity-60' : ''
+                  !selfDelivery ? 'opacity-60' : ''
                 }`}
               >
-                <label htmlFor="chk-mode-porter" className="cursor-pointer flex-1 min-w-0">
-                  <div className="font-bold text-gray-900">{t('deliveryPorterName', 'Porter (Intra-city LCV)')}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">{t('deliveryPorterDesc', 'Same city wholesale • 2–6 hours')}</div>
+                <label htmlFor="chk-mode-self-delivery" className="cursor-pointer flex-1 min-w-0">
+                  <div className="font-bold text-gray-900">{t('deliveryB2BSelfDelivery', 'Self Delivery')}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{t('deliveryB2BSelfDeliveryDesc', 'Direct dispatch by store fleet or staff • Local bulk delivery')}</div>
                 </label>
                 <div
                   data-no-page-scroll="true"
-                  onWheel={(e) => handleRateWheel(e, porterRate, setPorterRate, 10, porter)}
+                  onWheel={(e) => handleRateWheel(e, selfDeliveryRate, setSelfDeliveryRate, 10, selfDelivery)}
                   className="flex items-center gap-2.5 shrink-0"
                 >
-                  {Number(porterRate) === 0 && (
+                  {Number(selfDeliveryRate) === 0 && (
                     <span className="px-2 py-0.5 rounded-full bg-green-100 border border-green-200 text-green-800 text-[10px] font-extrabold">
                       {t('deliveryFree', 'FREE')}
                     </span>
                   )}
                   <div
-                    title="Scroll or type to adjust Porter base shipping rate (₹)"
+                    title="Scroll or type to adjust Self Delivery base shipping rate (₹)"
                     className="w-24 flex items-center bg-gray-50 border border-gray-300 rounded-lg px-2.5 py-1.5 shadow-sm focus-within:ring-2 focus-within:ring-orange-400 focus-within:bg-white select-none"
                   >
                     <span className="text-xs font-extrabold text-gray-600 mr-1">₹</span>
                     <input
+                      id="input-rate-self-delivery"
                       type="number"
                       min="0"
                       step="10"
-                      disabled={!porter}
-                      value={porterRate}
-                      onChange={(e) => setPorterRate(e.target.value)}
-                      aria-label="Porter (Intra-city LCV) base shipping rate"
+                      disabled={!selfDelivery}
+                      value={selfDeliveryRate}
+                      onChange={(e) => setSelfDeliveryRate(e.target.value)}
+                      aria-label="Self Delivery base shipping rate"
                       className="w-full text-right text-sm font-extrabold text-gray-900 outline-none bg-transparent disabled:text-gray-400"
                       placeholder="0"
                     />
                   </div>
                   <input
-                    id="chk-mode-porter"
+                    id="chk-mode-self-delivery"
                     type="checkbox"
-                    checked={porter}
-                    onChange={(e) => setPorter(e.target.checked)}
+                    checked={selfDelivery}
+                    onChange={(e) => setSelfDelivery(e.target.checked)}
                     className="w-5 h-5 text-green-700 rounded cursor-pointer"
                   />
                 </div>
               </div>
 
-              {/* Delhivery & Express Cargo */}
+              {/* 2. 3rd Party */}
               <div
                 className={`p-3.5 rounded-xl border border-gray-200 flex justify-between items-center gap-3 transition ${
-                  !delhivery ? 'opacity-60' : ''
+                  !thirdParty ? 'opacity-60' : ''
                 }`}
               >
-                <label htmlFor="chk-mode-delhivery" className="cursor-pointer flex-1 min-w-0">
-                  <div className="font-bold text-gray-900">{t('deliveryDelhiveryName', 'Delhivery & Express Cargo')}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">{t('deliveryDelhiveryDesc', 'Nationwide surface express • 1–3 days')}</div>
+                <label htmlFor="chk-mode-third-party" className="cursor-pointer flex-1 min-w-0">
+                  <div className="font-bold text-gray-900">{t('deliveryB2BThirdParty', '3rd Party')}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{t('deliveryB2BThirdPartyDesc', 'Commercial transport partners (Porter, Delhivery, freight) • City & cargo')}</div>
                 </label>
                 <div
                   data-no-page-scroll="true"
-                  onWheel={(e) => handleRateWheel(e, delhiveryRate, setDelhiveryRate, 10, delhivery)}
+                  onWheel={(e) => handleRateWheel(e, thirdPartyRate, setThirdPartyRate, 10, thirdParty)}
                   className="flex items-center gap-2.5 shrink-0"
                 >
-                  {Number(delhiveryRate) === 0 && (
+                  {Number(thirdPartyRate) === 0 && (
                     <span className="px-2 py-0.5 rounded-full bg-green-100 border border-green-200 text-green-800 text-[10px] font-extrabold">
                       {t('deliveryFree', 'FREE')}
                     </span>
                   )}
                   <div
-                    title="Scroll or type to adjust Delhivery base shipping rate (₹)"
+                    title="Scroll or type to adjust 3rd Party base shipping rate (₹)"
                     className="w-24 flex items-center bg-gray-50 border border-gray-300 rounded-lg px-2.5 py-1.5 shadow-sm focus-within:ring-2 focus-within:ring-orange-400 focus-within:bg-white select-none"
                   >
                     <span className="text-xs font-extrabold text-gray-600 mr-1">₹</span>
                     <input
+                      id="input-rate-third-party"
                       type="number"
                       min="0"
                       step="10"
-                      disabled={!delhivery}
-                      value={delhiveryRate}
-                      onChange={(e) => setDelhiveryRate(e.target.value)}
-                      aria-label="Delhivery & Express Cargo base shipping rate"
+                      disabled={!thirdParty}
+                      value={thirdPartyRate}
+                      onChange={(e) => setThirdPartyRate(e.target.value)}
+                      aria-label="3rd Party base shipping rate"
                       className="w-full text-right text-sm font-extrabold text-gray-900 outline-none bg-transparent disabled:text-gray-400"
                       placeholder="0"
                     />
                   </div>
                   <input
-                    id="chk-mode-delhivery"
+                    id="chk-mode-third-party"
                     type="checkbox"
-                    checked={delhivery}
-                    onChange={(e) => setDelhivery(e.target.checked)}
+                    checked={thirdParty}
+                    onChange={(e) => setThirdParty(e.target.checked)}
                     className="w-5 h-5 text-green-700 rounded cursor-pointer"
                   />
                 </div>
               </div>
 
-              {/* Export Freight (Air / Sea) */}
+              {/* 3. Pickup */}
               <div
                 className={`p-3.5 rounded-xl border border-gray-200 flex justify-between items-center gap-3 transition ${
-                  !exportFreight ? 'opacity-60' : ''
+                  !b2bPickup ? 'opacity-60' : ''
                 }`}
               >
-                <label htmlFor="chk-mode-export" className="cursor-pointer flex-1 min-w-0">
-                  <div className="font-bold text-gray-900">{t('deliveryExportName', 'Export Freight (Air / Sea)')}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">{t('deliveryExportDesc', 'International shipments (requires IEC)')}</div>
+                <label htmlFor="chk-mode-b2b-pickup" className="cursor-pointer flex-1 min-w-0">
+                  <div className="font-bold text-gray-900">{t('deliveryB2BPickup', 'Pickup')}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{t('deliveryB2BPickupDesc', 'Buyer collects directly from store or warehouse • Zero shipping fee')}</div>
                 </label>
                 <div
                   data-no-page-scroll="true"
-                  onWheel={(e) => handleRateWheel(e, exportFreightRate, setExportFreightRate, 50, exportFreight)}
+                  onWheel={(e) => handleRateWheel(e, b2bPickupRate, setB2bPickupRate, 10, b2bPickup)}
                   className="flex items-center gap-2.5 shrink-0"
                 >
-                  {Number(exportFreightRate) === 0 && (
+                  {Number(b2bPickupRate) === 0 && (
                     <span className="px-2 py-0.5 rounded-full bg-green-100 border border-green-200 text-green-800 text-[10px] font-extrabold">
                       {t('deliveryFree', 'FREE')}
                     </span>
                   )}
                   <div
-                    title="Scroll or type to adjust Export Freight base shipping rate (₹)"
+                    title="Scroll or type to adjust Pickup base shipping rate (₹)"
                     className="w-24 flex items-center bg-gray-50 border border-gray-300 rounded-lg px-2.5 py-1.5 shadow-sm focus-within:ring-2 focus-within:ring-orange-400 focus-within:bg-white select-none"
                   >
                     <span className="text-xs font-extrabold text-gray-600 mr-1">₹</span>
                     <input
+                      id="input-rate-b2b-pickup"
                       type="number"
                       min="0"
-                      step="50"
-                      disabled={!exportFreight}
-                      value={exportFreightRate}
-                      onChange={(e) => setExportFreightRate(e.target.value)}
-                      aria-label="Export Freight (Air / Sea) base shipping rate"
+                      step="10"
+                      disabled={!b2bPickup}
+                      value={b2bPickupRate}
+                      onChange={(e) => setB2bPickupRate(e.target.value)}
+                      aria-label="Pickup base shipping rate"
                       className="w-full text-right text-sm font-extrabold text-gray-900 outline-none bg-transparent disabled:text-gray-400"
                       placeholder="0"
                     />
                   </div>
                   <input
-                    id="chk-mode-export"
+                    id="chk-mode-b2b-pickup"
                     type="checkbox"
-                    checked={exportFreight}
-                    onChange={(e) => setExportFreight(e.target.checked)}
+                    checked={b2bPickup}
+                    onChange={(e) => setB2bPickup(e.target.checked)}
                     className="w-5 h-5 text-green-700 rounded cursor-pointer"
                   />
                 </div>

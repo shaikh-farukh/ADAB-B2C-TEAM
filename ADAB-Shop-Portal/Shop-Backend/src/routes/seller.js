@@ -7,9 +7,11 @@ const { idempotencyMiddleware } = require('../middlewares/idempotency');
 
 // Public Auth Endpoints (Phone / Email + OTP / PIN)
 router.post('/auth/login', sellerController.login);
+router.post('/auth/login-otp', sellerController.loginWithOtp);
 router.post('/auth/signup', sellerController.signup);
 router.post('/auth/send-otp', sellerController.sendOtp);
 router.post('/auth/verify-otp', sellerController.verifyOtp);
+router.post('/auth/reset-password', sellerController.resetPassword);
 
 // Idempotent Webhook Callback Endpoint
 router.post('/webhooks/callback', idempotencyMiddleware, (req, res) => sellerController.handleWebhookCallback(req, res));

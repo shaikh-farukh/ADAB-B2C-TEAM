@@ -10,6 +10,10 @@ const sellerService = {
     return api.post('/seller/auth/login', { phone, password, ...extra });
   },
 
+  loginWithOtp: (phone, otp, extra = {}) => {
+    return api.post('/seller/auth/login-otp', { phone, otp, ...extra });
+  },
+
   signup: (phone, password, extra = {}) => {
     return api.post('/seller/auth/signup', { phone, password, ...extra });
   },
@@ -20,6 +24,10 @@ const sellerService = {
 
   verifyOtp: (payload) => {
     return api.post('/seller/auth/verify-otp', payload);
+  },
+
+  resetPassword: (payload) => {
+    return api.post('/seller/auth/reset-password', payload);
   },
 
   getOnboarding: () => {

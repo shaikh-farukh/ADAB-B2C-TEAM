@@ -45,7 +45,7 @@ const MainLayout = ({ children, store, profile, isPortalUnlocked = true }) => {
   const headerLockedClass = !isPortalUnlocked ? 'pointer-events-none opacity-40 cursor-not-allowed select-none' : '';
 
   return (
-    <div className="bg-gray-50 text-gray-800 min-h-screen">
+    <div className="bg-gray-50 text-gray-800 h-screen h-[100dvh] flex flex-col overflow-hidden">
       {/* Mobile Drawer Overlay */}
       <div 
         id="drawerOverlaySeller" 
@@ -56,8 +56,8 @@ const MainLayout = ({ children, store, profile, isPortalUnlocked = true }) => {
         }}
       ></div>
 
-      {/* Top Header */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-40">
+      {/* 1. TOP HEADER (Pinned, border-b, shrink-0) */}
+      <header className="bg-white border-b border-gray-100 shrink-0 z-30">
         <div className="w-full px-4 lg:px-6 py-3 flex items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button 
@@ -67,7 +67,7 @@ const MainLayout = ({ children, store, profile, isPortalUnlocked = true }) => {
                 drawer?.classList.toggle('open');
                 overlay?.classList.toggle('open');
               }}
-              className="lg:hidden w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center text-gray-700 text-lg hover:bg-gray-200 transition"
+              className="lg:hidden w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center text-gray-700 text-lg hover:bg-gray-200 transition cursor-pointer"
               aria-label="Toggle navigation menu"
             >
               <i className="fa-solid fa-bars"></i>
@@ -100,13 +100,13 @@ const MainLayout = ({ children, store, profile, isPortalUnlocked = true }) => {
         </div>
       </header>
 
-      {/* Main Layout Area */}
-      <div className="w-full px-4 lg:px-6 py-4 sm:py-5 flex flex-col lg:flex-row gap-6">
-        {/* Sidebar */}
+      {/* 2 & 3. WORKSPACE CONTAINER (Sidebar + Independent Scroll Main Area) */}
+      <div className="flex-1 flex overflow-hidden w-full relative">
+        {/* 2. SIDEBAR */}
         <Sidebar />
         
-        {/* Main Content Area */}
-        <main className="flex-1 min-w-0 fade-in">
+        {/* 3. MAIN CONTENT AREA */}
+        <main id="mainContentArea" className="flex-1 min-w-0 h-full overflow-y-auto overflow-x-hidden px-4 lg:px-6 py-4 sm:py-5 fade-in">
           {children}
         </main>
       </div>

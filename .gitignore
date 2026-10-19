@@ -94,6 +94,9 @@ docker-compose.override.yml
 
 # Universal Scratch & Temporary Files
 walkthrough.md
+/*.jpeg
+/*.jpg
+/*.png
 *.pdf
 *.tmp
 *.bak
