@@ -558,6 +558,36 @@ class SellerController {
     }
   }
 
+  async getStoreCreditRules(req, res) {
+    try {
+      const { storeId, userId } = await resolveSellerStoreId(req);
+      const data = await sellerService.getStoreCreditRules(userId, storeId);
+      res.json({ success: true, data });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async updateCreditGiveTerms(req, res) {
+    try {
+      const { storeId, userId } = await resolveSellerStoreId(req);
+      const data = await sellerService.updateCreditGiveTerms(userId, storeId, req.body);
+      res.json({ success: true, data });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async updateCreditBuyLimits(req, res) {
+    try {
+      const { storeId, userId } = await resolveSellerStoreId(req);
+      const data = await sellerService.updateCreditBuyLimits(userId, storeId, req.body);
+      res.json({ success: true, data });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
   async handleWebhookCallback(req, res) {
     try {
       const configuredSecret = process.env.WEBHOOK_SECRET || 'adab_secret_webhook_key_2026';

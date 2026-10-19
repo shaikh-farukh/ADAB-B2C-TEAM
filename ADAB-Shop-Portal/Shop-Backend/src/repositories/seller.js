@@ -3407,6 +3407,327 @@ class SellerRepository {
     return res.rows[0];
   }
 
+  // === Store Credit Terms & Rules (Give, Receive, ADAB Line) ===
+
+  async ensureStoreCreditRulesTable(client = pool) {
+    if (this._storeCreditRulesReady) return;
+    try {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS store_credit_rules (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE UNIQUE,
+          enable_credit BOOLEAN DEFAULT true,
+          credit_days INT DEFAULT 14,
+          min_order_amount NUMERIC(12,2) DEFAULT 5000.00,
+          max_limit_per_store NUMERIC(12,2) DEFAULT 50000.00,
+          max_stores_count INT DEFAULT 10,
+          total_exposure_cap NUMERIC(12,2) DEFAULT 300000.00,
+          buy_max_shops INT DEFAULT 5,
+          buy_max_per_shop NUMERIC(12,2) DEFAULT 25000.00,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_store_credit_rules_store ON store_credit_rules(store_id);
+      `);
+      this._storeCreditRulesReady = true;
+    } catch (err) {
+      console.warn('⚠️ store_credit_rules table setup error (non-fatal):', err.message);
+    }
+  }
+
+  async getStoreCreditRules(userId, storeId) {
+    await this.ensureStoreCreditRulesTable();
+    if (!storeId) {
+      const err = new Error('Unauthorized: Valid store ID is required');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // 1. Fetch or create store credit rules
+    let ruleRes = await pool.query(
+      `SELECT * FROM store_credit_rules WHERE store_id = $1 LIMIT 1`,
+      [storeId]
+    );
+
+    if (ruleRes.rows.length === 0) {
+      // Check seller_onboarding_steps for existing credit_config
+      let initDays = 14;
+      let initMin = 5000;
+      let initMaxPerStore = 50000;
+      let initMaxShops = 10;
+      let initCap = 300000;
+      let initBuyMaxShops = 5;
+      let initBuyPerShop = 25000;
+      let initEnable = true;
+
+      if (userId) {
+        const onbRes = await pool.query(
+          `SELECT credit_config FROM seller_onboarding_steps WHERE user_id = $1 LIMIT 1`,
+          [userId]
+        );
+        if (onbRes.rows.length > 0 && onbRes.rows[0].credit_config) {
+          const cfg = onbRes.rows[0].credit_config;
+          if (cfg.creditDays) initDays = Number(cfg.creditDays) || 14;
+          if (cfg.creditMinOrder) initMin = Number(cfg.creditMinOrder) || 5000;
+          if (cfg.creditLimit) initMaxPerStore = Number(cfg.creditLimit) || 50000;
+          if (cfg.creditMaxShops) initMaxShops = Number(cfg.creditMaxShops) || 10;
+          if (cfg.creditTotalCap) initCap = Number(cfg.creditTotalCap) || 300000;
+          if (cfg.buyMaxShops) initBuyMaxShops = Number(cfg.buyMaxShops) || 5;
+          if (cfg.buyPerShop) initBuyPerShop = Number(cfg.buyPerShop) || 25000;
+          if (cfg.enableCredit !== undefined) initEnable = Boolean(cfg.enableCredit);
+        }
+      }
+
+      ruleRes = await pool.query(
+        `INSERT INTO store_credit_rules (
+          store_id, enable_credit, credit_days, min_order_amount,
+          max_limit_per_store, max_stores_count, total_exposure_cap,
+          buy_max_shops, buy_max_per_shop
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ON CONFLICT (store_id) DO UPDATE SET updated_at = NOW()
+        RETURNING *`,
+        [storeId, initEnable, initDays, initMin, initMaxPerStore, initMaxShops, initCap, initBuyMaxShops, initBuyPerShop]
+      );
+    }
+
+    const rule = ruleRes.rows[0];
+
+    // 2. Fetch live metrics for Credit You GIVE (other stores owe this store)
+    const giveOrdersRes = await pool.query(`
+      SELECT bpo.buyer_store_id,
+             buyer.store_name as buyer_store_name,
+             COALESCE(SUM(bpo.total_amount), 0) as amount_owed,
+             MIN(bpo.created_at) as earliest_order_at,
+             bpo.payment_terms
+      FROM b2b_purchase_orders bpo
+      LEFT JOIN stores buyer ON bpo.buyer_store_id = buyer.id
+      WHERE bpo.supplier_store_id = $1::uuid
+        AND bpo.payment_terms LIKE '%CREDIT%'
+        AND bpo.status NOT IN ('CANCELLED', 'REJECTED')
+        AND bpo.payment_status != 'PAID'
+      GROUP BY bpo.buyer_store_id, buyer.store_name, bpo.payment_terms
+      ORDER BY amount_owed DESC
+    `, [storeId]);
+
+    const storesOnCredit = giveOrdersRes.rows.map(row => {
+      const amt = Number(row.amount_owed) || 0;
+      let termDays = Number(rule.credit_days) || 14;
+      if (row.payment_terms === 'CREDIT_7D') termDays = 7;
+      else if (row.payment_terms === 'CREDIT_14D') termDays = 14;
+      else if (row.payment_terms === 'CREDIT_21D') termDays = 21;
+      else if (row.payment_terms === 'CREDIT_30D') termDays = 30;
+      else if (row.payment_terms === 'CREDIT_45D') termDays = 45;
+      else if (row.payment_terms === 'CREDIT_60D') termDays = 60;
+
+      const createdTime = row.earliest_order_at ? new Date(row.earliest_order_at).getTime() : Date.now();
+      const elapsedDays = Math.max(0, Math.floor((Date.now() - createdTime) / (1000 * 60 * 60 * 24)));
+      const daysLeft = Math.max(0, termDays - elapsedDays);
+
+      return {
+        store_id: row.buyer_store_id,
+        store_name: row.buyer_store_name || 'Buyer Store',
+        amount_owed: amt,
+        days_left: daysLeft,
+        credit_days: termDays
+      };
+    });
+
+    const giveExposureUsed = storesOnCredit.reduce((acc, s) => acc + s.amount_owed, 0);
+
+    // 3. Fetch live metrics for Credit from OTHER Shops (this store owes other stores)
+    const receiveOrdersRes = await pool.query(`
+      SELECT bpo.supplier_store_id,
+             supplier.store_name as supplier_store_name,
+             COALESCE(SUM(bpo.total_amount), 0) as amount_owed,
+             MIN(bpo.created_at) as earliest_order_at,
+             bpo.payment_terms
+      FROM b2b_purchase_orders bpo
+      LEFT JOIN stores supplier ON bpo.supplier_store_id = supplier.id
+      WHERE bpo.buyer_store_id = $1::uuid
+        AND bpo.payment_terms LIKE '%CREDIT%'
+        AND bpo.status NOT IN ('CANCELLED', 'REJECTED')
+        AND bpo.payment_status != 'PAID'
+      GROUP BY bpo.supplier_store_id, supplier.store_name, bpo.payment_terms
+      ORDER BY amount_owed DESC
+    `, [storeId]);
+
+    const sellerCredits = receiveOrdersRes.rows.map(row => {
+      const amt = Number(row.amount_owed) || 0;
+      let termDays = 14;
+      if (row.payment_terms === 'CREDIT_7D') termDays = 7;
+      else if (row.payment_terms === 'CREDIT_14D') termDays = 14;
+      else if (row.payment_terms === 'CREDIT_21D') termDays = 21;
+      else if (row.payment_terms === 'CREDIT_30D') termDays = 30;
+      else if (row.payment_terms === 'CREDIT_45D') termDays = 45;
+      else if (row.payment_terms === 'CREDIT_60D') termDays = 60;
+
+      return {
+        store_id: row.supplier_store_id,
+        store_name: row.supplier_store_name || 'Supplier Store',
+        credit_days: termDays,
+        limit: Number(rule.buy_max_per_shop) || 25000,
+        amount_owed: amt
+      };
+    });
+
+    const receiveTotalOwed = sellerCredits.reduce((acc, s) => acc + s.amount_owed, 0);
+
+    // 4. ADAB Credit Line
+    const buyerCredit = await this.getBuyerCreditInfo(userId, storeId);
+    let gstinVerified = false;
+    if (userId) {
+      const profRes = await pool.query(
+        `SELECT gstin, kyc_status FROM seller_profiles WHERE user_id = $1 LIMIT 1`,
+        [userId]
+      );
+      if (profRes.rows.length > 0) {
+        gstinVerified = Boolean(profRes.rows[0].gstin && profRes.rows[0].gstin !== 'PENDING00P');
+      }
+    }
+
+    return {
+      rules: {
+        id: rule.id,
+        store_id: rule.store_id,
+        enable_credit: Boolean(rule.enable_credit),
+        credit_days: Number(rule.credit_days),
+        min_order_amount: Number(rule.min_order_amount),
+        max_limit_per_store: Number(rule.max_limit_per_store),
+        max_stores_count: Number(rule.max_stores_count),
+        total_exposure_cap: Number(rule.total_exposure_cap),
+        buy_max_shops: Number(rule.buy_max_shops),
+        buy_max_per_shop: Number(rule.buy_max_per_shop),
+        updated_at: rule.updated_at
+      },
+      give_metrics: {
+        stores_count: storesOnCredit.length,
+        max_stores: Number(rule.max_stores_count),
+        exposure_used: giveExposureUsed,
+        total_cap: Number(rule.total_exposure_cap),
+        stores_on_credit: storesOnCredit
+      },
+      receive_metrics: {
+        active_shops_count: sellerCredits.length,
+        max_shops: Number(rule.buy_max_shops),
+        total_owed: receiveTotalOwed,
+        seller_credits: sellerCredits
+      },
+      adab_line: {
+        total_limit: Number(buyerCredit.total_limit) || 250000,
+        utilized_amount: Number(buyerCredit.utilized_amount) || 0,
+        available_amount: Number(buyerCredit.available_amount) || 250000,
+        interest: '0% for 14 days',
+        gstin_verified: gstinVerified,
+        status: 'Active'
+      }
+    };
+  }
+
+  async updateCreditGiveTerms(userId, storeId, terms = {}) {
+    await this.ensureStoreCreditRulesTable();
+    if (!storeId) {
+      const err = new Error('Unauthorized: Valid store ID is required');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const creditDays = Number(terms.credit_days) || 14;
+    const minOrder = Number(terms.min_order_amount) || 5000;
+    const maxPerStore = Number(terms.max_limit_per_store) || 50000;
+    const maxStores = Number(terms.max_stores_count) || 10;
+    const totalCap = Number(terms.total_exposure_cap) || 300000;
+    const enableCredit = terms.enable_credit !== undefined ? Boolean(terms.enable_credit) : true;
+
+    await pool.query(`
+      INSERT INTO store_credit_rules (
+        store_id, enable_credit, credit_days, min_order_amount,
+        max_limit_per_store, max_stores_count, total_exposure_cap
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      ON CONFLICT (store_id) DO UPDATE SET
+        enable_credit = EXCLUDED.enable_credit,
+        credit_days = EXCLUDED.credit_days,
+        min_order_amount = EXCLUDED.min_order_amount,
+        max_limit_per_store = EXCLUDED.max_limit_per_store,
+        max_stores_count = EXCLUDED.max_stores_count,
+        total_exposure_cap = EXCLUDED.total_exposure_cap,
+        updated_at = NOW()
+    `, [storeId, enableCredit, creditDays, minOrder, maxPerStore, maxStores, totalCap]);
+
+    // Sync into seller_onboarding_steps.credit_config
+    if (userId) {
+      try {
+        const onbRes = await pool.query(
+          `SELECT credit_config FROM seller_onboarding_steps WHERE user_id = $1 LIMIT 1`,
+          [userId]
+        );
+        const existingCfg = (onbRes.rows[0]?.credit_config) || {};
+        const mergedCfg = {
+          ...existingCfg,
+          enableCredit,
+          creditDays,
+          creditMinOrder: minOrder,
+          creditLimit: maxPerStore,
+          creditMaxShops: maxStores,
+          creditTotalCap: totalCap
+        };
+        await pool.query(
+          `UPDATE seller_onboarding_steps SET credit_config = $1::jsonb, updated_at = NOW() WHERE user_id = $2`,
+          [JSON.stringify(mergedCfg), userId]
+        );
+      } catch (syncErr) {
+        console.warn('⚠️ Syncing credit terms to seller_onboarding_steps skipped:', syncErr.message);
+      }
+    }
+
+    return await this.getStoreCreditRules(userId, storeId);
+  }
+
+  async updateCreditBuyLimits(userId, storeId, limits = {}) {
+    await this.ensureStoreCreditRulesTable();
+    if (!storeId) {
+      const err = new Error('Unauthorized: Valid store ID is required');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const buyMaxShops = Number(limits.buy_max_shops) || 5;
+    const buyPerShop = Number(limits.buy_max_per_shop) || 25000;
+
+    await pool.query(`
+      INSERT INTO store_credit_rules (
+        store_id, buy_max_shops, buy_max_per_shop
+      ) VALUES ($1, $2, $3)
+      ON CONFLICT (store_id) DO UPDATE SET
+        buy_max_shops = EXCLUDED.buy_max_shops,
+        buy_max_per_shop = EXCLUDED.buy_max_per_shop,
+        updated_at = NOW()
+    `, [storeId, buyMaxShops, buyPerShop]);
+
+    // Sync into seller_onboarding_steps.credit_config
+    if (userId) {
+      try {
+        const onbRes = await pool.query(
+          `SELECT credit_config FROM seller_onboarding_steps WHERE user_id = $1 LIMIT 1`,
+          [userId]
+        );
+        const existingCfg = (onbRes.rows[0]?.credit_config) || {};
+        const mergedCfg = {
+          ...existingCfg,
+          buyMaxShops,
+          buyPerShop
+        };
+        await pool.query(
+          `UPDATE seller_onboarding_steps SET credit_config = $1::jsonb, updated_at = NOW() WHERE user_id = $2`,
+          [JSON.stringify(mergedCfg), userId]
+        );
+      } catch (syncErr) {
+        console.warn('⚠️ Syncing buy limits to seller_onboarding_steps skipped:', syncErr.message);
+      }
+    }
+
+    return await this.getStoreCreditRules(userId, storeId);
+  }
+
   // === Seller Phone + 6-Digit PIN Auth & 7-Step Incremental KYC Onboarding ===
 
   async ensureOnboardingTable() {

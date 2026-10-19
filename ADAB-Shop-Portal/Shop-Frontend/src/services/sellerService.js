@@ -112,6 +112,24 @@ const sellerService = {
     return api.post('/seller/notifications/read-all', {}, {
       headers: getUserHeaders()
     });
+  },
+
+  getCreditTerms: () => {
+    return api.get('/seller/credit-terms', {
+      headers: getUserHeaders()
+    });
+  },
+
+  updateCreditGiveTerms: (data) => {
+    return api.put('/seller/credit-terms/give', data, {
+      headers: getUserHeaders()
+    });
+  },
+
+  updateCreditBuyLimits: (data) => {
+    return api.put('/seller/credit-terms/buy', data, {
+      headers: getUserHeaders()
+    });
   }
 };
 

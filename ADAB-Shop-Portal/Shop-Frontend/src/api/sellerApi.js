@@ -111,7 +111,14 @@ export const sellerApi = {
       {},
       buildIdempotencyHeaders(`khata-pay-${poId}`)
     ),
-  submitCreditApply: (businessDetails) => apiClient.post('/finance/credit-apply', businessDetails)
+  submitCreditApply: (businessDetails) => apiClient.post('/finance/credit-apply', businessDetails),
+
+  // Store Credit Terms & Rules
+  getCreditTerms: () => apiClient.get('/credit-terms'),
+  updateCreditGiveTerms: (data) =>
+    apiClient.put('/credit-terms/give', data, buildIdempotencyHeaders('credit-give')),
+  updateCreditBuyLimits: (data) =>
+    apiClient.put('/credit-terms/buy', data, buildIdempotencyHeaders('credit-buy'))
 };
 
 

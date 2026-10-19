@@ -207,6 +207,18 @@ class SellerService {
     return await sellerRepository.payKhataOrder(storeId, poId);
   }
 
+  async getStoreCreditRules(userId, storeId) {
+    return await sellerRepository.getStoreCreditRules(userId, storeId);
+  }
+
+  async updateCreditGiveTerms(userId, storeId, terms) {
+    return await sellerRepository.updateCreditGiveTerms(userId, storeId, terms);
+  }
+
+  async updateCreditBuyLimits(userId, storeId, limits) {
+    return await sellerRepository.updateCreditBuyLimits(userId, storeId, limits);
+  }
+
   async loginWithPassword(phone, password, extra = {}) {
     return await sellerRepository.loginWithPassword(phone, password, extra);
   }

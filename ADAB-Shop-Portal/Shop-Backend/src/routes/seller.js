@@ -77,6 +77,11 @@ router.post('/finance/withdraw', idempotencyMiddleware, (req, res) => sellerCont
 router.get('/finance/khata', (req, res) => sellerController.getKhataLedger(req, res));
 router.post('/finance/khata/:id/pay', idempotencyMiddleware, (req, res) => sellerController.payKhataOrder(req, res));
 
+// Store Credit Rules & Limits
+router.get('/credit-terms', (req, res) => sellerController.getStoreCreditRules(req, res));
+router.put('/credit-terms/give', idempotencyMiddleware, (req, res) => sellerController.updateCreditGiveTerms(req, res));
+router.put('/credit-terms/buy', idempotencyMiddleware, (req, res) => sellerController.updateCreditBuyLimits(req, res));
+
 module.exports = router;
 
 
