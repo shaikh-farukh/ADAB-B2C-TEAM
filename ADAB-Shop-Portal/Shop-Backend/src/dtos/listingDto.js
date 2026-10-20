@@ -23,6 +23,9 @@ const createListingSchema = z.object({
   wholesale_price: z.preprocess(emptyStringAsNull, z.coerce.number().nonnegative().nullable().optional()),
   tiered_pricing: z.any().optional(),
   sample_available: z.boolean().optional().default(true),
+  is_refundable: z.boolean().optional().default(true),
+  refund_percentage: z.preprocess(emptyStringAsNull, z.coerce.number().min(0).max(100).nullable().optional()).default(100),
+  return_window_days: z.preprocess(emptyStringAsNull, z.coerce.number().int().min(0).max(90).nullable().optional()).default(7),
 });
 
 const updateListingSchema = createListingSchema.partial();

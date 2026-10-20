@@ -504,6 +504,9 @@ CREATE TABLE IF NOT EXISTS seller_listings (
     approval_status VARCHAR(30) DEFAULT 'PENDING' CHECK (approval_status IN ('DRAFT','PENDING','APPROVED','REJECTED')),
     rejection_reason TEXT,
     is_active BOOLEAN DEFAULT true,
+    is_refundable BOOLEAN DEFAULT true,
+    refund_percentage NUMERIC(5,2) DEFAULT 100.00,
+    return_window_days INT DEFAULT 7,
     rating NUMERIC(3,2) DEFAULT 5.00,
     review_count INT DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -1147,6 +1150,7 @@ CREATE TABLE IF NOT EXISTS returns (
     reason VARCHAR(255) NOT NULL,
     status VARCHAR(30) DEFAULT 'REQUESTED' CHECK (status IN ('REQUESTED','APPROVED','ITEM_PICKED','COMPLETED','REJECTED')),
     refund_amount NUMERIC(10,2) NOT NULL,
+    refund_percentage NUMERIC(5,2) DEFAULT 100.00,
     rejection_reason TEXT,
     requested_at TIMESTAMPTZ DEFAULT NOW(),
     resolved_at TIMESTAMPTZ

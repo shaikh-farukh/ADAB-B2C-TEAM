@@ -30,12 +30,17 @@ export const sellerApi = {
 
   // Returns Domain
   getReturns: () => apiClient.get('/returns'),
-  updateReturnStatus: (returnId, status, rejectionReason = null) =>
-    apiClient.patch(
+  updateReturnStatus: (returnId, status, rejectionReason = null, ...rest) => {
+    const body = { status, rejectionReason };
+    if (rest.length > 0 && rest[0] !== null && rest[0] !== undefined) {
+      body.refundAmount = rest[0];
+    }
+    return apiClient.patch(
       `/returns/${encodeURIComponent(returnId)}/status`,
-      { status, rejectionReason },
+      body,
       buildIdempotencyHeaders(`return-${returnId}-${status}`)
-    ),
+    );
+  },
   processReturn: (orderId, items, reason, refundType) =>
     apiClient.post('/returns', { orderId, items, reason, refundType }),
 

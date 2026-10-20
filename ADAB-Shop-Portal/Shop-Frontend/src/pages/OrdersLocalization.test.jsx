@@ -194,7 +194,8 @@ describe('OrdersPage Localization (English, Hindi, Gujarati)', () => {
     fireEvent.click(itemsBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/ऑर्डर विवरण • #ORD-101/i)).toBeDefined();
+      expect(screen.getByText(/ऑर्डर विवरण/i)).toBeDefined();
+      expect(screen.getAllByText(/#ORD-101/i).length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText('डिलीवरी का पता')).toBeDefined();
       expect(screen.getAllByRole('columnheader', { name: 'सामान' }).length).toBeGreaterThanOrEqual(1);
       expect(screen.getByRole('columnheader', { name: 'मात्रा' })).toBeDefined();

@@ -42,6 +42,11 @@ pool.connect(async (err, client, release) => {
           starter_products JSONB DEFAULT '[]'::jsonb,
           updated_at TIMESTAMPTZ DEFAULT NOW()
         );
+
+        ALTER TABLE seller_listings ADD COLUMN IF NOT EXISTS is_refundable BOOLEAN DEFAULT true;
+        ALTER TABLE seller_listings ADD COLUMN IF NOT EXISTS refund_percentage NUMERIC(5,2) DEFAULT 100.00;
+        ALTER TABLE seller_listings ADD COLUMN IF NOT EXISTS return_window_days INT DEFAULT 7;
+        ALTER TABLE returns ADD COLUMN IF NOT EXISTS refund_percentage NUMERIC(5,2) DEFAULT 100.00;
       `);
     } catch (tableErr) {
       console.error('⚠️ Warning ensuring seller_onboarding_steps table:', tableErr.message);

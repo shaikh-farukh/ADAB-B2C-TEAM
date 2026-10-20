@@ -5,6 +5,17 @@ import { useTranslation } from '../context/LanguageContext';
 
 function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
   const [rejectNote, setRejectNote] = useState(item?.rejectionReason || '');
+  const maxRefundAmount = Number(item?.amount || item?.paymentAmount || 0);
+  const productPolicy = Array.isArray(item?.items) && item?.items[0]?.refund_percentage != null
+    ? item.items[0]
+    : null;
+  const defaultPct = productPolicy?.refund_percentage != null
+    ? Number(productPolicy.refund_percentage)
+    : (item?.refundPercentage != null ? Number(item?.refundPercentage) : 100);
+
+  const [regulatedRefundAmount, setRegulatedRefundAmount] = useState(() => {
+    return Number(((maxRefundAmount * defaultPct) / 100).toFixed(2));
+  });
 
   if (!item) return null;
 
@@ -167,6 +178,89 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
             )}
           </div>
 
+          {/* Regulate Refund Amount section (when pending approval) */}
+          {item.status === 'pending' && (
+            <div className="p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-300 space-y-2.5">
+              <div className="flex items-center justify-between flex-wrap gap-1">
+                <span className="text-[11px] font-bold uppercase text-emerald-900 flex items-center gap-1.5">
+                  <i className="fa-solid fa-sliders text-emerald-700"></i>
+                  <span>Regulate Customer Refund Amount</span>
+                </span>
+                <span className="text-[10px] text-gray-500 font-medium">
+                  Original: <strong className="text-gray-800">₹{maxRefundAmount.toLocaleString('en-IN')}</strong>
+                </span>
+              </div>
+
+              {productPolicy && (
+                <div className="text-[11px] text-emerald-800 bg-emerald-100/60 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center justify-between">
+                  <span>Product Policy: <strong>{productPolicy.refund_percentage ?? 100}% Refundable</strong></span>
+                  <span>Window: {productPolicy.return_window_days ?? 7} days</span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-2 text-gray-400 font-bold text-xs">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max={maxRefundAmount}
+                    step="0.01"
+                    value={regulatedRefundAmount}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      if (isNaN(val)) setRegulatedRefundAmount('');
+                      else setRegulatedRefundAmount(Math.min(maxRefundAmount, Math.max(0, val)));
+                    }}
+                    className="w-full pl-7 pr-3 py-1.5 text-xs font-bold border border-emerald-300 rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 text-emerald-950"
+                  />
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setRegulatedRefundAmount(maxRefundAmount)}
+                    className="px-2 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
+                    title="100% Full Refund"
+                  >
+                    100%
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRegulatedRefundAmount(Number((maxRefundAmount * 0.8).toFixed(2)))}
+                    className="px-2 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
+                    title="80% Partial Refund (20% Restocking Fee)"
+                  >
+                    80%
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRegulatedRefundAmount(Number((maxRefundAmount * 0.5).toFixed(2)))}
+                    className="px-2 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
+                    title="50% Partial Refund (Damage / Restocking)"
+                  >
+                    50%
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-gray-600 pt-1 border-t border-emerald-200/70">
+                <span>
+                  {Number(regulatedRefundAmount) < maxRefundAmount ? (
+                    <span className="text-amber-700 font-semibold flex items-center gap-1">
+                      <i className="fa-solid fa-circle-minus text-[10px]"></i>
+                      <span>Deduction / Restocking: ₹{(maxRefundAmount - Number(regulatedRefundAmount || 0)).toFixed(2)}</span>
+                    </span>
+                  ) : (
+                    <span className="text-emerald-700 font-medium">Full 100% Refund</span>
+                  )}
+                </span>
+                <span className="font-bold text-emerald-900">
+                  Approved Refund: ₹{Number(regulatedRefundAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Rejection Reason Input (when pending) or Display (when rejected) */}
           {item.status === 'pending' && (
             <div>
@@ -202,10 +296,10 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                 <button
                   type="button"
                   disabled={isBusy}
-                  onClick={() => onAction(item, 'approved')}
+                  onClick={() => onAction(item, 'approved', null, regulatedRefundAmount)}
                   className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
                 >
-                  {isBusy ? 'Saving...' : 'Approve Return'}
+                  {isBusy ? 'Saving...' : `Approve Refund (₹${Number(regulatedRefundAmount || 0).toLocaleString('en-IN')})`}
                 </button>
                 <button
                   type="button"
@@ -302,7 +396,7 @@ export default function ReturnsPage() {
     fetchReturns(true);
   }, []);
 
-  const handleAction = async (item, nextStatus, customRejectionNote = null) => {
+  const handleAction = async (item, nextStatus, customRejectionNote = null, customRefundAmount = null) => {
     const targetId = item.returnUuid || item.id;
     if (!targetId || inFlightRef.current.has(targetId)) return;
 
@@ -317,7 +411,9 @@ export default function ReturnsPage() {
               : 'Return declined after seller review')
           : null;
 
-      const res = await sellerApi.updateReturnStatus(targetId, nextStatus, rejectionReason);
+      const res = (customRefundAmount !== null && customRefundAmount !== undefined)
+        ? await sellerApi.updateReturnStatus(targetId, nextStatus, rejectionReason, customRefundAmount)
+        : await sellerApi.updateReturnStatus(targetId, nextStatus, rejectionReason);
       const payload = res?.data || res || {};
 
       const applyRowUpdate = (r) => ({
@@ -325,6 +421,8 @@ export default function ReturnsPage() {
         status: payload.status || nextStatus,
         rawStatus: payload.rawStatus || r.rawStatus,
         itemCondition: payload.itemCondition || r.itemCondition,
+        amount: payload.refundAmount !== undefined ? Number(payload.refundAmount) : (customRefundAmount !== null ? Number(customRefundAmount) : r.amount),
+        refundPercentage: payload.refundPercentage !== undefined ? Number(payload.refundPercentage) : r.refundPercentage,
         paymentStatus: payload.paymentStatus || r.paymentStatus,
         paymentRecordStatus: payload.paymentRecordStatus || r.paymentRecordStatus,
         rejectionReason: payload.rejectionReason !== undefined ? payload.rejectionReason : r.rejectionReason,

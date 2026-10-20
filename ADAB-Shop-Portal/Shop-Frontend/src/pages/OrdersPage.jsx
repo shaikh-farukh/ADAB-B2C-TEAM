@@ -31,9 +31,35 @@ function OrderItemsModal({ order, store: propStore, onClose, onUpdateStatus, onD
   const radiusKm = Number(store?.delivery_radius_km ?? 0);
 
   // Exact Customer Coordinates from delivery_address in orders table
-  const hasCustomerCoords = addr.latitude != null && addr.longitude != null;
-  const custLat = hasCustomerCoords ? Number(addr.latitude) : null;
-  const custLng = hasCustomerCoords ? Number(addr.longitude) : null;
+  const rawCustLat = addr.latitude ?? addr.lat ?? order.delivery_latitude ?? order.latitude ?? null;
+  const rawCustLng = addr.longitude ?? addr.lng ?? order.delivery_longitude ?? order.longitude ?? null;
+  const hasCustomerCoords = rawCustLat != null && rawCustLng != null && !isNaN(Number(rawCustLat)) && !isNaN(Number(rawCustLng));
+  const custLat = hasCustomerCoords ? Number(rawCustLat) : null;
+  const custLng = hasCustomerCoords ? Number(rawCustLng) : null;
+
+  const [copiedAddress, setCopiedAddress] = useState(false);
+
+  const handleCopyAddress = async (e) => {
+    if (e) e.stopPropagation();
+    const coordsText = hasCustomerCoords ? `\nCoordinates: ${custLat.toFixed(6)}, ${custLng.toFixed(6)}` : '';
+    const textToCopy = `${addressString}${coordsText}`;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(textToCopy);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = textToCopy;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopiedAddress(true);
+      setTimeout(() => setCopiedAddress(false), 2000);
+    } catch (err) {
+      console.warn('Failed to copy address:', err);
+    }
+  };
 
   const totalAmount = Number(displayAmount) || 0;
   const recordedTax = order.tax_amount != null && !isNaN(Number(order.tax_amount)) ? Number(order.tax_amount) : null;
@@ -47,6 +73,197 @@ function OrderItemsModal({ order, store: propStore, onClose, onUpdateStatus, onD
   const invoiceDate = order.invoice_date 
     ? new Date(order.invoice_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) 
     : (order.created_at ? new Date(order.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : null);
+
+  const handleDownloadInvoice = () => {
+    const invNum = invoiceNumber || `INV-${(order.order_number || order.id || 'ORD').toString().replace('#', '')}`;
+    const invDt = invoiceDate || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const custName = addr.full_name || displayCustomer;
+    const sName = store?.store_name || store?.name || 'Mahadev Supermart';
+    const sGst = store?.gstin || store?.gst_number || '24AAACH7409R1ZZ';
+    const sAddr = [store?.address_line, store?.city, store?.state, store?.pincode].filter(Boolean).join(', ') || 'Gujarat, India';
+    const sPhone = store?.phone || store?.contact_phone || '';
+
+    const itemsRows = items.map((it, idx) => {
+      const q = Number(it.quantity) || 1;
+      const up = Number(it.unit_price) || 0;
+      const tp = Number(it.total_price) || (q * up);
+      const itTaxable = Math.round((tp * 100 / 105) * 100) / 100;
+      return `
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: center;">${idx + 1}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight: 600; color: #111827;">${it.name || 'Item'}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: center;">${q}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">₹${up.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">₹${itTaxable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold;">₹${tp.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const invoiceHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Tax Invoice - ${invNum}</title>
+  <style>
+    @page { size: A4; margin: 12mm; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1f2937; margin: 0; padding: 20px; background: #f3f4f6; }
+    .invoice-card { max-width: 800px; margin: 0 auto; background: #fff; padding: 32px; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+    .top-actions { max-width: 800px; margin: 0 auto 16px auto; display: flex; justify-content: flex-end; gap: 10px; }
+    .btn { padding: 9px 18px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 13px; border: 1px solid transparent; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-print { background: #059669; color: white; }
+    .btn-print:hover { background: #047857; }
+    .btn-close { background: white; color: #374151; border-color: #d1d5db; }
+    .btn-close:hover { background: #f9fafb; }
+    .header-table { width: 100%; border-bottom: 2px solid #059669; padding-bottom: 16px; margin-bottom: 20px; }
+    .tax-badge { display: inline-block; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; font-size: 12px; }
+    .info-box { background: #f9fafb; border: 1px solid #f3f4f6; border-radius: 8px; padding: 12px 14px; }
+    .info-box h4 { margin: 0 0 6px 0; color: #4b5563; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    table.items-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 20px; }
+    table.items-table th { background: #f3f4f6; color: #4b5563; text-transform: uppercase; font-size: 10px; font-weight: 700; padding: 8px 10px; border-bottom: 1px solid #e5e7eb; }
+    .totals-area { display: flex; justify-content: flex-end; margin-bottom: 24px; font-size: 12px; }
+    .totals-table { width: 320px; border-collapse: collapse; }
+    .totals-table td { padding: 6px 8px; }
+    .totals-table tr.grand-total { border-top: 2px solid #10b981; font-weight: 800; font-size: 14px; color: #065f46; background: #ecfdf5; }
+    .footer-note { border-top: 1px dashed #d1d5db; padding-top: 16px; font-size: 11px; color: #6b7280; display: flex; justify-content: space-between; align-items: flex-end; }
+    @media print {
+      body { background: white; padding: 0; }
+      .invoice-card { border: none; box-shadow: none; padding: 0; max-width: 100%; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="top-actions no-print">
+    <button class="btn btn-print" onclick="window.print()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Print / Save as PDF
+    </button>
+    <button class="btn btn-close" onclick="window.close()">Close</button>
+  </div>
+
+  <div class="invoice-card">
+    <table class="header-table">
+      <tr>
+        <td style="vertical-align: top;">
+          <h2 style="margin: 0; color: #065f46; font-size: 22px; font-weight: 800;">${sName}</h2>
+          <div style="font-size: 12px; color: #4b5563; margin-top: 4px;">${sAddr}</div>
+          ${sPhone ? `<div style="font-size: 12px; color: #4b5563;">Phone: ${sPhone}</div>` : ''}
+          <div style="font-size: 12px; font-weight: 700; color: #1f2937; margin-top: 4px;">GSTIN: <span style="font-family: monospace;">${sGst}</span></div>
+        </td>
+        <td style="text-align: right; vertical-align: top;">
+          <div class="tax-badge">Tax Invoice • GST Compliant</div>
+          <div style="font-size: 18px; font-weight: 800; font-family: monospace; color: #111827; margin-top: 6px;">${invNum}</div>
+          <div style="font-size: 12px; color: #6b7280; margin-top: 2px;">Date: <b>${invDt}</b></div>
+          <div style="font-size: 12px; color: #6b7280;">Order: <b>${displayId}</b></div>
+        </td>
+      </tr>
+    </table>
+
+    <div class="grid-2">
+      <div class="info-box">
+        <h4>Billed / Shipped To:</h4>
+        <div style="font-weight: 700; color: #111827; font-size: 13px;">${custName}</div>
+        <div style="color: #4b5563; margin-top: 3px;">${addressString}</div>
+        ${order.customer_phone ? `<div style="color: #4b5563; margin-top: 3px; font-family: monospace;">Phone: ${order.customer_phone}</div>` : ''}
+      </div>
+      <div class="info-box">
+        <h4>Order & Delivery Details:</h4>
+        <div style="color: #4b5563;">Delivery Mode: <b style="text-transform: capitalize; color: #111827;">${order.delivery_mode || 'Normal'}</b></div>
+        <div style="color: #4b5563; margin-top: 3px;">Payment Method: <b>${(order.payment_method || 'PREPAID').toUpperCase()}</b></div>
+        <div style="color: #4b5563; margin-top: 3px;">Payment Status: <b style="color: #059669;">${(order.payment_status || 'PAID').toUpperCase()}</b></div>
+      </div>
+    </div>
+
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th style="width: 40px; text-align: center;">#</th>
+          <th>Item Description</th>
+          <th style="width: 60px; text-align: center;">Qty</th>
+          <th style="width: 100px; text-align: right;">Unit Price</th>
+          <th style="width: 110px; text-align: right;">Taxable Value</th>
+          <th style="width: 110px; text-align: right;">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsRows || '<tr><td colspan="6" style="padding: 12px; text-align: center; color: #9ca3af;">No itemized breakdown recorded</td></tr>'}
+      </tbody>
+    </table>
+
+    <div class="totals-area">
+      <table class="totals-table">
+        <tr>
+          <td style="color: #6b7280;">Taxable Amount:</td>
+          <td style="text-align: right; font-weight: 600;">₹${taxableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+        </tr>
+        <tr>
+          <td style="color: #6b7280;">CGST (2.5%):</td>
+          <td style="text-align: right; font-weight: 600;">₹${cgst}</td>
+        </tr>
+        <tr>
+          <td style="color: #6b7280;">SGST (2.5%):</td>
+          <td style="text-align: right; font-weight: 600;">₹${sgst}</td>
+        </tr>
+        <tr style="border-top: 1px solid #e5e7eb;">
+          <td style="color: #6b7280; font-weight: 700;">Total GST (5%):</td>
+          <td style="text-align: right; font-weight: 700; color: #047857;">₹${taxAmount.toFixed(2)}</td>
+        </tr>
+        <tr class="grand-total">
+          <td style="padding: 10px 8px;">Total Payable:</td>
+          <td style="padding: 10px 8px; text-align: right;">₹${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="footer-note">
+      <div>
+        <p style="margin: 0; font-weight: 600; color: #374151;">Terms & Conditions:</p>
+        <p style="margin: 2px 0 0 0;">1. Goods once sold are covered under ADAB return & refund policies.<br>2. This is a computer-generated tax invoice verified electronically.</p>
+      </div>
+      <div style="text-align: right;">
+        <div style="font-weight: 700; color: #111827; margin-bottom: 24px;">For ${sName}</div>
+        <div style="font-size: 10px; color: #6b7280; border-top: 1px solid #9ca3af; padding-top: 4px; display: inline-block;">Authorized Signatory</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    if (typeof window !== 'undefined') {
+      try {
+        const printWin = window.open('', '_blank');
+        if (printWin && printWin.document) {
+          printWin.document.open();
+          printWin.document.write(invoiceHtml);
+          printWin.document.close();
+          if (printWin.focus) printWin.focus();
+          return;
+        }
+      } catch (err) {
+        console.warn('Direct window.open blocked, trying Blob URL:', err);
+      }
+
+      // Fallback if popup blocker intercepted empty window.open: open via Blob URL
+      try {
+        const blob = new Blob([invoiceHtml], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        }, 1000);
+      } catch (blobErr) {
+        console.warn('Fallback Blob open error:', blobErr);
+      }
+    }
+  };
 
   useEffect(() => {
     if (!mapContainerRef.current || (!hasStoreCoords && !hasCustomerCoords)) return;
@@ -102,7 +319,7 @@ function OrderItemsModal({ order, store: propStore, onClose, onUpdateStatus, onD
         });
         leaflet.marker([custLat, custLng], { icon: customerIcon })
           .addTo(map)
-          .bindPopup(`<b>${displayCustomer}</b><br>${addressString}${distance != null ? `<br><b>Distance:</b> ${distance} km` : ''}`)
+          .bindPopup(`<b>${displayCustomer}</b><br>${addressString}${distance != null ? `<br><b>Distance:</b> ${distance} km` : ''}${hasCustomerCoords ? `<br><span style="font-family:monospace;font-size:10px;color:#2563eb;font-weight:bold;">📍 ${custLat.toFixed(6)}, ${custLng.toFixed(6)}</span>` : ''}`)
           .openPopup();
       }
 
@@ -217,16 +434,31 @@ function OrderItemsModal({ order, store: propStore, onClose, onUpdateStatus, onD
                       <i className="fa-solid fa-phone text-[9px] mr-1"></i>{order.customer_phone}
                     </span>
                   )}
+                  {hasCustomerCoords ? (
+                    <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 mt-1.5 w-fit">
+                      <i className="fa-solid fa-location-crosshairs text-[10px] text-blue-600"></i>
+                      <span>{custLat.toFixed(6)}, {custLng.toFixed(6)}</span>
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
+                      <i className="fa-solid fa-location-slash text-[9px]"></i>
+                      <span>{t('mapModalNoCoords', 'No GPS Coordinates')}</span>
+                    </div>
+                  )}
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => alert(`Starting navigation to ${addressString}`)}
-                className="btn-soft !py-1 !px-2.5 !text-[11px] font-bold shrink-0 flex items-center gap-1 cursor-pointer"
-                title={t('mapModalDirections', 'Directions')}
+                onClick={handleCopyAddress}
+                className={`!py-1.5 !px-2.5 !text-[11px] font-bold shrink-0 flex items-center gap-1.5 rounded-xl border transition cursor-pointer shadow-2xs active:scale-95 ${
+                  copiedAddress 
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
+                    : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-200'
+                }`}
+                title={t('mapModalCopyAddress', 'Copy Address')}
               >
-                <i className="fa-solid fa-diamond-turn-right text-blue-600"></i>
-                <span>{t('mapModalDirections', 'Directions')}</span>
+                <i className={`fa-solid ${copiedAddress ? 'fa-check text-emerald-600' : 'fa-copy text-blue-600'}`}></i>
+                <span>{copiedAddress ? t('mapModalCopied', 'Copied!') : t('mapModalCopyAddress', 'Copy Address')}</span>
               </button>
             </div>
           </div>
@@ -235,49 +467,44 @@ function OrderItemsModal({ order, store: propStore, onClose, onUpdateStatus, onD
         {/* RIGHT SIDE: Order Details, Items, GST, Actions */}
         <div className="w-full md:w-7/12 lg:w-1/2 flex flex-col flex-1 overflow-hidden bg-white">
           {/* Header */}
-          <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between bg-emerald-50">
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
-                  <i className="fa-solid fa-basket-shopping text-emerald-600"></i>
-                  <span>{t('orderModalTitle', 'Order Detail • {id}', { id: displayId })}</span>
-                </h3>
-                {invoiceNumber && (
-                  <span className="px-2 py-0.5 rounded-md bg-emerald-100 border border-emerald-300 text-emerald-800 text-[11px] font-mono font-bold flex items-center gap-1">
-                    <i className="fa-solid fa-file-invoice text-emerald-600"></i>
-                    <span>{invoiceNumber}</span>
-                  </span>
-                )}
+          <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between bg-emerald-50 gap-4">
+            <div className="min-w-0 flex-1">
+              <h3 className="font-extrabold text-base sm:text-lg text-gray-900 flex items-center gap-2 whitespace-nowrap">
+                <i className="fa-solid fa-basket-shopping text-emerald-600"></i>
+                <span>{t('orderModalTitleOnly', 'Order Detail')}</span>
+              </h3>
+              <div className="flex items-center gap-2 mt-1 text-xs whitespace-nowrap">
+                <span className="text-gray-500 font-semibold">{t('orderModalOrderIdLabel', 'Order ID:')}</span>
+                <span className="font-mono font-bold text-gray-900 bg-white px-2 py-0.5 rounded border border-gray-200 shadow-2xs whitespace-nowrap">
+                  {displayId}
+                </span>
               </div>
-              <div className="text-xs text-gray-500 mt-1 flex items-center gap-3 flex-wrap">
-                <span>
+              <div className="text-xs text-gray-500 mt-1 flex items-center gap-3 whitespace-nowrap overflow-hidden text-ellipsis">
+                <span className="truncate">
                   {t('orderModalCustomer', 'Customer: ')}<span className="font-semibold text-gray-700">{displayCustomer}</span>
                 </span>
                 {invoiceDate && (
-                  <span className="text-[11px] text-gray-400">
+                  <span className="text-[11px] text-gray-400 shrink-0">
                     <i className="fa-regular fa-clock mr-1"></i>{invoiceDate}
                   </span>
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {invoicePdfUrl && (
-                <a
-                  href={invoicePdfUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-gray-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1 shadow-2xs transition-colors"
-                  title={t('orderModalDownloadInvoice', 'Download Tax Invoice')}
-                >
-                  <i className="fa-solid fa-file-pdf text-rose-500"></i>
-                  <span className="hidden sm:inline">{t('orderModalInvoicePdf', 'Invoice PDF')}</span>
-                </a>
-              )}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleDownloadInvoice}
+                className="px-3.5 py-2 rounded-xl bg-white hover:bg-emerald-50 text-emerald-800 border-2 border-emerald-300 text-xs sm:text-sm font-extrabold flex items-center gap-2 shadow-xs transition-all cursor-pointer whitespace-nowrap shrink-0 hover:border-emerald-400 active:scale-95"
+                title={t('orderModalDownloadInvoice', 'Download Tax Invoice')}
+              >
+                <i className="fa-solid fa-file-pdf text-rose-500 text-sm sm:text-base"></i>
+                <span className="whitespace-nowrap">{t('orderModalInvoicePdf', 'Invoice PDF')}</span>
+              </button>
               <button 
                 type="button"
                 disabled={busy}
                 onClick={onClose}
-                className="w-8 h-8 rounded-full bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors text-base font-bold shadow-xs cursor-pointer disabled:opacity-50"
+                className="w-9 h-9 rounded-full bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors text-lg font-bold shadow-xs cursor-pointer shrink-0 disabled:opacity-50 ml-1"
                 title={t('orderModalClose', 'Close')}
               >
                 &times;
@@ -292,9 +519,17 @@ function OrderItemsModal({ order, store: propStore, onClose, onUpdateStatus, onD
               <span className="font-bold text-gray-800 capitalize">{order.delivery_mode || 'Normal'}</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold">
-                {order.payment_method ? order.payment_method.toUpperCase() : 'PREPAID'} • {order.payment_status ? order.payment_status.toUpperCase() : 'PAID'}
-              </span>
+              {((order.payment_method || '').toUpperCase() === 'CASH_ON_DELIVERY' || (order.payment_method || '').toUpperCase() === 'COD') ? (
+                <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold flex items-center gap-1">
+                  <i className="fa-solid fa-hand-holding-dollar text-amber-600"></i>
+                  <span>COD • {(order.payment_status || '').toUpperCase() === 'PAID' ? 'COLLECTED' : 'PAY ON DELIVERY'}</span>
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold flex items-center gap-1">
+                  <i className="fa-solid fa-credit-card text-emerald-600"></i>
+                  <span>{order.payment_method ? order.payment_method.toUpperCase() : 'PREPAID'} • {order.payment_status ? order.payment_status.toUpperCase() : 'PAID'}</span>
+                </span>
+              )}
             </div>
           </div>
 
@@ -577,6 +812,7 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
   const displayCustomer = order.customer || order.customer_name || t('colCustomer', 'Customer');
   const addr = order.delivery_address || {};
   const addrText = [addr.address_line, addr.city, addr.state, addr.pincode].filter(Boolean).join(', ') || t('orderModalNoAddress', 'No delivery address recorded');
+  const addressString = addrText;
   const distance = order.distance != null ? parseFloat(order.distance) : null;
 
   // Active Store Location and Details from database
@@ -587,9 +823,35 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
   const radiusKm = Number(store?.delivery_radius_km ?? 0);
 
   // Exact Customer Coordinates from delivery_address in orders table
-  const hasCustomerCoords = addr.latitude != null && addr.longitude != null;
-  const custLat = hasCustomerCoords ? Number(addr.latitude) : null;
-  const custLng = hasCustomerCoords ? Number(addr.longitude) : null;
+  const rawCustLat = addr.latitude ?? addr.lat ?? order.delivery_latitude ?? order.latitude ?? null;
+  const rawCustLng = addr.longitude ?? addr.lng ?? order.delivery_longitude ?? order.longitude ?? null;
+  const hasCustomerCoords = rawCustLat != null && rawCustLng != null && !isNaN(Number(rawCustLat)) && !isNaN(Number(rawCustLng));
+  const custLat = hasCustomerCoords ? Number(rawCustLat) : null;
+  const custLng = hasCustomerCoords ? Number(rawCustLng) : null;
+
+  const [copiedAddress, setCopiedAddress] = useState(false);
+
+  const handleCopyAddress = async (e) => {
+    if (e) e.stopPropagation();
+    const coordsText = hasCustomerCoords ? `\nCoordinates: ${custLat.toFixed(6)}, ${custLng.toFixed(6)}` : '';
+    const textToCopy = `${addressString}${coordsText}`;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(textToCopy);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = textToCopy;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopiedAddress(true);
+      setTimeout(() => setCopiedAddress(false), 2000);
+    } catch (err) {
+      console.warn('Failed to copy address:', err);
+    }
+  };
 
   useEffect(() => {
     if (!mapContainerRef.current || (!hasStoreCoords && !hasCustomerCoords)) return;
@@ -643,7 +905,7 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
         });
         leaflet.marker([custLat, custLng], { icon: customerIcon })
           .addTo(map)
-          .bindPopup(`<b>${displayCustomer}</b><br>${addrText}${distance != null ? `<br><b>Distance:</b> ${distance} km` : ''}`)
+          .bindPopup(`<b>${displayCustomer}</b><br>${addrText}${distance != null ? `<br><b>Distance:</b> ${distance} km` : ''}${hasCustomerCoords ? `<br><span style="font-family:monospace;font-size:10px;color:#2563eb;font-weight:bold;">📍 ${custLat.toFixed(6)}, ${custLng.toFixed(6)}</span>` : ''}`)
           .openPopup();
       }
 
@@ -709,6 +971,17 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
                 <i className="fa-solid fa-phone text-[10px] text-gray-400"></i> {order.customer_phone}
               </div>
             )}
+            {hasCustomerCoords ? (
+              <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded-md border border-blue-200 mt-1.5 w-fit">
+                <i className="fa-solid fa-location-crosshairs text-[10px] text-blue-600"></i>
+                <span>{custLat.toFixed(6)}, {custLng.toFixed(6)}</span>
+              </div>
+            ) : (
+              <div className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
+                <i className="fa-solid fa-location-slash text-[9px]"></i>
+                <span>{t('mapModalNoCoords', 'No GPS Coordinates')}</span>
+              </div>
+            )}
           </div>
           {radiusKm > 0 && (
             <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-green-100 text-green-800 border border-green-200 shrink-0">
@@ -743,11 +1016,16 @@ function OrderMapModal({ order, store, onClose, onUpdateStatus, onDecline }) {
           <div className="flex items-center gap-2">
             <button 
               type="button"
-              onClick={() => alert(`Starting navigation to ${addrText}`)}
-              className="btn-soft !py-1.5 !px-3 !text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+              onClick={handleCopyAddress}
+              className={`!py-1.5 !px-3 !text-xs font-bold flex items-center gap-1.5 rounded-xl border transition cursor-pointer shadow-2xs active:scale-95 ${
+                copiedAddress 
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-200'
+              }`}
+              title={t('mapModalCopyAddress', 'Copy Address')}
             >
-              <i className="fa-solid fa-diamond-turn-right text-xs text-blue-600"></i>
-              {t('mapModalDirections', 'Directions')}
+              <i className={`fa-solid ${copiedAddress ? 'fa-check text-emerald-600' : 'fa-copy text-blue-600'}`}></i>
+              <span>{copiedAddress ? t('mapModalCopied', 'Copied!') : t('mapModalCopyAddress', 'Copy Address')}</span>
             </button>
             {((order.status || '').toLowerCase() === 'new') && (
               <>
@@ -1013,10 +1291,7 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
     >
       <td className="px-4 py-3.5 font-bold text-gray-900">
         <div className="flex flex-col">
-          <div className="flex items-center gap-1.5">
-            <span className="group-hover:text-emerald-700 transition-colors">{displayId}</span>
-            <i className="fa-solid fa-arrow-up-right-from-square text-[9px] text-gray-300 group-hover:text-emerald-600 transition-colors"></i>
-          </div>
+          <span className="group-hover:text-emerald-700 transition-colors">{displayId}</span>
           {order.invoice_number ? (
             <span className="text-[10px] font-mono font-medium text-emerald-700 mt-0.5 inline-flex items-center gap-1">
               <i className="fa-solid fa-file-invoice text-[9px]"></i>
@@ -1055,14 +1330,20 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
       </td>
       <td className="px-4 py-3.5 font-bold text-gray-900">
         <div>₹{displayAmount}</div>
-        {order.tax_amount != null && order.tax_amount > 0 ? (
-          <span className="text-[10px] font-medium text-emerald-700 block whitespace-nowrap">
-            {t('orderRowTaxIncluded', 'Incl. ₹{tax} GST', { tax: Number(order.tax_amount).toFixed(2) })}
+        {((order.payment_method || '').toUpperCase() === 'CASH_ON_DELIVERY' || (order.payment_method || '').toUpperCase() === 'COD') ? (
+          <span className="text-[10px] font-bold text-amber-700 block whitespace-nowrap">
+            <i className="fa-solid fa-hand-holding-dollar mr-0.5 text-[9px]"></i> COD
           </span>
         ) : (
-          <span className="text-[10px] font-medium text-gray-400 block whitespace-nowrap">
-            {t('orderRowGstInclusive', 'Incl. 5% GST')}
-          </span>
+          order.tax_amount != null && order.tax_amount > 0 ? (
+            <span className="text-[10px] font-medium text-emerald-700 block whitespace-nowrap">
+              {t('orderRowTaxIncluded', 'Incl. ₹{tax} GST', { tax: Number(order.tax_amount).toFixed(2) })}
+            </span>
+          ) : (
+            <span className="text-[10px] font-medium text-gray-400 block whitespace-nowrap">
+              {t('orderRowGstInclusive', 'Incl. 5% GST')}
+            </span>
+          )
         )}
       </td>
       <td className="px-4 py-3.5 text-center">
@@ -1147,6 +1428,168 @@ export default function OrdersPage() {
     );
     return matchesStatus && matchesDelivery && matchesSearch;
   });
+
+  const handleExportCSV = () => {
+    if (!filteredOrders || filteredOrders.length === 0) {
+      setToastMessage(t('toastExportNoOrders', 'No orders available to export'));
+      setTimeout(() => setToastMessage(null), 4000);
+      return;
+    }
+
+    const headers = [
+      'Order ID',
+      'Invoice Number',
+      'Order Date',
+      'Customer Name',
+      'Customer Phone',
+      'Delivery Address',
+      'Customer Coordinates',
+      'Distance (km)',
+      'Delivery Mode',
+      'Items Summary',
+      'Payment Method',
+      'Payment Status',
+      'Taxable Amount (INR)',
+      'CGST (INR)',
+      'SGST (INR)',
+      'Total GST (INR)',
+      'Grand Total (INR)',
+      'Order Status'
+    ];
+
+    const escapeCsvCell = (val) => {
+      if (val == null) return '""';
+      const str = String(val);
+      return `"${str.replace(/"/g, '""')}"`;
+    };
+
+    const rows = filteredOrders.map(o => {
+      const displayId = o.id ? (o.id.toString().startsWith('#') ? o.id : `#${o.id}`) : '';
+      const invNum = o.invoice_number || '';
+
+      let dateStr = '';
+      if (o.created_at) {
+        try {
+          const d = new Date(o.created_at);
+          dateStr = isNaN(d.getTime()) ? String(o.created_at) : d.toLocaleString('en-IN');
+        } catch (e) {
+          dateStr = String(o.created_at);
+        }
+      } else if (o.invoice_date) {
+        try {
+          const d = new Date(o.invoice_date);
+          dateStr = isNaN(d.getTime()) ? String(o.invoice_date) : d.toLocaleString('en-IN');
+        } catch (e) {
+          dateStr = String(o.invoice_date);
+        }
+      }
+
+      const customerName = o.customer || o.customer_name || '';
+      const phone = o.customer_phone || '';
+
+      let addressStr = '';
+      if (typeof o.delivery_address === 'string') {
+        addressStr = o.delivery_address;
+      } else if (o.delivery_address && typeof o.delivery_address === 'object') {
+        const a = o.delivery_address;
+        addressStr = [a.address_line, a.city, a.state, a.pincode].filter(Boolean).join(', ');
+      } else if (typeof o.address === 'string') {
+        addressStr = o.address;
+      }
+
+      const addrObj = (o.delivery_address && typeof o.delivery_address === 'object') ? o.delivery_address : {};
+      const rawLat = addrObj.latitude ?? addrObj.lat ?? o.delivery_latitude ?? o.latitude ?? null;
+      const rawLng = addrObj.longitude ?? addrObj.lng ?? o.delivery_longitude ?? o.longitude ?? null;
+      const hasCoords = rawLat != null && rawLng != null && !isNaN(Number(rawLat)) && !isNaN(Number(rawLng));
+      const coords = hasCoords ? `${Number(rawLat).toFixed(6)}, ${Number(rawLng).toFixed(6)}` : '';
+
+      const distance = o.distance != null ? o.distance : '';
+      const deliveryMode = o.delivery_mode || o.delivery_type || 'normal';
+
+      let itemsStr = '';
+      if (Array.isArray(o.items)) {
+        itemsStr = o.items.map(it => {
+          const name = it.name || 'Item';
+          const qty = it.quantity != null ? it.quantity : 1;
+          const price = it.total_price != null ? it.total_price : (it.unit_price != null ? it.unit_price * qty : null);
+          return price != null ? `${name} (x${qty} - ₹${price})` : `${name} (x${qty})`;
+        }).join('; ');
+      } else if (typeof o.items === 'string') {
+        itemsStr = o.items;
+      } else if (o.item_summary) {
+        itemsStr = o.item_summary;
+      }
+
+      const payMethod = o.payment_method ? o.payment_method.toUpperCase() : 'PREPAID';
+      const payStatus = o.payment_status ? o.payment_status.toUpperCase() : 'PAID';
+
+      const total = o.amount !== undefined ? Number(o.amount) : (Number(o.total_amount) || 0);
+      const recordedTax = o.tax_amount != null && !isNaN(Number(o.tax_amount)) ? Number(o.tax_amount) : null;
+      const computedTax = Math.round((total * 5 / 105) * 100) / 100;
+      const taxAmount = recordedTax != null ? recordedTax : computedTax;
+      const taxableAmount = Math.max(0, Math.round((total - taxAmount) * 100) / 100);
+      const cgst = (taxAmount / 2).toFixed(2);
+      const sgst = (taxAmount / 2).toFixed(2);
+
+      const status = o.status || 'new';
+
+      return [
+        displayId,
+        invNum,
+        dateStr,
+        customerName,
+        phone,
+        addressStr,
+        coords,
+        distance,
+        deliveryMode,
+        itemsStr,
+        payMethod,
+        payStatus,
+        taxableAmount.toFixed(2),
+        cgst,
+        sgst,
+        taxAmount.toFixed(2),
+        total.toFixed(2),
+        status
+      ].map(escapeCsvCell).join(',');
+    });
+
+    const csvContent = '\uFEFF' + [headers.map(escapeCsvCell).join(','), ...rows].join('\r\n');
+    const today = new Date().toISOString().split('T')[0];
+    const filename = `orders_export_${today}.csv`;
+
+    try {
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      if (typeof window !== 'undefined') {
+        if (window.navigator && window.navigator.msSaveOrOpenBlob) {
+          window.navigator.msSaveOrOpenBlob(blob, filename);
+        } else {
+          const url = (window.URL && typeof window.URL.createObjectURL === 'function')
+            ? window.URL.createObjectURL(blob)
+            : (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function' ? URL.createObjectURL(blob) : null);
+
+          if (url) {
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(() => {
+              document.body.removeChild(link);
+              if (window.URL && typeof window.URL.revokeObjectURL === 'function') {
+                window.URL.revokeObjectURL(url);
+              }
+            }, 100);
+          }
+        }
+      }
+      setToastMessage(t('toastExportOrders', 'Exported {count} orders to CSV', { count: filteredOrders.length }));
+      setTimeout(() => setToastMessage(null), 4000);
+    } catch (err) {
+      console.error('Failed to export CSV:', err);
+    }
+  };
 
   const fastCount = orders.filter(o => {
     const d = (o.delivery_mode || o.delivery_type || '').toLowerCase();
@@ -1253,7 +1696,12 @@ export default function OrdersPage() {
           <option value="normal">{t('ordersFilterNormal', 'Normal / scheduled')}</option>
           <option value="pickup">{t('ordersFilterPickup', 'Pickup')}</option>
         </select>
-        <button onClick={() => alert('Filtered orders exported')} className="btn-soft !text-xs">
+        <button 
+          type="button"
+          onClick={handleExportCSV} 
+          className="btn-soft !text-xs cursor-pointer flex items-center gap-1.5"
+          title={t('ordersExportTitle', 'Export filtered orders to CSV')}
+        >
           <i className="fa-solid fa-download mr-1"></i> {t('ordersBtnExport', 'Export')}
         </button>
       </div>

@@ -70,4 +70,31 @@ describe('Listing DTO Validation', () => {
     expect(res.success).toBe(true);
     expect(res.data.image_url).toBe('https://images.example.com/product.jpg');
   });
+
+  it('should validate and default return and refund policy fields', () => {
+    const payload = {
+      title: 'Valid Product',
+      mrp: 100,
+      sell_price: 90,
+    };
+    const res = createListingSchema.safeParse(payload);
+    expect(res.success).toBe(true);
+    expect(res.data.is_refundable).toBe(true);
+    expect(res.data.refund_percentage).toBe(100);
+    expect(res.data.return_window_days).toBe(7);
+
+    const customPayload = {
+      title: 'Perishable Dairy',
+      mrp: 50,
+      sell_price: 45,
+      is_refundable: false,
+      refund_percentage: 0,
+      return_window_days: 0,
+    };
+    const resCustom = createListingSchema.safeParse(customPayload);
+    expect(resCustom.success).toBe(true);
+    expect(resCustom.data.is_refundable).toBe(false);
+    expect(resCustom.data.refund_percentage).toBe(0);
+    expect(resCustom.data.return_window_days).toBe(0);
+  });
 });

@@ -331,7 +331,8 @@ describe('OrdersPage Component', () => {
 
     // Verify modal opens with full GST tax breakdown & invoice badge
     await waitFor(() => {
-      expect(screen.getByText(/Order Detail • #ORD-9999/i)).toBeDefined();
+      expect(screen.getByText(/Order Detail/i)).toBeDefined();
+      expect(screen.getAllByText(/#ORD-9999/i).length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText('Taxable Amount (Excl. Tax)')).toBeDefined();
       expect(screen.getByText('CGST (2.5%)')).toBeDefined();
       expect(screen.getByText('SGST (2.5%)')).toBeDefined();
@@ -339,6 +340,78 @@ describe('OrdersPage Component', () => {
       expect(screen.getByText('Invoice Verified')).toBeDefined();
       expect(screen.getByText('Invoice PDF')).toBeDefined();
     });
+  });
+
+  it('exports filtered orders to a CSV file when Export button is clicked', async () => {
+    sellerApi.getOrders.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'ORD-7001',
+          customer: 'Suresh Raina',
+          customer_phone: '9820011223',
+          distance: '2.5',
+          delivery_mode: 'fast',
+          items: [
+            { name: 'Organic Almonds', quantity: 2, unit_price: 350, total_price: 700 }
+          ],
+          amount: 700,
+          tax_amount: 33.33,
+          invoice_number: 'INV-ORD-7001',
+          status: 'new'
+        }
+      ]
+    });
+
+    const createObjectURLMock = vi.fn().mockReturnValue('blob:mock-csv-url');
+    const revokeObjectURLMock = vi.fn();
+    window.URL.createObjectURL = createObjectURLMock;
+    window.URL.revokeObjectURL = revokeObjectURLMock;
+
+    let clickedAnchor = null;
+    const originalClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = vi.fn(function() {
+      clickedAnchor = this;
+    });
+
+    render(
+      <BrowserRouter>
+        <OrdersPage />
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('#ORD-7001')).toBeDefined();
+    });
+
+    const exportBtn = screen.getByRole('button', { name: /Export/i });
+    fireEvent.click(exportBtn);
+
+    await waitFor(() => {
+      expect(createObjectURLMock).toHaveBeenCalled();
+      expect(clickedAnchor).not.toBeNull();
+      expect(clickedAnchor.getAttribute('download')).toMatch(/^orders_export_\d{4}-\d{2}-\d{2}\.csv$/);
+      expect(screen.getByText(/Exported 1 orders to CSV/i)).toBeDefined();
+    });
+
+    const blobArg = createObjectURLMock.mock.calls[0][0];
+    expect(blobArg).toBeInstanceOf(Blob);
+    const buf = await blobArg.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    expect(bytes[0]).toBe(0xEF); // UTF-8 BOM byte 1
+    expect(bytes[1]).toBe(0xBB); // UTF-8 BOM byte 2
+    expect(bytes[2]).toBe(0xBF); // UTF-8 BOM byte 3
+
+    const blobText = await blobArg.text();
+    expect(blobText).toContain('Order ID');
+    expect(blobText).toContain('Invoice Number');
+    expect(blobText).toContain('Grand Total (INR)');
+    expect(blobText).toContain('#ORD-7001');
+    expect(blobText).toContain('Suresh Raina');
+    expect(blobText).toContain('9820011223');
+    expect(blobText).toContain('Organic Almonds (x2 - ₹700)');
+
+    HTMLAnchorElement.prototype.click = originalClick;
   });
 });
 

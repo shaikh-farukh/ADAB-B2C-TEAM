@@ -158,8 +158,9 @@ class SellerController {
     try {
       const { storeId } = await resolveSellerStoreId(req);
       const { id } = req.params;
-      const { status, rejectionReason } = req.body || {};
-      const updated = await sellerService.updateReturnStatus(id, status, rejectionReason, storeId);
+      const { status, rejectionReason, refundAmount, refund_amount } = req.body || {};
+      const regulatedRefund = refundAmount !== undefined ? refundAmount : refund_amount;
+      const updated = await sellerService.updateReturnStatus(id, status, rejectionReason, storeId, regulatedRefund);
       res.json({ success: true, data: updated });
     } catch (error) {
       handleError(res, error);

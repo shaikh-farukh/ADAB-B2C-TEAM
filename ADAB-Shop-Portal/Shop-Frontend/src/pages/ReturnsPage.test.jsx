@@ -148,4 +148,53 @@ describe('ReturnsPage Component', () => {
       expect(screen.getByText(/Added to Catalog \(\+3\)/i)).toBeDefined();
     });
   });
+
+  it('allows seller to regulate refund amount with partial deduction in the ReturnDetailModal', async () => {
+    sellerApi.getReturns.mockResolvedValue({
+      success: true,
+      data: [sampleReturn]
+    });
+
+    sellerApi.updateReturnStatus.mockResolvedValueOnce({
+      success: true,
+      data: {
+        status: 'approved',
+        rawStatus: 'APPROVED',
+        refundAmount: 976,
+        refundPercentage: 80,
+        paymentStatus: 'REFUNDED',
+        paymentRecordStatus: 'REFUNDED'
+      }
+    });
+
+    render(<ReturnsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('#RET-E2E1')).toBeDefined();
+    });
+
+    // Click row to open modal
+    fireEvent.click(screen.getByText('#RET-E2E1').closest('tr'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Regulate Customer Refund Amount')).toBeDefined();
+      expect(screen.getByText('80%')).toBeDefined();
+    });
+
+    // Click the 80% button to apply 20% restocking deduction
+    fireEvent.click(screen.getByText('80%'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Deduction \/ Restocking: ₹244.00/i)).toBeDefined();
+      expect(screen.getByText('Approved Refund: ₹976.00')).toBeDefined();
+    });
+
+    // Click Approve Refund button inside the modal
+    const approveBtn = screen.getByRole('button', { name: /Approve Refund \(₹976\)/i });
+    fireEvent.click(approveBtn);
+
+    await waitFor(() => {
+      expect(sellerApi.updateReturnStatus).toHaveBeenCalledWith('ret-uuid-1001', 'approved', null, 976);
+    });
+  });
 });

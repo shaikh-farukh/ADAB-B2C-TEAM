@@ -219,10 +219,38 @@ class SellerRepository {
 
     const query = `
       SELECT 
-        (SELECT COUNT(*) FROM seller_orders WHERE store_id = $1) as total_orders,
-        (SELECT COALESCE(SUM(subtotal), 0) FROM seller_orders WHERE store_id = $1) as total_revenue,
+        (SELECT COUNT(*) 
+         FROM seller_orders so
+         JOIN orders o ON so.parent_order_id = o.id
+         WHERE so.store_id = $1
+           AND (
+             UPPER(COALESCE(o.payment_status, 'PAID')) = 'PAID'
+             OR UPPER(COALESCE(o.payment_method, '')) IN ('CASH_ON_DELIVERY', 'COD', 'PAY_ON_DELIVERY')
+             OR UPPER(COALESCE(o.payment_method, '')) LIKE '%CREDIT%'
+           )
+        ) as total_orders,
+        (SELECT COALESCE(SUM(so.subtotal), 0) 
+         FROM seller_orders so
+         JOIN orders o ON so.parent_order_id = o.id
+         WHERE so.store_id = $1
+           AND (
+             UPPER(COALESCE(o.payment_status, 'PAID')) = 'PAID'
+             OR UPPER(COALESCE(o.payment_method, '')) IN ('CASH_ON_DELIVERY', 'COD', 'PAY_ON_DELIVERY')
+             OR UPPER(COALESCE(o.payment_method, '')) LIKE '%CREDIT%'
+           )
+        ) as total_revenue,
         (SELECT COUNT(*) FROM seller_listings WHERE store_id = $1) as total_products,
-        (SELECT COUNT(*) FROM seller_orders WHERE store_id = $1 AND (status = 'PLACED' OR status = 'PROCESSING' OR status = 'new' OR status = 'pending')) as pending_orders,
+        (SELECT COUNT(*) 
+         FROM seller_orders so
+         JOIN orders o ON so.parent_order_id = o.id
+         WHERE so.store_id = $1 
+           AND (so.status = 'PLACED' OR so.status = 'PROCESSING' OR so.status = 'new' OR so.status = 'pending')
+           AND (
+             UPPER(COALESCE(o.payment_status, 'PAID')) = 'PAID'
+             OR UPPER(COALESCE(o.payment_method, '')) IN ('CASH_ON_DELIVERY', 'COD', 'PAY_ON_DELIVERY')
+             OR UPPER(COALESCE(o.payment_method, '')) LIKE '%CREDIT%'
+           )
+        ) as pending_orders,
         COALESCE((SELECT COUNT(*) FROM b2b_purchase_orders WHERE buyer_store_id = $1 OR supplier_store_id = $1), 0) as total_b2b_orders,
         COALESCE((SELECT COUNT(*) FROM returns r JOIN seller_orders so ON r.seller_order_id = so.id WHERE so.store_id = $1), 0) as total_returns,
         COALESCE((SELECT COUNT(*) FROM messages m JOIN message_threads t ON m.thread_id = t.id WHERE (t.participant_a = $2 OR t.participant_b = $2) AND m.sender_id != $2 AND m.is_read = false), 0) as unread_messages
@@ -302,6 +330,12 @@ class SellerRepository {
       WHERE so.store_id = $1::uuid
         AND ($2::text IS NULL OR UPPER(so.status) = $2::text)
         AND ($3::text IS NULL OR o.order_number ILIKE $3::text OR COALESCE(u.full_name, '') ILIKE $3::text)
+        AND (
+          UPPER(COALESCE(o.payment_status, 'PAID')) = 'PAID'
+          OR UPPER(COALESCE(o.payment_method, '')) IN ('CASH_ON_DELIVERY', 'COD', 'PAY_ON_DELIVERY')
+          OR UPPER(COALESCE(o.payment_method, '')) LIKE '%CREDIT%'
+          OR UPPER(COALESCE(so.status, '')) IN ('CANCELLED', 'RETURNED')
+        )
       ORDER BY so.created_at DESC
       LIMIT $4::int OFFSET $5::int
     `;
@@ -648,7 +682,10 @@ class SellerRepository {
                      'total_price', COALESCE(ri_all.refund_amount, oi_all.total_price),
                      'reason', COALESCE(ri_all.reason, r.reason),
                      'item_condition', COALESCE(ri_all.item_condition, 'UNOPENED'),
-                     'current_listing_stock', sl_all.stock_qty
+                     'current_listing_stock', sl_all.stock_qty,
+                     'is_refundable', COALESCE(sl_all.is_refundable, true),
+                     'refund_percentage', COALESCE(sl_all.refund_percentage, 100.00),
+                     'return_window_days', COALESCE(sl_all.return_window_days, 7)
                    )
                  )
                  FROM return_items ri_all
@@ -668,7 +705,10 @@ class SellerRepository {
                      'total_price', oi_fallback.total_price,
                      'reason', r.reason,
                      'item_condition', 'UNOPENED',
-                     'current_listing_stock', sl_fallback.stock_qty
+                     'current_listing_stock', sl_fallback.stock_qty,
+                     'is_refundable', COALESCE(sl_fallback.is_refundable, true),
+                     'refund_percentage', COALESCE(sl_fallback.refund_percentage, 100.00),
+                     'return_window_days', COALESCE(sl_fallback.return_window_days, 7)
                    )
                  )
                  FROM order_items oi_fallback
@@ -772,7 +812,7 @@ class SellerRepository {
     });
   }
 
-  async updateReturnStatus(returnId, status, rejectionReason = null, storeId = null) {
+  async updateReturnStatus(returnId, status, rejectionReason = null, storeId = null, refundAmount = null) {
     const cleanId = String(returnId || '').trim();
     const shortPrefix = cleanId.replace(/^#?RET-/i, '').toUpperCase();
     const normalized = String(status || '').toLowerCase();
@@ -870,13 +910,28 @@ class SellerRepository {
       finalPaymentStatus = 'REFUNDED';
       finalPaymentRecordStatus = 'REFUNDED';
 
+      const regulatedAmount = (refundAmount !== null && refundAmount !== undefined && !isNaN(Number(refundAmount)) && Number(refundAmount) >= 0)
+        ? Math.min(Number(refundAmount), paymentDomainRefundAmount)
+        : paymentDomainRefundAmount;
+
+      const regulatedPct = paymentDomainRefundAmount > 0
+        ? Number(((regulatedAmount / paymentDomainRefundAmount) * 100).toFixed(2))
+        : 100.00;
+
       await pool.query(`
         UPDATE returns
         SET status = 'APPROVED',
-            refund_amount = COALESCE(refund_amount, $2),
+            refund_amount = $2,
+            refund_percentage = $3,
             rejection_reason = NULL
         WHERE id = $1
-      `, [ret.id, paymentDomainRefundAmount]);
+      `, [ret.id, regulatedAmount, regulatedPct]);
+
+      await pool.query(`
+        UPDATE return_items
+        SET refund_amount = $2
+        WHERE return_id = $1
+      `, [ret.id, regulatedAmount]);
 
       await pool.query(`
         UPDATE orders
@@ -1011,7 +1066,7 @@ class SellerRepository {
       ret.store_id,
       ret.order_number,
       finalUiStatus.toUpperCase(),
-      paymentDomainRefundAmount,
+      (normalized === 'approved' && refundAmount !== null && refundAmount !== undefined ? Math.min(Number(refundAmount), paymentDomainRefundAmount) : paymentDomainRefundAmount),
       restockedQty
     );
 
@@ -1025,7 +1080,8 @@ class SellerRepository {
       restockedQty,
       currentListingStock: updatedListingStock,
       items: updatedItemsRes.rows,
-      refundAmount: paymentDomainRefundAmount,
+      refundAmount: (normalized === 'approved' && refundAmount !== null && refundAmount !== undefined ? Math.min(Number(refundAmount), paymentDomainRefundAmount) : paymentDomainRefundAmount),
+      refundPercentage: normalized === 'approved' && refundAmount !== null && refundAmount !== undefined && paymentDomainRefundAmount > 0 ? Number(((Math.min(Number(refundAmount), paymentDomainRefundAmount) / paymentDomainRefundAmount) * 100).toFixed(2)) : (ret.refund_percentage != null ? Number(ret.refund_percentage) : 100),
       paymentStatus: finalPaymentStatus,
       paymentRecordStatus: finalPaymentRecordStatus,
       rejectionReason: finalUiStatus === 'rejected' ? (rejectionReason || 'Return request declined after seller review') : null,

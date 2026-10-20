@@ -249,7 +249,10 @@ const Products = () => {
     image_url: '',
     approval_status: 'DRAFT',
     is_active: true,
-    stock_qty: 0
+    stock_qty: 0,
+    is_refundable: true,
+    refund_percentage: 100,
+    return_window_days: 7
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -353,7 +356,10 @@ const Products = () => {
       min_order_qty: listing.min_order_qty || 1,
       unit: listing.unit || (listing.product_type === 'LOOSE_WEIGHT' ? 'kg' : listing.product_type === 'PACKED_ITEM' ? 'pack' : 'pcs'),
       approval_status: listing.approval_status || 'DRAFT',
-      is_active: listing.is_active !== undefined ? listing.is_active : true
+      is_active: listing.is_active !== undefined ? listing.is_active : true,
+      is_refundable: listing.is_refundable !== false,
+      refund_percentage: listing.refund_percentage !== undefined && listing.refund_percentage !== null ? listing.refund_percentage : 100,
+      return_window_days: listing.return_window_days !== undefined && listing.return_window_days !== null ? listing.return_window_days : 7
     });
     setShowModal(true);
   };
@@ -392,7 +398,10 @@ const Products = () => {
         sell_price: parseFloat(formData.sell_price),
         stock_qty: parseInt(formData.stock_qty || 0, 10),
         wholesale_price: formData.wholesale_price ? parseFloat(formData.wholesale_price) : null,
-        sample_available: formData.sample_available !== false
+        sample_available: formData.sample_available !== false,
+        is_refundable: formData.is_refundable !== false,
+        refund_percentage: formData.refund_percentage !== '' && formData.refund_percentage !== undefined ? parseFloat(formData.refund_percentage) : 100,
+        return_window_days: formData.return_window_days !== '' && formData.return_window_days !== undefined ? parseInt(formData.return_window_days, 10) : 7
       };
       
       // Strict field sanitization per product type
@@ -772,6 +781,15 @@ const Products = () => {
                                 {l.approval_status === 'CHANGES_REQUIRED' && <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-orange-200">{t('badgeChangesRequired', 'CHANGES REQUIRED')}</span>}
                                 {l.approval_status === 'REJECTED' && <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-red-200">{t('badgeRejected', 'REJECTED')}</span>}
                                 {l.approval_status === 'PUBLISHED' && <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-green-200">{t('badgePublished', 'PUBLISHED')}</span>}
+                                {l.is_refundable === false ? (
+                                  <span className="bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded text-[9px] font-bold border border-rose-200">
+                                    <i className="fa-solid fa-ban text-[8px] mr-1"></i>{t('nonReturnableBadge', 'Non-Returnable')}
+                                  </span>
+                                ) : (
+                                  <span className="bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded text-[9px] font-bold border border-emerald-200">
+                                    <i className="fa-solid fa-rotate-left text-[8px] mr-1"></i>{l.refund_percentage ?? 100}% ({l.return_window_days ?? 7}d)
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1326,6 +1344,80 @@ const Products = () => {
                     <span className="text-sm font-semibold text-gray-700">Stores only — hide from public customers</span>
                   </label>
                 </div>
+              </div>
+
+              {/* Return & Refund Policy Section */}
+              <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+                      <i className="fa-solid fa-rotate-left text-emerald-600"></i>
+                      <span>{t('productReturnPolicyTitle', 'Return & Refund Policy')}</span>
+                    </label>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {t('productReturnPolicySubtitle', 'Can customers return this item after delivery?')}
+                    </p>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      name="is_refundable"
+                      checked={formData.is_refundable !== false} 
+                      onChange={(e) => setFormData({ ...formData, is_refundable: e.target.checked })} 
+                      className="w-4 h-4 text-brand-dark rounded focus:ring-brand-dark cursor-pointer" 
+                    />
+                    <span className="text-xs font-bold text-gray-800">
+                      {formData.is_refundable !== false ? t('productRefundableYes', 'Refundable') : t('productRefundableNo', 'Non-Returnable')}
+                    </span>
+                  </label>
+                </div>
+
+                {formData.is_refundable !== false ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-gray-200">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">
+                        {t('returnWindowDays', 'Return Window (Days)')}
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          name="return_window_days" 
+                          min="1" 
+                          max="90" 
+                          value={formData.return_window_days ?? 7} 
+                          onChange={handleFormChange} 
+                          placeholder="7" 
+                          className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:border-brand-dark font-medium" 
+                        />
+                        <span className="text-xs font-semibold text-gray-500 whitespace-nowrap">days</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">
+                        {t('refundPercentageLabel', 'Max Refund Percentage (%)')}
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          name="refund_percentage" 
+                          min="0" 
+                          max="100" 
+                          step="1"
+                          value={formData.refund_percentage ?? 100} 
+                          onChange={handleFormChange} 
+                          placeholder="100" 
+                          className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm outline-none focus:border-brand-dark font-medium" 
+                        />
+                        <span className="text-xs font-semibold text-gray-500 whitespace-nowrap">%</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
+                    <i className="fa-solid fa-ban text-amber-600 shrink-0"></i>
+                    <span>{t('nonReturnableNotice', 'Non-Returnable / Final Sale — customer app will mark this product as non-refundable.')}</span>
+                  </div>
+                )}
               </div>
 
               <div className="pt-2">

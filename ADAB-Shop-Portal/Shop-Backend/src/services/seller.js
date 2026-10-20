@@ -60,11 +60,14 @@ class SellerService {
     return await sellerRepository.getReturns(storeId, filters);
   }
 
-  async updateReturnStatus(returnId, status, rejectionReason = null, storeId = null) {
+  async updateReturnStatus(returnId, status, rejectionReason = null, storeId = null, refundAmount = null) {
     if (!returnId || !status) {
       const err = new Error('Return ID and status are required');
       err.statusCode = 400;
       throw err;
+    }
+    if (refundAmount !== null && refundAmount !== undefined) {
+      return await sellerRepository.updateReturnStatus(returnId, status, rejectionReason, storeId, refundAmount);
     }
     return await sellerRepository.updateReturnStatus(returnId, status, rejectionReason, storeId);
   }

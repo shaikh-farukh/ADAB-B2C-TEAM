@@ -6,15 +6,18 @@ class ListingRepository {
       data.product_type === 'LOOSE_WEIGHT' ? 'kg' :
       data.product_type === 'PACKED_ITEM' ? 'pack' : 'pcs'
     );
+    const isRefundable = data.is_refundable !== undefined ? Boolean(data.is_refundable) : true;
+    const refundPercentage = data.refund_percentage !== undefined && data.refund_percentage !== null ? Number(data.refund_percentage) : 100.00;
+    const returnWindowDays = data.return_window_days !== undefined && data.return_window_days !== null ? parseInt(data.return_window_days, 10) : 7;
     let listing;
     try {
       const query = `
         INSERT INTO seller_listings (
           store_id, title, sku, barcode, brand_tag, product_type, unit, 
           mrp, sell_price, min_order_qty, allowed_buyers, approval_status, is_active, stock_qty, category_id,
-          wholesale_price, tiered_pricing, sample_available
+          wholesale_price, tiered_pricing, sample_available, is_refundable, refund_percentage, return_window_days
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
         ) RETURNING *;
       `;
       const values = [
@@ -23,7 +26,8 @@ class ListingRepository {
         data.category_id ? parseInt(data.category_id, 10) : null,
         data.wholesale_price !== undefined && data.wholesale_price !== null ? data.wholesale_price : null,
         data.tiered_pricing ? (typeof data.tiered_pricing === 'string' ? data.tiered_pricing : JSON.stringify(data.tiered_pricing)) : '[]',
-        data.sample_available !== undefined ? Boolean(data.sample_available) : true
+        data.sample_available !== undefined ? Boolean(data.sample_available) : true,
+        isRefundable, refundPercentage, returnWindowDays
       ];
       const result = await pool.query(query, values);
       listing = result.rows[0];
