@@ -362,6 +362,11 @@ class SellerRepository {
         distance = (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1);
       }
 
+      const storeSubtotal = Number(r.store_subtotal ?? r.amount ?? 0);
+      const storeDeliveryFee = Number(r.delivery_fee ?? 0);
+      const storeDiscount = Number(r.total_discount ?? 0);
+      const calculatedGrandTotal = Math.max(0, storeSubtotal + storeDeliveryFee - storeDiscount);
+
       return {
         id: r.order_number || r.order_id,
         real_id: r.seller_order_id,
@@ -374,12 +379,12 @@ class SellerRepository {
         delivery_address: r.delivery_address || null,
         items: r.items_list || [],
         item_summary: r.item_summary || '',
-        amount: Number(r.store_subtotal ?? r.amount ?? 0),
+        amount: storeSubtotal,
         tax_amount: r.tax_amount != null ? Number(r.tax_amount) : null,
-        delivery_fee: Number(r.delivery_fee ?? 0),
-        total_discount: Number(r.total_discount ?? 0),
+        delivery_fee: storeDeliveryFee,
+        total_discount: storeDiscount,
         total_mrp: r.total_mrp != null ? Number(r.total_mrp) : null,
-        grand_total: Number(r.amount ?? (Number(r.store_subtotal ?? 0) + Number(r.delivery_fee ?? 0) - Number(r.total_discount ?? 0))),
+        grand_total: calculatedGrandTotal,
         invoice_number: r.invoice_number || null,
         invoice_pdf_url: r.invoice_pdf_url || null,
         invoice_date: r.invoice_date || null,
@@ -847,13 +852,15 @@ class SellerRepository {
         requested_at: r.requested_at,
         resolved_at: r.resolved_at,
         deliveryFee: r.delivery_fee != null ? Number(r.delivery_fee) : 0,
+        discount: r.total_discount != null ? Number(r.total_discount) : 0,
         orderGrandTotal: r.grand_total != null ? Number(r.grand_total) : null,
         allOrderItems: Array.isArray(r.all_order_items) && r.all_order_items.length > 0 ? r.all_order_items : items,
         orderSummary: {
           orderNumber: orderNum,
-          grandTotal: r.grand_total != null ? Number(r.grand_total) : 0,
+          grandTotal: r.grand_total != null ? Number(r.grand_total) : (Number(r.store_subtotal || 0) + Number(r.delivery_fee || 0) - Number(r.total_discount || 0)),
           itemsSubtotal: r.store_subtotal != null ? Number(r.store_subtotal) : (r.item_total_price != null ? Number(r.item_total_price) : 0),
           deliveryFee: r.delivery_fee != null ? Number(r.delivery_fee) : 0,
+          discount: r.total_discount != null ? Number(r.total_discount) : 0,
           paymentMethod: r.payment_method || r.order_payment_method || 'CARD',
           paymentStatus: r.payment_record_status || r.payment_status || 'PAID'
         }

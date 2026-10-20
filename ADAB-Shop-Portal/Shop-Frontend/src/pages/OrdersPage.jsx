@@ -64,7 +64,7 @@ function OrderItemsModal({ order, store: propStore, onClose, onUpdateStatus, onD
   const deliveryFee = Number(order.delivery_fee ?? 0);
   const discount = Number(order.total_discount ?? 0);
   const itemsSubtotal = Number(order.amount !== undefined ? order.amount : (order.subtotal || 0));
-  const totalAmount = order.grand_total != null ? Number(order.grand_total) : (itemsSubtotal + deliveryFee - discount);
+  const totalAmount = Math.max(0, itemsSubtotal + deliveryFee - discount);
   const recordedTax = order.tax_amount != null && !isNaN(Number(order.tax_amount)) ? Number(order.tax_amount) : null;
   const computedTax = Math.round((itemsSubtotal * 5 / 105) * 100) / 100;
   const taxAmount = recordedTax != null ? recordedTax : computedTax;
@@ -1326,7 +1326,7 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
   const displayAmount = order.amount !== undefined ? order.amount : (order.total_amount || 0);
   const deliveryFee = Number(order.delivery_fee || 0);
   const discount = Number(order.total_discount || 0);
-  const rawGrandTotal = order.grand_total != null ? Number(order.grand_total) : (Number(displayAmount) + deliveryFee - discount);
+  const rawGrandTotal = Math.max(0, Number(displayAmount) + deliveryFee - discount);
   const displayGrandTotal = Number.isInteger(rawGrandTotal) ? rawGrandTotal : rawGrandTotal.toFixed(2);
   const displayDistance = order.distance != null ? `${order.distance} km` : '—';
   const deliveryType = order.delivery_mode || order.delivery_type || 'normal';
@@ -1378,19 +1378,6 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
       </td>
       <td className="px-4 py-3.5 font-bold text-gray-900">
         <div className="text-sm font-extrabold text-emerald-700">₹{displayGrandTotal}</div>
-        <div className="text-[10px] font-normal text-gray-500 mt-0.5 flex flex-col leading-tight">
-          <span className="whitespace-nowrap">
-            Subtotal: <span className="font-semibold text-gray-700">₹{Number(displayAmount || 0).toFixed(2)}</span>
-          </span>
-          <span className="whitespace-nowrap">
-            Delivery: <span className="font-semibold text-gray-700">₹{deliveryFee.toFixed(2)}</span>
-          </span>
-          <span className="whitespace-nowrap">
-            Discount: <span className={`font-semibold ${discount > 0 ? 'text-emerald-700' : 'text-gray-700'}`}>
-              {discount > 0 ? `-₹${discount.toFixed(2)}` : '₹0.00'}
-            </span>
-          </span>
-        </div>
         {((order.payment_method || '').toUpperCase() === 'CASH_ON_DELIVERY' || (order.payment_method || '').toUpperCase() === 'COD') ? (
           <span className="text-[10px] font-bold text-amber-700 block whitespace-nowrap">
             <i className="fa-solid fa-hand-holding-dollar mr-0.5 text-[9px]"></i> COD

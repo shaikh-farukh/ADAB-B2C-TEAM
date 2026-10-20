@@ -112,7 +112,7 @@ app.get(['/api/v1/orders/:orderId/invoice/pdf', '/api/v1/seller/orders/:orderId/
     const itemsSubtotal = Number(r.store_subtotal ?? 0);
     const deliveryFee = Number(r.delivery_fee ?? 0);
     const discount = Number(r.total_discount ?? 0);
-    const totalAmount = Number(r.amount ?? (itemsSubtotal + deliveryFee - discount));
+    const totalAmount = Math.max(0, itemsSubtotal + deliveryFee - discount);
     const taxAmount = r.tax_amount != null ? Number(r.tax_amount) : Math.round((itemsSubtotal * 5 / 105) * 100) / 100;
     const taxableAmount = Math.max(0, Math.round((itemsSubtotal - taxAmount) * 100) / 100);
     const cgst = (taxAmount / 2).toFixed(2);

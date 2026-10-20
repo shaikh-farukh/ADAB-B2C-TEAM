@@ -227,7 +227,7 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px]">
+                <div className={`grid grid-cols-2 ${Number(orderSummary.discount || 0) > 0 ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-2 pt-1 text-[11px]`}>
                   <div>
                     <div className="text-[10px] text-gray-500">Items Subtotal</div>
                     <div className="font-bold text-gray-900">
@@ -241,6 +241,14 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                       <span className="block text-[9px] font-semibold text-amber-700">Non-refundable</span>
                     </div>
                   </div>
+                  {Number(orderSummary.discount || 0) > 0 && (
+                    <div>
+                      <div className="text-[10px] text-gray-500">Discount</div>
+                      <div className="font-bold text-emerald-700">
+                        -₹{Number(orderSummary.discount).toFixed(2)}
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <div className="text-[10px] text-gray-500">Total Paid at Checkout</div>
                     <div className="font-bold text-gray-900">
