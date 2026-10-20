@@ -144,7 +144,7 @@ describe('ReturnsPage Component', () => {
 
     await waitFor(() => {
       expect(sellerApi.updateReturnStatus).toHaveBeenCalledWith('ret-uuid-1001', 'restocked', null);
-      expect(screen.getByText('RESTOCKED')).toBeDefined();
+      expect(screen.getAllByText('RESTOCKED').length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText(/Added to Catalog \(\+3\)/i)).toBeDefined();
     });
   });

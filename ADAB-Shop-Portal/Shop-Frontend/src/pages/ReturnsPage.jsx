@@ -24,6 +24,12 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
     return Number(((maxRefundAmount * defaultPct) / 100).toFixed(2));
   });
 
+  useEffect(() => {
+    setRegulatedRefundAmount(Number(((maxRefundAmount * defaultPct) / 100).toFixed(2)));
+  }, [maxRefundAmount, defaultPct]);
+
+  if (!item) return null;
+
   const orderSummary = item?.orderSummary || {
     orderNumber: item?.orderId,
     grandTotal: item?.orderGrandTotal ?? item?.paymentAmount ?? (item?.amount || 0),
@@ -45,7 +51,25 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
         }
       ]);
 
-  if (!item) return null;
+  const returnItems = Array.isArray(item?.items) && item.items.length > 0
+    ? item.items
+    : [
+        {
+          product_name: item?.productName || item?.product || 'Order Item',
+          quantity: item?.quantity || 1,
+          unit_price: item?.unitPrice,
+          total_price: item?.amount || item?.itemTotalPrice || 0,
+          reason: item?.reason || 'Customer Return',
+          item_condition: item?.itemCondition || 'UNOPENED',
+          current_listing_stock: item?.currentListingStock,
+          is_refundable: true,
+          refund_percentage: 100,
+          return_window_days: 7
+        }
+      ];
+
+  const primaryItem = returnItems[0];
+  const activePolicy = productPolicy || primaryItem;
 
   const addr = item.deliveryAddress || {};
   const addressString =
@@ -99,66 +123,59 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/45 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-5xl lg:max-w-6xl w-full max-h-[92vh] flex flex-col md:flex-row overflow-hidden border border-gray-200">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl lg:max-w-5xl w-full max-h-[92vh] flex flex-col md:flex-row overflow-hidden border border-gray-200">
 
-        {/* LEFT COLUMN: Static attached top & bottom, scrollable mid items list, clean order overview */}
+        {/* LEFT COLUMN: Clean Order Overview (matching OrdersPage proportions & typography) */}
         <div className="w-full md:w-1/2 flex flex-col border-b md:border-b-0 md:border-r border-gray-200 bg-white overflow-hidden">
-          {/* Top Attached: Order Header */}
-          <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 shrink-0 gap-3">
+          {/* Top Header */}
+          <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between bg-emerald-50 shrink-0 gap-4">
             <div className="min-w-0 flex-1">
-              <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
+              <h3 className="font-extrabold text-base sm:text-lg text-gray-900 flex items-center gap-2 whitespace-nowrap">
                 <i className="fa-solid fa-basket-shopping text-emerald-600"></i>
-                <span>Order Overview</span>
+                <span>Original Order Summary</span>
               </h3>
-              <div className="flex items-center gap-2 mt-1 text-xs">
+              <div className="flex items-center gap-2 mt-1 text-xs whitespace-nowrap">
                 <span className="text-gray-500 font-semibold">Order ID:</span>
-                <span className="font-mono font-bold text-gray-900 bg-white px-2 py-0.5 rounded border border-gray-200 shadow-2xs">
+                <span className="font-mono font-bold text-gray-900 bg-white px-2 py-0.5 rounded border border-gray-200 shadow-2xs whitespace-nowrap">
                   {orderSummary.orderNumber}
                 </span>
-                {item.requested_at && (
-                  <span className="text-[11px] text-gray-400">
-                    <i className="fa-regular fa-clock mr-1"></i>{formatDate(item.requested_at)}
-                  </span>
-                )}
               </div>
-              <div className="text-xs text-gray-700 mt-1 flex items-center gap-1.5 flex-wrap">
-                <span className="font-semibold text-gray-800">{item.customer}</span>
+              <div className="text-xs text-gray-500 mt-1 flex items-center gap-2 truncate">
+                <span>Customer: <strong className="text-gray-800">{item.customer}</strong></span>
                 {item.customerPhone && (
-                  <span className="font-mono text-[11px] text-gray-500">({item.customerPhone})</span>
+                  <span className="text-xs text-gray-400 font-mono">({item.customerPhone})</span>
                 )}
-              </div>
-              <div className="text-[11px] text-gray-500 flex items-start gap-1.5 mt-1">
-                <i className="fa-solid fa-location-dot text-emerald-600 mt-0.5 shrink-0"></i>
-                <span className="line-clamp-2">{addressString}</span>
-                <button
-                  type="button"
-                  onClick={handleCopyAddress}
-                  className="ml-1 text-emerald-700 hover:text-emerald-900 shrink-0 font-bold text-[10px]"
-                  title="Copy address"
-                >
-                  {copiedAddress ? 'Copied!' : 'Copy'}
-                </button>
               </div>
             </div>
           </div>
 
           {/* Delivery & Payment Badges Banner */}
-          <div className="px-5 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between text-xs flex-wrap gap-2 shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="text-gray-500 font-medium">Delivery Mode:</span>
-              <span className="font-bold text-gray-800 capitalize">{item.delivery_mode || 'Normal'}</span>
+          <div className="px-5 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between text-xs gap-3 shrink-0">
+            <div className="flex items-center gap-1.5 min-w-0 flex-1 text-gray-600">
+              <i className="fa-solid fa-location-dot text-emerald-600 shrink-0 text-xs"></i>
+              <span className="truncate text-xs font-medium">{addressString}</span>
+              <button
+                type="button"
+                onClick={handleCopyAddress}
+                className={`ml-1 px-2 py-0.5 text-[10px] font-bold rounded border transition cursor-pointer shrink-0 shadow-2xs ${
+                  copiedAddress ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-white text-gray-600 hover:bg-gray-100 border-gray-200'
+                }`}
+                title="Copy address"
+              >
+                <i className={`fa-solid ${copiedAddress ? 'fa-check text-emerald-600' : 'fa-copy text-blue-600'} mr-0.5`}></i>
+                {copiedAddress ? 'Copied' : 'Copy'}
+              </button>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold flex items-center gap-1">
-                <i className="fa-solid fa-credit-card text-emerald-600"></i>
-                <span>{orderSummary.paymentMethod || 'CARD'} • {orderSummary.paymentStatus || 'PAID'}</span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold">
+                {orderSummary.paymentMethod || 'CARD'} • {orderSummary.paymentStatus || 'PAID'}
               </span>
             </div>
           </div>
 
-          {/* Middle: Clean Ordered Items Table (Scrollable if needed, NO highlights, NO return counts) */}
+          {/* Middle: Clean Ordered Items Table (Scrollable, NO return highlights, NO return counts) */}
           <div className="p-4 sm:p-5 flex-1 overflow-y-auto min-h-0">
-            <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">
+            <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2.5">
               Ordered Items ({orderItemsToDisplay.length})
             </div>
             <table className="w-full text-xs text-left">
@@ -178,10 +195,10 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
 
                   return (
                     <tr key={prod.order_item_id || prod.return_item_id || idx} className="hover:bg-gray-50/70">
-                      <td className="py-2.5 font-semibold text-gray-800">{prod.product_name || 'Order Item'}</td>
-                      <td className="py-2.5 text-center font-bold text-gray-600">{orderedQty}</td>
-                      <td className="py-2.5 text-right text-gray-500">₹{unitPrice.toLocaleString('en-IN')}</td>
-                      <td className="py-2.5 text-right font-extrabold text-gray-900">₹{totalOrderedPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                      <td className="py-2.5 font-semibold text-gray-800 text-sm">{prod.product_name || 'Order Item'}</td>
+                      <td className="py-2.5 text-center font-bold text-gray-600 text-xs">{orderedQty}</td>
+                      <td className="py-2.5 text-right text-gray-500 text-xs">₹{unitPrice.toLocaleString('en-IN')}</td>
+                      <td className="py-2.5 text-right font-extrabold text-gray-900 text-sm">₹{totalOrderedPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                     </tr>
                   );
                 })}
@@ -190,38 +207,27 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
           </div>
 
           {/* Bottom Attached: GST & Financial Summary */}
-          <div className="px-5 py-3 bg-emerald-50/40 border-t border-emerald-100/70 text-xs shrink-0">
-            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-emerald-200/60">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-950 flex items-center gap-1.5">
-                <i className="fa-solid fa-receipt text-emerald-700"></i>
-                <span>Original Order Summary</span>
-              </span>
-              <span className="text-[10px] font-bold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
-                {orderSummary.orderNumber}
-              </span>
-            </div>
-
-            {/* GST breakdown (above subtotal) */}
-            <div className="flex items-center justify-between font-semibold text-gray-700 py-0.5 text-[11px]">
+          <div className="px-5 py-3 bg-emerald-50/40 border-t border-emerald-100/70 text-xs shrink-0 space-y-1">
+            <div className="flex items-center justify-between font-semibold text-gray-700 py-0.5">
               <span className="flex items-center gap-1.5 text-gray-600">
                 <i className="fa-solid fa-calculator text-[10px] text-emerald-600"></i>
                 <span>Taxable Amount (Excl. Tax)</span>
               </span>
               <span>₹{taxableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
-            <div className="flex items-center justify-between text-gray-600 py-0.5 text-[11px]">
-              <span className="flex items-center gap-1 pl-4 text-[10px]">
+            <div className="flex items-center justify-between text-gray-600 py-0.5">
+              <span className="flex items-center gap-1 pl-4 text-xs">
                 <span>CGST (2.5%)</span>
               </span>
-              <span className="font-mono text-[10px]">₹{cgst}</span>
+              <span className="font-mono text-xs">₹{cgst}</span>
             </div>
-            <div className="flex items-center justify-between text-gray-600 py-0.5 text-[11px]">
-              <span className="flex items-center gap-1 pl-4 text-[10px]">
+            <div className="flex items-center justify-between text-gray-600 py-0.5">
+              <span className="flex items-center gap-1 pl-4 text-xs">
                 <span>SGST (2.5%)</span>
               </span>
-              <span className="font-mono text-[10px]">₹{sgst}</span>
+              <span className="font-mono text-xs">₹{sgst}</span>
             </div>
-            <div className="flex items-center justify-between font-bold text-emerald-800 pt-0.5 border-t border-dashed border-emerald-200 mt-0.5 text-[11px]">
+            <div className="flex items-center justify-between font-bold text-emerald-800 pt-1 border-t border-dashed border-emerald-200 mt-1">
               <span className="flex items-center gap-1.5">
                 <i className="fa-solid fa-receipt text-[10px] text-emerald-600"></i>
                 <span>Total GST (5% Inclusive)</span>
@@ -229,26 +235,24 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
               <span>₹{taxAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
 
-            {/* Separator before Items Subtotal, Delivery and Discounts */}
-            <div className="border-t border-dashed border-emerald-200/80 my-1.5"></div>
+            <div className="border-t border-dashed border-emerald-200/80 my-2"></div>
 
-            {/* Subtotal, Delivery, Discounts */}
-            <div className="flex items-center justify-between text-gray-700 font-semibold py-0.5 text-[11px]">
+            <div className="flex items-center justify-between text-gray-700 font-semibold py-0.5">
               <span className="flex items-center gap-1.5 text-gray-600">
                 <i className="fa-solid fa-basket-shopping text-[10px] text-emerald-600"></i>
                 <span>Items Subtotal</span>
               </span>
               <span className="font-bold text-gray-900">₹{orderSubtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
             </div>
-            <div className="flex items-center justify-between text-gray-600 py-0.5 text-[11px]">
+            <div className="flex items-center justify-between text-gray-600 py-0.5">
               <span className="flex items-center gap-1.5">
                 <i className="fa-solid fa-truck-fast text-[10px] text-emerald-600"></i>
                 <span>Delivery Fee</span>
-                <span className="text-[9px] font-semibold text-amber-700 bg-amber-100/70 px-1 py-0.2 rounded">Non-refundable</span>
+                <span className="text-[10px] font-semibold text-amber-700 bg-amber-100/70 px-1.5 py-0.5 rounded ml-1">Non-refundable</span>
               </span>
               <span className="font-semibold text-gray-800">₹{deliveryFee.toFixed(2)}</span>
             </div>
-            <div className="flex items-center justify-between text-gray-600 py-0.5 text-[11px]">
+            <div className="flex items-center justify-between text-gray-600 py-0.5">
               <span className="flex items-center gap-1.5">
                 <i className="fa-solid fa-tags text-[10px] text-emerald-600"></i>
                 <span>Discounts</span>
@@ -257,11 +261,17 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                 {discount > 0 ? `-₹${discount.toFixed(2)}` : '₹0.00'}
               </span>
             </div>
+          </div>
 
-            {/* Grand Total */}
-            <div className="flex items-center justify-between font-extrabold text-xs text-emerald-900 pt-1.5 border-t border-emerald-200/90 mt-1">
-              <span className="uppercase tracking-wide text-[10px] text-gray-500 font-bold">Total Paid at Checkout</span>
-              <span className="text-sm text-emerald-800 font-black">₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+          {/* Left Footer: Grand Total */}
+          <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between shrink-0">
+            <div>
+              <span className="text-[10px] text-gray-400 uppercase font-bold block leading-tight">Total Paid at Checkout</span>
+              <span className="text-base font-extrabold text-emerald-700">₹{Number(grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] text-gray-400 uppercase font-bold block leading-tight">Delivery Mode</span>
+              <span className="text-xs font-bold text-gray-700 capitalize">{item.delivery_mode || 'Home Delivery'}</span>
             </div>
           </div>
         </div>
@@ -269,136 +279,147 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
         {/* RIGHT COLUMN: Return & Refund Settlement */}
         <div className="w-full md:w-1/2 flex flex-col bg-gray-50/50 overflow-hidden">
           {/* Header */}
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between bg-amber-50/70 shrink-0">
             <div>
               <div className="flex items-center gap-2">
-                <i className="fa-solid fa-rotate-left text-emerald-700 text-sm"></i>
-                <h3 className="font-extrabold text-base text-gray-900">
+                <i className="fa-solid fa-rotate-left text-amber-700 text-sm"></i>
+                <h3 className="font-extrabold text-base sm:text-lg text-gray-900">
                   Return Detail • {item.id}
                 </h3>
+              </div>
+              <div className="flex items-center gap-2 mt-1.5">
                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                   item.status === 'pending'
                     ? 'bg-amber-100 text-amber-900 border border-amber-300'
                     : item.status === 'rejected'
                     ? 'bg-rose-100 text-rose-900 border border-rose-300'
+                    : item.status === 'restocked'
+                    ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                    : item.status === 'discarded'
+                    ? 'bg-gray-100 text-gray-700 border border-gray-300'
                     : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
                 }`}>
                   {item.status === 'pending'
                     ? 'Awaiting Seller Approval'
                     : item.status === 'rejected'
                     ? 'Rejected'
+                    : item.status === 'restocked'
+                    ? 'Restocked to Catalog'
+                    : item.status === 'discarded'
+                    ? 'Discarded'
                     : 'Refund Approved'}
                 </span>
+                {item.requested_at && (
+                  <span className="text-xs text-gray-500">
+                    <i className="fa-regular fa-clock mr-1"></i>{formatDate(item.requested_at)}
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Order <span className="font-bold text-gray-800">{item.orderId}</span> • Requested {formatDate(item.requested_at)}
-              </p>
             </div>
             <button
               type="button"
               disabled={isBusy}
               onClick={onClose}
-              className="w-8 h-8 rounded-full bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center text-base font-bold shadow-2xs cursor-pointer disabled:opacity-50"
+              className="w-9 h-9 rounded-full bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center text-lg font-bold shadow-xs cursor-pointer disabled:opacity-50 ml-1"
+              title="Close"
             >
               &times;
             </button>
           </div>
 
           {/* Middle: Scrollable Return Details, Policy & Regulation */}
-          <div className="p-5 flex-1 overflow-y-auto space-y-4 text-xs min-h-0">
+          <div className="p-4 sm:p-5 flex-1 overflow-y-auto space-y-4 text-xs min-h-0">
             <div className="flex items-center gap-2 pb-1 border-b border-gray-200 text-gray-900 font-extrabold text-xs uppercase tracking-wide">
               <i className="fa-solid fa-hand-holding-dollar text-emerald-700"></i>
               <span>Return &amp; Refund Settlement</span>
             </div>
 
-            {/* Returned Item Details & Condition */}
-            <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-3">
+            {/* Returned Item Spotlight Card */}
+            <div className="p-4 rounded-xl bg-white border border-gray-200 shadow-2xs space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900">
-                  Returned Product &amp; Condition
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                  Returned Product
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white text-emerald-900 border border-emerald-300">
-                  Condition: {item.itemCondition || 'UNOPENED'}
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                  Condition: {primaryItem.item_condition || item.itemCondition || 'UNOPENED'}
                 </span>
               </div>
 
-              <div className="divide-y divide-emerald-200/60 bg-white p-3 rounded-xl border border-emerald-200/80">
-                {(Array.isArray(item.items) && item.items.length > 0
-                  ? item.items
-                  : [
-                      {
-                        product_name: item.productName || item.product,
-                        quantity: item.quantity || 1,
-                        unit_price: item.unitPrice,
-                        reason: item.reason,
-                        item_condition: item.itemCondition,
-                        current_listing_stock: item.currentListingStock
-                      }
-                    ]
-                ).map((prod, idx) => (
-                  <div key={prod.return_item_id || prod.order_item_id || idx} className="py-2 first:pt-0 last:pb-0 space-y-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="font-extrabold text-sm text-gray-900">
-                        {prod.product_name || 'Order Item'}
-                      </div>
-                      {prod.current_listing_stock != null && (
-                        <div className="text-right shrink-0">
-                          <span className="text-[10px] text-gray-400 font-bold block uppercase">Stock</span>
-                          <span className="text-xs font-extrabold text-emerald-700">{prod.current_listing_stock} units</span>
-                        </div>
-                      )}
+              {/* Product Details */}
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-extrabold text-base text-gray-900">
+                      {primaryItem.product_name || item.productName || item.product || 'Order Item'}
                     </div>
-                    <div className="flex items-center gap-2 text-gray-600 text-[11px] flex-wrap">
-                      <span>Units to Refund: <strong className="text-emerald-950 bg-emerald-100 px-1.5 py-0.5 rounded font-black">{prod.quantity || 1} unit(s)</strong></span>
-                      {prod.unit_price != null && (
-                        <span>• Refund Value: <strong>₹{(Number(prod.unit_price || 0) * Number(prod.quantity || 1)).toFixed(2)}</strong></span>
-                      )}
-                      {prod.item_condition && (
-                        <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                          {prod.item_condition}
-                        </span>
-                      )}
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      Unit Price: <span className="font-semibold text-gray-700">₹{Number(primaryItem.unit_price || item.unitPrice || 0).toLocaleString('en-IN')}</span>
                     </div>
-                    {prod.reason && (
-                      <div className="text-[11px] text-gray-600 bg-gray-50 p-2 rounded-lg border border-gray-100 mt-1">
-                        Reason: <span className="font-semibold text-gray-800">{prod.reason}</span>
-                      </div>
-                    )}
                   </div>
-                ))}
-              </div>
-
-              {productPolicy && (
-                <div className="text-[11px] text-emerald-900 bg-emerald-100/70 px-3 py-1.5 rounded-lg border border-emerald-300 flex items-center justify-between">
-                  <span>Policy: <strong>{productPolicy.refund_percentage ?? 100}% Refundable</strong></span>
-                  <span>Return Window: <strong>{productPolicy.return_window_days ?? 7} days</strong></span>
+                  {primaryItem.current_listing_stock != null && (
+                    <div className="text-right shrink-0">
+                      <span className="text-[10px] text-gray-400 font-bold block uppercase">Live Stock</span>
+                      <span className="text-xs font-extrabold text-emerald-700">{primaryItem.current_listing_stock} units</span>
+                    </div>
+                  )}
                 </div>
-              )}
 
-              <div className="flex items-center justify-between px-2 pt-1">
-                <span className="text-[11px] font-bold text-gray-600">Returned Item Value</span>
-                <span className="text-sm font-black text-gray-900">
-                  ₹{Number(maxRefundAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </span>
+                <div className="flex items-center gap-2 flex-wrap pt-1">
+                  <span className="text-xs font-bold text-emerald-950 bg-emerald-100 px-2.5 py-1 rounded-lg">
+                    Return Units: {item.quantity || primaryItem.quantity || 1}
+                  </span>
+                  {activePolicy && (
+                    <span className="text-xs text-blue-900 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+                      Policy: {activePolicy.return_window_days ?? 7}d window • {activePolicy.refund_percentage ?? 100}% refundable
+                    </span>
+                  )}
+                </div>
+
+                {(primaryItem.reason || item.reason) && (
+                  <div className="text-xs text-gray-600 bg-gray-50 p-2.5 rounded-lg border border-gray-200/70 mt-2">
+                    <span className="font-bold text-gray-700 block text-[11px] uppercase mb-0.5">Reason for return</span>
+                    <span>{primaryItem.reason || item.reason}</span>
+                  </div>
+                )}
+
+                {/* If multiple items in legacy return, display other items too */}
+                {returnItems.length > 1 && (
+                  <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+                    <span className="text-xs font-bold text-gray-500">Other items in this request:</span>
+                    {returnItems.slice(1).map((prod, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded-lg">
+                        <span className="font-medium text-gray-800">{prod.product_name} × {prod.quantity}</span>
+                        <span className="font-bold text-gray-900">₹{Number(prod.total_price || (prod.unit_price * prod.quantity)).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                  <span className="text-xs font-bold text-gray-600">Returned Item Value</span>
+                  <span className="text-base font-black text-gray-900">
+                    ₹{Number(maxRefundAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
               </div>
             </div>
 
             {/* How Much: Regulate Refund Amount section (when pending approval) */}
             {item.status === 'pending' && (
-              <div className="p-3.5 rounded-xl bg-white border border-emerald-300 shadow-2xs space-y-3">
+              <div className="p-4 rounded-xl bg-white border border-emerald-300 shadow-2xs space-y-3">
                 <div className="flex items-center justify-between flex-wrap gap-1">
-                  <span className="text-[11px] font-bold uppercase text-emerald-900 flex items-center gap-1.5">
+                  <span className="text-xs font-bold uppercase text-emerald-900 flex items-center gap-1.5">
                     <i className="fa-solid fa-sliders text-emerald-700"></i>
                     <span>Regulate Customer Refund Amount</span>
                   </span>
-                  <span className="text-[10px] text-gray-500 font-medium">
+                  <span className="text-xs text-gray-500">
                     Original: <strong className="text-gray-800">₹{maxRefundAmount.toLocaleString('en-IN')}</strong>
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1">
-                    <span className="absolute left-3 top-2 text-gray-400 font-bold text-xs">₹</span>
+                    <span className="absolute left-3 top-2 text-gray-400 font-bold text-sm">₹</span>
                     <input
                       type="number"
                       min="0"
@@ -410,14 +431,14 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                         if (isNaN(val)) setRegulatedRefundAmount('');
                         else setRegulatedRefundAmount(Math.min(maxRefundAmount, Math.max(0, val)));
                       }}
-                      className="w-full pl-7 pr-3 py-1.5 text-xs font-bold border border-emerald-300 rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 text-emerald-950"
+                      className="w-full pl-7 pr-3 py-1.5 text-sm font-bold border border-emerald-300 rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 text-emerald-950"
                     />
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
                       onClick={() => setRegulatedRefundAmount(maxRefundAmount)}
-                      className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
                       title="100% Full Refund"
                     >
                       100%
@@ -425,7 +446,7 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                     <button
                       type="button"
                       onClick={() => setRegulatedRefundAmount(Number((maxRefundAmount * 0.8).toFixed(2)))}
-                      className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
                       title="80% Partial Refund (20% Restocking Fee)"
                     >
                       80%
@@ -433,7 +454,7 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                     <button
                       type="button"
                       onClick={() => setRegulatedRefundAmount(Number((maxRefundAmount * 0.5).toFixed(2)))}
-                      className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
                       title="50% Partial Refund (Damage / Restocking)"
                     >
                       50%
@@ -441,25 +462,25 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] text-gray-600 pt-1.5 border-t border-gray-100">
+                <div className="flex items-center justify-between text-xs text-gray-600 pt-1.5 border-t border-gray-100">
                   <span>
                     {Number(regulatedRefundAmount) < maxRefundAmount ? (
                       <span className="text-amber-700 font-semibold flex items-center gap-1">
-                        <i className="fa-solid fa-circle-minus text-[10px]"></i>
+                        <i className="fa-solid fa-circle-minus text-xs"></i>
                         <span>Deduction / Restocking: ₹{(maxRefundAmount - Number(regulatedRefundAmount || 0)).toFixed(2)}</span>
                       </span>
                     ) : (
                       <span className="text-emerald-700 font-medium">Full 100% Refund</span>
                     )}
                   </span>
-                  <span className="font-bold text-emerald-900 text-xs">
+                  <span className="font-bold text-emerald-900 text-sm">
                     Approved Refund: ₹{Number(regulatedRefundAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
 
                 {/* Rejection Note */}
                 <div className="pt-2 border-t border-gray-100">
-                  <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">
+                  <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
                     Rejection Note (used if declining):
                   </label>
                   <input
@@ -467,7 +488,7 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                     value={rejectNote}
                     onChange={(e) => setRejectNote(e.target.value)}
                     placeholder="Optional reason if declining return request..."
-                    className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-xl focus:border-emerald-600 outline-none"
+                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:border-emerald-600 outline-none"
                   />
                 </div>
               </div>
@@ -475,19 +496,19 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
 
             {/* Resolved State Display */}
             {item.status !== 'pending' && (
-              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 space-y-1.5">
-                <div className="text-[10px] font-bold uppercase text-gray-500">Refund Settlement Record</div>
-                <div className="text-sm font-extrabold text-emerald-800">
+              <div className="p-4 rounded-xl bg-white border border-gray-200 space-y-2">
+                <div className="text-xs font-bold uppercase text-gray-500">Refund Settlement Record</div>
+                <div className="text-base font-extrabold text-emerald-800">
                   Refund Amount: ₹{Number(item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </div>
                 {item.resolved_at && (
-                  <div className="text-[11px] text-gray-500">
+                  <div className="text-xs text-gray-500">
                     Resolved on: <span className="font-semibold text-gray-700">{formatDate(item.resolved_at)}</span>
                   </div>
                 )}
                 {item.status === 'rejected' && item.rejectionReason && (
-                  <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px] mt-2">
-                    <span className="font-bold block text-[10px] uppercase">Rejection Reason</span>
+                  <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs mt-2">
+                    <span className="font-bold block text-xs uppercase mb-0.5">Rejection Reason</span>
                     <span>{item.rejectionReason}</span>
                   </div>
                 )}
@@ -496,7 +517,7 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
           </div>
 
           {/* Bottom Attached: Footer Actions */}
-          <div className="px-5 py-3.5 bg-white border-t border-gray-200 flex items-center justify-between flex-wrap gap-2 shrink-0">
+          <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2 shrink-0">
             <div className="text-xs text-gray-500">
               Status: <span className="font-bold text-gray-800 uppercase">{item.rawStatus || item.status}</span>
             </div>
@@ -507,7 +528,7 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                     type="button"
                     disabled={isBusy}
                     onClick={() => onAction(item, 'approved', null, regulatedRefundAmount)}
-                    className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 transition shadow-2xs"
                   >
                     {isBusy ? 'Saving...' : `Approve Refund (₹${Number(regulatedRefundAmount || 0).toLocaleString('en-IN')})`}
                   </button>
@@ -515,7 +536,7 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                     type="button"
                     disabled={isBusy}
                     onClick={() => onAction(item, 'rejected', rejectNote)}
-                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
+                    className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 transition"
                   >
                     Reject
                   </button>
@@ -527,7 +548,7 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                     type="button"
                     disabled={isBusy}
                     onClick={() => onAction(item, 'restocked')}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 flex items-center gap-1.5 transition shadow-2xs"
                   >
                     <i className="fa-solid fa-plus text-[10px]"></i>
                     <span>{isBusy ? 'Saving...' : `Add Back (+${item.quantity || 1})`}</span>
@@ -536,7 +557,7 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                     type="button"
                     disabled={isBusy}
                     onClick={() => onAction(item, 'discarded')}
-                    className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
+                    className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 transition"
                   >
                     Discard Item
                   </button>
@@ -546,7 +567,7 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                 type="button"
                 disabled={isBusy}
                 onClick={onClose}
-                className="btn-soft !py-1.5 !px-3 !text-xs font-bold cursor-pointer"
+                className="btn-soft !py-2 !px-3.5 !text-xs font-bold cursor-pointer"
               >
                 Close
               </button>
@@ -835,6 +856,7 @@ export default function ReturnsPage() {
             <tr>
               <th className="px-4 py-3">Return ID</th>
               <th className="px-4 py-3">Order</th>
+              <th className="px-4 py-3">Returned Item</th>
               <th className="px-4 py-3">Customer</th>
               <th className="px-4 py-3">Refund &amp; Payment</th>
               <th className="px-4 py-3">Status</th>
@@ -844,13 +866,13 @@ export default function ReturnsPage() {
           <tbody className="divide-y divide-gray-100">
             {loading ? (
               <tr>
-                <td colSpan="6" className="px-4 py-6 text-center text-gray-500">
+                <td colSpan="7" className="px-4 py-6 text-center text-gray-500">
                   <i className="fa-solid fa-spinner fa-spin mr-2"></i> Loading return requests from database...
                 </td>
               </tr>
             ) : filteredReturns.length === 0 ? (
               <tr>
-                <td colSpan="6" className="px-4 py-6 text-center text-gray-500">No returns found in database for the selected filter.</td>
+                <td colSpan="7" className="px-4 py-6 text-center text-gray-500">No returns found in database for the selected filter.</td>
               </tr>
             ) : (
               filteredReturns.map(item => {
@@ -865,6 +887,17 @@ export default function ReturnsPage() {
                       {item.id}
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-700">{item.orderId}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-semibold text-gray-900">{item.productName || item.product || 'Order Item'}</div>
+                      <div className="text-[11px] text-gray-500">
+                        <span>Qty: <strong>{item.quantity || 1}</strong></span>
+                        {item.itemCondition && (
+                          <span className="ml-2 px-1.5 py-0.2 rounded bg-gray-100 text-gray-600 font-medium text-[10px]">
+                            {item.itemCondition}
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <div className="font-medium text-gray-800">{item.customer}</div>
                       {item.customerPhone && (

@@ -857,7 +857,7 @@ class SellerRepository {
         allOrderItems: Array.isArray(r.all_order_items) && r.all_order_items.length > 0 ? r.all_order_items : items,
         orderSummary: {
           orderNumber: orderNum,
-          grandTotal: r.grand_total != null ? Number(r.grand_total) : (Number(r.store_subtotal || 0) + Number(r.delivery_fee || 0) - Number(r.total_discount || 0)),
+          grandTotal: Math.max(0, Number(r.store_subtotal != null ? r.store_subtotal : (r.grand_total != null ? r.grand_total : (r.item_total_price || 0))) + Number(r.delivery_fee || 0) - Number(r.total_discount || 0)),
           itemsSubtotal: r.store_subtotal != null ? Number(r.store_subtotal) : (r.item_total_price != null ? Number(r.item_total_price) : 0),
           deliveryFee: r.delivery_fee != null ? Number(r.delivery_fee) : 0,
           discount: r.total_discount != null ? Number(r.total_discount) : 0,
