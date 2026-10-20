@@ -61,11 +61,14 @@ function OrderItemsModal({ order, store: propStore, onClose, onUpdateStatus, onD
     }
   };
 
-  const totalAmount = Number(displayAmount) || 0;
+  const deliveryFee = Number(order.delivery_fee ?? 0);
+  const discount = Number(order.total_discount ?? 0);
+  const itemsSubtotal = Number(order.amount !== undefined ? order.amount : (order.subtotal || 0));
+  const totalAmount = order.grand_total != null ? Number(order.grand_total) : (itemsSubtotal + deliveryFee - discount);
   const recordedTax = order.tax_amount != null && !isNaN(Number(order.tax_amount)) ? Number(order.tax_amount) : null;
-  const computedTax = Math.round((totalAmount * 5 / 105) * 100) / 100;
+  const computedTax = Math.round((itemsSubtotal * 5 / 105) * 100) / 100;
   const taxAmount = recordedTax != null ? recordedTax : computedTax;
-  const taxableAmount = Math.max(0, Math.round((totalAmount - taxAmount) * 100) / 100);
+  const taxableAmount = Math.max(0, Math.round((itemsSubtotal - taxAmount) * 100) / 100);
   const cgst = (taxAmount / 2).toFixed(2);
   const sgst = (taxAmount / 2).toFixed(2);
   const invoiceNumber = order.invoice_number || null;
@@ -195,6 +198,18 @@ function OrderItemsModal({ order, store: propStore, onClose, onUpdateStatus, onD
     <div class="totals-area">
       <table class="totals-table">
         <tr>
+          <td style="color: #6b7280;">Items Subtotal:</td>
+          <td style="text-align: right; font-weight: 600;">₹${itemsSubtotal.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td style="color: #6b7280;">Delivery Fee:</td>
+          <td style="text-align: right; font-weight: 600;">₹${deliveryFee.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td style="color: #6b7280;">Discounts:</td>
+          <td style="text-align: right; font-weight: 600; color: ${discount > 0 ? '#059669' : '#6b7280'};">${discount > 0 ? `-₹${discount.toFixed(2)}` : '₹0.00'}</td>
+        </tr>
+        <tr style="border-top: 1px dashed #e5e7eb;">
           <td style="color: #6b7280;">Taxable Amount:</td>
           <td style="text-align: right; font-weight: 600;">₹${taxableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
         </tr>
@@ -568,6 +583,27 @@ function OrderItemsModal({ order, store: propStore, onClose, onUpdateStatus, onD
 
           {/* GST & Financial Summary */}
           <div className="px-5 py-3 bg-emerald-50/40 border-t border-b border-emerald-100/70 text-xs shrink-0">
+            <div className="flex items-center justify-between text-gray-600 py-0.5">
+              <span>{t('orderModalItemsSubtotal', 'Items Subtotal')}</span>
+              <span className="font-semibold text-gray-800">₹{itemsSubtotal.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center justify-between text-gray-600 py-0.5">
+              <span className="flex items-center gap-1.5">
+                <i className="fa-solid fa-truck-fast text-[10px] text-emerald-600"></i>
+                <span>{t('orderModalDeliveryFee', 'Delivery Fee / Rate')}</span>
+              </span>
+              <span className="font-semibold text-gray-800">₹{deliveryFee.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center justify-between text-gray-600 py-0.5">
+              <span className="flex items-center gap-1.5">
+                <i className="fa-solid fa-tags text-[10px] text-emerald-600"></i>
+                <span>{t('orderModalDiscounts', 'Discounts')}</span>
+              </span>
+              <span className={`font-semibold ${discount > 0 ? 'text-emerald-700' : 'text-gray-600'}`}>
+                {discount > 0 ? `-₹${discount.toFixed(2)}` : '₹0.00'}
+              </span>
+            </div>
+            <div className="border-t border-dashed border-emerald-200/80 my-1"></div>
             <div className="flex items-center justify-between font-semibold text-gray-700 py-0.5">
               <span className="flex items-center gap-1.5 text-gray-600">
                 <i className="fa-solid fa-calculator text-[10px] text-emerald-600"></i>
@@ -603,7 +639,7 @@ function OrderItemsModal({ order, store: propStore, onClose, onUpdateStatus, onD
           <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between flex-wrap gap-3 shrink-0">
             <div>
               <span className="text-[10px] text-gray-400 uppercase font-bold block leading-tight">{t('orderModalGrandTotal', 'Grand Total ({count} items)', { count: items.length })}</span>
-              <span className="text-base font-extrabold text-emerald-700">₹{Number(displayAmount).toLocaleString('en-IN')}</span>
+              <span className="text-base font-extrabold text-emerald-700">₹{Number(totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
             <div className="flex items-center gap-2">
               {s === 'new' && onUpdateStatus && (
@@ -1330,6 +1366,16 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
       </td>
       <td className="px-4 py-3.5 font-bold text-gray-900">
         <div>₹{displayAmount}</div>
+        <div className="text-[10px] font-normal text-gray-500 mt-0.5 flex flex-col leading-tight">
+          <span className="whitespace-nowrap">
+            Delivery: <span className="font-semibold text-gray-700">₹{Number(order.delivery_fee || 0).toFixed(2)}</span>
+          </span>
+          <span className="whitespace-nowrap">
+            Discount: <span className={`font-semibold ${Number(order.total_discount || 0) > 0 ? 'text-emerald-700' : 'text-gray-700'}`}>
+              {Number(order.total_discount || 0) > 0 ? `-₹${Number(order.total_discount).toFixed(2)}` : '₹0.00'}
+            </span>
+          </span>
+        </div>
         {((order.payment_method || '').toUpperCase() === 'CASH_ON_DELIVERY' || (order.payment_method || '').toUpperCase() === 'COD') ? (
           <span className="text-[10px] font-bold text-amber-700 block whitespace-nowrap">
             <i className="fa-solid fa-hand-holding-dollar mr-0.5 text-[9px]"></i> COD
@@ -1446,6 +1492,8 @@ export default function OrdersPage() {
       'Customer Coordinates',
       'Distance (km)',
       'Delivery Mode',
+      'Delivery Fee (INR)',
+      'Discount (INR)',
       'Items Summary',
       'Payment Method',
       'Payment Status',
@@ -1543,6 +1591,8 @@ export default function OrdersPage() {
         coords,
         distance,
         deliveryMode,
+        Number(o.delivery_fee || 0).toFixed(2),
+        Number(o.total_discount || 0).toFixed(2),
         itemsStr,
         payMethod,
         payStatus,

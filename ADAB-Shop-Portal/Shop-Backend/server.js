@@ -67,6 +67,9 @@ app.get(['/api/v1/orders/:orderId/invoice/pdf', '/api/v1/seller/orders/:orderId/
              o.id as parent_order_id,
              o.order_number,
              o.delivery_mode,
+             o.delivery_fee,
+             o.total_discount,
+             o.total_mrp,
              o.payment_method,
              o.payment_status,
              o.grand_total as amount,
@@ -106,9 +109,12 @@ app.get(['/api/v1/orders/:orderId/invoice/pdf', '/api/v1/seller/orders/:orderId/
       return res.status(404).send('<h1>Invoice Not Found</h1><p>The requested order invoice could not be found.</p>');
     }
     const r = result.rows[0];
-    const totalAmount = Number(r.store_subtotal ?? r.amount ?? 0);
-    const taxAmount = r.tax_amount != null ? Number(r.tax_amount) : Math.round((totalAmount * 5 / 105) * 100) / 100;
-    const taxableAmount = Math.max(0, Math.round((totalAmount - taxAmount) * 100) / 100);
+    const itemsSubtotal = Number(r.store_subtotal ?? 0);
+    const deliveryFee = Number(r.delivery_fee ?? 0);
+    const discount = Number(r.total_discount ?? 0);
+    const totalAmount = Number(r.amount ?? (itemsSubtotal + deliveryFee - discount));
+    const taxAmount = r.tax_amount != null ? Number(r.tax_amount) : Math.round((itemsSubtotal * 5 / 105) * 100) / 100;
+    const taxableAmount = Math.max(0, Math.round((itemsSubtotal - taxAmount) * 100) / 100);
     const cgst = (taxAmount / 2).toFixed(2);
     const sgst = (taxAmount / 2).toFixed(2);
     const invNum = r.invoice_number || `INV-${r.order_number || r.seller_order_id}`;
@@ -224,7 +230,19 @@ app.get(['/api/v1/orders/:orderId/invoice/pdf', '/api/v1/seller/orders/:orderId/
     <div class="totals-area">
       <table class="totals-table">
         <tr>
-          <td style="color: #6b7280;">Taxable Amount:</td>
+          <td style="color: #6b7280;">Items Subtotal:</td>
+          <td style="text-align: right; font-weight: 600;">₹${itemsSubtotal.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td style="color: #6b7280;">Delivery Fee:</td>
+          <td style="text-align: right; font-weight: 600;">₹${deliveryFee.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td style="color: #6b7280;">Discounts:</td>
+          <td style="text-align: right; font-weight: 600; color: ${discount > 0 ? '#059669' : '#6b7280'};">${discount > 0 ? `-₹${discount.toFixed(2)}` : '₹0.00'}</td>
+        </tr>
+        <tr style="border-top: 1px dashed #e5e7eb;">
+          <td style="color: #6b7280;">Taxable Amount (Excl. Tax):</td>
           <td style="text-align: right; font-weight: 600;">₹${taxableAmount.toFixed(2)}</td>
         </tr>
         <tr>
@@ -236,7 +254,7 @@ app.get(['/api/v1/orders/:orderId/invoice/pdf', '/api/v1/seller/orders/:orderId/
           <td style="text-align: right; font-weight: 600;">₹${sgst}</td>
         </tr>
         <tr style="border-top: 1px solid #e5e7eb;">
-          <td style="color: #6b7280; font-weight: 700;">Total GST (5%):</td>
+          <td style="color: #6b7280; font-weight: 700;">Total GST (5% Inclusive):</td>
           <td style="text-align: right; font-weight: 700; color: #047857;">₹${taxAmount.toFixed(2)}</td>
         </tr>
         <tr class="grand-total">
