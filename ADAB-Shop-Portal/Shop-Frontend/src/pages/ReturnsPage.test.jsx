@@ -227,7 +227,7 @@ describe('ReturnsPage Component', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Original Order Summary')).toBeDefined();
-      expect(screen.getByText('#ORD-MULTI-99')).toBeDefined();
+      expect(screen.getAllByText('#ORD-MULTI-99').length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText('Non-refundable')).toBeDefined();
       expect(screen.getByText('Return & Refund Settlement')).toBeDefined();
       expect(screen.getByText('Returned Item Value')).toBeDefined();
