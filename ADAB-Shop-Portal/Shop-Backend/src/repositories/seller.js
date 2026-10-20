@@ -681,6 +681,8 @@ class SellerRepository {
                      'listing_id', oi_all.listing_id,
                      'product_name', COALESCE(oi_all.product_name, 'Order Item'),
                      'quantity', COALESCE(ri_all.quantity, oi_all.quantity, 1),
+                     'order_quantity', COALESCE(oi_all.quantity, ri_all.quantity, 1),
+                     'return_quantity', COALESCE(ri_all.quantity, 1),
                      'unit_price', oi_all.unit_price,
                      'total_price', COALESCE(ri_all.refund_amount, oi_all.total_price),
                      'reason', COALESCE(ri_all.reason, r.reason),

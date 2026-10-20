@@ -154,8 +154,8 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                       (ri.order_item_id && prod.order_item_id && ri.order_item_id === prod.order_item_id) ||
                       (ri.product_name && prod.product_name && ri.product_name.toLowerCase() === prod.product_name.toLowerCase())
                     ));
-                    const returnedQty = prod.returned_quantity || matchingReturnItem?.quantity || (isReturned ? (item.quantity || 1) : 0);
-                    const orderedQty = Number(prod.quantity || 1);
+                    const returnedQty = Number(prod.returned_quantity ?? matchingReturnItem?.return_quantity ?? matchingReturnItem?.quantity ?? (isReturned ? (item.quantity || 1) : 0));
+                    const orderedQty = Number(prod.order_quantity ?? prod.quantity ?? 1);
                     const keptQty = Math.max(0, orderedQty - returnedQty);
                     const unitPrice = Number(prod.unit_price || 0);
                     const totalOrderedPrice = Number(prod.total_price || (unitPrice * orderedQty));
