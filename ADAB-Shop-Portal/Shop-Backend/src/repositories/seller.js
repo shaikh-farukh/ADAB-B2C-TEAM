@@ -647,6 +647,9 @@ class SellerRepository {
              so.subtotal as store_subtotal,
              o.order_number,
              o.grand_total,
+             o.delivery_fee,
+             o.total_mrp,
+             o.total_discount,
              o.payment_method as order_payment_method,
              o.payment_status,
              o.delivery_address,
@@ -774,7 +777,7 @@ class SellerRepository {
 
       // Consume refund amount from return record or payment domain record (never calculate via hardcoded fallback)
       const resolvedRefundAmount = Number(
-        r.refund_amount ?? r.return_item_refund_amount ?? r.payment_amount ?? r.item_total_price ?? r.grand_total ?? 0
+        r.refund_amount ?? r.return_item_refund_amount ?? r.item_total_price ?? r.payment_amount ?? r.grand_total ?? 0
       );
 
       return {
@@ -807,7 +810,17 @@ class SellerRepository {
         paymentStatus: r.payment_status,
         rejectionReason: r.rejection_reason || null,
         requested_at: r.requested_at,
-        resolved_at: r.resolved_at
+        resolved_at: r.resolved_at,
+        deliveryFee: r.delivery_fee != null ? Number(r.delivery_fee) : 0,
+        orderGrandTotal: r.grand_total != null ? Number(r.grand_total) : null,
+        orderSummary: {
+          orderNumber: orderNum,
+          grandTotal: r.grand_total != null ? Number(r.grand_total) : 0,
+          itemsSubtotal: r.store_subtotal != null ? Number(r.store_subtotal) : (r.item_total_price != null ? Number(r.item_total_price) : 0),
+          deliveryFee: r.delivery_fee != null ? Number(r.delivery_fee) : 0,
+          paymentMethod: r.payment_method || r.order_payment_method || 'CARD',
+          paymentStatus: r.payment_record_status || r.payment_status || 'PAID'
+        }
       };
     });
   }

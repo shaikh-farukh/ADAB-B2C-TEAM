@@ -5,7 +5,12 @@ import { useTranslation } from '../context/LanguageContext';
 
 function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
   const [rejectNote, setRejectNote] = useState(item?.rejectionReason || '');
-  const maxRefundAmount = Number(item?.amount || item?.paymentAmount || 0);
+  const itemsSum = Array.isArray(item?.items) && item.items.length > 0
+    ? item.items.reduce((acc, it) => acc + (Number(it.total_price) || 0), 0)
+    : 0;
+  const maxRefundAmount = Number(
+    (itemsSum > 0 ? itemsSum : null) ?? item?.itemTotalPrice ?? item?.amount ?? item?.paymentAmount ?? 0
+  );
   const productPolicy = Array.isArray(item?.items) && item?.items[0]?.refund_percentage != null
     ? item.items[0]
     : null;
@@ -16,6 +21,15 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
   const [regulatedRefundAmount, setRegulatedRefundAmount] = useState(() => {
     return Number(((maxRefundAmount * defaultPct) / 100).toFixed(2));
   });
+
+  const orderSummary = item?.orderSummary || {
+    orderNumber: item?.orderId,
+    grandTotal: item?.orderGrandTotal ?? item?.paymentAmount ?? (item?.amount || 0),
+    itemsSubtotal: item?.storeSubtotal ?? item?.itemTotalPrice ?? (item?.amount || 0),
+    deliveryFee: item?.deliveryFee ?? 0,
+    paymentMethod: item?.paymentMethod || 'N/A',
+    paymentStatus: item?.paymentRecordStatus || item?.paymentStatus || 'PAID'
+  };
 
   if (!item) return null;
 
@@ -82,6 +96,50 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
             </div>
           </div>
 
+          {/* Original Order Summary Card */}
+          <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
+                <i className="fa-solid fa-receipt text-blue-600"></i>
+                <span>Original Order Summary</span>
+              </span>
+              <span className="text-[11px] font-bold text-blue-900 bg-blue-100/90 px-2 py-0.5 rounded-md border border-blue-200">
+                {orderSummary.orderNumber}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px]">
+              <div>
+                <div className="text-[10px] text-gray-500">Items Subtotal</div>
+                <div className="font-bold text-gray-900">
+                  ₹{Number(orderSummary.itemsSubtotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-500">Delivery Fee</div>
+                <div className="font-bold text-gray-700">
+                  ₹{Number(orderSummary.deliveryFee || 0).toFixed(2)}
+                  <span className="block text-[9px] font-semibold text-amber-700">Non-refundable</span>
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-500">Total Paid at Checkout</div>
+                <div className="font-bold text-gray-900">
+                  ₹{Number(orderSummary.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-500">Checkout Payment</div>
+                <div className="font-bold text-emerald-800 uppercase flex items-center gap-1 flex-wrap">
+                  <span>{orderSummary.paymentMethod || 'CARD'}</span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 bg-emerald-100 text-emerald-900 rounded-md border border-emerald-200">
+                    PAID
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Returned Products Breakdown (Supports 1 or multiple products) */}
           <div className="p-3.5 rounded-xl bg-white border border-gray-200 space-y-2.5">
             <div className="flex items-center justify-between">
@@ -138,39 +196,47 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
             </div>
           </div>
 
-          {/* Payment Domain Integration */}
-          <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200 space-y-2">
+          {/* Return & Refund Settlement */}
+          <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase text-emerald-800">
-                <i className="fa-solid fa-building-columns mr-1"></i>
-                Payment Domain Record
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
+                <i className="fa-solid fa-hand-holding-dollar text-emerald-700"></i>
+                <span>Return &amp; Refund Settlement</span>
               </span>
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                (item.paymentRecordStatus || item.paymentStatus) === 'REFUNDED'
-                  ? 'bg-emerald-200 text-emerald-900'
-                  : 'bg-amber-100 text-amber-800'
+                item.status === 'pending'
+                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                  : item.status === 'rejected'
+                  ? 'bg-rose-100 text-rose-900 border border-rose-300'
+                  : 'bg-emerald-200 text-emerald-900 border border-emerald-300'
               }`}>
-                {item.paymentRecordStatus || item.paymentStatus || 'RECORDED'}
+                {item.status === 'pending'
+                  ? 'Awaiting Seller Approval'
+                  : item.status === 'rejected'
+                  ? 'Rejected'
+                  : 'Refund Approved'}
               </span>
             </div>
-            <div className="grid grid-cols-3 gap-2 pt-1">
+
+            <div className="grid grid-cols-3 gap-2 pt-1 text-[11px] bg-white p-2.5 rounded-lg border border-emerald-200/70">
               <div>
-                <div className="text-[10px] text-gray-500">Payment Method</div>
-                <div className="font-bold text-gray-900 uppercase">{item.paymentMethod || 'N/A'}</div>
+                <div className="text-[10px] text-gray-500">Refund Route</div>
+                <div className="font-bold text-gray-900 uppercase">{item.paymentMethod || 'Original Payment'}</div>
               </div>
               <div>
-                <div className="text-[10px] text-gray-500">Paid Amount</div>
-                <div className="font-bold text-gray-900">
-                  ₹{Number(item.paymentAmount ?? item.amount ?? 0).toLocaleString('en-IN')}
+                <div className="text-[10px] text-gray-500">Returned Item Value</div>
+                <div className="font-extrabold text-gray-900">
+                  ₹{Number(maxRefundAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </div>
               </div>
               <div>
-                <div className="text-[10px] text-gray-500">Refund Amount</div>
+                <div className="text-[10px] text-gray-500">Settled Refund</div>
                 <div className="font-extrabold text-emerald-800 text-sm">
-                  ₹{Number(item.amount || 0).toLocaleString('en-IN')}
+                  ₹{Number(item.status === 'pending' ? (regulatedRefundAmount || 0) : item.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </div>
               </div>
             </div>
+
             {item.resolved_at && (
               <div className="text-[11px] text-gray-500 pt-1 border-t border-emerald-200/60">
                 Resolved at: <span className="font-semibold text-gray-700">{formatDate(item.resolved_at)}</span>

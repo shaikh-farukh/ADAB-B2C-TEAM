@@ -197,4 +197,40 @@ describe('ReturnsPage Component', () => {
       expect(sellerApi.updateReturnStatus).toHaveBeenCalledWith('ret-uuid-1001', 'approved', null, 976);
     });
   });
+
+  it('renders Original Order Summary with delivery fee (non-refundable) and Returned Item Value in the ReturnDetailModal', async () => {
+    const multiItemOrderReturn = {
+      ...sampleReturn,
+      orderSummary: {
+        orderNumber: '#ORD-MULTI-99',
+        grandTotal: 1550,
+        itemsSubtotal: 1500,
+        deliveryFee: 50,
+        paymentMethod: 'CARD',
+        paymentStatus: 'PAID'
+      },
+      deliveryFee: 50
+    };
+
+    sellerApi.getReturns.mockResolvedValueOnce({
+      success: true,
+      data: [multiItemOrderReturn]
+    });
+
+    render(<ReturnsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('#RET-E2E1')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('#RET-E2E1').closest('tr'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Original Order Summary')).toBeDefined();
+      expect(screen.getByText('#ORD-MULTI-99')).toBeDefined();
+      expect(screen.getByText('Non-refundable')).toBeDefined();
+      expect(screen.getByText('Return & Refund Settlement')).toBeDefined();
+      expect(screen.getByText('Returned Item Value')).toBeDefined();
+    });
+  });
 });
