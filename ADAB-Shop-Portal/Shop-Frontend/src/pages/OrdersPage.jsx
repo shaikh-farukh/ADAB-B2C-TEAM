@@ -198,18 +198,6 @@ function OrderItemsModal({ order, store: propStore, onClose, onUpdateStatus, onD
     <div class="totals-area">
       <table class="totals-table">
         <tr>
-          <td style="color: #6b7280;">Items Subtotal:</td>
-          <td style="text-align: right; font-weight: 600;">₹${itemsSubtotal.toFixed(2)}</td>
-        </tr>
-        <tr>
-          <td style="color: #6b7280;">Delivery Fee:</td>
-          <td style="text-align: right; font-weight: 600;">₹${deliveryFee.toFixed(2)}</td>
-        </tr>
-        <tr>
-          <td style="color: #6b7280;">Discounts:</td>
-          <td style="text-align: right; font-weight: 600; color: ${discount > 0 ? '#059669' : '#6b7280'};">${discount > 0 ? `-₹${discount.toFixed(2)}` : '₹0.00'}</td>
-        </tr>
-        <tr style="border-top: 1px dashed #e5e7eb;">
           <td style="color: #6b7280;">Taxable Amount:</td>
           <td style="text-align: right; font-weight: 600;">₹${taxableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
         </tr>
@@ -221,9 +209,21 @@ function OrderItemsModal({ order, store: propStore, onClose, onUpdateStatus, onD
           <td style="color: #6b7280;">SGST (2.5%):</td>
           <td style="text-align: right; font-weight: 600;">₹${sgst}</td>
         </tr>
-        <tr style="border-top: 1px solid #e5e7eb;">
+        <tr style="border-top: 1px dashed #e5e7eb;">
           <td style="color: #6b7280; font-weight: 700;">Total GST (5%):</td>
           <td style="text-align: right; font-weight: 700; color: #047857;">₹${taxAmount.toFixed(2)}</td>
+        </tr>
+        <tr style="border-top: 1px solid #e5e7eb;">
+          <td style="color: #6b7280; font-weight: 600;">Items Subtotal:</td>
+          <td style="text-align: right; font-weight: 700; color: #111827;">₹${itemsSubtotal.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td style="color: #6b7280;">Delivery Fee:</td>
+          <td style="text-align: right; font-weight: 600;">₹${deliveryFee.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td style="color: #6b7280;">Discounts:</td>
+          <td style="text-align: right; font-weight: 600; color: ${discount > 0 ? '#059669' : '#6b7280'};">${discount > 0 ? `-₹${discount.toFixed(2)}` : '₹0.00'}</td>
         </tr>
         <tr class="grand-total">
           <td style="padding: 10px 8px;">Total Payable:</td>
@@ -583,27 +583,7 @@ function OrderItemsModal({ order, store: propStore, onClose, onUpdateStatus, onD
 
           {/* GST & Financial Summary */}
           <div className="px-5 py-3 bg-emerald-50/40 border-t border-b border-emerald-100/70 text-xs shrink-0">
-            <div className="flex items-center justify-between text-gray-600 py-0.5">
-              <span>{t('orderModalItemsSubtotal', 'Items Subtotal')}</span>
-              <span className="font-semibold text-gray-800">₹{itemsSubtotal.toFixed(2)}</span>
-            </div>
-            <div className="flex items-center justify-between text-gray-600 py-0.5">
-              <span className="flex items-center gap-1.5">
-                <i className="fa-solid fa-truck-fast text-[10px] text-emerald-600"></i>
-                <span>{t('orderModalDeliveryFee', 'Delivery Fee / Rate')}</span>
-              </span>
-              <span className="font-semibold text-gray-800">₹{deliveryFee.toFixed(2)}</span>
-            </div>
-            <div className="flex items-center justify-between text-gray-600 py-0.5">
-              <span className="flex items-center gap-1.5">
-                <i className="fa-solid fa-tags text-[10px] text-emerald-600"></i>
-                <span>{t('orderModalDiscounts', 'Discounts')}</span>
-              </span>
-              <span className={`font-semibold ${discount > 0 ? 'text-emerald-700' : 'text-gray-600'}`}>
-                {discount > 0 ? `-₹${discount.toFixed(2)}` : '₹0.00'}
-              </span>
-            </div>
-            <div className="border-t border-dashed border-emerald-200/80 my-1"></div>
+            {/* GST Breakdown (above subtotal) */}
             <div className="flex items-center justify-between font-semibold text-gray-700 py-0.5">
               <span className="flex items-center gap-1.5 text-gray-600">
                 <i className="fa-solid fa-calculator text-[10px] text-emerald-600"></i>
@@ -632,6 +612,34 @@ function OrderItemsModal({ order, store: propStore, onClose, onUpdateStatus, onD
                 ) : null}
               </span>
               <span>₹{taxAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+
+            {/* Separator before Items Subtotal, Delivery and Discounts */}
+            <div className="border-t border-dashed border-emerald-200/80 my-2"></div>
+
+            {/* Items Subtotal, Delivery Fee and Discounts */}
+            <div className="flex items-center justify-between text-gray-700 font-semibold py-0.5">
+              <span className="flex items-center gap-1.5 text-gray-600">
+                <i className="fa-solid fa-basket-shopping text-[10px] text-emerald-600"></i>
+                <span>{t('orderModalItemsSubtotal', 'Items Subtotal')}</span>
+              </span>
+              <span className="font-bold text-gray-900">₹{itemsSubtotal.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center justify-between text-gray-600 py-0.5">
+              <span className="flex items-center gap-1.5">
+                <i className="fa-solid fa-truck-fast text-[10px] text-emerald-600"></i>
+                <span>{t('orderModalDeliveryFee', 'Delivery Fee / Rate')}</span>
+              </span>
+              <span className="font-semibold text-gray-800">₹{deliveryFee.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center justify-between text-gray-600 py-0.5">
+              <span className="flex items-center gap-1.5">
+                <i className="fa-solid fa-tags text-[10px] text-emerald-600"></i>
+                <span>{t('orderModalDiscounts', 'Discounts')}</span>
+              </span>
+              <span className={`font-semibold ${discount > 0 ? 'text-emerald-700' : 'text-gray-600'}`}>
+                {discount > 0 ? `-₹${discount.toFixed(2)}` : '₹0.00'}
+              </span>
             </div>
           </div>
 
@@ -1316,6 +1324,10 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
   const displayId = order.id ? (order.id.toString().startsWith('#') ? order.id : `#${order.id}`) : '—';
   const displayCustomer = order.customer || order.customer_name || t('colCustomer', 'Customer');
   const displayAmount = order.amount !== undefined ? order.amount : (order.total_amount || 0);
+  const deliveryFee = Number(order.delivery_fee || 0);
+  const discount = Number(order.total_discount || 0);
+  const rawGrandTotal = order.grand_total != null ? Number(order.grand_total) : (Number(displayAmount) + deliveryFee - discount);
+  const displayGrandTotal = Number.isInteger(rawGrandTotal) ? rawGrandTotal : rawGrandTotal.toFixed(2);
   const displayDistance = order.distance != null ? `${order.distance} km` : '—';
   const deliveryType = order.delivery_mode || order.delivery_type || 'normal';
 
@@ -1365,14 +1377,17 @@ function OrderRow({ order, onUpdateStatus, onViewItems, onOpenMap, onDecline, is
         {getDeliveryBadge(deliveryType)}
       </td>
       <td className="px-4 py-3.5 font-bold text-gray-900">
-        <div>₹{displayAmount}</div>
+        <div className="text-sm font-extrabold text-emerald-700">₹{displayGrandTotal}</div>
         <div className="text-[10px] font-normal text-gray-500 mt-0.5 flex flex-col leading-tight">
           <span className="whitespace-nowrap">
-            Delivery: <span className="font-semibold text-gray-700">₹{Number(order.delivery_fee || 0).toFixed(2)}</span>
+            Subtotal: <span className="font-semibold text-gray-700">₹{Number(displayAmount || 0).toFixed(2)}</span>
           </span>
           <span className="whitespace-nowrap">
-            Discount: <span className={`font-semibold ${Number(order.total_discount || 0) > 0 ? 'text-emerald-700' : 'text-gray-700'}`}>
-              {Number(order.total_discount || 0) > 0 ? `-₹${Number(order.total_discount).toFixed(2)}` : '₹0.00'}
+            Delivery: <span className="font-semibold text-gray-700">₹{deliveryFee.toFixed(2)}</span>
+          </span>
+          <span className="whitespace-nowrap">
+            Discount: <span className={`font-semibold ${discount > 0 ? 'text-emerald-700' : 'text-gray-700'}`}>
+              {discount > 0 ? `-₹${discount.toFixed(2)}` : '₹0.00'}
             </span>
           </span>
         </div>
@@ -1766,7 +1781,7 @@ export default function OrdersPage() {
               <th className="px-4 py-3.5">{t('colDistance', 'Distance')}</th>
               <th className="px-4 py-3.5">{t('colItems', 'Items')}</th>
               <th className="px-4 py-3.5">{t('colDelivery', 'Delivery')}</th>
-              <th className="px-4 py-3.5">{t('colTotal', 'Total')}</th>
+              <th className="px-4 py-3.5">{t('colGrandTotal', 'Grand Total')}</th>
               <th className="px-4 py-3.5 text-center">{t('colStatus', 'Status')}</th>
               <th className="px-4 py-3.5">{t('colAction', 'Action')}</th>
             </tr>

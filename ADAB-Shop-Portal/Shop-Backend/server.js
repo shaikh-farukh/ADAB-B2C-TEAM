@@ -230,18 +230,6 @@ app.get(['/api/v1/orders/:orderId/invoice/pdf', '/api/v1/seller/orders/:orderId/
     <div class="totals-area">
       <table class="totals-table">
         <tr>
-          <td style="color: #6b7280;">Items Subtotal:</td>
-          <td style="text-align: right; font-weight: 600;">₹${itemsSubtotal.toFixed(2)}</td>
-        </tr>
-        <tr>
-          <td style="color: #6b7280;">Delivery Fee:</td>
-          <td style="text-align: right; font-weight: 600;">₹${deliveryFee.toFixed(2)}</td>
-        </tr>
-        <tr>
-          <td style="color: #6b7280;">Discounts:</td>
-          <td style="text-align: right; font-weight: 600; color: ${discount > 0 ? '#059669' : '#6b7280'};">${discount > 0 ? `-₹${discount.toFixed(2)}` : '₹0.00'}</td>
-        </tr>
-        <tr style="border-top: 1px dashed #e5e7eb;">
           <td style="color: #6b7280;">Taxable Amount (Excl. Tax):</td>
           <td style="text-align: right; font-weight: 600;">₹${taxableAmount.toFixed(2)}</td>
         </tr>
@@ -253,9 +241,21 @@ app.get(['/api/v1/orders/:orderId/invoice/pdf', '/api/v1/seller/orders/:orderId/
           <td style="color: #6b7280;">SGST (2.5%):</td>
           <td style="text-align: right; font-weight: 600;">₹${sgst}</td>
         </tr>
-        <tr style="border-top: 1px solid #e5e7eb;">
+        <tr style="border-top: 1px dashed #e5e7eb;">
           <td style="color: #6b7280; font-weight: 700;">Total GST (5% Inclusive):</td>
           <td style="text-align: right; font-weight: 700; color: #047857;">₹${taxAmount.toFixed(2)}</td>
+        </tr>
+        <tr style="border-top: 1px solid #e5e7eb;">
+          <td style="color: #6b7280; font-weight: 600;">Items Subtotal:</td>
+          <td style="text-align: right; font-weight: 700; color: #111827;">₹${itemsSubtotal.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td style="color: #6b7280;">Delivery Fee:</td>
+          <td style="text-align: right; font-weight: 600;">₹${deliveryFee.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td style="color: #6b7280;">Discounts:</td>
+          <td style="text-align: right; font-weight: 600; color: ${discount > 0 ? '#059669' : '#6b7280'};">${discount > 0 ? `-₹${discount.toFixed(2)}` : '₹0.00'}</td>
         </tr>
         <tr class="grand-total">
           <td style="padding: 10px 8px;">Total Payable:</td>
