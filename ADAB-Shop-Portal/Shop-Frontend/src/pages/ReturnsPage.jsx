@@ -31,6 +31,19 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
     paymentStatus: item?.paymentRecordStatus || item?.paymentStatus || 'PAID'
   };
 
+  const orderItemsToDisplay = Array.isArray(item?.allOrderItems) && item.allOrderItems.length > 0
+    ? item.allOrderItems
+    : (Array.isArray(item?.items) && item.items.length > 0 ? item.items : [
+        {
+          product_name: item?.productName || item?.product || 'Order Item',
+          quantity: item?.quantity || 1,
+          unit_price: item?.unitPrice,
+          total_price: item?.itemTotalPrice || item?.amount,
+          is_returned: true,
+          returned_quantity: item?.quantity || 1
+        }
+      ]);
+
   if (!item) return null;
 
   const addr = item.deliveryAddress || {};
@@ -55,15 +68,28 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-200">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl lg:max-w-5xl w-full overflow-hidden border border-gray-200 flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-emerald-50 to-teal-50">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 shrink-0">
           <div>
             <div className="flex items-center gap-2">
               <i className="fa-solid fa-rotate-left text-emerald-700 text-sm"></i>
               <h3 className="font-extrabold text-base text-gray-900">
                 Return Detail • {item.id}
               </h3>
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                item.status === 'pending'
+                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                  : item.status === 'rejected'
+                  ? 'bg-rose-100 text-rose-900 border border-rose-300'
+                  : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+              }`}>
+                {item.status === 'pending'
+                  ? 'Awaiting Seller Approval'
+                  : item.status === 'rejected'
+                  ? 'Rejected'
+                  : 'Refund Approved'}
+              </span>
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
               Order <span className="font-bold text-gray-800">{item.orderId}</span> • Requested {formatDate(item.requested_at)}
@@ -79,276 +105,330 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto text-xs">
-          {/* Customer & Pickup Address */}
-          <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 space-y-1">
-            <div className="text-[10px] font-bold uppercase text-gray-400">Customer &amp; Pickup Details</div>
-            <div className="font-bold text-gray-900 text-sm">
-              {item.customer}
-              {item.customerPhone && (
-                <span className="ml-2 font-mono text-xs font-normal text-gray-600">({item.customerPhone})</span>
-              )}
-            </div>
-            <div className="text-gray-600 flex items-start gap-1.5 mt-1">
-              <i className="fa-solid fa-location-dot text-emerald-600 mt-0.5"></i>
-              <span>{addressString}</span>
-            </div>
-          </div>
+        {/* Body - 2 Columns */}
+        <div className="p-6 overflow-y-auto text-xs space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-          {/* Original Order Summary Card */}
-          <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
-                <i className="fa-solid fa-receipt text-blue-600"></i>
-                <span>Original Order Summary</span>
-              </span>
-              <span className="text-[11px] font-bold text-blue-900 bg-blue-100/90 px-2 py-0.5 rounded-md border border-blue-200">
-                {orderSummary.orderNumber}
-              </span>
+            {/* LEFT COLUMN: Full Order Info & Highlighting What Was Returned */}
+            <div className="lg:col-span-6 space-y-4">
+              <div className="flex items-center gap-2 pb-1 border-b border-gray-100 text-gray-900 font-extrabold text-xs uppercase tracking-wide">
+                <i className="fa-solid fa-file-invoice text-blue-600"></i>
+                <span>Order Information &amp; History</span>
+              </div>
+
+              {/* Customer & Delivery Address */}
+              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200/80 space-y-1">
+                <div className="text-[10px] font-bold uppercase text-gray-400">Customer &amp; Delivery Details</div>
+                <div className="font-bold text-gray-900 text-sm">
+                  {item.customer}
+                  {item.customerPhone && (
+                    <span className="ml-2 font-mono text-xs font-normal text-gray-600">({item.customerPhone})</span>
+                  )}
+                </div>
+                <div className="text-gray-600 flex items-start gap-1.5 mt-1">
+                  <i className="fa-solid fa-location-dot text-emerald-600 mt-0.5"></i>
+                  <span>{addressString}</span>
+                </div>
+              </div>
+
+              {/* Original Order Items with Return Highlighting */}
+              <div className="p-3.5 rounded-xl bg-white border border-gray-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                    Order Items Breakdown ({orderItemsToDisplay.length})
+                  </span>
+                  <span className="text-[10px] text-gray-400">
+                    Highlighted = Returned
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {orderItemsToDisplay.map((prod, idx) => {
+                    const isReturned = prod.is_returned || (
+                      Array.isArray(item.items) && item.items.some(ri => (
+                        (ri.order_item_id && prod.order_item_id && ri.order_item_id === prod.order_item_id) ||
+                        (ri.product_name && prod.product_name && ri.product_name.toLowerCase() === prod.product_name.toLowerCase())
+                      ))
+                    );
+                    const returnedQty = prod.returned_quantity || prod.quantity || 1;
+
+                    return (
+                      <div
+                        key={prod.order_item_id || prod.return_item_id || idx}
+                        className={`p-2.5 rounded-xl border transition ${
+                          isReturned
+                            ? 'bg-amber-50/70 border-amber-300 shadow-2xs'
+                            : 'bg-gray-50/50 border-gray-100 opacity-80'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="font-extrabold text-xs text-gray-900 flex items-center gap-1.5 flex-wrap">
+                              <span>{prod.product_name || 'Order Item'}</span>
+                              {isReturned ? (
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-200 text-amber-900 border border-amber-400 inline-flex items-center gap-1">
+                                  <i className="fa-solid fa-rotate-left text-[8px]"></i>
+                                  Returned ({returnedQty}x)
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-gray-200 text-gray-600">
+                                  Kept by Customer
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-gray-500 mt-0.5 text-[11px]">
+                              Qty Ordered: <span className="font-bold text-gray-800">{prod.quantity || 1}</span>
+                              {prod.unit_price != null && (
+                                <span className="ml-2">• Unit Price: ₹{Number(prod.unit_price).toLocaleString('en-IN')}</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0 font-extrabold text-xs text-gray-900">
+                            ₹{Number(prod.total_price || (prod.unit_price * prod.quantity) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Original Order Summary Card */}
+              <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
+                    <i className="fa-solid fa-receipt text-blue-600"></i>
+                    <span>Original Order Summary</span>
+                  </span>
+                  <span className="text-[11px] font-bold text-blue-900 bg-blue-100/90 px-2 py-0.5 rounded-md border border-blue-200">
+                    {orderSummary.orderNumber}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px]">
+                  <div>
+                    <div className="text-[10px] text-gray-500">Items Subtotal</div>
+                    <div className="font-bold text-gray-900">
+                      ₹{Number(orderSummary.itemsSubtotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-gray-500">Delivery Fee</div>
+                    <div className="font-bold text-gray-700">
+                      ₹{Number(orderSummary.deliveryFee || 0).toFixed(2)}
+                      <span className="block text-[9px] font-semibold text-amber-700">Non-refundable</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-gray-500">Total Paid at Checkout</div>
+                    <div className="font-bold text-gray-900">
+                      ₹{Number(orderSummary.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-gray-500">Checkout Payment</div>
+                    <div className="font-bold text-emerald-800 uppercase flex items-center gap-1 flex-wrap">
+                      <span>{orderSummary.paymentMethod || 'CARD'}</span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 bg-emerald-100 text-emerald-900 rounded-md border border-emerald-200">
+                        PAID
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px]">
-              <div>
-                <div className="text-[10px] text-gray-500">Items Subtotal</div>
-                <div className="font-bold text-gray-900">
-                  ₹{Number(orderSummary.itemsSubtotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </div>
+            {/* RIGHT COLUMN: Return & Refund Settlement, Condition & "How Much" */}
+            <div className="lg:col-span-6 space-y-4">
+              <div className="flex items-center gap-2 pb-1 border-b border-gray-100 text-gray-900 font-extrabold text-xs uppercase tracking-wide">
+                <i className="fa-solid fa-hand-holding-dollar text-emerald-700"></i>
+                <span>Return &amp; Refund Settlement</span>
               </div>
-              <div>
-                <div className="text-[10px] text-gray-500">Delivery Fee</div>
-                <div className="font-bold text-gray-700">
-                  ₹{Number(orderSummary.deliveryFee || 0).toFixed(2)}
-                  <span className="block text-[9px] font-semibold text-amber-700">Non-refundable</span>
+
+              {/* Returned Item Details & Condition */}
+              <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900">
+                    Returned Product &amp; Condition
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white text-emerald-900 border border-emerald-300">
+                    Condition: {item.itemCondition || 'UNOPENED'}
+                  </span>
                 </div>
-              </div>
-              <div>
-                <div className="text-[10px] text-gray-500">Total Paid at Checkout</div>
-                <div className="font-bold text-gray-900">
-                  ₹{Number(orderSummary.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+
+                <div className="divide-y divide-emerald-200/60 bg-white p-3 rounded-xl border border-emerald-200/80">
+                  {(Array.isArray(item.items) && item.items.length > 0
+                    ? item.items
+                    : [
+                        {
+                          product_name: item.productName || item.product,
+                          quantity: item.quantity || 1,
+                          unit_price: item.unitPrice,
+                          reason: item.reason,
+                          item_condition: item.itemCondition,
+                          current_listing_stock: item.currentListingStock
+                        }
+                      ]
+                  ).map((prod, idx) => (
+                    <div key={prod.return_item_id || prod.order_item_id || idx} className="py-2 first:pt-0 last:pb-0 space-y-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="font-extrabold text-sm text-gray-900">
+                          {prod.product_name || 'Order Item'}
+                        </div>
+                        {prod.current_listing_stock != null && (
+                          <div className="text-right shrink-0">
+                            <span className="text-[10px] text-gray-400 font-bold block uppercase">Stock</span>
+                            <span className="text-xs font-extrabold text-emerald-700">{prod.current_listing_stock} units</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-600 text-[11px] flex-wrap">
+                        <span>Quantity: <strong className="text-gray-900">{prod.quantity || 1} unit(s)</strong></span>
+                        {prod.unit_price != null && (
+                          <span>• Unit Price: <strong>₹{Number(prod.unit_price).toLocaleString('en-IN')}</strong></span>
+                        )}
+                        {prod.item_condition && (
+                          <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                            {prod.item_condition}
+                          </span>
+                        )}
+                      </div>
+                      {prod.reason && (
+                        <div className="text-[11px] text-gray-600 bg-gray-50 p-2 rounded-lg border border-gray-100 mt-1">
+                          Reason: <span className="font-semibold text-gray-800">{prod.reason}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              </div>
-              <div>
-                <div className="text-[10px] text-gray-500">Checkout Payment</div>
-                <div className="font-bold text-emerald-800 uppercase flex items-center gap-1 flex-wrap">
-                  <span>{orderSummary.paymentMethod || 'CARD'}</span>
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 bg-emerald-100 text-emerald-900 rounded-md border border-emerald-200">
-                    PAID
+
+                {productPolicy && (
+                  <div className="text-[11px] text-emerald-900 bg-emerald-100/70 px-3 py-1.5 rounded-lg border border-emerald-300 flex items-center justify-between">
+                    <span>Policy: <strong>{productPolicy.refund_percentage ?? 100}% Refundable</strong></span>
+                    <span>Return Window: <strong>{productPolicy.return_window_days ?? 7} days</strong></span>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between px-2 pt-1">
+                  <span className="text-[11px] font-bold text-gray-600">Returned Item Value</span>
+                  <span className="text-sm font-black text-gray-900">
+                    ₹{Number(maxRefundAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Returned Products Breakdown (Supports 1 or multiple products) */}
-          <div className="p-3.5 rounded-xl bg-white border border-gray-200 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase text-gray-400">
-                Returned Products ({Array.isArray(item.items) && item.items.length > 0 ? item.items.length : 1})
-              </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700">
-                Condition: {item.itemCondition || 'UNOPENED'}
-              </span>
-            </div>
-
-            <div className="divide-y divide-gray-100">
-              {(Array.isArray(item.items) && item.items.length > 0
-                ? item.items
-                : [
-                    {
-                      product_name: item.productName || item.product,
-                      quantity: item.quantity || 1,
-                      unit_price: item.unitPrice,
-                      reason: item.reason,
-                      item_condition: item.itemCondition,
-                      current_listing_stock: item.currentListingStock
-                    }
-                  ]
-              ).map((prod, idx) => (
-                <div key={prod.return_item_id || prod.order_item_id || idx} className="py-2 first:pt-1 last:pb-0 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="font-extrabold text-sm text-gray-900">
-                      {prod.product_name || 'Order Item'}
-                    </div>
-                    <div className="text-gray-500 mt-0.5">
-                      Qty: <span className="font-bold text-gray-800">{prod.quantity || 1} unit(s)</span>
-                      {prod.unit_price != null && (
-                        <span className="ml-2">• Unit Price: ₹{Number(prod.unit_price).toLocaleString('en-IN')}</span>
-                      )}
-                      {prod.item_condition && (
-                        <span className="ml-2 text-[10px] font-semibold text-gray-600">• {prod.item_condition}</span>
-                      )}
-                    </div>
-                    {prod.reason && (
-                      <div className="text-[11px] text-gray-600 mt-0.5">
-                        Reason: <span className="font-semibold text-gray-800">{prod.reason}</span>
-                      </div>
-                    )}
+              {/* How Much: Regulate Refund Amount section (when pending approval) */}
+              {item.status === 'pending' && (
+                <div className="p-3.5 rounded-xl bg-white border border-emerald-300 shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
+                    <span className="text-[11px] font-bold uppercase text-emerald-900 flex items-center gap-1.5">
+                      <i className="fa-solid fa-sliders text-emerald-700"></i>
+                      <span>Regulate Customer Refund Amount</span>
+                    </span>
+                    <span className="text-[10px] text-gray-500 font-medium">
+                      Original: <strong className="text-gray-800">₹{maxRefundAmount.toLocaleString('en-IN')}</strong>
+                    </span>
                   </div>
-                  {prod.current_listing_stock != null && (
-                    <div className="text-right shrink-0">
-                      <div className="text-[10px] text-gray-400 font-bold uppercase">Catalog Stock</div>
-                      <div className="text-sm font-extrabold text-emerald-700">{prod.current_listing_stock} units</div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <span className="absolute left-3 top-2 text-gray-400 font-bold text-xs">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max={maxRefundAmount}
+                        step="0.01"
+                        value={regulatedRefundAmount}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (isNaN(val)) setRegulatedRefundAmount('');
+                          else setRegulatedRefundAmount(Math.min(maxRefundAmount, Math.max(0, val)));
+                        }}
+                        className="w-full pl-7 pr-3 py-1.5 text-xs font-bold border border-emerald-300 rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 text-emerald-950"
+                      />
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setRegulatedRefundAmount(maxRefundAmount)}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
+                        title="100% Full Refund"
+                      >
+                        100%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRegulatedRefundAmount(Number((maxRefundAmount * 0.8).toFixed(2)))}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
+                        title="80% Partial Refund (20% Restocking Fee)"
+                      >
+                        80%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRegulatedRefundAmount(Number((maxRefundAmount * 0.5).toFixed(2)))}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
+                        title="50% Partial Refund (Damage / Restocking)"
+                      >
+                        50%
+                      </button>
+                    </div>
+                  </div>
 
-          {/* Return & Refund Settlement */}
-          <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
-                <i className="fa-solid fa-hand-holding-dollar text-emerald-700"></i>
-                <span>Return &amp; Refund Settlement</span>
-              </span>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                item.status === 'pending'
-                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                  : item.status === 'rejected'
-                  ? 'bg-rose-100 text-rose-900 border border-rose-300'
-                  : 'bg-emerald-200 text-emerald-900 border border-emerald-300'
-              }`}>
-                {item.status === 'pending'
-                  ? 'Awaiting Seller Approval'
-                  : item.status === 'rejected'
-                  ? 'Rejected'
-                  : 'Refund Approved'}
-              </span>
-            </div>
+                  <div className="flex items-center justify-between text-[11px] text-gray-600 pt-1.5 border-t border-gray-100">
+                    <span>
+                      {Number(regulatedRefundAmount) < maxRefundAmount ? (
+                        <span className="text-amber-700 font-semibold flex items-center gap-1">
+                          <i className="fa-solid fa-circle-minus text-[10px]"></i>
+                          <span>Deduction / Restocking: ₹{(maxRefundAmount - Number(regulatedRefundAmount || 0)).toFixed(2)}</span>
+                        </span>
+                      ) : (
+                        <span className="text-emerald-700 font-medium">Full 100% Refund</span>
+                      )}
+                    </span>
+                    <span className="font-bold text-emerald-900 text-xs">
+                      Approved Refund: ₹{Number(regulatedRefundAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
 
-            <div className="grid grid-cols-3 gap-2 pt-1 text-[11px] bg-white p-2.5 rounded-lg border border-emerald-200/70">
-              <div>
-                <div className="text-[10px] text-gray-500">Refund Route</div>
-                <div className="font-bold text-gray-900 uppercase">{item.paymentMethod || 'Original Payment'}</div>
-              </div>
-              <div>
-                <div className="text-[10px] text-gray-500">Returned Item Value</div>
-                <div className="font-extrabold text-gray-900">
-                  ₹{Number(maxRefundAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </div>
-              </div>
-              <div>
-                <div className="text-[10px] text-gray-500">Settled Refund</div>
-                <div className="font-extrabold text-emerald-800 text-sm">
-                  ₹{Number(item.status === 'pending' ? (regulatedRefundAmount || 0) : item.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </div>
-              </div>
-            </div>
-
-            {item.resolved_at && (
-              <div className="text-[11px] text-gray-500 pt-1 border-t border-emerald-200/60">
-                Resolved at: <span className="font-semibold text-gray-700">{formatDate(item.resolved_at)}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Regulate Refund Amount section (when pending approval) */}
-          {item.status === 'pending' && (
-            <div className="p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-300 space-y-2.5">
-              <div className="flex items-center justify-between flex-wrap gap-1">
-                <span className="text-[11px] font-bold uppercase text-emerald-900 flex items-center gap-1.5">
-                  <i className="fa-solid fa-sliders text-emerald-700"></i>
-                  <span>Regulate Customer Refund Amount</span>
-                </span>
-                <span className="text-[10px] text-gray-500 font-medium">
-                  Original: <strong className="text-gray-800">₹{maxRefundAmount.toLocaleString('en-IN')}</strong>
-                </span>
-              </div>
-
-              {productPolicy && (
-                <div className="text-[11px] text-emerald-800 bg-emerald-100/60 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center justify-between">
-                  <span>Product Policy: <strong>{productPolicy.refund_percentage ?? 100}% Refundable</strong></span>
-                  <span>Window: {productPolicy.return_window_days ?? 7} days</span>
+                  {/* Rejection Note */}
+                  <div className="pt-2 border-t border-gray-100">
+                    <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">
+                      Rejection Note (used if declining):
+                    </label>
+                    <input
+                      type="text"
+                      value={rejectNote}
+                      onChange={(e) => setRejectNote(e.target.value)}
+                      placeholder="Optional reason if declining return request..."
+                      className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-xl focus:border-emerald-600 outline-none"
+                    />
+                  </div>
                 </div>
               )}
 
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <span className="absolute left-3 top-2 text-gray-400 font-bold text-xs">₹</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max={maxRefundAmount}
-                    step="0.01"
-                    value={regulatedRefundAmount}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value);
-                      if (isNaN(val)) setRegulatedRefundAmount('');
-                      else setRegulatedRefundAmount(Math.min(maxRefundAmount, Math.max(0, val)));
-                    }}
-                    className="w-full pl-7 pr-3 py-1.5 text-xs font-bold border border-emerald-300 rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 text-emerald-950"
-                  />
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setRegulatedRefundAmount(maxRefundAmount)}
-                    className="px-2 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
-                    title="100% Full Refund"
-                  >
-                    100%
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRegulatedRefundAmount(Number((maxRefundAmount * 0.8).toFixed(2)))}
-                    className="px-2 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
-                    title="80% Partial Refund (20% Restocking Fee)"
-                  >
-                    80%
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRegulatedRefundAmount(Number((maxRefundAmount * 0.5).toFixed(2)))}
-                    className="px-2 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
-                    title="50% Partial Refund (Damage / Restocking)"
-                  >
-                    50%
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between text-[11px] text-gray-600 pt-1 border-t border-emerald-200/70">
-                <span>
-                  {Number(regulatedRefundAmount) < maxRefundAmount ? (
-                    <span className="text-amber-700 font-semibold flex items-center gap-1">
-                      <i className="fa-solid fa-circle-minus text-[10px]"></i>
-                      <span>Deduction / Restocking: ₹{(maxRefundAmount - Number(regulatedRefundAmount || 0)).toFixed(2)}</span>
-                    </span>
-                  ) : (
-                    <span className="text-emerald-700 font-medium">Full 100% Refund</span>
+              {/* Resolved State Display */}
+              {item.status !== 'pending' && (
+                <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 space-y-1.5">
+                  <div className="text-[10px] font-bold uppercase text-gray-500">Refund Settlement Record</div>
+                  <div className="text-sm font-extrabold text-emerald-800">
+                    Refund Amount: ₹{Number(item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </div>
+                  {item.resolved_at && (
+                    <div className="text-[11px] text-gray-500">
+                      Resolved on: <span className="font-semibold text-gray-700">{formatDate(item.resolved_at)}</span>
+                    </div>
                   )}
-                </span>
-                <span className="font-bold text-emerald-900">
-                  Approved Refund: ₹{Number(regulatedRefundAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </span>
-              </div>
+                  {item.status === 'rejected' && item.rejectionReason && (
+                    <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px] mt-2">
+                      <span className="font-bold block text-[10px] uppercase">Rejection Reason</span>
+                      <span>{item.rejectionReason}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          )}
-
-          {/* Rejection Reason Input (when pending) or Display (when rejected) */}
-          {item.status === 'pending' && (
-            <div>
-              <label className="block text-[11px] font-bold text-gray-600 mb-1">
-                Rejection Note (used if rejecting):
-              </label>
-              <input
-                type="text"
-                value={rejectNote}
-                onChange={(e) => setRejectNote(e.target.value)}
-                placeholder="Optional reason if declining return request..."
-                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:border-emerald-600 outline-none"
-              />
-            </div>
-          )}
-
-          {item.status === 'rejected' && item.rejectionReason && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800">
-              <span className="font-bold block text-[10px] uppercase">Rejection Reason</span>
-              <span>{item.rejectionReason}</span>
-            </div>
-          )}
+          </div>
         </div>
 
         {/* Footer Actions */}

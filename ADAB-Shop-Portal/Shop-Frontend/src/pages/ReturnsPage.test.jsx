@@ -89,8 +89,8 @@ describe('ReturnsPage Component', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Return Detail • #RET-E2E1/i)).toBeDefined();
-      expect(screen.getByText('Premium Basmati Rice 5kg')).toBeDefined();
-      expect(screen.getByText('Cold Pressed Mustard Oil 1L')).toBeDefined();
+      expect(screen.getAllByText('Premium Basmati Rice 5kg').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Cold Pressed Mustard Oil 1L').length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText(/Vesu Main Road, Surat/i)).toBeDefined();
     });
   });

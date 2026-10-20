@@ -719,7 +719,33 @@ class SellerRepository {
                  WHERE oi_fallback.seller_order_id = so.id
                ),
                '[]'::json
-             ) as items_list
+             ) as items_list,
+             COALESCE(
+               (
+                 SELECT json_agg(
+                   json_build_object(
+                     'order_item_id', oi_ord.id,
+                     'listing_id', oi_ord.listing_id,
+                     'product_name', COALESCE(oi_ord.product_name, 'Order Item'),
+                     'quantity', COALESCE(oi_ord.quantity, 1),
+                     'unit_price', oi_ord.unit_price,
+                     'total_price', oi_ord.total_price,
+                     'is_returned', EXISTS (
+                       SELECT 1 FROM return_items ri_chk
+                       WHERE ri_chk.return_id = r.id AND ri_chk.order_item_id = oi_ord.id
+                     ),
+                     'returned_quantity', COALESCE((
+                       SELECT ri_chk.quantity FROM return_items ri_chk
+                       WHERE ri_chk.return_id = r.id AND ri_chk.order_item_id = oi_ord.id
+                       LIMIT 1
+                     ), 0)
+                   )
+                 )
+                 FROM order_items oi_ord
+                 WHERE oi_ord.seller_order_id = so.id
+               ),
+               '[]'::json
+             ) as all_order_items
       FROM returns r
       JOIN seller_orders so ON r.seller_order_id = so.id
       JOIN orders o ON r.order_id = o.id
@@ -813,6 +839,7 @@ class SellerRepository {
         resolved_at: r.resolved_at,
         deliveryFee: r.delivery_fee != null ? Number(r.delivery_fee) : 0,
         orderGrandTotal: r.grand_total != null ? Number(r.grand_total) : null,
+        allOrderItems: Array.isArray(r.all_order_items) && r.all_order_items.length > 0 ? r.all_order_items : items,
         orderSummary: {
           orderNumber: orderNum,
           grandTotal: r.grand_total != null ? Number(r.grand_total) : 0,
