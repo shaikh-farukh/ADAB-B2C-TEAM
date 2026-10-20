@@ -327,15 +327,10 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
             </button>
           </div>
 
-          {/* Middle: Scrollable Return Details, Policy & Regulation */}
-          <div className="p-4 sm:p-5 flex-1 overflow-y-auto space-y-4 text-xs min-h-0">
-            <div className="flex items-center gap-2 pb-1 border-b border-gray-200 text-gray-900 font-extrabold text-xs uppercase tracking-wide">
-              <i className="fa-solid fa-hand-holding-dollar text-emerald-700"></i>
-              <span>Return &amp; Refund Settlement</span>
-            </div>
-
+          {/* Middle: Return Details, Policy & Regulation */}
+          <div className="p-4 sm:p-5 flex-1 overflow-y-auto space-y-3.5 text-xs min-h-0">
             {/* Returned Item Spotlight Card */}
-            <div className="p-4 rounded-xl bg-white border border-gray-200 shadow-2xs space-y-3">
+            <div className="p-3.5 rounded-xl bg-white border border-gray-200 shadow-2xs space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-gray-500">
                   Returned Product
@@ -364,7 +359,7 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap pt-1">
+                <div className="flex items-center gap-2 flex-wrap pt-0.5">
                   <span className="text-xs font-bold text-emerald-950 bg-emerald-100 px-2.5 py-1 rounded-lg">
                     Return Units: {item.quantity || primaryItem.quantity || 1}
                   </span>
@@ -376,7 +371,7 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                 </div>
 
                 {(primaryItem.reason || item.reason) && (
-                  <div className="text-xs text-gray-600 bg-gray-50 p-2.5 rounded-lg border border-gray-200/70 mt-2">
+                  <div className="text-xs text-gray-600 bg-gray-50 p-2.5 rounded-lg border border-gray-200/70 mt-1.5">
                     <span className="font-bold text-gray-700 block text-[11px] uppercase mb-0.5">Reason for return</span>
                     <span>{primaryItem.reason || item.reason}</span>
                   </div>
@@ -384,7 +379,7 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
 
                 {/* If multiple items in legacy return, display other items too */}
                 {returnItems.length > 1 && (
-                  <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+                  <div className="mt-2.5 pt-2.5 border-t border-gray-100 space-y-2">
                     <span className="text-xs font-bold text-gray-500">Other items in this request:</span>
                     {returnItems.slice(1).map((prod, idx) => (
                       <div key={idx} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded-lg">
@@ -406,7 +401,7 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
 
             {/* How Much: Regulate Refund Amount section (when pending approval) */}
             {item.status === 'pending' && (
-              <div className="p-4 rounded-xl bg-white border border-emerald-300 shadow-2xs space-y-3">
+              <div className="p-3.5 rounded-xl bg-white border border-emerald-300 shadow-2xs space-y-2.5">
                 <div className="flex items-center justify-between flex-wrap gap-1">
                   <span className="text-xs font-bold uppercase text-emerald-900 flex items-center gap-1.5">
                     <i className="fa-solid fa-sliders text-emerald-700"></i>
@@ -488,7 +483,7 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                     value={rejectNote}
                     onChange={(e) => setRejectNote(e.target.value)}
                     placeholder="Optional reason if declining return request..."
-                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:border-emerald-600 outline-none"
+                    className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-xl focus:border-emerald-600 outline-none"
                   />
                 </div>
               </div>
@@ -496,7 +491,7 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
 
             {/* Resolved State Display */}
             {item.status !== 'pending' && (
-              <div className="p-4 rounded-xl bg-white border border-gray-200 space-y-2">
+              <div className="p-3.5 rounded-xl bg-white border border-gray-200 space-y-2">
                 <div className="text-xs font-bold uppercase text-gray-500">Refund Settlement Record</div>
                 <div className="text-base font-extrabold text-emerald-800">
                   Refund Amount: ₹{Number(item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
