@@ -150,15 +150,25 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                         (ri.product_name && prod.product_name && ri.product_name.toLowerCase() === prod.product_name.toLowerCase())
                       ))
                     );
-                    const returnedQty = prod.returned_quantity || prod.quantity || 1;
+                    const matchingReturnItem = Array.isArray(item.items) && item.items.find(ri => (
+                      (ri.order_item_id && prod.order_item_id && ri.order_item_id === prod.order_item_id) ||
+                      (ri.product_name && prod.product_name && ri.product_name.toLowerCase() === prod.product_name.toLowerCase())
+                    ));
+                    const returnedQty = prod.returned_quantity || matchingReturnItem?.quantity || (isReturned ? (item.quantity || 1) : 0);
+                    const orderedQty = Number(prod.quantity || 1);
+                    const keptQty = Math.max(0, orderedQty - returnedQty);
+                    const unitPrice = Number(prod.unit_price || 0);
+                    const totalOrderedPrice = Number(prod.total_price || (unitPrice * orderedQty));
+                    const returnedAmount = unitPrice * returnedQty;
+                    const keptAmount = unitPrice * keptQty;
 
                     return (
                       <div
                         key={prod.order_item_id || prod.return_item_id || idx}
-                        className={`p-2.5 rounded-xl border transition ${
+                        className={`p-3 rounded-xl border transition ${
                           isReturned
                             ? 'bg-amber-50/70 border-amber-300 shadow-2xs'
-                            : 'bg-gray-50/50 border-gray-100 opacity-80'
+                            : 'bg-gray-50/50 border-gray-200/80'
                         }`}
                       >
                         <div className="flex items-start justify-between gap-2">
@@ -168,23 +178,35 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                               {isReturned ? (
                                 <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-200 text-amber-900 border border-amber-400 inline-flex items-center gap-1">
                                   <i className="fa-solid fa-rotate-left text-[8px]"></i>
-                                  Returned ({returnedQty}x)
+                                  Returned ({returnedQty} of {orderedQty} unit{orderedQty > 1 ? 's' : ''})
                                 </span>
                               ) : (
-                                <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-gray-200 text-gray-600">
-                                  Kept by Customer
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-gray-200 text-gray-600">
+                                  Kept by Customer ({orderedQty}x)
                                 </span>
                               )}
                             </div>
-                            <div className="text-gray-500 mt-0.5 text-[11px]">
-                              Qty Ordered: <span className="font-bold text-gray-800">{prod.quantity || 1}</span>
-                              {prod.unit_price != null && (
-                                <span className="ml-2">• Unit Price: ₹{Number(prod.unit_price).toLocaleString('en-IN')}</span>
+
+                            <div className="mt-1 space-y-0.5 text-[11px]">
+                              <div className="text-gray-700">
+                                Ordered: <strong>{orderedQty} unit(s)</strong> @ ₹{unitPrice.toLocaleString('en-IN')} = <strong>₹{totalOrderedPrice.toFixed(2)}</strong>
+                              </div>
+                              {isReturned && (
+                                <div className="text-amber-800 font-semibold flex items-center gap-2 flex-wrap">
+                                  <span>• Returning: <strong>{returnedQty} unit(s)</strong> (₹{returnedAmount.toFixed(2)})</span>
+                                  {keptQty > 0 && (
+                                    <span className="text-gray-600 font-normal">• Kept: <strong>{keptQty} unit(s)</strong> (₹{keptAmount.toFixed(2)})</span>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </div>
-                          <div className="text-right shrink-0 font-extrabold text-xs text-gray-900">
-                            ₹{Number(prod.total_price || (prod.unit_price * prod.quantity) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+
+                          <div className="text-right shrink-0">
+                            <div className="text-[10px] text-gray-400 font-bold uppercase">Ordered Subtotal</div>
+                            <div className="font-extrabold text-xs text-gray-900">
+                              ₹{totalOrderedPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -283,9 +305,9 @@ function ReturnDetailModal({ item, onClose, onAction, isBusy = false }) {
                         )}
                       </div>
                       <div className="flex items-center gap-2 text-gray-600 text-[11px] flex-wrap">
-                        <span>Quantity: <strong className="text-gray-900">{prod.quantity || 1} unit(s)</strong></span>
+                        <span>Units to Refund: <strong className="text-emerald-950 bg-emerald-100 px-1.5 py-0.5 rounded font-black">{prod.quantity || 1} unit(s)</strong></span>
                         {prod.unit_price != null && (
-                          <span>• Unit Price: <strong>₹{Number(prod.unit_price).toLocaleString('en-IN')}</strong></span>
+                          <span>• Refund Value: <strong>₹{(Number(prod.unit_price || 0) * Number(prod.quantity || 1)).toFixed(2)}</strong></span>
                         )}
                         {prod.item_condition && (
                           <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
