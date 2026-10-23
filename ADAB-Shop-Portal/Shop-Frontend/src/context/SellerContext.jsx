@@ -273,6 +273,14 @@ export function SellerProvider({ children }) {
     return data;
   };
 
+  const loginWithGoogle = async (googlePayload) => {
+    const res = await sellerService.loginWithGoogle(googlePayload);
+    const data = res?.data || res;
+    localStorage.setItem('seller_auth_mode', 'google');
+    handleAuthSuccess(data);
+    return data;
+  };
+
   const logout = () => {
     localStorage.removeItem('seller_token');
     localStorage.removeItem('seller_user_id');
@@ -413,6 +421,7 @@ export function SellerProvider({ children }) {
         refreshSellerData: fetchSellerData,
         login,
         loginWithOtp,
+        loginWithGoogle,
         signup,
         logout,
         saveOnboardingStep,
@@ -459,6 +468,7 @@ export function useSeller() {
       refreshSellerData: () => {},
       login: async () => {},
       loginWithOtp: async () => {},
+      loginWithGoogle: async () => {},
       signup: async () => {},
       logout: () => {},
       saveOnboardingStep: async () => {},

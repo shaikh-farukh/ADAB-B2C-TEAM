@@ -238,6 +238,10 @@ class SellerService {
     return await sellerRepository.loginWithOtp(phone, otp, extra);
   }
 
+  async loginWithGoogle(payload) {
+    return await sellerRepository.loginWithGoogle(payload);
+  }
+
   async resetPassword(phone, otp, newPassword, extra = {}) {
     return await sellerRepository.resetPassword(phone, otp, newPassword, extra);
   }

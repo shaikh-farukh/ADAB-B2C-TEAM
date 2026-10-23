@@ -671,6 +671,16 @@ class SellerController {
     }
   }
 
+  async googleLogin(req, res) {
+    try {
+      const { credential, idToken, accessToken } = req.body;
+      const result = await sellerService.loginWithGoogle({ credential, idToken, accessToken });
+      res.json({ success: true, data: result });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
   async resetPassword(req, res) {
     try {
       const { phone, email, otp, newPassword, password, idMode } = req.body;

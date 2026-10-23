@@ -12,6 +12,7 @@ router.post('/auth/signup', sellerController.signup);
 router.post('/auth/send-otp', sellerController.sendOtp);
 router.post('/auth/verify-otp', sellerController.verifyOtp);
 router.post('/auth/reset-password', sellerController.resetPassword);
+router.post('/auth/google', sellerController.googleLogin);
 
 // Idempotent Webhook Callback Endpoint
 router.post('/webhooks/callback', idempotencyMiddleware, (req, res) => sellerController.handleWebhookCallback(req, res));

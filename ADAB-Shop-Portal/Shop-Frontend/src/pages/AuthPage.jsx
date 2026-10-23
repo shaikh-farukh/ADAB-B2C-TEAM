@@ -30,7 +30,7 @@ export default function AuthPage() {
   const emailInputRef = identifierInputRef;
   const otpInputRef = useRef(null);
 
-  const { login, loginWithOtp, signup } = useSeller();
+  const { login, loginWithOtp, signup, loginWithGoogle } = useSeller();
   const navigate = useNavigate();
 
   // Resend Countdown Timer
@@ -273,27 +273,79 @@ export default function AuthPage() {
   };
 
   // One-click Login with Gmail / Google SSO
-  const handleGmailLogin = async () => {
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '238782717135-jbafl6ffcgdhpcc33nj3tmtqr538paqr.apps.googleusercontent.com';
+
+  const handleGoogleLogin = async () => {
+    setError('');
+    setInfoMsg('');
+    setSubmitting(true);
+
     try {
-      setError('');
-      setSubmitting(true);
-      const targetEmail = email.trim() || 'seller@adab.com';
-      localStorage.setItem('seller_login_email', targetEmail.toLowerCase());
-      localStorage.setItem('seller_auth_mode', 'email');
-      localStorage.removeItem('seller_login_phone');
-      const data = await login('', 'adab1234', {
-        email: targetEmail,
-        password: 'adab1234',
-        idMode: 'email'
+      if (!window.google?.accounts?.oauth2) {
+        await new Promise((resolve, reject) => {
+          if (window.google?.accounts?.oauth2) return resolve();
+          let script = document.getElementById('google-gsi-script');
+          if (!script) {
+            script = document.createElement('script');
+            script.id = 'google-gsi-script';
+            script.src = 'https://accounts.google.com/gsi/client';
+            script.async = true;
+            script.defer = true;
+            document.head.appendChild(script);
+          }
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error('Unable to connect to Google Identity Services.'));
+          setTimeout(() => {
+            if (window.google?.accounts?.oauth2) resolve();
+            else reject(new Error('Google Sign-In service timed out. Please check your internet connection.'));
+          }, 4000);
+        });
+      }
+
+      if (!window.google?.accounts?.oauth2) {
+        throw new Error('Google Identity Services SDK is not loaded. Please refresh and try again.');
+      }
+
+      const client = window.google.accounts.oauth2.initTokenClient({
+        client_id: googleClientId,
+        scope: 'email profile openid',
+        callback: async (tokenResponse) => {
+          if (tokenResponse?.error) {
+            setSubmitting(false);
+            if (tokenResponse.error === 'popup_closed_by_user') {
+              setError('Google Sign-In was cancelled.');
+            } else {
+              setError(`Google Sign-In failed: ${tokenResponse.error_description || tokenResponse.error}`);
+            }
+            return;
+          }
+
+          if (!tokenResponse?.access_token) {
+            setSubmitting(false);
+            setError('No access token received from Google.');
+            return;
+          }
+
+          try {
+            const data = await loginWithGoogle({ accessToken: tokenResponse.access_token });
+            routeAfterAuth(data);
+          } catch (err) {
+            const msg = err?.response?.data?.error || err?.message || 'Google authentication failed.';
+            setError(msg);
+          } finally {
+            setSubmitting(false);
+          }
+        },
       });
-      routeAfterAuth(data);
+
+      client.requestAccessToken({ prompt: 'select_account' });
     } catch (err) {
-      const msg = err?.response?.data?.error || err?.message || 'Google authentication failed';
-      setError(msg);
-    } finally {
       setSubmitting(false);
+      setError(err?.message || 'Failed to initialize Google Sign-In.');
     }
   };
+
+  const handleGmailLogin = handleGoogleLogin;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-4 px-4 sm:px-6 lg:px-8 font-sans overflow-x-hidden">

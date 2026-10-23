@@ -4144,6 +4144,103 @@ class SellerRepository {
     };
   }
 
+  async loginWithGoogle({ credential, idToken, accessToken }) {
+    const { signToken } = require('../utils/jwt');
+    const googleAuthService = require('../services/googleAuthService');
+
+    const googleUser = await googleAuthService.verifyGoogleToken({ credential, idToken, accessToken });
+    const email = googleUser.email;
+    const fullName = googleUser.name || (email.split('@')[0].charAt(0).toUpperCase() + email.split('@')[0].slice(1));
+
+    // Look for existing user with this email
+    const userRes = await pool.query(`
+      SELECT u.id, u.phone, u.email, u.full_name, u.user_type, u.status, u.is_phone_verified
+      FROM users u
+      LEFT JOIN seller_profiles sp ON sp.user_id = u.id
+      WHERE LOWER(COALESCE(u.email, '')) = $1
+      ORDER BY
+        (u.user_type = 'SELLER') DESC,
+        (sp.id IS NOT NULL) DESC,
+        u.created_at DESC
+      LIMIT 1
+    `, [email]);
+
+    let user;
+    if (userRes.rows.length === 0) {
+      // Auto-register new seller for Google login
+      const placeholderPhone = '9' + Math.floor(100000000 + Math.random() * 900000000).toString().slice(0, 9);
+      const defaultStoreName = `${fullName}'s Store`;
+      const signupRes = await this.signupWithPassword(placeholderPhone, 'adab1234', {
+        email,
+        full_name: fullName,
+        store_name: defaultStoreName,
+        idMode: 'email',
+        is_phone_verified: false
+      }, true);
+
+      return {
+        ...signupRes,
+        googleUser,
+        isNewSignup: true
+      };
+    }
+
+    user = userRes.rows[0];
+
+    // Validate account status
+    if (user.status && ['BLOCKED', 'SUSPENDED', 'DEACTIVATED'].includes(String(user.status).toUpperCase())) {
+      throw new Error('Your account has been deactivated or suspended. Please contact support.');
+    }
+
+    // Validate user type
+    if (user.user_type && user.user_type !== 'SELLER') {
+      throw new Error('Unauthorized account type. This portal is for registered sellers only.');
+    }
+
+    // Optionally update user's full_name if empty or generic
+    if ((!user.full_name || user.full_name === 'Merchant') && fullName) {
+      await pool.query(`UPDATE users SET full_name = $1 WHERE id = $2`, [fullName, user.id]).catch(() => {});
+      user.full_name = fullName;
+    }
+
+    let onboarding = await this.getOnboardingData(user.id);
+    if (!onboarding.profile?.seller_profile_id || !onboarding.store?.id) {
+      const defaultStoreName = `Store ${String(user.phone || '0000').replace(/\D/g, '').slice(-4) || 'ADAB'}`;
+      const spRes = await pool.query(`
+        INSERT INTO seller_profiles (user_id, legal_name, entity_type, pan, kyc_status, onboarding_step)
+        VALUES ($1, $2, 'Sole Proprietorship', 'PENDING00P', 'DRAFT', 1)
+        ON CONFLICT (user_id) DO UPDATE SET updated_at = NOW()
+        RETURNING id
+      `, [user.id, defaultStoreName]);
+      const spId = spRes.rows[0]?.id;
+      if (spId && !onboarding.store?.id) {
+        await pool.query(`
+          INSERT INTO stores (seller_id, store_name, category, city, state, pincode, address_line, phone, email, delivery_radius_km, is_online)
+          VALUES ($1, $2, 'Grocery & Supermarket', 'Surat', 'Gujarat', '395007', '', $3, $4, 10, false)
+        `, [spId, defaultStoreName, user.phone || '', user.email || null]);
+      }
+      onboarding = await this.getOnboardingData(user.id);
+    }
+
+    const storeId = onboarding.store?.id || null;
+    const token = signToken({ userId: user.id, storeId, phone: user.phone });
+
+    return {
+      token,
+      userId: user.id,
+      storeId,
+      phone: user.phone,
+      email: user.email,
+      profile: onboarding.profile,
+      store: onboarding.store,
+      kycSteps: onboarding.kycSteps,
+      onboarding,
+      googleUser,
+      isNewSignup: false
+    };
+  }
+
+
   async resetPassword(phone, otp, newPassword, extra = {}) {
     const { hashPin } = require('../utils/jwt');
     const emailOtpService = require('../services/emailOtpService');

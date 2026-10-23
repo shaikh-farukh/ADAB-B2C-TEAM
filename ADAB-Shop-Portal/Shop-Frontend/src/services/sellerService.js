@@ -30,6 +30,10 @@ const sellerService = {
     return api.post('/seller/auth/reset-password', payload);
   },
 
+  loginWithGoogle: (payload) => {
+    return api.post('/seller/auth/google', payload);
+  },
+
   getOnboarding: () => {
     return api.get('/seller/onboarding', {
       headers: getUserHeaders()
