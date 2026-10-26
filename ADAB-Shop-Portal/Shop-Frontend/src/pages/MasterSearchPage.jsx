@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import listingService from '../services/listingService';
+import { sellerApi } from '../api/sellerApi';
 import { useTranslation } from '../context/LanguageContext';
 
 export default function MasterSearchPage() {
@@ -51,31 +52,64 @@ export default function MasterSearchPage() {
     async function fetchSearchItems() {
       try {
         setLoading(true);
-        const res = await listingService.getListings({ search: searchInput, limit: 30 });
-        const liveItems = res.data || [];
-        if (liveItems.length > 0) {
-          setResults(liveItems.map(item => ({
-            id: item.id,
-            name: item.title,
-            store: 'Verified ADAB Merchant',
-            dist: 3,
-            price: Number(item.sell_price) || 0,
-            rating: '4.8',
-            minOrder: item.min_order_qty || 1,
-            cat: item.product_type ? item.product_type.toLowerCase() : 'grocery'
-          })));
-        } else {
-          setResults([
-            { id: 'S-1', name: 'Sunflower Oil 15L Tin', store: 'Gujarat Agro Mill', dist: 3, price: 1420, rating: '4.8', minOrder: 10, cat: 'grocery' },
-            { id: 'S-2', name: 'Fortune Sunflower Oil 15L', store: 'Vesu Wholesale', dist: 8, price: 1380, rating: '4.6', minOrder: 5, cat: 'grocery' },
-            { id: 'S-3', name: 'Cotton Kurtis (50 pcs bundle)', store: 'Textile Park Store', dist: 5, price: 19500, rating: '4.9', minOrder: 1, cat: 'clothing' },
-            { id: 'S-4', name: 'Basmati Rice 100kg Bag', store: 'Punjab Grain Co', dist: 120, price: 6200, rating: '4.7', minOrder: 1, cat: 'grocery' },
-            { id: 'S-5', name: 'Turmeric Powder 5kg', store: 'Spice Traders', dist: 15, price: 2100, rating: '4.5', minOrder: 1, cat: 'spices' },
-            { id: 'S-6', name: 'Amul Butter 500g x 24 crate', store: 'Dairy Collective', dist: 4, price: 8400, rating: '4.8', minOrder: 1, cat: 'dairy' }
-          ]);
+        // Query live catalog from registered stores across the marketplace & store inventory
+        const [nearbyRes, storeListingsRes] = await Promise.allSettled([
+          sellerApi.getNearbyCatalog({ q: searchInput.trim() || undefined }),
+          listingService.getListings({ search: searchInput.trim() || undefined, limit: 30 })
+        ]);
+
+        const nearbyList = nearbyRes.status === 'fulfilled' && nearbyRes.value?.data
+          ? (Array.isArray(nearbyRes.value.data) ? nearbyRes.value.data : (nearbyRes.value.data?.data || []))
+          : [];
+
+        const ownListings = storeListingsRes.status === 'fulfilled' && storeListingsRes.value?.data
+          ? (Array.isArray(storeListingsRes.value.data) ? storeListingsRes.value.data : [])
+          : [];
+
+        const combinedItems = [];
+        const seenIds = new Set();
+
+        for (const item of nearbyList) {
+          if (item?.id && !seenIds.has(item.id)) {
+            seenIds.add(item.id);
+            combinedItems.push({
+              id: item.id,
+              name: item.name || item.title || 'Product',
+              store_id: item.store_id,
+              store: item.store_name || 'Verified Supplier Store',
+              dist: Number(item.distance_km || 3),
+              price: Number(item.price || item.sell_price || 0),
+              rating: item.store_rating ? Number(item.store_rating).toFixed(1) : '4.8',
+              minOrder: Number(item.min_order || item.min_order_qty || 1),
+              cat: item.category ? item.category.toLowerCase() : 'grocery',
+              image_url: item.image_url || null
+            });
+          }
         }
+
+        for (const item of ownListings) {
+          if (item?.id && !seenIds.has(item.id)) {
+            seenIds.add(item.id);
+            combinedItems.push({
+              id: item.id,
+              name: item.title || item.name || 'Product',
+              store_id: item.store_id || 'my-store',
+              store: 'Your Store Catalog',
+              dist: 0,
+              price: Number(item.sell_price || item.price || 0),
+              rating: '5.0',
+              minOrder: Number(item.min_order_qty || 1),
+              cat: item.product_type ? item.product_type.toLowerCase() : 'grocery',
+              image_url: item.image_url || null
+            });
+          }
+        }
+
+        // Real dynamic data only - no hardcoded fallbacks
+        setResults(combinedItems);
       } catch (err) {
-        console.error('Error fetching master search:', err);
+        console.error('Error fetching master search from live catalog:', err);
+        setResults([]);
       } finally {
         setLoading(false);
       }
@@ -169,7 +203,7 @@ export default function MasterSearchPage() {
             placeholder={t('searchBuyPlaceholder', 'e.g. sunflower oil, kurti, rice 25kg, garam masala...')} 
             className="w-full pl-12 pr-24 py-4 rounded-2xl border-2 border-blue-200 text-base outline-none focus:border-blue-500 bg-white" 
           />
-          <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 btn-primary !text-xs !py-2 !px-4">
+          <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 btn-primary !text-xs !py-2 !px-4 cursor-pointer">
             {t('search', 'Search')}
           </button>
         </form>
@@ -179,7 +213,7 @@ export default function MasterSearchPage() {
             <button 
               key={tag}
               onClick={() => setSearchInput(tag)}
-              className="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:border-blue-300 hover:text-blue-700 transition"
+              className="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:border-blue-300 hover:text-blue-700 transition cursor-pointer"
             >
               {tag}
             </button>
@@ -191,7 +225,7 @@ export default function MasterSearchPage() {
         <select 
           value={selectedCategory} 
           onChange={(e) => setSelectedCategory(e.target.value)} 
-          className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+          className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-white"
         >
           <option value="all">All Categories</option>
           <option value="grocery">Grocery</option>
@@ -202,7 +236,7 @@ export default function MasterSearchPage() {
         <select 
           value={selectedDistance} 
           onChange={(e) => setSelectedDistance(e.target.value)} 
-          className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+          className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-white"
         >
           <option value="all">Any Distance</option>
           <option value="5">Within 5 km</option>
@@ -212,7 +246,7 @@ export default function MasterSearchPage() {
         <select 
           value={sortBy} 
           onChange={(e) => setSortBy(e.target.value)} 
-          className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+          className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-white"
         >
           <option value="price">Lowest Price</option>
           <option value="near">Nearest Store</option>
@@ -232,13 +266,15 @@ export default function MasterSearchPage() {
       <div className="space-y-3">
         {loading ? (
           <div className="card p-8 text-center text-gray-500 text-sm">
-            <i className="fa-solid fa-spinner fa-spin mr-2"></i> Searching stores nationwide...
+            <i className="fa-solid fa-spinner fa-spin mr-2"></i> Searching live stores nationwide...
           </div>
         ) : filteredResults.length === 0 ? (
           <div className="card p-8 text-center text-gray-500">
             <i className="fa-solid fa-search text-3xl text-gray-300 mb-3 block"></i>
             <div className="font-bold text-gray-800">No products found</div>
-            <p className="text-sm mt-1 text-gray-400">Try a different keyword or broaden your filter criteria</p>
+            <p className="text-sm mt-1 text-gray-400">
+              {searchInput ? `No live merchant listings match "${searchInput}". Try another keyword.` : 'No live merchant listings found for the selected filter.'}
+            </p>
           </div>
         ) : (
           filteredResults.map(item => (
@@ -250,7 +286,9 @@ export default function MasterSearchPage() {
                   </div>
                   <div>
                     <div className="font-bold text-gray-900">{item.name}</div>
-                    <div className="text-xs text-gray-500">{item.store} • {item.dist} km • ★ {item.rating} • Min Order: {item.minOrder}</div>
+                    <div className="text-xs text-gray-500">
+                      {item.store} • {item.dist} km • ★ {item.rating} • Min Order: {item.minOrder}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -260,7 +298,7 @@ export default function MasterSearchPage() {
                   </div>
                   <button 
                     onClick={() => handleAddToCart(item)} 
-                    className="btn-soft !text-xs whitespace-nowrap"
+                    className="btn-soft !text-xs whitespace-nowrap cursor-pointer"
                   >
                     <i className="fa-solid fa-cart-plus mr-1"></i> Add to Cart
                   </button>

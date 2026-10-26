@@ -46,9 +46,9 @@ export default function FreightPage() {
         )}
 
         {!loading && shipments.map((s, idx) => {
-          const poNumber = s.po_number || s.id ? `#P-${(s.id || idx).toString().slice(0, 4)}` : `#P-${8820 + idx}`;
-          const supplier = s.supplier_name || 'Partner Supplier';
-          const totalAmt = s.total_amount ? `₹${Number(s.total_amount).toLocaleString('en-IN')}` : '₹18,500';
+          const poNumber = s.po_number || (s.id ? `#P-${s.id.toString().slice(0, 8)}` : `#P-${idx + 1}`);
+          const supplier = s.supplier_name || s.buyer_store_name || s.store_name || 'B2B Wholesale Partner';
+          const totalAmt = s.total_amount != null ? `₹${Number(s.total_amount).toLocaleString('en-IN')}` : '—';
           const status = s.status || 'In Transit';
 
           return (
@@ -78,4 +78,3 @@ export default function FreightPage() {
     </section>
   );
 }
-
