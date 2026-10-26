@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import listingService from '../services/listingService';
 import { useTranslation } from '../context/LanguageContext';
 
@@ -12,9 +12,36 @@ export default function MasterSearchPage() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedDistance, setSelectedDistance] = useState('all');
   const [sortBy, setSortBy] = useState('price');
-  const [cart, setCart] = useState([]);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+
+  const [cart, setCart] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('adab_buy_cart') || '[]');
+      return Array.isArray(saved) ? saved : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 3000);
+  };
+
+  useEffect(() => {
+    const handleCartUpdate = () => {
+      try {
+        const saved = JSON.parse(localStorage.getItem('adab_buy_cart') || '[]');
+        setCart(Array.isArray(saved) ? saved : []);
+      } catch (e) {
+        setCart([]);
+      }
+    };
+    window.addEventListener('adab-cart-updated', handleCartUpdate);
+    return () => window.removeEventListener('adab-cart-updated', handleCartUpdate);
+  }, []);
 
   useEffect(() => {
     setSearchInput(queryFromUrl);
@@ -62,8 +89,44 @@ export default function MasterSearchPage() {
   };
 
   const handleAddToCart = (item) => {
-    setCart(prev => [...prev, item]);
-    alert(`Added "${item.name}" to Purchase Cart!`);
+    try {
+      const existingCart = JSON.parse(localStorage.getItem('adab_buy_cart') || '[]');
+      const cartArray = Array.isArray(existingCart) ? existingCart : [];
+      const itemMinOrder = Number(item.minOrder || item.min_order || 1);
+      
+      const existingIdx = cartArray.findIndex(ci => ci.id === item.id);
+      let updatedCart;
+      if (existingIdx >= 0) {
+        updatedCart = [...cartArray];
+        const currentQty = Number(updatedCart[existingIdx].quantity || itemMinOrder);
+        updatedCart[existingIdx] = {
+          ...updatedCart[existingIdx],
+          quantity: currentQty + itemMinOrder
+        };
+      } else {
+        const newCartItem = {
+          id: item.id,
+          name: item.name,
+          store_id: item.store_id || 'store_' + (item.id || 'sup'),
+          store_name: item.store || 'Verified ADAB Merchant',
+          distance_km: item.dist || 3,
+          price: Number(item.price) || 0,
+          quantity: itemMinOrder,
+          min_order: itemMinOrder,
+          unit: 'units',
+          category: item.cat || 'grocery'
+        };
+        updatedCart = [...cartArray, newCartItem];
+      }
+      
+      localStorage.setItem('adab_buy_cart', JSON.stringify(updatedCart));
+      setCart(updatedCart);
+      window.dispatchEvent(new Event('adab-cart-updated'));
+      showToast(`Added "${item.name}" to Purchase Cart!`);
+    } catch (err) {
+      console.error('Failed to update buy cart:', err);
+      showToast(`Could not add "${item.name}" to cart.`);
+    }
   };
 
   const filteredResults = results.filter(item => {
@@ -79,7 +142,18 @@ export default function MasterSearchPage() {
   });
 
   return (
-    <section id="sec-mastersearch" className="space-y-4">
+    <section id="sec-mastersearch" className="space-y-4 relative">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-bold animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <i className="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+          <span>{toastMessage}</span>
+          <Link to="/buycart" className="ml-2 underline text-blue-300 hover:text-blue-200 text-xs">
+            View Cart
+          </Link>
+        </div>
+      )}
+
       <div>
         <h1 className="text-xl font-extrabold text-gray-900">{t('searchBuyTitle', 'Search & Buy Anything')}</h1>
         <p className="text-sm text-gray-500">{t('searchBuySubtitle', 'Search all registered supplier stores across ADAB — compare prices and restock')}</p>
@@ -145,9 +219,13 @@ export default function MasterSearchPage() {
           <option value="rating">Best Rated</option>
         </select>
         {cart.length > 0 && (
-          <div className="px-3 py-2 rounded-xl bg-blue-100 text-blue-800 text-xs font-bold flex items-center gap-1.5 self-center">
+          <Link 
+            to="/buycart" 
+            className="px-3 py-2 rounded-xl bg-blue-100 text-blue-800 text-xs font-bold flex items-center gap-1.5 self-center hover:bg-blue-200 transition"
+          >
             <i className="fa-solid fa-cart-shopping"></i> {cart.length} items in Cart
-          </div>
+            <i className="fa-solid fa-arrow-right text-[10px] ml-1"></i>
+          </Link>
         )}
       </div>
 

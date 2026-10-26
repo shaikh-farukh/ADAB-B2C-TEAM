@@ -1,16 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { usePOS } from '../hooks/usePOS';
+import { useSeller } from '../context/SellerContext';
 import { useTranslation } from '../context/LanguageContext';
 import listingService from '../services/listingService';
 
 export default function POSPage() {
   const { cart, addToCart, updateQuantity, clearCart, cartTotal, checkout, isProcessing } = usePOS();
+  const { store } = useSeller();
   const { t } = useTranslation();
+  
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [completedSale, setCompletedSale] = useState(null);
 
   useEffect(() => {
     async function loadLiveProducts() {
@@ -39,13 +45,43 @@ export default function POSPage() {
   }, []);
 
   const handleCheckout = async () => {
-    const result = await checkout(paymentMethod);
-    if (result) {
-      alert(`Checkout successful! Receipt ID: ${result.receipt_id || result.id || Math.floor(100000 + Math.random() * 900000)}`);
-    } else {
-      alert(`Checkout complete! Total: ₹${cartTotal}`);
+    if (cart.length === 0) return;
+
+    const billItems = [...cart];
+    const billTotal = cartTotal;
+    const currentMethod = paymentMethod;
+    const receiptNum = `RCP-${Date.now().toString().slice(-6)}`;
+    const billDate = new Date().toLocaleString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    const result = await checkout(currentMethod, customerPhone);
+
+    setCompletedSale({
+      receiptId: result?.receipt_id || result?.id || receiptNum,
+      date: billDate,
+      paymentMethod: currentMethod,
+      customerPhone: customerPhone.trim() || 'Walk-in Customer',
+      items: billItems,
+      subtotal: billTotal,
+      gst: Math.round(billTotal * 0.05),
+      total: billTotal,
+      storeName: store?.store_name || 'My Store'
+    });
+
+    if (!result) {
       clearCart();
     }
+    setCustomerPhone('');
+  };
+
+  const handlePrintReceipt = () => {
+    window.print();
   };
 
   const filteredProducts = products.filter(p => {
@@ -102,7 +138,7 @@ export default function POSPage() {
                 <button 
                   key={product.id}
                   onClick={() => addToCart(product)} 
-                  className="card p-3 text-left hover:border-indigo-300 hover:bg-indigo-50 transition-all border border-gray-200 shadow-sm group"
+                  className="card p-3 text-left hover:border-indigo-300 hover:bg-indigo-50 transition-all border border-gray-200 shadow-sm group cursor-pointer"
                 >
                   <div className="font-bold text-sm truncate text-gray-800 group-hover:text-indigo-900">{product.name}</div>
                   <div className="flex items-center justify-between mt-1">
@@ -158,6 +194,19 @@ export default function POSPage() {
 
               <div>
                 <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1">
+                  Customer Mobile (Optional)
+                </label>
+                <input 
+                  type="tel"
+                  placeholder="e.g. 9876543210"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-gray-200 outline-none focus:border-indigo-500 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1">
                   {t('posPaymentMethod', 'Payment Method')}
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -179,7 +228,7 @@ export default function POSPage() {
               <button 
                 onClick={handleCheckout} 
                 disabled={isProcessing}
-                className="w-full btn-primary !bg-indigo-600 hover:!bg-indigo-700 !text-xs !py-2.5 flex items-center justify-center gap-2"
+                className="w-full btn-primary !bg-indigo-600 hover:!bg-indigo-700 !text-xs !py-2.5 flex items-center justify-center gap-2 cursor-pointer"
               >
                 <i className="fa-solid fa-receipt"></i>
                 {isProcessing ? t('posProcessing', 'Processing...') : `${t('posPrintBill', 'Print & Charge')} • ₹${cartTotal}`}
@@ -188,6 +237,99 @@ export default function POSPage() {
           )}
         </div>
       </div>
+
+      {/* POS RECEIPT MODAL */}
+      {completedSale && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setCompletedSale(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header / Store Info */}
+            <div className="text-center pb-3 border-b border-dashed border-gray-300">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-2 text-xl">
+                <i className="fa-solid fa-check"></i>
+              </div>
+              <h2 className="text-lg font-black text-gray-900">{completedSale.storeName}</h2>
+              <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider mt-0.5">Payment Completed</div>
+              <div className="text-xs text-gray-500 mt-1 flex items-center justify-center gap-2 font-mono">
+                <span>{completedSale.receiptId}</span>
+                <span>•</span>
+                <span>{completedSale.date}</span>
+              </div>
+            </div>
+
+            {/* Customer & Payment Badge */}
+            <div className="bg-gray-50 rounded-xl p-3 flex items-center justify-between text-xs">
+              <div>
+                <span className="text-gray-400 block text-[10px] uppercase font-bold">Billed To</span>
+                <span className="font-bold text-gray-800">{completedSale.customerPhone}</span>
+              </div>
+              <div className="text-right">
+                <span className="text-gray-400 block text-[10px] uppercase font-bold">Mode</span>
+                <span className="font-bold text-indigo-700 uppercase">
+                  {completedSale.paymentMethod === 'upi' ? 'UPI / QR Code' : 'Cash Counter'}
+                </span>
+              </div>
+            </div>
+
+            {/* Items Table */}
+            <div className="max-h-56 overflow-y-auto divide-y divide-gray-100 text-xs">
+              {completedSale.items.map((it, idx) => (
+                <div key={idx} className="py-2 flex items-center justify-between">
+                  <div className="flex-1 pr-2 truncate">
+                    <div className="font-bold text-gray-900 truncate">{it.name}</div>
+                    <div className="text-gray-400 text-[11px]">
+                      ₹{it.price} × {it.qty}
+                    </div>
+                  </div>
+                  <div className="font-extrabold text-gray-900 text-right">
+                    ₹{it.price * it.qty}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Breakdown & Grand Total */}
+            <div className="border-t-2 border-dashed border-gray-200 pt-3 space-y-1.5 text-xs">
+              <div className="flex justify-between text-gray-600">
+                <span>Subtotal</span>
+                <span>₹{completedSale.subtotal}</span>
+              </div>
+              <div className="flex justify-between text-gray-500 text-[11px]">
+                <span>Taxes & GST (Included)</span>
+                <span>₹{completedSale.gst}</span>
+              </div>
+              <div className="flex justify-between items-center text-base font-black text-gray-900 pt-2 border-t border-gray-100">
+                <span>Grand Total</span>
+                <span className="text-emerald-700 font-mono">₹{completedSale.total}</span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handlePrintReceipt}
+                className="flex-1 btn-soft !py-2.5 !text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <i className="fa-solid fa-print"></i> Print Receipt
+              </button>
+              <button
+                type="button"
+                onClick={() => setCompletedSale(null)}
+                className="flex-1 btn-primary !bg-indigo-600 hover:!bg-indigo-700 !py-2.5 !text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <i className="fa-solid fa-plus"></i> New Sale
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </section>
   );
 }

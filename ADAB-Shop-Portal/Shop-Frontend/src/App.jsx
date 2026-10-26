@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Link, Navigate, useInRouterContext } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, Navigate, useNavigate, useInRouterContext } from 'react-router-dom';
 import Products from './pages/Products';
 import Marketing from './pages/Marketing';
 import Pricing from './pages/Pricing';
@@ -41,6 +41,19 @@ import { LanguageProvider, useTranslation } from './context/LanguageContext';
 
 const MainLayout = ({ children, store, profile, isPortalUnlocked = true }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [headerSearch, setHeaderSearch] = React.useState('');
+
+  const handleHeaderSearch = (e) => {
+    e.preventDefault();
+    if (!isPortalUnlocked) return;
+    const q = headerSearch.trim();
+    if (q) {
+      navigate(`/mastersearch?q=${encodeURIComponent(q)}`);
+    } else {
+      navigate('/mastersearch');
+    }
+  };
   const storeName = store?.store_name || 'Shri Balaji Store';
   const headerLockedClass = !isPortalUnlocked ? 'pointer-events-none opacity-40 cursor-not-allowed select-none' : '';
 
@@ -82,11 +95,24 @@ const MainLayout = ({ children, store, profile, isPortalUnlocked = true }) => {
           </div>
           
           <div className={`flex-1 min-w-[130px] max-w-lg mx-1 ${headerLockedClass}`}>
-            <div className="relative">
+            <form onSubmit={handleHeaderSearch} className="relative">
               <i className="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-blue-600 text-xs sm:text-sm"></i>
-              <input type="search" disabled={!isPortalUnlocked} placeholder={t('globalSearchPlaceholder', 'Search anything to buy from stores...')} className="w-full pl-8 sm:pl-9 pr-14 sm:pr-20 py-2 sm:py-2.5 rounded-xl border-2 border-blue-100 text-xs sm:text-sm outline-none focus:border-blue-500 bg-blue-50/50" />
-              <button disabled={!isPortalUnlocked} className="absolute right-1 top-1/2 -translate-y-1/2 btn-primary !text-[10px] sm:!text-xs !py-1 sm:!py-1.5 !px-2 sm:!px-3 bg-brand-dark text-white rounded-lg font-bold">{t('search', 'Search')}</button>
-            </div>
+              <input 
+                type="search" 
+                value={headerSearch}
+                onChange={(e) => setHeaderSearch(e.target.value)}
+                disabled={!isPortalUnlocked} 
+                placeholder={t('globalSearchPlaceholder', 'Search anything to buy from stores...')} 
+                className="w-full pl-8 sm:pl-9 pr-14 sm:pr-20 py-2 sm:py-2.5 rounded-xl border-2 border-blue-100 text-xs sm:text-sm outline-none focus:border-blue-500 bg-blue-50/50" 
+              />
+              <button 
+                type="submit"
+                disabled={!isPortalUnlocked} 
+                className="absolute right-1 top-1/2 -translate-y-1/2 btn-primary !text-[10px] sm:!text-xs !py-1 sm:!py-1.5 !px-2 sm:!px-3 bg-brand-dark text-white rounded-lg font-bold cursor-pointer disabled:cursor-not-allowed"
+              >
+                {t('search', 'Search')}
+              </button>
+            </form>
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">

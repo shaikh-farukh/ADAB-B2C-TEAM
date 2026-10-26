@@ -20,6 +20,8 @@ export default function Sidebar() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [showSignOutModal, setShowSignOutModal] = useState(false);
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const [showFaqModal, setShowFaqModal] = useState(false);
   const storeName = store?.store_name || 'My Store';
   const initial = (storeName || 'S').substring(0, 2).toUpperCase();
 
@@ -264,6 +266,9 @@ export default function Sidebar() {
     ? 'opacity-40 pointer-events-none cursor-not-allowed select-none '
     : '';
 
+  const subNavClass = ({ isActive }) =>
+    `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center transition`;
+
   const navClass = ({ isActive }) =>
     `${lockedClass}${isActive && isKycApproved ? 'nav-on ' : 'text-gray-700 hover:bg-gray-100 '}w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 transition`;
 
@@ -487,15 +492,33 @@ export default function Sidebar() {
             <span>{t('navMoreUtilities', 'More Utilities')}</span> <i className="fa-solid fa-chevron-down text-[10px]"></i>
           </summary>
           <div className="space-y-0.5 mt-1">
-            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>{t('navOrderHistory', 'Order History Archive')}</NavLink>
-            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>{t('navCustomerReviews', 'Customer Ratings & Reviews')}</NavLink>
-            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>{t('navHelpSupport', 'Help & Support')}</NavLink>
-            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>{t('navMerchantFaq', 'Merchant FAQ')}</NavLink>
-            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>{t('navDriverManagement', 'Driver Management')}</NavLink>
-            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>{t('navExportIec', 'Export & IEC Trade')}</NavLink>
-            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>{t('navCertificatesFssai', 'Certificates & FSSAI')}</NavLink>
-            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>{t('navStoreHealth', 'Store Health & Audits')}</NavLink>
-            <NavLink to="/" className={({ isActive }) => `${isActive && isKycApproved ? 'nav-on font-bold ' : 'text-gray-600 hover:bg-gray-100 '}w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center`}>{t('navNotificationsLog', 'Notifications Log')}</NavLink>
+            <NavLink to="/orders" onClick={closeDrawer} className={subNavClass}>{t('navOrderHistory', 'Order History Archive')}</NavLink>
+            <NavLink to="/reports" onClick={closeDrawer} className={subNavClass}>{t('navCustomerReviews', 'Customer Ratings & Reviews')}</NavLink>
+            <button
+              type="button"
+              onClick={() => {
+                closeDrawer();
+                setShowSupportModal(true);
+              }}
+              className="text-gray-600 hover:bg-gray-100 w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center cursor-pointer transition"
+            >
+              {t('navHelpSupport', 'Help & Support')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                closeDrawer();
+                setShowFaqModal(true);
+              }}
+              className="text-gray-600 hover:bg-gray-100 w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center cursor-pointer transition"
+            >
+              {t('navMerchantFaq', 'Merchant FAQ')}
+            </button>
+            <NavLink to="/delivery" onClick={closeDrawer} className={subNavClass}>{t('navDriverManagement', 'Driver Management')}</NavLink>
+            <NavLink to="/partner" onClick={closeDrawer} className={subNavClass}>{t('navExportIec', 'Export & IEC Trade')}</NavLink>
+            <NavLink to="/onboarding?step=4" onClick={closeDrawer} className={subNavClass}>{t('navCertificatesFssai', 'Certificates & FSSAI')}</NavLink>
+            <NavLink to="/regstatus" onClick={closeDrawer} className={subNavClass}>{t('navStoreHealth', 'Store Health & Audits')}</NavLink>
+            <NavLink to="/settings" onClick={closeDrawer} className={subNavClass}>{t('navNotificationsLog', 'Notifications Log')}</NavLink>
           </div>
         </details>
       </nav>
@@ -551,6 +574,187 @@ export default function Sidebar() {
           </div>,
           document.body
         )}
+
+      {/* SUPPORT HELPLINE MODAL */}
+      {showSupportModal &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center p-4"
+            onClick={() => setShowSupportModal(false)}
+          >
+            <div
+              className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-lg">
+                    <i className="fa-solid fa-headset"></i>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-gray-900">ADAB Merchant Support</h3>
+                    <p className="text-xs text-gray-400">Dedicated Priority Desk for Retailers</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSupportModal(false)}
+                  className="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              <div className="space-y-2.5 text-xs">
+                <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <i className="fa-solid fa-phone text-blue-600 text-base"></i>
+                    <div>
+                      <div className="font-bold text-gray-900">Toll-Free Merchant Helpline</div>
+                      <div className="text-gray-500 font-mono text-[11px]">1800-889-2322 (Toll Free)</div>
+                    </div>
+                  </div>
+                  <a href="tel:18008892322" className="btn-primary !py-1 !px-2.5 !text-[11px]">
+                    Call Now
+                  </a>
+                </div>
+
+                <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <i className="fa-brands fa-whatsapp text-emerald-600 text-base"></i>
+                    <div>
+                      <div className="font-bold text-gray-900">WhatsApp Dispatch Desk</div>
+                      <div className="text-gray-500 font-mono text-[11px]">+91 98765 43210</div>
+                    </div>
+                  </div>
+                  <a
+                    href="https://wa.me/919876543210"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-soft !text-emerald-700 !bg-emerald-100 hover:!bg-emerald-200 !py-1 !px-2.5 !text-[11px]"
+                  >
+                    Chat
+                  </a>
+                </div>
+
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                  <div className="flex items-center gap-2.5">
+                    <i className="fa-solid fa-envelope text-gray-500 text-base"></i>
+                    <div>
+                      <div className="font-bold text-gray-900">Email Grievance Desk</div>
+                      <div className="text-gray-500 font-mono text-[11px]">merchant-care@adab.in</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 text-[11px] text-gray-400 flex items-center gap-1.5">
+                  <i className="fa-solid fa-clock"></i>
+                  <span>Operating Hours: Monday – Saturday (9:00 AM – 9:00 PM IST)</span>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-gray-100 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowSupportModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 transition cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* MERCHANT FAQ MODAL */}
+      {showFaqModal &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center p-4"
+            onClick={() => setShowFaqModal(false)}
+          >
+            <div
+              className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-lg w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150 max-h-[85vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center text-lg">
+                    <i className="fa-solid fa-circle-question"></i>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-gray-900">Merchant FAQ</h3>
+                    <p className="text-xs text-gray-400">Frequently Asked Operational Questions</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowFaqModal(false)}
+                  className="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs overflow-y-auto pr-1">
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200/80">
+                  <div className="font-extrabold text-gray-900 flex items-center gap-2">
+                    <i className="fa-solid fa-money-bill-transfer text-emerald-600"></i>
+                    <span>How and when do payout settlements occur?</span>
+                  </div>
+                  <p className="mt-1.5 text-gray-600 leading-relaxed">
+                    Settlements are processed automatically on a T+1 business day cycle. Funds are credited directly to your registered bank account verified under Onboarding Step 3.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200/80">
+                  <div className="font-extrabold text-gray-900 flex items-center gap-2">
+                    <i className="fa-solid fa-rotate-left text-amber-600"></i>
+                    <span>How are customer returns handled?</span>
+                  </div>
+                  <p className="mt-1.5 text-gray-600 leading-relaxed">
+                    Returned items appear in your Returns queue. Once accepted, you can choose to restore units directly back to your live stock inventory with a single click.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200/80">
+                  <div className="font-extrabold text-gray-900 flex items-center gap-2">
+                    <i className="fa-solid fa-certificate text-blue-600"></i>
+                    <span>Why do I need FSSAI and GST certificates?</span>
+                  </div>
+                  <p className="mt-1.5 text-gray-600 leading-relaxed">
+                    FSSAI is mandatory for food and grocery items to comply with national safety regulations. GST is required for B2B tax invoicing and input credit claims.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200/80">
+                  <div className="font-extrabold text-gray-900 flex items-center gap-2">
+                    <i className="fa-solid fa-cash-register text-indigo-600"></i>
+                    <span>Can I bill walk-in customers offline?</span>
+                  </div>
+                  <p className="mt-1.5 text-gray-600 leading-relaxed">
+                    Yes! The Bill Counter (POS) tab enables you to generate instant printed receipts and calculate taxes for walk-in store customers while keeping inventory synced.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-gray-100 flex justify-end shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowFaqModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 transition cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
     </aside>
   );
 }
