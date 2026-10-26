@@ -4974,6 +4974,317 @@ class SellerRepository {
 
     return await this.getOnboardingData(userId);
   }
+
+
+  // --- Phase 2: POS Walk-in Sale Persistence & Stock Deduction ---
+  async createPOSSale(storeId, userId, payload = {}) {
+    const { cart = [], paymentMethod = 'cash', customerPhone = '' } = payload;
+    if (!Array.isArray(cart) || cart.length === 0) {
+      throw new Error('POS cart cannot be empty');
+    }
+    if (!storeId) {
+      throw new Error('Seller store ID is required for POS transaction');
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const subtotal = cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.qty || 1)), 0);
+      const receiptNo = 'POS-' + Math.floor(100000 + Math.random() * 900000);
+      const isUpi = String(paymentMethod).toLowerCase() === 'upi';
+
+      // 1. Insert into orders table
+      const orderRes = await client.query(`
+        INSERT INTO orders (
+          order_number, customer_id, delivery_mode, delivery_address, total_mrp,
+          total_discount, delivery_fee, grand_total, payment_method, payment_status, order_status
+        ) VALUES (
+          $1, $2, 'STORE_PICKUP', $3, $4, 0, 0, $4, $5, 'PAID', 'DELIVERED'
+        ) RETURNING *
+      `, [
+        receiptNo,
+        userId,
+        JSON.stringify({ type: 'POS_WALKIN', phone: customerPhone || 'Walk-in Customer' }),
+        subtotal,
+        isUpi ? 'UPI' : 'CASH_ON_DELIVERY'
+      ]);
+      const parentOrder = orderRes.rows[0];
+
+      // 2. Insert into seller_orders table
+      const sellerOrderRes = await client.query(`
+        INSERT INTO seller_orders (
+          parent_order_id, store_id, subtotal, commission_fee, seller_payout_amount, status
+        ) VALUES (
+          $1, $2, $3, 0, $3, 'DELIVERED'
+        ) RETURNING *
+      `, [parentOrder.id, storeId, subtotal]);
+      const sellerOrder = sellerOrderRes.rows[0];
+
+      // 3. Process cart items and deduct inventory atomically
+      for (const item of cart) {
+        const itemQty = Number(item.qty) || 1;
+        const itemPrice = Number(item.price) || 0;
+        const itemTotal = Number((itemPrice * itemQty).toFixed(2));
+
+        // Check if listingId is a valid UUID
+        const isValidUuid = typeof item.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.id);
+        let listingId = isValidUuid ? item.id : null;
+
+        // If listingId not valid or missing, look up or find first active listing for this product name
+        if (!listingId) {
+          const lRes = await client.query(
+            `SELECT id FROM seller_listings WHERE store_id = $1 AND title ILIKE $2 LIMIT 1`,
+            [storeId, item.name]
+          );
+          if (lRes.rows.length > 0) {
+            listingId = lRes.rows[0].id;
+          } else {
+            // Find any store listing or fallback
+            const anyL = await client.query(
+              `SELECT id FROM seller_listings WHERE store_id = $1 LIMIT 1`,
+              [storeId]
+            );
+            if (anyL.rows.length > 0) listingId = anyL.rows[0].id;
+          }
+        }
+
+        if (listingId) {
+          // Insert into order_items
+          await client.query(`
+            INSERT INTO order_items (
+              seller_order_id, listing_id, product_name, quantity, unit_price, total_price
+            ) VALUES ($1, $2, $3, $4, $5, $6)
+          `, [sellerOrder.id, listingId, item.name || 'Store Item', itemQty, itemPrice, itemTotal]);
+
+          // Atomically decrement stock
+          await client.query(`
+            UPDATE seller_listings
+            SET stock_qty = GREATEST(0, stock_qty - $1), updated_at = NOW()
+            WHERE id = $2 AND store_id = $3
+          `, [itemQty, listingId, storeId]);
+        }
+      }
+
+      await client.query('COMMIT');
+
+      return {
+        success: true,
+        receipt_id: receiptNo,
+        order_id: parentOrder.id,
+        seller_order_id: sellerOrder.id,
+        total: subtotal,
+        items_count: cart.length,
+        payment_method: isUpi ? 'UPI' : 'Cash',
+        customer_phone: customerPhone || 'Walk-in Customer',
+        created_at: parentOrder.created_at
+      };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      console.error('POS Sale Transaction Error:', err);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  // --- Phase 2: National FMCG Master Catalog Browser & Adoption ---
+  async getMasterCatalog(storeId, options = {}) {
+    const { q, category_id, limit = 40, offset = 0 } = options;
+    const params = [storeId || null];
+    let query = `
+      SELECT 
+        mci.id,
+        mci.barcode,
+        mci.product_name,
+        mci.brand_name,
+        mci.category_id,
+        COALESCE(c.name, 'General') as category_name,
+        mci.printed_mrp,
+        mci.standard_unit,
+        mci.default_image_url,
+        mci.created_at,
+        EXISTS (
+          SELECT 1 FROM seller_listings sl 
+          WHERE sl.master_catalog_id = mci.id 
+            AND sl.store_id = $1
+            AND sl.is_active = true
+        ) AS already_in_store
+      FROM master_catalog_items mci
+      LEFT JOIN categories c ON mci.category_id = c.id
+      WHERE 1=1
+    `;
+
+    if (q && q.trim()) {
+      params.push(`%${q.trim()}%`);
+      const qIdx = params.length;
+      query += ` AND (mci.product_name ILIKE ${qIdx} OR mci.brand_name ILIKE ${qIdx} OR mci.barcode = ${qIdx - 1 + 1})`;
+    }
+
+    if (category_id && category_id !== 'all') {
+      params.push(Number(category_id));
+      query += ` AND mci.category_id = ${params.length}`;
+    }
+
+    query += ` ORDER BY mci.brand_name ASC, mci.product_name ASC`;
+
+    params.push(Number(limit));
+    query += ` LIMIT ${params.length}`;
+
+    params.push(Number(offset));
+    query += ` OFFSET ${params.length}`;
+
+    const res = await pool.query(query, params);
+
+    // Get total count
+    const countRes = await pool.query('SELECT COUNT(*) FROM master_catalog_items');
+    return {
+      items: res.rows,
+      total: parseInt(countRes.rows[0].count, 10)
+    };
+  }
+
+  async adoptMasterCatalogItem(storeId, data = {}) {
+    const { masterCatalogId, sellPrice, stockQty = 20 } = data;
+    if (!storeId) throw new Error('Store ID is required');
+    if (!masterCatalogId) throw new Error('Master Catalog Item ID is required');
+
+    // 1. Fetch master item
+    const mRes = await pool.query('SELECT * FROM master_catalog_items WHERE id = $1', [masterCatalogId]);
+    if (mRes.rows.length === 0) {
+      throw new Error('Master catalog item not found');
+    }
+    const master = mRes.rows[0];
+    const finalSellPrice = Number(sellPrice) || Number(master.printed_mrp) || 50;
+    const finalStock = Number(stockQty) || 20;
+
+    // 2. Check if listing already exists
+    const existing = await pool.query(
+      'SELECT id FROM seller_listings WHERE store_id = $1 AND master_catalog_id = $2',
+      [storeId, masterCatalogId]
+    );
+
+    if (existing.rows.length > 0) {
+      const updated = await pool.query(`
+        UPDATE seller_listings
+        SET stock_qty = stock_qty + $1,
+            sell_price = $2,
+            is_active = true,
+            approval_status = 'APPROVED',
+            updated_at = NOW()
+        WHERE id = $3
+        RETURNING *
+      `, [finalStock, finalSellPrice, existing.rows[0].id]);
+      return { adopted: true, action: 'updated', listing: updated.rows[0] };
+    }
+
+    // 3. Insert new listing
+    const inserted = await pool.query(`
+      INSERT INTO seller_listings (
+        store_id, master_catalog_id, title, barcode, brand_tag, category_id,
+        mrp, sell_price, unit, min_order_qty, stock_qty, product_type, approval_status, is_active
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, 1, $10, 'PACKED_ITEM', 'APPROVED', true
+      ) RETURNING *
+    `, [
+      storeId,
+      masterCatalogId,
+      master.product_name,
+      master.barcode,
+      master.brand_name,
+      master.category_id,
+      master.printed_mrp,
+      finalSellPrice,
+      master.standard_unit || 'pcs',
+      finalStock
+    ]);
+
+    return { adopted: true, action: 'created', listing: inserted.rows[0] };
+  }
+
+  // --- Phase 2: Bank Credit Applications & Partners ---
+  async getBankPartners() {
+    const res = await pool.query(`
+      SELECT id, name, code, interest_rate_pct, max_credit_limit, tenure_options, eligibility_criteria
+      FROM bank_partners
+      WHERE is_active = true
+      ORDER BY name ASC
+    `);
+    return res.rows;
+  }
+
+  async submitCreditApplication(storeId, userId, data = {}) {
+    const { bank, bank_id, limit, sales, purchases, reason } = data;
+    if (!userId && !storeId) throw new Error('Seller identity is required');
+
+    // 1. Resolve Bank ID
+    let resolvedBankId = bank_id;
+    if (!resolvedBankId && bank) {
+      const bRes = await pool.query('SELECT id FROM bank_partners WHERE name ILIKE $1 OR code ILIKE $1 LIMIT 1', [bank]);
+      if (bRes.rows.length > 0) resolvedBankId = bRes.rows[0].id;
+    }
+    if (!resolvedBankId) {
+      const firstBank = await pool.query('SELECT id FROM bank_partners WHERE is_active = true LIMIT 1');
+      if (firstBank.rows.length > 0) resolvedBankId = firstBank.rows[0].id;
+      else throw new Error('No active lending bank partner available');
+    }
+
+    // 2. Fetch Store / Applicant Name
+    let applicantName = 'Verified Merchant';
+    if (storeId) {
+      const sRes = await pool.query('SELECT store_name FROM stores WHERE id = $1', [storeId]);
+      if (sRes.rows.length > 0) applicantName = sRes.rows[0].store_name;
+    }
+
+    const appNo = 'CR-2026-' + Math.floor(10000 + Math.random() * 90000);
+    const reqAmount = Number(limit) || 250000;
+    const turnover = Number(sales) || 450000;
+
+    const res = await pool.query(`
+      INSERT INTO credit_applications (
+        application_no, applicant_type, applicant_id, applicant_name, bank_id,
+        requested_amount, monthly_turnover, reason, status
+      ) VALUES (
+        $1, 'SELLER', $2, $3, $4, $5, $6, $7, 'UNDER_REVIEW'
+      ) RETURNING *
+    `, [
+      appNo,
+      storeId || userId,
+      applicantName,
+      resolvedBankId,
+      reqAmount,
+      turnover,
+      reason || 'Working capital & inventory restocking'
+    ]);
+
+    return {
+      success: true,
+      application: res.rows[0]
+    };
+  }
+
+  async getCreditApplications(storeId, userId) {
+    const res = await pool.query(`
+      SELECT 
+        ca.id,
+        ca.application_no,
+        ca.applicant_name,
+        ca.requested_amount,
+        ca.approved_amount,
+        ca.monthly_turnover,
+        ca.reason,
+        ca.status,
+        ca.created_at,
+        bp.name as bank_name,
+        bp.code as bank_code,
+        bp.interest_rate_pct
+      FROM credit_applications ca
+      LEFT JOIN bank_partners bp ON ca.bank_id = bp.id
+      WHERE ca.applicant_id IN ($1, $2)
+      ORDER BY ca.created_at DESC
+    `, [storeId || userId, userId]);
+    return res.rows;
+  }
 }
 
 module.exports = new SellerRepository();

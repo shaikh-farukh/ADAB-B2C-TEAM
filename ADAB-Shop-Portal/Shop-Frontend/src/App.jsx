@@ -34,6 +34,7 @@ import MessagesPage from './pages/MessagesPage';
 import RecommendationsPage from './pages/RecommendationsPage';
 import ReportsPage from './pages/ReportsPage';
 import PartnerBrandsPage from './pages/PartnerBrandsPage';
+import CatalogPage from './pages/CatalogPage';
 import Sidebar from './components/layout/Sidebar';
 import StoreStatusButton from './components/layout/StoreStatusButton';
 import LanguageSelector from './components/layout/LanguageSelector';
@@ -270,16 +271,7 @@ function PortalContent() {
 
         <Route path="/create" element={<Navigate to="/products" replace />} />
 
-        <Route 
-          path="/catalog" 
-          element={
-            <PlaceholderPage 
-              title="National FMCG Catalog" 
-              fileName="CatalogPage.jsx" 
-              description="5,000+ FMCG national master catalog with 1-click addition to seller inventory." 
-            />
-          } 
-        />
+        <Route path="/catalog" element={<CatalogPage />} />
         <Route 
           path="/partnerbrands" 
           element={<PartnerBrandsPage />} 

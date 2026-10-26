@@ -38,9 +38,10 @@ export function usePOS() {
       setIsProcessing(true);
       setError(null);
       const response = await sellerApi.checkoutPOS(cart, paymentMethod, customerPhone);
-      setLastReceipt(response.data);
+      const saleResult = response?.data || response;
+      setLastReceipt(saleResult);
       clearCart();
-      return response.data;
+      return saleResult;
     } catch (err) {
       console.error('POS Checkout failed:', err);
       setError('Checkout failed. Please try again.');

@@ -117,6 +117,12 @@ export const sellerApi = {
       buildIdempotencyHeaders(`khata-pay-${poId}`)
     ),
   submitCreditApply: (businessDetails) => apiClient.post('/finance/credit-apply', businessDetails),
+  getBankPartners: () => apiClient.get('/finance/bank-partners'),
+  getCreditApplications: () => apiClient.get('/finance/credit-applications'),
+
+  // National FMCG Master Catalog Domain
+  getMasterCatalog: (params) => apiClient.get('/catalog/master', { params }),
+  adoptMasterCatalogItem: (data) => apiClient.post('/catalog/adopt', data),
 
   // Store Credit Terms & Rules
   getCreditTerms: () => apiClient.get('/credit-terms'),

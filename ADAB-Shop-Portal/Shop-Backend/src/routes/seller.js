@@ -83,6 +83,19 @@ router.get('/credit-terms', (req, res) => sellerController.getStoreCreditRules(r
 router.put('/credit-terms/give', idempotencyMiddleware, (req, res) => sellerController.updateCreditGiveTerms(req, res));
 router.put('/credit-terms/buy', idempotencyMiddleware, (req, res) => sellerController.updateCreditBuyLimits(req, res));
 
+
+// Phase 2: POS Walk-in Sale Persistence & Stock Deduction
+router.post('/pos/sales', idempotencyMiddleware, (req, res) => sellerController.createPOSSale(req, res));
+
+// Phase 2: National FMCG Master Catalog Browser & 1-Click Store Adoption
+router.get('/catalog/master', (req, res) => sellerController.getMasterCatalog(req, res));
+router.post('/catalog/adopt', idempotencyMiddleware, (req, res) => sellerController.adoptMasterCatalogItem(req, res));
+
+// Phase 2: Bank Credit Applications & Partners
+router.get('/finance/bank-partners', (req, res) => sellerController.getBankPartners(req, res));
+router.post('/finance/credit-apply', idempotencyMiddleware, (req, res) => sellerController.submitCreditApply(req, res));
+router.get('/finance/credit-applications', (req, res) => sellerController.getCreditApplications(req, res));
+
 module.exports = router;
 
 

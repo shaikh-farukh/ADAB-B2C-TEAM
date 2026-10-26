@@ -46,7 +46,14 @@ jest.mock('../../src/services/seller', () => ({
   verifyOtp: jest.fn().mockResolvedValue({ success: true }),
   getPurchasedBrandsReadyToPublish: jest.fn().mockResolvedValue([]),
   getBrandDistributionAnalytics: jest.fn().mockResolvedValue({}),
-  toggleListingB2B: jest.fn().mockResolvedValue({ id: '1', allowed_buyers: 'CUSTOMERS_ONLY' })
+  toggleListingB2B: jest.fn().mockResolvedValue({ id: '1', allowed_buyers: 'CUSTOMERS_ONLY' }),
+  createPOSSale: jest.fn().mockResolvedValue({ receipt_id: 'POS-123456', total: 500 }),
+  getMasterCatalog: jest.fn().mockResolvedValue({ items: [], total: 0 }),
+  adoptMasterCatalogItem: jest.fn().mockResolvedValue({ adopted: true, listing: { id: 'l1' } }),
+  getBankPartners: jest.fn().mockResolvedValue([{ id: 'b1', name: 'HDFC Bank' }]),
+  submitCreditApplication: jest.fn().mockResolvedValue({ success: true, application: { id: 'app1' } }),
+  getCreditApplications: jest.fn().mockResolvedValue([])
+
 }));
 
 app.use('/api/v1/seller', sellerRoutes);
@@ -143,5 +150,47 @@ describe('Seller API Routes (Supertest)', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.allowed_buyers).toBe('CUSTOMERS_ONLY');
   });
-});
+  it('POST /api/v1/seller/pos/sales should process walk-in sale', async () => {
+    const res = await request(app)
+      .post('/api/v1/seller/pos/sales')
+      .send({ cart: [{ id: '00000000-0000-0000-0000-000000000001', name: 'Item', price: 100, qty: 1 }], paymentMethod: 'cash' });
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.receipt_id).toBe('POS-123456');
+  });
 
+  it('GET /api/v1/seller/catalog/master should return master catalog items', async () => {
+    const res = await request(app).get('/api/v1/seller/catalog/master');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  it('POST /api/v1/seller/catalog/adopt should adopt master item into store inventory', async () => {
+    const res = await request(app)
+      .post('/api/v1/seller/catalog/adopt')
+      .send({ masterCatalogId: '00000000-0000-0000-0000-000000000001', sellPrice: 120, stockQty: 10 });
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+  });
+
+  it('GET /api/v1/seller/finance/bank-partners should return active bank partners', async () => {
+    const res = await request(app).get('/api/v1/seller/finance/bank-partners');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(Array.isArray(res.body.data)).toBe(true);
+  });
+
+  it('POST /api/v1/seller/finance/credit-apply should submit bank credit application', async () => {
+    const res = await request(app)
+      .post('/api/v1/seller/finance/credit-apply')
+      .send({ bank: 'HDFC Bank', limit: 300000, reason: 'Stock expansion' });
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+  });
+
+  it('GET /api/v1/seller/finance/credit-applications should return seller credit applications', async () => {
+    const res = await request(app).get('/api/v1/seller/finance/credit-applications');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+});

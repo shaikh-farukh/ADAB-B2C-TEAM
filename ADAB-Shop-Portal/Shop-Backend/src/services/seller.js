@@ -282,7 +282,31 @@ class SellerService {
     const emailOtpService = require('./emailOtpService');
     return emailOtpService.verifyOTP(identifier, otp);
   }
+
+
+  async createPOSSale(storeId, userId, payload) {
+    return await sellerRepository.createPOSSale(storeId, userId, payload);
+  }
+
+  async getMasterCatalog(storeId, options) {
+    return await sellerRepository.getMasterCatalog(storeId, options);
+  }
+
+  async adoptMasterCatalogItem(storeId, data) {
+    return await sellerRepository.adoptMasterCatalogItem(storeId, data);
+  }
+
+  async getBankPartners() {
+    return await sellerRepository.getBankPartners();
+  }
+
+  async submitCreditApplication(storeId, userId, data) {
+    return await sellerRepository.submitCreditApplication(storeId, userId, data);
+  }
+
+  async getCreditApplications(storeId, userId) {
+    return await sellerRepository.getCreditApplications(storeId, userId);
+  }
 }
 
 module.exports = new SellerService();
-

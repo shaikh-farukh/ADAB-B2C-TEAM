@@ -775,7 +775,69 @@ class SellerController {
     }
   }
 
+
+
+  async createPOSSale(req, res) {
+    try {
+      const { storeId, userId } = getAuthenticatedSellerContext(req);
+      const { cart, paymentMethod, customerPhone } = req.body;
+      const result = await sellerService.createPOSSale(storeId, userId, { cart, paymentMethod, customerPhone });
+      res.status(201).json({ success: true, data: result });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async getMasterCatalog(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      const { q, category_id, limit, offset } = req.query;
+      const result = await sellerService.getMasterCatalog(storeId, { q, category_id, limit, offset });
+      res.json({ success: true, data: result });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async adoptMasterCatalogItem(req, res) {
+    try {
+      const { storeId } = getAuthenticatedSellerContext(req);
+      const { masterCatalogId, sellPrice, stockQty } = req.body;
+      const result = await sellerService.adoptMasterCatalogItem(storeId, { masterCatalogId, sellPrice, stockQty });
+      res.status(201).json({ success: true, data: result });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async getBankPartners(req, res) {
+    try {
+      const banks = await sellerService.getBankPartners();
+      res.json({ success: true, data: banks });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async submitCreditApply(req, res) {
+    try {
+      const { storeId, userId } = getAuthenticatedSellerContext(req);
+      const result = await sellerService.submitCreditApplication(storeId, userId, req.body);
+      res.status(201).json({ success: true, data: result });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async getCreditApplications(req, res) {
+    try {
+      const { storeId, userId } = getAuthenticatedSellerContext(req);
+      const result = await sellerService.getCreditApplications(storeId, userId);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
 }
 
 module.exports = new SellerController();
-
