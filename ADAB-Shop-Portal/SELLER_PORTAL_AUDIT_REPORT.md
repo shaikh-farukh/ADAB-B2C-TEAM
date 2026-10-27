@@ -1,7 +1,7 @@
 # 📊 ADAB Seller Portal — Comprehensive Completion & Status Audit
 
-**Audit Timestamp**: 2026-10-27T18:05:00+05:30  
-**Scope**: `ADAB-Shop-Portal` (Seller Portal: `Shop-Frontend` + `Shop-Backend`)  
+**Audit Timestamp**: 2026-10-27T18:10:00+05:30  
+**Scope**: `ADAB-Shop-Portal` (Seller Portal Only: `Shop-Frontend` + `Shop-Backend`)  
 **Active Branch**: `features/seller`  
 **Automated Tests Status**:
 - **Frontend (Vitest)**: **16/16 Test Files Passed (81/81 Tests Passing — 0 Failures)**
@@ -12,19 +12,19 @@
 
 ## 📈 Executive Summary
 
-| Total Portal Modules | Overall Completed | Remaining | Phase 1 Status | Phase 2 Status | Phase 3 Status |
-| :---: | :---: | :---: | :---: | :---: | :---: |
-| **10 Core Modules** | **100%** | **0%** | **✅ 100% Complete** | **✅ 100% Complete** | **✅ 100% Complete** |
+| Total Portal Modules | Overall Completed | Production-Ready Core | Minor Enhancements Remaining |
+| :---: | :---: | :---: | :---: |
+| **10 Core Modules** | **98.0%** | **7 Modules @ 100%** | **3 Modules @ 90%–95%** |
 
 ```
-[████████████████████████████████████████████████████████████████] 100% Complete
+[██████████████████████████████████████████████████████████████░░] 98.0% Complete
 ```
 
 ---
 
 ## 🔍 Module-by-Module Breakdown
 
-| # | Module Name | Scope & Key Components | Completion % | Live DB / Status |
+| # | Module Name | Scope & Key Components | Completion % | Live DB / Current Status |
 | :--- | :--- | :--- | :---: | :--- |
 | **1** | **Authentication & Onboarding** | OTP verification, Google OAuth, 7-step incremental KYC wizard, document upload (GST, FSSAI, PAN), bank detail entry, step-gated KYC guard. | **100%** | Live PostgreSQL (`users`, `seller_profiles`, `stores`, `seller_onboarding_steps`). |
 | **2** | **Orders Management & Dispatch** | Live order stream, status lifecycle progression (`PLACED` $\rightarrow$ `CONFIRMED` $\rightarrow$ `PREPARING` $\rightarrow$ `OUT_FOR_DELIVERY` $\rightarrow$ `DELIVERED`), interactive Leaflet distance & radius map, driver assignment, printable manifests, CSV export. | **100%** | Live PostgreSQL (`orders`, `seller_orders`, `order_items`, `delivery_zones`). |
@@ -33,9 +33,51 @@
 | **5** | **National Master Catalog & Sourcing** | Interactive National FMCG Master Catalog (`/catalog`), category filter pills, barcode & title search, 1-click store adoption into `seller_listings`, marketplace multi-supplier catalog search (`/buy`, `/mastersearch`), buy cart (`/buycart`). | **100%** | Live PostgreSQL (`master_catalog_items`, `categories`, `seller_listings`). Zero static data. |
 | **6** | **Returns & Customer Settlements** | Single-item per card refund inspection, per-item return reasons, itemized order overview with delivery fee & discounts, partial refund deduction, 1-click stock restoration. | **100%** | Live PostgreSQL (`order_returns`, `orders`, `seller_listings`). |
 | **7** | **Finance, Khata & Bank Credit** | Bank settlement payouts (T+1 cycle), withdrawal requests, ledger transaction history, Supplier Khata credit tracking, Bank Credit Line application (`/credit-apply`) backed by `credit_applications` and `bank_partners` tables. | **100%** | Live PostgreSQL (`settlements`, `transactions`, `credit_applications`, `bank_partners`, `store_credit_rules`). |
-| **8** | **Delivery & Service Zones** | Zone radius editor, custom per-tier delivery rates (express 30m, same-day, scheduled, store pickup), third-party logistics toggles, live Leaflet service area visualization. | **100%** | Live PostgreSQL (`delivery_zones`, `stores`). |
-| **9** | **Communications & Support** | WebSockets live order alerts, reactive handshake on auth changes, real-time unread badge sync, notification center bell, Web Audio API synthesized order chime (zero external audio dependencies), dedicated Merchant Helpline & FAQ modals. | **100%** | Live Socket.IO + PostgreSQL LISTEN/NOTIFY + Web Audio API. |
-| **10** | **Settings & Multi-Language** | Full tri-lingual i18n support (English, Hindi, Gujarati), store timing hours, notification sound toggles, operational preferences. | **100%** | Live LanguageContext + localStorage + PostgreSQL settings. |
+| **8** | **Delivery & Service Zones** | Interactive Leaflet delivery zone editor, custom per-tier delivery rates (express 30m, same-day, scheduled, store pickup), B2B logistics rates (Self Delivery, Porter, Delhivery, B2B Store Pickup), live radius sync with PostgreSQL `stores` and `delivery_zones`. | **95%** | Live PostgreSQL (`delivery_zones`, `stores`, `seller_onboarding_steps`). |
+| **9** | **Communications & Support** | WebSockets live order alerts, reactive handshake on auth changes, real-time unread badge sync, notification center bell, Web Audio API synthesized order chime (zero external audio dependencies), dedicated 24/7 Merchant Helpline & FAQ modals. | **95%** | Live Socket.IO + PostgreSQL LISTEN/NOTIFY + Web Audio API. |
+| **10** | **Settings & Multi-Language** | Full tri-lingual i18n support (English, Hindi, Gujarati), store timing hours, notification sound toggles, language persistence in `localStorage`. | **90%** | Live LanguageContext + localStorage + PostgreSQL store data. |
+
+---
+
+## 🔎 Granular Analysis: What is Remaining in the 90%–95% Modules?
+
+### **1. Module 8: Delivery & Service Zones (95% Done — 5% Remaining)**
+- **What is Working & Production-Ready (95%)**:
+  - Live interactive Leaflet map with draggable store coordinates marker.
+  - Interactive delivery radius slider (0 - 20 km) with reactive circular boundary overlay.
+  - Full B2C delivery tier customization: Fast (30m), Same-Day, Scheduled, Store Pickup with custom per-order fees.
+  - Full B2B logistics customization: Self-delivery, 3rd-party logistics (Porter, Delhivery rates), Store Pickup.
+  - Live PostgreSQL database persistence: Saves to `stores` (`delivery_radius_km`, `latitude`, `longitude`, `open_time`, `close_time`), `seller_onboarding_steps.delivery_config`, and synchronizes into `delivery_zones`.
+- **What is Remaining (5%)**:
+  - **Live 3PL API Dispatch Webhooks**: Currently, Porter and Delhivery operate as seller-configured logistics and pricing tiers. Actual automated carrier API dispatch (e.g. generating real Delhivery AWB waybills or dispatching Porter API pickup requests on button press) is an external carrier integration.
+  - **Custom Multi-Polygon Geofencing**: Delivery coverage is defined by radial distance (km) rather than custom drawn SVG/GeoJSON multi-polygon delivery zones.
+
+---
+
+### **2. Module 9: Communications & Support (95% Done — 5% Remaining)**
+- **What is Working & Production-Ready (95%)**:
+  - PostgreSQL `new_notification` trigger listening on LISTEN/NOTIFY.
+  - Centralized `notificationProducer` logging events to `notifications` table.
+  - Socket.IO real-time event broadcasting to active seller rooms.
+  - Reactive authentication handshake in `SocketProvider` upon login/logout.
+  - Synthesized Web Audio API retail order chime (`playNotificationChime()`) on arrival of live order alerts.
+  - Interactive 24/7 Merchant Support & Grievance Helpline modal with grievance form and direct hotline.
+  - Interactive Accordion FAQ modal answering top merchant questions.
+- **What is Remaining (5%)**:
+  - **External SMS & WhatsApp Business Gateway**: In-app notifications and Socket.IO alerts are 100% operational. Outbound SMS and WhatsApp alerts to external customer/merchant phone numbers require paid carrier gateway API keys (e.g., Twilio, Gupshup, or MSG91 with DLT-registered templates).
+  - **Push Notification Service Worker (FCM/WebPush)**: Native desktop/mobile OS background push notifications when the browser tab is closed (currently requires active open tab with WebSocket).
+
+---
+
+### **3. Module 10: Settings & Multi-Language (90% Done — 10% Remaining)**
+- **What is Working & Production-Ready (90%)**:
+  - Full tri-lingual internationalization (i18n): English, Hindi (हिन्दी), Gujarati (ગુજરાતી) with live language switcher across all headers, sidebars, and forms.
+  - Language persistence in `localStorage` (`seller_language`).
+  - Store timing display, operating hours, and KYC verification status display.
+- **What is Remaining (10%)**:
+  - **Persistent Settings Form Submission in `SettingsPage.jsx`**: The `Store Profile` form (`storeName`, `ownerName`, `phone`, `address`) in `SettingsPage.jsx` currently only shows a local feedback toast (`saved = true`) without sending an API call to update `stores` / `seller_profiles` in PostgreSQL.
+  - **Notification & Hardware Preferences Persistence**: The checkboxes for `New orders (SMS + app)`, `Low stock alerts`, and `Payment settlements` in `SettingsPage.jsx` are uncontrolled `defaultChecked` rather than backed by a database settings table.
+  - **POS Thermal Printer Settings**: ESC/POS thermal receipt printer configuration (e.g. 58mm vs 80mm roll size, auto-cut, auto-print on order acceptance) is not yet customizable in settings.
 
 ---
 
@@ -77,7 +119,7 @@
   - Implemented `GET /api/v1/seller/finance/credit-applications` returning real seller application records.
   - Refactored `CreditApplyPage.jsx` with dynamic bank options, real-time credit limit numbers, and dynamic application history.
 
-### ✅ Phase 3: Hardening, Concurrency & Sandbox Verification (Done & Verified)
+### ✅ Phase 3: Hardening, Concurrency & Sandbox Verification (Done & Pushed)
 *(Note: Per explicit user instructions, Step 2 MinIO modifications were bypassed)*
 - [x] **Concurrency & Stock Guard (Pillar 1)**:
   - Row-level lock (`SELECT ... FOR UPDATE`) in `createPOSSale` preventing overselling race conditions.
