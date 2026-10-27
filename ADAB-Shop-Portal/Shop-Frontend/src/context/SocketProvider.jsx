@@ -31,6 +31,30 @@ export const SocketProvider = ({ children }) => {
   // Get JWT token from localStorage
   const getToken = () => localStorage.getItem('seller_token') || localStorage.getItem('token') || null;
 
+  const [currentToken, setCurrentToken] = useState(() => getToken());
+
+  // Listen for login/logout events to reactively establish or tear down socket connection
+  useEffect(() => {
+    const handleAuthEvent = (e) => {
+      const nextToken = e?.detail?.token ?? getToken();
+      setCurrentToken(nextToken);
+    };
+
+    const handleStorageEvent = (e) => {
+      if (e.key === 'seller_token' || e.key === 'token') {
+        setCurrentToken(e.newValue || null);
+      }
+    };
+
+    window.addEventListener('seller_auth_changed', handleAuthEvent);
+    window.addEventListener('storage', handleStorageEvent);
+
+    return () => {
+      window.removeEventListener('seller_auth_changed', handleAuthEvent);
+      window.removeEventListener('storage', handleStorageEvent);
+    };
+  }, []);
+
   const getUserId = () => {
     const directId = localStorage.getItem('seller_user_id');
     if (directId) return directId;
@@ -54,8 +78,16 @@ export const SocketProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) return;
+    const token = currentToken || getToken();
+    if (!token) {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+        setSocket(null);
+        setIsConnected(false);
+      }
+      return;
+    }
 
     const newSocket = io(SOCKET_URL, {
       reconnectionDelayMax: 10000,
@@ -96,7 +128,7 @@ export const SocketProvider = ({ children }) => {
       setSocket(null);
       setIsConnected(false);
     };
-  }, []);
+  }, [currentToken]);
 
   /**
    * Subscribe to a socket event. Returns an unsubscribe function.

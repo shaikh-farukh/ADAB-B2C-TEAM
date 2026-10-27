@@ -238,6 +238,9 @@ export function SellerProvider({ children }) {
     lastFetchTimeRef.current = Date.now();
     setLoading(false);
     setIsAuthenticated(true);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('seller_auth_changed', { detail: { token, userId, storeId } }));
+    }
     // Load dashboard metrics in background without blocking Verify redirect
     sellerService.getDashboardMetrics()
       .then((metricsRes) => {
@@ -306,6 +309,9 @@ export function SellerProvider({ children }) {
     setDashboardMetrics(null);
     setOnboardingData(null);
     setKycSteps(DEFAULT_APPROVED_STEPS);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('seller_auth_changed', { detail: { token: null, userId: null, storeId: null } }));
+    }
   };
 
   const rawKycStatus = String(profile?.kyc_status || '').trim().toUpperCase();

@@ -5050,6 +5050,19 @@ class SellerRepository {
         }
 
         if (listingId) {
+          // Lock row for update to protect against concurrent checkout race conditions
+          const stockLock = await client.query(
+            `SELECT id, title, stock_qty FROM seller_listings WHERE id = $1 AND store_id = $2 FOR UPDATE`,
+            [listingId, storeId]
+          );
+
+          if (stockLock.rows.length > 0) {
+            const currentStock = Number(stockLock.rows[0].stock_qty || 0);
+            if (currentStock < itemQty) {
+              throw new Error(`INSUFFICIENT_STOCK: Item "${stockLock.rows[0].title}" only has ${currentStock} units remaining (requested ${itemQty}).`);
+            }
+          }
+
           // Insert into order_items
           await client.query(`
             INSERT INTO order_items (
@@ -5060,7 +5073,9 @@ class SellerRepository {
           // Atomically decrement stock
           await client.query(`
             UPDATE seller_listings
-            SET stock_qty = GREATEST(0, stock_qty - $1), updated_at = NOW()
+            SET stock_qty = GREATEST(0, stock_qty - $1),
+                is_active = CASE WHEN (stock_qty - $1) = 0 THEN false ELSE is_active END,
+                updated_at = NOW()
             WHERE id = $2 AND store_id = $3
           `, [itemQty, listingId, storeId]);
         }

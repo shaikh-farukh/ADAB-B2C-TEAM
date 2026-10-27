@@ -6,7 +6,7 @@ import { useTranslation } from '../context/LanguageContext';
 import listingService from '../services/listingService';
 
 export default function POSPage() {
-  const { cart, addToCart, updateQuantity, clearCart, cartTotal, checkout, isProcessing } = usePOS();
+  const { cart, addToCart, updateQuantity, clearCart, cartTotal, checkout, isProcessing, error } = usePOS();
   const { store } = useSeller();
   const { t } = useTranslation();
   
@@ -18,29 +18,30 @@ export default function POSPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [completedSale, setCompletedSale] = useState(null);
 
-  useEffect(() => {
-    async function loadLiveProducts() {
-      try {
-        setLoading(true);
-        const res = await listingService.getListings({ limit: 50 });
-        const items = res.data || [];
-        if (items.length > 0) {
-          setProducts(items.map(p => ({
-            id: p.id,
-            name: p.title,
-            price: Number(p.sell_price) || 0,
-            stock: p.stock_qty || 0,
-            type: p.product_type || 'General'
-          })));
-        } else {
-          setProducts([]);
-        }
-      } catch (err) {
-        console.error('Error fetching listings for POS:', err);
-      } finally {
-        setLoading(false);
+  const loadLiveProducts = async () => {
+    try {
+      setLoading(true);
+      const res = await listingService.getListings({ limit: 50 });
+      const items = res.data || [];
+      if (items.length > 0) {
+        setProducts(items.map(p => ({
+          id: p.id,
+          name: p.title,
+          price: Number(p.sell_price) || 0,
+          stock: p.stock_qty || 0,
+          type: p.product_type || 'General'
+        })));
+      } else {
+        setProducts([]);
       }
+    } catch (err) {
+      console.error('Error fetching listings for POS:', err);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadLiveProducts();
   }, []);
 
@@ -61,6 +62,10 @@ export default function POSPage() {
     });
 
     const result = await checkout(currentMethod, customerPhone);
+    if (!result) {
+      // Abort if checkout failed or stock insufficient
+      return;
+    }
 
     setCompletedSale({
       receiptId: result?.receipt_id || result?.id || receiptNum,
@@ -74,10 +79,8 @@ export default function POSPage() {
       storeName: store?.store_name || 'My Store'
     });
 
-    if (!result) {
-      clearCart();
-    }
     setCustomerPhone('');
+    loadLiveProducts(); // Refresh live stock counts
   };
 
   const handlePrintReceipt = () => {
@@ -224,6 +227,13 @@ export default function POSPage() {
                   </button>
                 </div>
               </div>
+
+              {error && (
+                <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-start gap-2">
+                  <i className="fa-solid fa-triangle-exclamation mt-0.5 text-rose-500"></i>
+                  <span>{error}</span>
+                </div>
+              )}
 
               <button 
                 onClick={handleCheckout} 

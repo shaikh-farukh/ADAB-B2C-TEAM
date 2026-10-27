@@ -44,7 +44,8 @@ export function usePOS() {
       return saleResult;
     } catch (err) {
       console.error('POS Checkout failed:', err);
-      setError('Checkout failed. Please try again.');
+      const serverMsg = err.response?.data?.error || err.response?.data?.message || err.message;
+      setError(serverMsg || 'Checkout failed. Please try again.');
       return null;
     } finally {
       setIsProcessing(false);

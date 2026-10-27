@@ -784,6 +784,9 @@ class SellerController {
       const result = await sellerService.createPOSSale(storeId, userId, { cart, paymentMethod, customerPhone });
       res.status(201).json({ success: true, data: result });
     } catch (error) {
+      if (error.message && error.message.startsWith('INSUFFICIENT_STOCK')) {
+        return res.status(409).json({ success: false, error: error.message });
+      }
       handleError(res, error);
     }
   }
