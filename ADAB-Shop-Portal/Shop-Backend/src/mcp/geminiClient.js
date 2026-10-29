@@ -32,15 +32,24 @@ class GeminiMcpClient {
     }
 
     const key = this.getApiKey();
-    const systemPrompt = `You are the ADAB Store Copilot, an intelligent retail assistant embedded in the ADAB Seller Portal for Indian kirana store owners.
-You speak Hindi, Gujarati, and English fluently.
+    const systemPrompt = `You are the ADAB Store Copilot, an expert retail operations assistant embedded in the ADAB Seller Portal for Indian kirana & retail store owners.
+You speak Hindi, Gujarati, and English fluently (including Hinglish).
 Your store name is "${authContext.storeName || 'My Store'}".
 Your store ID is "${authContext.storeId}".
 Preferred merchant language: "${authContext.language || 'en'}".
 
-When the user asks you to check orders or update order statuses, ALWAYS invoke the appropriate tool.
-After calling a tool, provide a clear, concise, friendly summary with key details (order IDs, amounts, customer names).
-Never invent fake orders; rely entirely on tool outputs.`;
+You have access to 10 real-time store management tools:
+1. Customer Orders: 'adab_list_orders' (view pending/delivered orders), 'adab_update_order_state' (pack, dispatch, deliver, cancel).
+2. Catalog & Stock: 'adab_check_low_stock' (find items running out), 'adab_update_stock_qty' (restock quantities), 'adab_modify_pricing' (change selling price or MRP), 'adab_toggle_listing_status' (activate/pause items).
+3. Finance & Taxes: 'adab_get_sales_performance' (sales revenue, orders, AOV, net payout for today/week/month), 'adab_get_multi_slab_gstr' (GSTR-1 multi-slab tax breakdown).
+4. B2B Procurement: 'adab_query_b2b_wholesalers' (search nearby wholesalers, bulk pricing, credit terms), 'adab_draft_b2b_restock_po' (draft purchase order).
+5. Store Operations: 'adab_get_store_info' (check if store is open, hours, soundbox state), 'adab_update_store_status' (open/close shop, toggle soundbox).
+
+CRITICAL OPERATIONAL RULES:
+- ALWAYS invoke the appropriate tool before answering questions about orders, products, inventory, revenue, taxes, or store settings.
+- Never invent or hallucinate numbers or order IDs. Rely strictly on data returned by the tools.
+- Keep your conversational replies clear, polite, and actionable. Greet the merchant warmly (e.g. Namaste 🙏) if starting a conversation.
+- If the merchant speaks Hindi or Gujarati, reply in their language while keeping numbers, order IDs, and monetary amounts (₹) crystal clear.`;
 
     const contents = [];
 
@@ -129,8 +138,8 @@ Never invent fake orders; rely entirely on tool outputs.`;
     };
   }
 
-  async _postGenerate(payload, apiKey) {
-    const url = `${this.baseUrl}/models/${this.model}:generateContent?key=${apiKey}`;
+  async _postGenerate(payload, apiKey, candidateModel = this.model, retryCount = 0) {
+    const url = `${this.baseUrl}/models/${candidateModel}:generateContent?key=${apiKey}`;
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -139,6 +148,17 @@ Never invent fake orders; rely entirely on tool outputs.`;
 
     const data = await res.json();
     if (!res.ok) {
+      // 503 High Demand or 429 Rate Limit recovery
+      if ((res.status === 503 || res.status === 429) && retryCount === 0) {
+        // First try quick backoff on the primary model
+        await new Promise(r => setTimeout(r, 1200));
+        return this._postGenerate(payload, apiKey, candidateModel, 1);
+      }
+      if ((res.status === 503 || res.status === 429) && candidateModel !== 'gemini-3.5-flash-lite') {
+        // Fallback to flash-lite if primary model is unavailable
+        console.warn(`[GeminiClient] ${candidateModel} busy (HTTP ${res.status}). Falling back to gemini-3.5-flash-lite.`);
+        return this._postGenerate(payload, apiKey, 'gemini-3.5-flash-lite', 0);
+      }
       throw new Error(`Gemini API Error (${res.status}): ${JSON.stringify(data.error || data)}`);
     }
     return data;

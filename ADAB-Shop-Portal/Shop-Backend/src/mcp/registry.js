@@ -31,6 +31,10 @@ class McpRegistry {
     });
   }
 
+  registerTool(tool) {
+    return this.register(tool);
+  }
+
   /**
    * Returns Gemini-compatible function declarations array
    */

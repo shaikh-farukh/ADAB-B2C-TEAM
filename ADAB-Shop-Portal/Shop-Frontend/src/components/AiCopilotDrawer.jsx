@@ -129,12 +129,53 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
           if (exec.tool === 'adab_list_orders' && exec.result?.data?.orders?.length > 0) {
             widget = {
               type: 'ORDER_PACK_CARD',
-              orders: exec.result.data.orders.slice(0, 3).map((o) => ({
-                id: o.orderNumber || o.orderId,
-                customer: o.customer,
-                amount: o.amount,
-                items: o.itemSummary
+              orders: exec.result.data.orders.slice(0, 3).map((o) => {
+                const displayId = o.orderNumber || o.orderId || o.id || 'Order';
+                const actionId = o.orderNumber || o.orderId || o.id;
+                return {
+                  id: displayId,
+                  actionId: actionId,
+                  customer: o.customer || 'Customer',
+                  amount: o.amount || 0,
+                  items: o.itemSummary || o.items || 'Items'
+                };
+              })
+            };
+          } else if (exec.tool === 'adab_get_sales_performance' && exec.result?.data?.summary) {
+            const s = exec.result.data.summary;
+            widget = {
+              type: 'SALES_SUMMARY_CARD',
+              revenue: s.grossRevenue,
+              orders: s.totalOrders,
+              aov: s.averageOrderValue,
+              payout: s.netPayout,
+              period: exec.result.data.period
+            };
+          } else if (exec.tool === 'adab_check_low_stock' && exec.result?.data?.items?.length > 0) {
+            widget = {
+              type: 'LOW_STOCK_CARD',
+              items: exec.result.data.items.slice(0, 3).map((i) => ({
+                id: i.id,
+                title: i.title,
+                remaining: i.stockQty,
+                unit: i.unit,
+                sellPrice: i.sellPrice
               }))
+            };
+          } else if (exec.tool === 'adab_get_multi_slab_gstr' && exec.result?.data?.taxSummary) {
+            const t = exec.result.data.taxSummary;
+            widget = {
+              type: 'GSTR_TAX_CARD',
+              taxable: t.taxableTurnover,
+              cgst: t.totalCgst,
+              sgst: t.totalSgst,
+              gross: t.grossInvoicedAmount,
+              slabs: exec.result.data.slabs || []
+            };
+          } else if (exec.tool === 'adab_query_b2b_wholesalers' && exec.result?.data?.offers?.length > 0) {
+            widget = {
+              type: 'B2B_RESTOCK_CARD',
+              offers: exec.result.data.offers.slice(0, 3)
             };
           }
         }
@@ -269,7 +310,8 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                           <div className="text-[10px] text-gray-500">₹{o.amount} • {o.items} items</div>
                         </div>
                         <button 
-                          onClick={() => handleSend(`Pack order ${o.id}`)}
+                          onClick={() => handleSend(`Pack order ${o.actionId || o.id}`)}
+                          disabled={!o.actionId && !o.id}
                           className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px] transition cursor-pointer"
                         >
                           Pack Order
@@ -303,17 +345,48 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                 )}
 
                 {m.widget?.type === 'LOW_STOCK_CARD' && (
-                  <div className="mt-2.5 pt-2 border-t border-gray-100 p-2 bg-amber-50 rounded-xl border border-amber-100">
-                    <div className="font-bold text-amber-950 text-[11px]">{m.widget.item}</div>
-                    <div className="text-[10px] text-amber-800 mt-0.5">
-                      Only <span className="font-black text-red-600">{m.widget.remaining} units</span> left in store!
-                    </div>
-                    <button 
-                      onClick={() => alert('Searching B2B wholesalers for lowest restock price...')}
-                      className="w-full mt-2 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-[10px] transition cursor-pointer flex items-center justify-center gap-1"
-                    >
-                      <i className="fa-solid fa-cart-shopping"></i> One-Click B2B Restock (20 units)
-                    </button>
+                  <div className="mt-2.5 pt-2 border-t border-gray-100 space-y-2">
+                    {(m.widget.items || [{ title: m.widget.item, remaining: m.widget.remaining }]).map((it, idx) => (
+                      <div key={it.id || idx} className="p-2 bg-amber-50 rounded-xl border border-amber-100 flex items-center justify-between gap-2">
+                        <div>
+                          <div className="font-bold text-amber-950 text-[11px]">{it.title}</div>
+                          <div className="text-[10px] text-amber-800">
+                            Only <span className="font-black text-red-600">{it.remaining} {it.unit || 'units'}</span> left
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => handleSend(`Find B2B suppliers for ${it.title}`)}
+                          className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-[10px] transition cursor-pointer whitespace-nowrap"
+                        >
+                          Find Suppliers
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {m.widget?.type === 'B2B_RESTOCK_CARD' && (
+                  <div className="mt-2.5 pt-2 border-t border-gray-100 space-y-1.5">
+                    <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Nearby Wholesale Stock</div>
+                    {(m.widget.offers || []).map((off) => (
+                      <div key={off.listingId} className="p-2 bg-purple-50 rounded-xl border border-purple-100 flex items-center justify-between gap-2">
+                        <div>
+                          <div className="font-bold text-purple-950 text-[11px]">{off.productName}</div>
+                          <div className="text-[10px] text-purple-800">
+                            ₹{off.wholesalePrice}/{off.unit || 'pc'} • {off.supplierName} ({off.distanceKm}km)
+                          </div>
+                          <div className="text-[9px] text-emerald-700 font-semibold mt-0.5">
+                            ✓ {off.creditDays}-Day B2B Credit Available
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => handleSend(`Create restock order for 20 units of ${off.productName} from supplier ${off.supplierStoreId}`)}
+                          className="px-2 py-1 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-lg text-[10px] transition cursor-pointer whitespace-nowrap"
+                        >
+                          Draft PO
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
 
@@ -324,11 +397,11 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                       <span className="font-bold text-gray-900">{m.widget.taxable}</span>
                     </div>
                     <div className="flex justify-between text-gray-600">
-                      <span>CGST (2.5%):</span>
+                      <span>CGST:</span>
                       <span className="font-mono text-gray-900">{m.widget.cgst}</span>
                     </div>
                     <div className="flex justify-between text-gray-600">
-                      <span>SGST (2.5%):</span>
+                      <span>SGST:</span>
                       <span className="font-mono text-gray-900">{m.widget.sgst}</span>
                     </div>
                     <div className="flex justify-between pt-1 border-t border-gray-100 font-black text-emerald-800">

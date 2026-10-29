@@ -59,13 +59,13 @@ const listOrdersTool = {
       page: filters.page,
       limit: filters.limit,
       orders: orders.map(o => ({
-        orderId: o.seller_order_id,
-        orderNumber: o.order_number,
-        status: o.seller_order_status,
-        amount: Number(o.amount || o.store_subtotal || 0),
+        orderId: o.real_id || o.seller_order_id || o.id,
+        orderNumber: o.order_number || o.id || 'N/A',
+        status: (o.seller_order_status || o.status || 'NEW').toUpperCase(),
+        amount: Number(o.amount || o.grand_total || o.store_subtotal || 0),
         customer: o.customer || 'Customer',
         itemSummary: o.item_summary || 'Items',
-        createdAt: o.seller_order_created_at
+        createdAt: o.created_at || o.seller_order_created_at
       }))
     };
   }
@@ -114,7 +114,7 @@ const updateOrderStateTool = {
       SELECT so.id, so.status as current_status, o.order_number
       FROM seller_orders so
       JOIN orders o ON so.parent_order_id = o.id
-      WHERE (so.id::text = $1 OR o.order_number = $1 OR o.order_number = ('ORD-' || $1))
+      WHERE (so.id::text = $1 OR o.id::text = $1 OR o.order_number = $1 OR o.order_number = ('ORD-' || $1))
         AND so.store_id = $2::uuid
     `, [cleanId, storeId]);
 
@@ -122,14 +122,15 @@ const updateOrderStateTool = {
       throw new Error(`OrderNotFound: Order '${orderId}' not found in store '${storeId}'.`);
     }
 
+    const sellerOrderId = existing.rows[0].id;
     const currentStatus = (existing.rows[0].current_status || 'NEW').toUpperCase();
-    const orderNumber = existing.rows[0].order_number;
+    const orderNumber = existing.rows[0].order_number || orderId;
 
     // 2. Validate state machine transition
     if (currentStatus === cleanTarget) {
       return {
         success: true,
-        orderId,
+        orderId: sellerOrderId,
         orderNumber,
         status: currentStatus,
         message: `Order ${orderNumber} is already in status '${currentStatus}'.`
@@ -143,12 +144,12 @@ const updateOrderStateTool = {
       );
     }
 
-    // 3. Execute update via sellerService
-    const updated = await sellerService.updateOrderStatus(orderId, cleanTarget, storeId);
+    // 3. Execute update via sellerService using the exact sellerOrderId
+    const updated = await sellerService.updateOrderStatus(sellerOrderId, cleanTarget, storeId);
 
     return {
       success: true,
-      orderId,
+      orderId: sellerOrderId,
       orderNumber,
       previousStatus: currentStatus,
       newStatus: cleanTarget,

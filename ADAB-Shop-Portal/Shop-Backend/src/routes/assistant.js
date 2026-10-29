@@ -3,10 +3,10 @@ const router = express.Router();
 const { requireSellerAuth } = require('../middlewares/auth');
 const { defaultRegistry } = require('../mcp/registry');
 const { defaultGeminiClient } = require('../mcp/geminiClient');
-const { registerOrderTools } = require('../mcp/tools/orders');
+const { registerAllTools } = require('../mcp/tools');
 
-// Ensure tools are registered
-registerOrderTools(defaultRegistry);
+// Ensure the full ADAB MCP tool suite is registered across all domains
+registerAllTools(defaultRegistry);
 
 // Require authenticated seller context for all assistant operations
 router.use(requireSellerAuth);
