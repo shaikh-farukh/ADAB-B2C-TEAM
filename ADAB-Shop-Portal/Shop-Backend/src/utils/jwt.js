@@ -3,10 +3,10 @@ const crypto = require('crypto');
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('FATAL: JWT_SECRET environment variable is missing in production');
+    if (process.env.NODE_ENV === 'test') {
+      return 'adab_test_secret_key_32_characters_long_min!';
     }
-    return 'adab_sec_prod_98741352_token_key_adab_b2c_2026';
+    throw new Error('FATAL: JWT_SECRET environment variable is missing. It must be defined in .env with at least 32 characters.');
   }
   return secret;
 }
