@@ -37,7 +37,7 @@ router.get('/tools', (req, res) => {
  * Primary conversational turn with Gemini 3.5 Flash and MCP tool execution
  */
 router.post('/chat', async (req, res) => {
-  const { prompt, history = [] } = req.body;
+  const { prompt, history = [], model } = req.body;
 
   if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
     return res.status(400).json({
@@ -65,7 +65,8 @@ router.post('/chat', async (req, res) => {
     const outcome = await defaultGeminiClient.chat({
       userPrompt: prompt.trim(),
       history,
-      authContext
+      authContext,
+      model
     });
 
     res.json({

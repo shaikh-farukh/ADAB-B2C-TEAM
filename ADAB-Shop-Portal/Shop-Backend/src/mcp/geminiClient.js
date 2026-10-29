@@ -14,7 +14,7 @@ function scrubPII(text) {
 }
 
 class GeminiMcpClient {
-  constructor(apiKey = process.env.GEMINI_API_KEY, model = 'gemini-2.5-flash') {
+  constructor(apiKey = process.env.GEMINI_API_KEY, model = process.env.GEMINI_MODEL || 'gemini-3.5-flash') {
     this.apiKey = apiKey;
     this.model = model;
     this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
@@ -34,13 +34,15 @@ class GeminiMcpClient {
    * @param {string} options.userPrompt - User prompt (text or speech transcript)
    * @param {Array} options.history - Prior conversational messages (optional)
    * @param {Object} options.authContext - { storeId, userId, storeName, language }
+   * @param {string} [options.model] - Optional model override
    */
-  async chat({ userPrompt, history = [], authContext }) {
+  async chat({ userPrompt, history = [], authContext, model }) {
     if (!authContext || !authContext.storeId) {
       throw new Error('authContext with valid storeId is required');
     }
 
     const key = this.getApiKey();
+    const activeModel = model || this.model;
     const systemPrompt = `You are the ADAB Store Copilot, an expert retail operations assistant embedded in the ADAB Seller Portal for Indian kirana & retail store owners.
 You speak Hindi, Gujarati, and English fluently (including Hinglish).
 Your store name is "${authContext.storeName || 'My Store'}".
@@ -86,7 +88,7 @@ CRITICAL OPERATIONAL RULES:
     };
 
     // First LLM call
-    const firstRes = await this._postGenerate(payload, key);
+    const firstRes = await this._postGenerate(payload, key, activeModel);
     const candidate = firstRes.candidates?.[0];
     if (!candidate || !candidate.content) {
       throw new Error(`LLM Error: Empty response from Gemini API (${JSON.stringify(firstRes)})`);
@@ -133,7 +135,7 @@ CRITICAL OPERATIONAL RULES:
       tools
     };
 
-    const secondRes = await this._postGenerate(secondPayload, key);
+    const secondRes = await this._postGenerate(secondPayload, key, activeModel);
     const finalCandidate = secondRes.candidates?.[0];
     const finalParts = finalCandidate?.content?.parts || [];
     const finalText = finalParts.map(p => p.text).filter(Boolean).join('\n');
@@ -163,13 +165,17 @@ CRITICAL OPERATIONAL RULES:
       const isRateOrBusy = res.status === 429 || res.status === 503;
 
       // Model fallback cascade if primary model hits quota/busy
-      if (isRateOrBusy && candidateModel === 'gemini-2.5-flash') {
-        console.warn(`[GeminiClient] gemini-2.5-flash busy (HTTP ${res.status}). Cascading to gemini-2.5-flash-lite...`);
-        return this._postGenerate(payload, apiKey, 'gemini-2.5-flash-lite', 0);
+      if (isRateOrBusy && candidateModel === 'gemini-3.5-flash') {
+        console.warn(`[GeminiClient] gemini-3.5-flash busy (HTTP ${res.status}). Cascading to gemini-2.5-flash...`);
+        return this._postGenerate(payload, apiKey, 'gemini-2.5-flash', 0);
       }
-      if (isRateOrBusy && candidateModel === 'gemini-2.5-flash-lite') {
-        console.warn(`[GeminiClient] gemini-2.5-flash-lite busy (HTTP ${res.status}). Cascading to gemini-3.5-flash...`);
-        return this._postGenerate(payload, apiKey, 'gemini-3.5-flash', 0);
+      if (isRateOrBusy && candidateModel === 'gemini-2.5-flash') {
+        console.warn(`[GeminiClient] gemini-2.5-flash busy (HTTP ${res.status}). Cascading to gemini-3.1-flash-lite...`);
+        return this._postGenerate(payload, apiKey, 'gemini-3.1-flash-lite', 0);
+      }
+      if (isRateOrBusy && candidateModel === 'gemini-3.1-flash-lite') {
+        console.warn(`[GeminiClient] gemini-3.1-flash-lite busy (HTTP ${res.status}). Cascading to gemini-2.5-flash-lite...`);
+        return this._postGenerate(payload, apiKey, 'gemini-2.5-flash-lite', 0);
       }
 
       // Key failover if configured

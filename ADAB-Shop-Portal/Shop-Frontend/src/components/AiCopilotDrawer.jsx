@@ -63,6 +63,7 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
     }
   ]);
   const [input, setInput] = useState('');
+  const [selectedModel, setSelectedModel] = useState('gemini-3.5-flash');
   const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -161,7 +162,8 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
 
       const res = await api.post('/assistant/chat', {
         prompt: query,
-        history: historyPayload
+        history: historyPayload,
+        model: selectedModel
       }, {
         timeout: 60000
       });
@@ -328,9 +330,16 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-extrabold text-sm tracking-wide leading-tight">ADAB Copilot</h3>
-                <span className="text-[10px] bg-amber-400 text-gray-950 font-black px-1.5 py-0.2 rounded-md uppercase tracking-wider">
-                  Gemini 3.5
-                </span>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="text-[10px] bg-amber-400 text-gray-950 font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider cursor-pointer border-none outline-none focus:ring-1 focus:ring-amber-300"
+                  aria-label="Model Selector"
+                >
+                  <option value="gemini-3.5-flash">Gemini 3.5</option>
+                  <option value="gemini-2.5-flash">Gemini 2.5</option>
+                  <option value="gemini-3.1-flash-lite">Gemini 3.1 Lite</option>
+                </select>
               </div>
               <p className="text-[11px] text-indigo-100 font-medium">
                 {storeName} • Free Mode
