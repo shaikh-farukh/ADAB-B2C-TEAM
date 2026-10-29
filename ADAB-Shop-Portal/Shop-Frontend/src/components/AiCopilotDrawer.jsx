@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSeller } from '../context/SellerContext';
 import { useTranslation } from '../context/LanguageContext';
+import api from '../services/api';
 
 export default function AiCopilotDrawer({ isOpen, onClose }) {
   const { profile, store } = useSeller();
@@ -91,7 +92,7 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
     }
   };
 
-  const handleSend = (textToSend = input) => {
+  const handleSend = async (textToSend = input) => {
     const query = textToSend.trim();
     if (!query) return;
 
@@ -106,48 +107,37 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
     setInput('');
     setIsProcessing(true);
 
-    // Simulated Copilot intelligence with rich preview cards
-    setTimeout(() => {
-      const lower = query.toLowerCase();
-      let replyText = '';
+    try {
+      // Build sliding-window history for the API
+      const historyPayload = messages.slice(-6).map((m) => ({
+        sender: m.sender,
+        text: m.text
+      }));
+
+      const res = await api.post('/assistant/chat', {
+        prompt: query,
+        history: historyPayload
+      });
+
+      const payload = res.data !== undefined ? res.data : res;
+      const replyText = payload.reply || "Done! I've updated your store records.";
       let widget = null;
 
-      if (lower.includes('pack') || lower.includes('order')) {
-        replyText = `Found 2 pending orders ready for packing:`;
-        widget = {
-          type: 'ORDER_PACK_CARD',
-          orders: [
-            { id: '#108', customer: 'Rahul Sharma', amount: 180, items: 2 },
-            { id: '#109', customer: 'Priya Patel', amount: 220, items: 1 }
-          ]
-        };
-      } else if (lower.includes('sales') || lower.includes('revenue') || lower.includes('profit')) {
-        replyText = `Here is your 30-day performance summary from live store records:`;
-        widget = {
-          type: 'SALES_SUMMARY_CARD',
-          revenue: '₹2,100',
-          orders: 47,
-          aov: '₹45'
-        };
-      } else if (lower.includes('stock') || lower.includes('inventory') || lower.includes('low')) {
-        replyText = `Found 1 item running critically low in ${storeName}:`;
-        widget = {
-          type: 'LOW_STOCK_CARD',
-          item: 'Fortune Sunlite Refined Sunflower Oil 1L',
-          remaining: 2,
-          reorderQty: 20
-        };
-      } else if (lower.includes('tax') || lower.includes('gstr') || lower.includes('gst')) {
-        replyText = `GSTR-3B tax summary computed across 5% & 12% grocery slabs:`;
-        widget = {
-          type: 'GSTR_TAX_CARD',
-          taxable: '₹2,000.00',
-          cgst: '₹50.00',
-          sgst: '₹50.00',
-          gross: '₹2,100.00'
-        };
-      } else {
-        replyText = `I understand you are asking about: "${query}". I am connected to Gemini 3.5 Flash and ready to execute live store operations for ${storeName}.`;
+      // Check toolExecutions for interactive cards
+      if (Array.isArray(payload.toolExecutions)) {
+        for (const exec of payload.toolExecutions) {
+          if (exec.tool === 'adab_list_orders' && exec.result?.data?.orders?.length > 0) {
+            widget = {
+              type: 'ORDER_PACK_CARD',
+              orders: exec.result.data.orders.slice(0, 3).map((o) => ({
+                id: o.orderNumber || o.orderId,
+                customer: o.customer,
+                amount: o.amount,
+                items: o.itemSummary
+              }))
+            };
+          }
+        }
       }
 
       setMessages((prev) => [
@@ -160,8 +150,21 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);
+    } catch (err) {
+      console.warn('Copilot live API error, falling back:', err);
+      // Fallback preview if unauthenticated or offline
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          sender: 'assistant',
+          text: err.response?.data?.error || `Could not connect to Gemini Assistant: ${err.message}. Please verify your network.`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
+    } finally {
       setIsProcessing(false);
-    }, 600);
+    }
   };
 
   const handleQuickPrompt = (promptText) => {
@@ -266,7 +269,7 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                           <div className="text-[10px] text-gray-500">₹{o.amount} • {o.items} items</div>
                         </div>
                         <button 
-                          onClick={() => alert(`Marking order ${o.id} as PACKED`)}
+                          onClick={() => handleSend(`Pack order ${o.id}`)}
                           className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px] transition cursor-pointer"
                         >
                           Pack Order
@@ -274,10 +277,10 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                       </div>
                     ))}
                     <button 
-                      onClick={() => alert('Batch packing all orders!')}
+                      onClick={() => handleSend(`Pack all pending orders`)}
                       className="w-full mt-1.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-[11px] transition cursor-pointer flex items-center justify-center gap-1"
                     >
-                      <i className="fa-solid fa-check-double"></i> Pack All (₹400)
+                      <i className="fa-solid fa-check-double"></i> Pack All
                     </button>
                   </div>
                 )}

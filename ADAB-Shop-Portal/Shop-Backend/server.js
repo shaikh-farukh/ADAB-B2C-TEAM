@@ -25,6 +25,7 @@ const sellerRoutes = require('./src/routes/seller');
 const listingRoutes = require('./src/routes/listing');
 const marketingRoutes = require('./src/routes/marketing');
 const pricingRoutes = require('./src/routes/pricing');
+const assistantRoutes = require('./src/routes/assistant');
 
 // Initialize Background Jobs
 require('./src/jobs/bulkUploadJob');
@@ -54,6 +55,7 @@ app.use('/api/v1/seller/pricing', pricingRoutes);
 app.use('/api/v1/seller', sellerRoutes);
 app.use('/api/v1/seller', marketingRoutes);
 app.use('/api/v1/seller/marketing', marketingRoutes);
+app.use('/api/v1/assistant', assistantRoutes);
 
 // Invoice PDF / Printable HTML Route
 app.get(['/api/v1/orders/:orderId/invoice/pdf', '/api/v1/seller/orders/:orderId/invoice'], async (req, res) => {
