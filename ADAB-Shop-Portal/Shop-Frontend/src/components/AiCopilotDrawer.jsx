@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSeller } from '../context/SellerContext';
 import { useTranslation } from '../context/LanguageContext';
 import api from '../services/api';
+import { playNotificationChime } from '../utils/audioAlert';
 
 export default function AiCopilotDrawer({ isOpen, onClose }) {
   const { profile, store } = useSeller();
@@ -26,8 +27,8 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
 
   // Auto-scroll on new messages
   useEffect(() => {
-    if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isOpen && typeof messagesEndRef.current?.scrollIntoView === 'function') {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isOpen]);
 
@@ -123,9 +124,14 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
       const replyText = payload.reply || "Done! I've updated your store records.";
       let widget = null;
 
-      // Check toolExecutions for interactive cards
+      // Check toolExecutions for interactive cards & sound feedback
       if (Array.isArray(payload.toolExecutions)) {
         for (const exec of payload.toolExecutions) {
+          // Play audio chime for any successful mutative action
+          if (exec.result?.success && ['adab_update_order_state', 'adab_update_stock_qty', 'adab_modify_pricing', 'adab_draft_b2b_restock_po', 'adab_update_store_status'].includes(exec.tool)) {
+            playNotificationChime(true);
+          }
+
           if (exec.tool === 'adab_list_orders' && exec.result?.data?.orders?.length > 0) {
             widget = {
               type: 'ORDER_PACK_CARD',
@@ -137,9 +143,17 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                   actionId: actionId,
                   customer: o.customer || 'Customer',
                   amount: o.amount || 0,
-                  items: o.itemSummary || o.items || 'Items'
+                  items: o.itemSummary || o.items || 'Items',
+                  status: o.status || 'NEW'
                 };
               })
+            };
+          } else if (exec.tool === 'adab_update_order_state' && exec.result?.success) {
+            widget = {
+              type: 'ORDER_STATUS_UPDATED_CARD',
+              orderNumber: exec.result.data.orderNumber,
+              newStatus: exec.result.data.newStatus,
+              message: exec.result.data.message
             };
           } else if (exec.tool === 'adab_get_sales_performance' && exec.result?.data?.summary) {
             const s = exec.result.data.summary;
@@ -149,17 +163,21 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
               orders: s.totalOrders,
               aov: s.averageOrderValue,
               payout: s.netPayout,
+              commission: s.commissionFee,
               period: exec.result.data.period
             };
-          } else if (exec.tool === 'adab_check_low_stock' && exec.result?.data?.items?.length > 0) {
+          } else if (exec.tool === 'adab_check_low_stock') {
+            const items = exec.result?.data?.items || [];
             widget = {
               type: 'LOW_STOCK_CARD',
-              items: exec.result.data.items.slice(0, 3).map((i) => ({
+              count: items.length,
+              items: items.slice(0, 4).map((i) => ({
                 id: i.id,
                 title: i.title,
                 remaining: i.stockQty,
                 unit: i.unit,
-                sellPrice: i.sellPrice
+                sellPrice: i.sellPrice,
+                category: i.category
               }))
             };
           } else if (exec.tool === 'adab_get_multi_slab_gstr' && exec.result?.data?.taxSummary) {
@@ -170,12 +188,40 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
               cgst: t.totalCgst,
               sgst: t.totalSgst,
               gross: t.grossInvoicedAmount,
+              totalTax: t.totalTaxLiability,
               slabs: exec.result.data.slabs || []
             };
           } else if (exec.tool === 'adab_query_b2b_wholesalers' && exec.result?.data?.offers?.length > 0) {
             widget = {
               type: 'B2B_RESTOCK_CARD',
               offers: exec.result.data.offers.slice(0, 3)
+            };
+          } else if (exec.tool === 'adab_draft_b2b_restock_po' && exec.result?.success) {
+            widget = {
+              type: 'PURCHASE_ORDER_DRAFTED_CARD',
+              poNumber: exec.result.data.poNumber,
+              totalAmount: exec.result.data.totalAmount,
+              paymentTerms: exec.result.data.paymentTerms,
+              message: exec.result.data.message
+            };
+          } else if ((exec.tool === 'adab_get_store_info' || exec.tool === 'adab_update_store_status') && exec.result?.data) {
+            const d = exec.result.data;
+            widget = {
+              type: 'STORE_STATUS_CARD',
+              storeName: d.storeName,
+              isOnline: Boolean(d.isOnline),
+              soundboxEnabled: Boolean(d.soundboxEnabled),
+              businessHours: d.businessHours,
+              deliveryRadiusKm: d.deliveryRadiusKm
+            };
+          } else if ((exec.tool === 'adab_update_stock_qty' || exec.tool === 'adab_modify_pricing') && exec.result?.data) {
+            const d = exec.result.data;
+            widget = {
+              type: 'INVENTORY_MUTATION_CARD',
+              title: d.title,
+              message: d.message,
+              previousValue: d.previousStock !== undefined ? `${d.previousStock} units` : `₹${d.previousSellPrice}`,
+              newValue: d.newStock !== undefined ? `${d.newStock} units` : `₹${d.newSellPrice}`
             };
           }
         }
@@ -282,6 +328,12 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
           >
             <i className="fa-solid fa-file-invoice text-purple-600"></i> GSTR Tax
           </button>
+          <button 
+            onClick={() => handleQuickPrompt('Is my store open right now?')}
+            className="px-2.5 py-1 bg-white hover:bg-blue-100/60 text-blue-900 border border-blue-200 rounded-full text-[11px] font-bold whitespace-nowrap transition cursor-pointer shadow-xs flex items-center gap-1"
+          >
+            <i className="fa-solid fa-store text-blue-600"></i> Store Status
+          </button>
         </div>
 
         {/* Messages Body */}
@@ -307,67 +359,102 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                       <div key={o.id} className="p-2 bg-gray-50 rounded-xl flex items-center justify-between gap-2 border border-gray-100">
                         <div>
                           <div className="font-bold text-gray-900">{o.id} • {o.customer}</div>
-                          <div className="text-[10px] text-gray-500">₹{o.amount} • {o.items} items</div>
+                          <div className="text-[10px] text-gray-500">₹{o.amount} • {o.items}</div>
                         </div>
                         <button 
                           onClick={() => handleSend(`Pack order ${o.actionId || o.id}`)}
                           disabled={!o.actionId && !o.id}
-                          className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px] transition cursor-pointer"
+                          className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px] transition cursor-pointer flex items-center gap-1 shadow-xs"
                         >
-                          Pack Order
+                          <i className="fa-solid fa-box"></i> Pack Order
                         </button>
                       </div>
                     ))}
                     <button 
                       onClick={() => handleSend(`Pack all pending orders`)}
-                      className="w-full mt-1.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-[11px] transition cursor-pointer flex items-center justify-center gap-1"
+                      className="w-full mt-1.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-[11px] transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
                     >
-                      <i className="fa-solid fa-check-double"></i> Pack All
+                      <i className="fa-solid fa-boxes-packing"></i> Pack All Pending Orders
                     </button>
                   </div>
                 )}
 
-                {m.widget?.type === 'SALES_SUMMARY_CARD' && (
-                  <div className="mt-2.5 pt-2 border-t border-gray-100 grid grid-cols-3 gap-1.5 text-center">
-                    <div className="p-1.5 bg-emerald-50 rounded-lg border border-emerald-100">
-                      <div className="text-[9px] text-emerald-700 font-bold uppercase">Revenue</div>
-                      <div className="font-black text-emerald-900 text-xs">{m.widget.revenue}</div>
+                {m.widget?.type === 'ORDER_STATUS_UPDATED_CARD' && (
+                  <div className="mt-2.5 pt-2 border-t border-gray-100 p-2.5 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs shrink-0">
+                      <i className="fa-solid fa-check"></i>
                     </div>
-                    <div className="p-1.5 bg-indigo-50 rounded-lg border border-indigo-100">
-                      <div className="text-[9px] text-indigo-700 font-bold uppercase">Orders</div>
-                      <div className="font-black text-indigo-900 text-xs">{m.widget.orders}</div>
-                    </div>
-                    <div className="p-1.5 bg-purple-50 rounded-lg border border-purple-100">
-                      <div className="text-[9px] text-purple-700 font-bold uppercase">Avg Ticket</div>
-                      <div className="font-black text-purple-900 text-xs">{m.widget.aov}</div>
+                    <div>
+                      <div className="text-[11px] text-emerald-950 font-bold">
+                        Order #{m.widget.orderNumber} Updated!
+                      </div>
+                      <div className="text-[10px] text-emerald-700">
+                        Status transitioned to <span className="font-extrabold uppercase">{m.widget.newStatus}</span>
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {m.widget?.type === 'LOW_STOCK_CARD' && (
-                  <div className="mt-2.5 pt-2 border-t border-gray-100 space-y-2">
-                    {(m.widget.items || [{ title: m.widget.item, remaining: m.widget.remaining }]).map((it, idx) => (
-                      <div key={it.id || idx} className="p-2 bg-amber-50 rounded-xl border border-amber-100 flex items-center justify-between gap-2">
-                        <div>
-                          <div className="font-bold text-amber-950 text-[11px]">{it.title}</div>
-                          <div className="text-[10px] text-amber-800">
-                            Only <span className="font-black text-red-600">{it.remaining} {it.unit || 'units'}</span> left
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => handleSend(`Find B2B suppliers for ${it.title}`)}
-                          className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-[10px] transition cursor-pointer whitespace-nowrap"
-                        >
-                          Find Suppliers
-                        </button>
+                {m.widget?.type === 'SALES_SUMMARY_CARD' && (
+                  <div className="mt-2.5 pt-2 border-t border-gray-100 space-y-1.5">
+                    <div className="grid grid-cols-3 gap-1.5 text-center">
+                      <div className="p-1.5 bg-emerald-50 rounded-lg border border-emerald-100">
+                        <div className="text-[9px] text-emerald-700 font-bold uppercase">Revenue</div>
+                        <div className="font-black text-emerald-900 text-xs">{m.widget.revenue}</div>
                       </div>
-                    ))}
+                      <div className="p-1.5 bg-indigo-50 rounded-lg border border-indigo-100">
+                        <div className="text-[9px] text-indigo-700 font-bold uppercase">Orders</div>
+                        <div className="font-black text-indigo-900 text-xs">{m.widget.orders}</div>
+                      </div>
+                      <div className="p-1.5 bg-purple-50 rounded-lg border border-purple-100">
+                        <div className="text-[9px] text-purple-700 font-bold uppercase">Avg Ticket</div>
+                        <div className="font-black text-purple-900 text-xs">{m.widget.aov}</div>
+                      </div>
+                    </div>
+                    {m.widget.payout && (
+                      <div className="flex justify-between items-center text-[10px] px-2 py-1 bg-gray-50 rounded-lg text-gray-600 border border-gray-100">
+                        <span>Net Seller Payout:</span>
+                        <span className="font-bold text-gray-900">{m.widget.payout}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {m.widget?.type === 'LOW_STOCK_CARD' && (
+                  <div className="mt-2.5 pt-2 border-t border-gray-100 space-y-1.5">
+                    {(!m.widget.items || m.widget.items.length === 0) ? (
+                      <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-2">
+                        <i className="fa-solid fa-circle-check text-emerald-600 text-base"></i>
+                        <div className="text-[11px] text-emerald-900 font-semibold">
+                          All store items are well-stocked (&gt; 5 units). No immediate restock needed!
+                        </div>
+                      </div>
+                    ) : (
+                      m.widget.items.map((it, idx) => (
+                        <div key={it.id || idx} className="p-2 bg-amber-50 rounded-xl border border-amber-100 flex items-center justify-between gap-2">
+                          <div>
+                            <div className="font-bold text-amber-950 text-[11px]">{it.title}</div>
+                            <div className="text-[10px] text-amber-800">
+                              Only <span className="font-black text-red-600">{it.remaining} {it.unit || 'units'}</span> left
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => handleSend(`Find B2B suppliers for ${it.title}`)}
+                            className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-[10px] transition cursor-pointer whitespace-nowrap shadow-xs flex items-center gap-1"
+                          >
+                            <i className="fa-solid fa-truck-ramp-box"></i> Suppliers
+                          </button>
+                        </div>
+                      ))
+                    )}
                   </div>
                 )}
 
                 {m.widget?.type === 'B2B_RESTOCK_CARD' && (
                   <div className="mt-2.5 pt-2 border-t border-gray-100 space-y-1.5">
-                    <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Nearby Wholesale Stock</div>
+                    <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                      <i className="fa-solid fa-warehouse text-purple-600"></i> Nearby Wholesale Stock
+                    </div>
                     {(m.widget.offers || []).map((off) => (
                       <div key={off.listingId} className="p-2 bg-purple-50 rounded-xl border border-purple-100 flex items-center justify-between gap-2">
                         <div>
@@ -381,7 +468,7 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                         </div>
                         <button 
                           onClick={() => handleSend(`Create restock order for 20 units of ${off.productName} from supplier ${off.supplierStoreId}`)}
-                          className="px-2 py-1 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-lg text-[10px] transition cursor-pointer whitespace-nowrap"
+                          className="px-2 py-1 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-lg text-[10px] transition cursor-pointer whitespace-nowrap shadow-xs"
                         >
                           Draft PO
                         </button>
@@ -390,24 +477,103 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                   </div>
                 )}
 
+                {m.widget?.type === 'PURCHASE_ORDER_DRAFTED_CARD' && (
+                  <div className="mt-2.5 pt-2 border-t border-gray-100 p-2.5 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-100 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-purple-600 text-white flex items-center justify-center text-xs shrink-0">
+                        <i className="fa-solid fa-file-invoice"></i>
+                      </div>
+                      <div>
+                        <div className="font-extrabold text-purple-950 text-xs">PO #{m.widget.poNumber} Drafted</div>
+                        <div className="text-[10px] text-purple-700">{m.widget.totalAmount} • {m.widget.paymentTerms}</div>
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-gray-600 mt-1 bg-white/70 p-1.5 rounded-lg border border-purple-100">
+                      {m.widget.message}
+                    </div>
+                  </div>
+                )}
+
                 {m.widget?.type === 'GSTR_TAX_CARD' && (
-                  <div className="mt-2.5 pt-2 border-t border-gray-100 space-y-1 text-[11px]">
-                    <div className="flex justify-between text-gray-600">
-                      <span>Taxable Turnover:</span>
-                      <span className="font-bold text-gray-900">{m.widget.taxable}</span>
+                  <div className="mt-2.5 pt-2 border-t border-gray-100 space-y-1.5 text-[11px]">
+                    <div className="grid grid-cols-2 gap-1.5 p-2 bg-emerald-50/60 rounded-xl border border-emerald-100">
+                      <div>
+                        <span className="text-[9px] text-emerald-700 font-bold uppercase">Taxable Turnover</span>
+                        <div className="font-black text-emerald-950 text-xs">{m.widget.taxable}</div>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-emerald-700 font-bold uppercase">Total Tax Liability</span>
+                        <div className="font-black text-emerald-950 text-xs">{m.widget.totalTax || m.widget.gross}</div>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-gray-600">
-                      <span>CGST:</span>
-                      <span className="font-mono text-gray-900">{m.widget.cgst}</span>
-                    </div>
-                    <div className="flex justify-between text-gray-600">
-                      <span>SGST:</span>
-                      <span className="font-mono text-gray-900">{m.widget.sgst}</span>
-                    </div>
+
+                    {Array.isArray(m.widget.slabs) && m.widget.slabs.length > 0 && (
+                      <div className="mt-1 space-y-1">
+                        <div className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">GST Slab Breakdown</div>
+                        {m.widget.slabs.map((sl, idx) => (
+                          <div key={idx} className="flex justify-between items-center text-[10px] px-2 py-1 bg-gray-50 rounded-md border border-gray-100">
+                            <span className="text-gray-700 font-medium">{sl.rate}</span>
+                            <span className="font-mono text-gray-900 font-bold">{sl.totalTax}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     <div className="flex justify-between pt-1 border-t border-gray-100 font-black text-emerald-800">
-                      <span>Total Invoice:</span>
+                      <span>Total Invoiced Gross:</span>
                       <span>{m.widget.gross}</span>
                     </div>
+                  </div>
+                )}
+
+                {m.widget?.type === 'STORE_STATUS_CARD' && (
+                  <div className="mt-2.5 pt-2 border-t border-gray-100 space-y-2">
+                    <div className="p-2.5 bg-gray-50 rounded-xl border border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-extrabold text-gray-900 text-xs">{m.widget.storeName}</div>
+                          <div className="text-[10px] text-gray-500">{m.widget.businessHours} • {m.widget.deliveryRadiusKm} km radius</div>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          m.widget.isOnline ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'
+                        }`}>
+                          {m.widget.isOnline ? '● Open' : '○ Closed'}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-1.5 mt-2.5">
+                        <button 
+                          onClick={() => handleSend(m.widget.isOnline ? 'Close my shop for today' : 'Open my shop for incoming orders')}
+                          className={`py-1 px-2 rounded-lg text-[10px] font-bold transition cursor-pointer flex items-center justify-center gap-1 ${
+                            m.widget.isOnline ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200' : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                          }`}
+                        >
+                          <i className={`fa-solid ${m.widget.isOnline ? 'fa-door-closed' : 'fa-door-open'}`}></i>
+                          {m.widget.isOnline ? 'Close Store' : 'Open Store'}
+                        </button>
+                        <button 
+                          onClick={() => handleSend(m.widget.soundboxEnabled ? 'Mute soundbox voice announcements' : 'Enable voice soundbox for incoming orders')}
+                          className={`py-1 px-2 rounded-lg text-[10px] font-bold transition cursor-pointer flex items-center justify-center gap-1 ${
+                            m.widget.soundboxEnabled ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          <i className={`fa-solid ${m.widget.soundboxEnabled ? 'fa-volume-high' : 'fa-volume-xmark'}`}></i>
+                          {m.widget.soundboxEnabled ? 'Soundbox ON' : 'Muted'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {m.widget?.type === 'INVENTORY_MUTATION_CARD' && (
+                  <div className="mt-2.5 pt-2 border-t border-gray-100 p-2.5 bg-indigo-50 rounded-xl border border-indigo-100 flex items-center justify-between gap-2">
+                    <div>
+                      <div className="font-bold text-indigo-950 text-[11px]">{m.widget.title}</div>
+                      <div className="text-[10px] text-indigo-700">
+                        {m.widget.message}
+                      </div>
+                    </div>
+                    <i className="fa-solid fa-circle-check text-indigo-600 text-base shrink-0"></i>
                   </div>
                 )}
               </div>
