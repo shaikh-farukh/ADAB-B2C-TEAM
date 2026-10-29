@@ -162,6 +162,8 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
       const res = await api.post('/assistant/chat', {
         prompt: query,
         history: historyPayload
+      }, {
+        timeout: 60000
       });
 
       const payload = res.data !== undefined ? res.data : res;

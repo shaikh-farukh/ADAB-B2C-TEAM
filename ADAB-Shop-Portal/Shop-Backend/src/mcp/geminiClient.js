@@ -14,7 +14,7 @@ function scrubPII(text) {
 }
 
 class GeminiMcpClient {
-  constructor(apiKey = process.env.GEMINI_API_KEY, model = 'gemini-3.5-flash') {
+  constructor(apiKey = process.env.GEMINI_API_KEY, model = 'gemini-2.5-flash') {
     this.apiKey = apiKey;
     this.model = model;
     this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
@@ -160,17 +160,25 @@ CRITICAL OPERATIONAL RULES:
 
     const data = await res.json();
     if (!res.ok) {
-      // 503 High Demand or 429 Rate Limit recovery
-      if ((res.status === 503 || res.status === 429) && retryCount === 0) {
-        // First try quick backoff on the primary model
-        await new Promise(r => setTimeout(r, 1200));
-        return this._postGenerate(payload, apiKey, candidateModel, 1);
+      const isRateOrBusy = res.status === 429 || res.status === 503;
+
+      // Model fallback cascade if primary model hits quota/busy
+      if (isRateOrBusy && candidateModel === 'gemini-2.5-flash') {
+        console.warn(`[GeminiClient] gemini-2.5-flash busy (HTTP ${res.status}). Cascading to gemini-2.5-flash-lite...`);
+        return this._postGenerate(payload, apiKey, 'gemini-2.5-flash-lite', 0);
       }
-      if ((res.status === 503 || res.status === 429) && candidateModel !== 'gemini-3.5-flash-lite') {
-        // Fallback to flash-lite if primary model is unavailable
-        console.warn(`[GeminiClient] ${candidateModel} busy (HTTP ${res.status}). Falling back to gemini-3.5-flash-lite.`);
-        return this._postGenerate(payload, apiKey, 'gemini-3.5-flash-lite', 0);
+      if (isRateOrBusy && candidateModel === 'gemini-2.5-flash-lite') {
+        console.warn(`[GeminiClient] gemini-2.5-flash-lite busy (HTTP ${res.status}). Cascading to gemini-3.5-flash...`);
+        return this._postGenerate(payload, apiKey, 'gemini-3.5-flash', 0);
       }
+
+      // Key failover if configured
+      const backupKey = process.env.GEMINI_BACKUP_KEY;
+      if (isRateOrBusy && apiKey !== backupKey && backupKey) {
+        console.warn(`[GeminiClient] Primary key rate-limited. Trying backup API key...`);
+        return this._postGenerate(payload, backupKey, 'gemini-2.5-flash', 0);
+      }
+
       throw new Error(`Gemini API Error (${res.status}): ${JSON.stringify(data.error || data)}`);
     }
     return data;
