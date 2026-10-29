@@ -12,6 +12,7 @@ import KycGate from './components/common/KycGate';
 import { SellerProvider, useSeller } from './context/SellerContext';
 import { SocketProvider } from './context/SocketProvider';
 import GlobalBulkUploadWidget from './components/GlobalBulkUploadWidget';
+import AiCopilotDrawer from './components/AiCopilotDrawer';
 
 // Mayank's Domain Pages
 import OrdersPage from './pages/OrdersPage';
@@ -44,6 +45,7 @@ const MainLayout = ({ children, store, profile, isPortalUnlocked = true }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [headerSearch, setHeaderSearch] = React.useState('');
+  const [isCopilotOpen, setIsCopilotOpen] = React.useState(false);
 
   const handleHeaderSearch = (e) => {
     e.preventDefault();
@@ -117,6 +119,20 @@ const MainLayout = ({ children, store, profile, isPortalUnlocked = true }) => {
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <button
+              type="button"
+              id="btn-header-ai-copilot"
+              onClick={() => setIsCopilotOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-extrabold shadow-sm hover:shadow transition-all duration-200 cursor-pointer border border-indigo-400/30 active:scale-95 shrink-0"
+              title="Open ADAB AI Copilot (Gemini 3.5)"
+            >
+              <i className="fa-solid fa-wand-magic-sparkles text-amber-300 text-xs"></i>
+              <span className="hidden md:inline">{t('aiCopilot', 'AI Copilot')}</span>
+              <span className="md:hidden font-bold">AI</span>
+              <span className="hidden xl:inline text-[9px] bg-white/20 text-indigo-100 px-1 py-0.2 rounded-md font-bold">
+                FREE
+              </span>
+            </button>
             <LanguageSelector />
             <StoreStatusButton className="hidden sm:flex" />
             <NotificationBell />
@@ -139,6 +155,7 @@ const MainLayout = ({ children, store, profile, isPortalUnlocked = true }) => {
       </div>
 
       <GlobalBulkUploadWidget />
+      <AiCopilotDrawer isOpen={isCopilotOpen} onClose={() => setIsCopilotOpen(false)} />
     </div>
   );
 };

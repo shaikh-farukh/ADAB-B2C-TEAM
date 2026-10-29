@@ -4,12 +4,14 @@ import { useSeller } from '../../context/SellerContext';
 import { useTranslation } from '../../context/LanguageContext';
 import StoreStatusButton from './StoreStatusButton';
 import LanguageSelector from './LanguageSelector';
+import AiCopilotDrawer from '../AiCopilotDrawer';
 
 export default function Header() {
   const navigate = useNavigate();
   const { profile, store } = useSeller();
   const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState('');
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
 
   const storeName = store?.store_name || 'My Store';
   const initial = (storeName || 'S').charAt(0).toUpperCase();
@@ -67,6 +69,20 @@ export default function Header() {
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <button
+            type="button"
+            id="btn-header-ai-copilot-layout"
+            onClick={() => setIsCopilotOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-extrabold shadow-sm hover:shadow transition-all duration-200 cursor-pointer border border-indigo-400/30 active:scale-95 shrink-0"
+            title="Open ADAB AI Copilot (Gemini 3.5)"
+          >
+            <i className="fa-solid fa-wand-magic-sparkles text-amber-300 text-xs"></i>
+            <span className="hidden md:inline">{t('aiCopilot', 'AI Copilot')}</span>
+            <span className="md:hidden font-bold">AI</span>
+            <span className="hidden xl:inline text-[9px] bg-white/20 text-indigo-100 px-1 py-0.2 rounded-md font-bold">
+              FREE
+            </span>
+          </button>
           <LanguageSelector />
           <StoreStatusButton />
           <Link to="/onboarding" className="btn-primary text-xs !py-1.5 !px-2.5 hidden xl:flex items-center gap-1">
@@ -81,6 +97,13 @@ export default function Header() {
 
       {/* Mobile quick horizontal tab strip */}
       <div className="lg:hidden px-3 py-1.5 border-t border-gray-100 flex gap-2 overflow-x-auto hide-scroll text-xs bg-gray-50/50">
+        <button 
+          type="button"
+          onClick={() => setIsCopilotOpen(true)}
+          className="px-3 py-1 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold whitespace-nowrap text-xs shadow-xs flex items-center gap-1 cursor-pointer shrink-0"
+        >
+          <i className="fa-solid fa-wand-magic-sparkles text-amber-300 text-xs"></i> {t('aiCopilot', 'AI Copilot')}
+        </button>
         <Link to="/" className="px-3 py-1 rounded-full bg-white border border-gray-200 font-bold whitespace-nowrap text-green-800">
           <i className="fa-solid fa-house mr-1 text-green-600"></i> {t('navDashboard', 'Dashboard')}
         </Link>
@@ -97,6 +120,7 @@ export default function Header() {
           <i className="fa-solid fa-wallet mr-1 text-emerald-600"></i> {t('navMoneyCredit', 'Finance')}
         </Link>
       </div>
+      <AiCopilotDrawer isOpen={isCopilotOpen} onClose={() => setIsCopilotOpen(false)} />
     </header>
   );
 }
