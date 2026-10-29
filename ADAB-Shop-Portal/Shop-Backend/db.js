@@ -47,6 +47,22 @@ pool.connect(async (err, client, release) => {
         ALTER TABLE seller_listings ADD COLUMN IF NOT EXISTS refund_percentage NUMERIC(5,2) DEFAULT 100.00;
         ALTER TABLE seller_listings ADD COLUMN IF NOT EXISTS return_window_days INT DEFAULT 7;
         ALTER TABLE returns ADD COLUMN IF NOT EXISTS refund_percentage NUMERIC(5,2) DEFAULT 100.00;
+
+        CREATE TABLE IF NOT EXISTS ai_audit_logs (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          store_id UUID NOT NULL,
+          user_id UUID,
+          prompt TEXT,
+          tool_name TEXT NOT NULL,
+          tool_tier TEXT DEFAULT 'TIER_1_READ',
+          arguments JSONB DEFAULT '{}'::jsonb,
+          result JSONB DEFAULT '{}'::jsonb,
+          success BOOLEAN NOT NULL DEFAULT true,
+          duration_ms INT DEFAULT 0,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_ai_audit_logs_store_id ON ai_audit_logs(store_id);
+        CREATE INDEX IF NOT EXISTS idx_ai_audit_logs_created_at ON ai_audit_logs(created_at);
       `);
     } catch (tableErr) {
       console.error('⚠️ Warning ensuring seller_onboarding_steps table:', tableErr.message);

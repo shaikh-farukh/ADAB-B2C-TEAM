@@ -4,6 +4,15 @@ const { registerOrderTools } = require('./tools/orders');
 // Ensure tools are registered
 registerOrderTools(defaultRegistry);
 
+/**
+ * Masks customer phone numbers to comply with India DPDP Act 2023
+ * @param {string} text
+ */
+function scrubPII(text) {
+  if (!text || typeof text !== 'string') return text;
+  return text.replace(/(\+?91[\s-]?)?([6-9]\d{1})\d{6}(\d{2})/g, '$1$2******$3');
+}
+
 class GeminiMcpClient {
   constructor(apiKey = process.env.GEMINI_API_KEY, model = 'gemini-3.5-flash') {
     this.apiKey = apiKey;
@@ -57,14 +66,14 @@ CRITICAL OPERATIONAL RULES:
     for (const h of history) {
       contents.push({
         role: h.sender === 'user' ? 'user' : 'model',
-        parts: [{ text: h.text }]
+        parts: [{ text: scrubPII(h.text) }]
       });
     }
 
-    // Append current user message
+    // Append current user message (with PII scrubbing for DPDP compliance)
     contents.push({
       role: 'user',
-      parts: [{ text: userPrompt }]
+      parts: [{ text: scrubPII(userPrompt) }]
     });
 
     const declarations = defaultRegistry.getGeminiFunctionDeclarations();
@@ -97,7 +106,10 @@ CRITICAL OPERATIONAL RULES:
 
     // Execute Tool Call
     const { name: toolName, args: toolArgs } = functionCallPart.functionCall;
-    const toolResult = await defaultRegistry.execute(toolName, toolArgs, authContext);
+    const toolResult = await defaultRegistry.execute(toolName, toolArgs, {
+      ...authContext,
+      prompt: userPrompt
+    });
 
     // Feed tool result back to Gemini for final natural language synthesis
     contents.push({

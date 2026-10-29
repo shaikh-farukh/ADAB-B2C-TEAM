@@ -10,11 +10,55 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
   const storeName = store?.store_name || 'My Store';
   const merchantName = profile?.full_name?.split(' ')[0] || 'Merchant';
 
+  const pillLabels = {
+    en: {
+      pack: 'Pack Orders',
+      sales: 'Sales Report',
+      stock: 'Low Stock',
+      gstr: 'GSTR Tax',
+      store: 'Store Status',
+      packPrompt: 'Pack all pending orders',
+      salesPrompt: "Show today's sales summary",
+      stockPrompt: 'Check low stock items',
+      gstrPrompt: 'Show GSTR tax breakdown',
+      storePrompt: 'Is my store open right now?'
+    },
+    hi: {
+      pack: 'ऑर्डर पैक करें',
+      sales: 'बिक्री रिपोर्ट',
+      stock: 'कम स्टॉक',
+      gstr: 'GSTR टैक्स',
+      store: 'दुकान स्थिति',
+      packPrompt: 'सभी लंबित ऑर्डर पैक करें',
+      salesPrompt: 'आज की बिक्री का हिसाब दिखाएं',
+      stockPrompt: 'कम स्टॉक वाले सामान चेक करें',
+      gstrPrompt: 'GSTR टैक्स का हिसाब दिखाएं',
+      storePrompt: 'क्या मेरी दुकान अभी खुली है?'
+    },
+    gu: {
+      pack: 'ઓર્ડર પેક કરો',
+      sales: 'વેચાણ રિપોર્ટ',
+      stock: 'ઓછો સ્ટોક',
+      gstr: 'GSTR ટેક્સ',
+      store: 'દુકાન સ્થિતિ',
+      packPrompt: 'બધા પેન્ડિંગ ઓર્ડર પેક કરો',
+      salesPrompt: 'આજના વેચાણનો રિપોર્ટ બતાવો',
+      stockPrompt: 'ઓછા સ્ટોકવાળા સામાન તપાસો',
+      gstrPrompt: 'GSTR ટેક્સનો હિસાબ બતાવો',
+      storePrompt: 'શું મારી દુકાન અત્યારે ખુલ્લી છે?'
+    }
+  };
+  const activePills = pillLabels[language] || pillLabels.en;
+
   const [messages, setMessages] = useState([
     {
       id: 'welcome',
       sender: 'assistant',
-      text: `Namaste ${merchantName}! 🙏 I am your ADAB Store Copilot powered by Gemini 3.5. You can ask me to pack orders, check inventory, analyze sales, or find B2B suppliers.`,
+      text: language === 'hi'
+        ? `नमस्ते ${merchantName}! 🙏 मैं आपका ADAB स्टोर कोपायलट हूँ (Gemini 3.5)। आप मुझसे ऑर्डर पैक करने, स्टॉक चेक करने, बिक्री का हिसाब या थोक सप्लायर खोजने के लिए कह सकते हैं।`
+        : language === 'gu'
+        ? `નમસ્તે ${merchantName}! 🙏 હું તમારો ADAB સ્ટોર કોપાયલટ છું (Gemini 3.5). તમે મને ઓર્ડર પેક કરવા, સ્ટોક તપાસવા, વેચાણ જોવા અથવા B2B સપ્લાયર શોધવા કહી શકો છો.`
+        : `Namaste ${merchantName}! 🙏 I am your ADAB Store Copilot powered by Gemini 3.5. You can ask me to pack orders, check inventory, analyze sales, or find B2B suppliers.`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -305,34 +349,34 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
         {/* Suggestion Quick Pills */}
         <div className="p-2.5 bg-indigo-50/60 border-b border-indigo-100/60 flex items-center gap-1.5 overflow-x-auto hide-scroll shrink-0">
           <button 
-            onClick={() => handleQuickPrompt('Pack all pending orders')}
+            onClick={() => handleQuickPrompt(activePills.packPrompt)}
             className="px-2.5 py-1 bg-white hover:bg-indigo-100/60 text-indigo-900 border border-indigo-200 rounded-full text-[11px] font-bold whitespace-nowrap transition cursor-pointer shadow-xs flex items-center gap-1"
           >
-            <i className="fa-solid fa-boxes-packing text-indigo-600"></i> Pack Orders
+            <i className="fa-solid fa-boxes-packing text-indigo-600"></i> {activePills.pack}
           </button>
           <button 
-            onClick={() => handleQuickPrompt("Show today's sales summary")}
+            onClick={() => handleQuickPrompt(activePills.salesPrompt)}
             className="px-2.5 py-1 bg-white hover:bg-emerald-100/60 text-emerald-900 border border-emerald-200 rounded-full text-[11px] font-bold whitespace-nowrap transition cursor-pointer shadow-xs flex items-center gap-1"
           >
-            <i className="fa-solid fa-chart-line text-emerald-600"></i> Sales Report
+            <i className="fa-solid fa-chart-line text-emerald-600"></i> {activePills.sales}
           </button>
           <button 
-            onClick={() => handleQuickPrompt('Check low stock items')}
+            onClick={() => handleQuickPrompt(activePills.stockPrompt)}
             className="px-2.5 py-1 bg-white hover:bg-amber-100/60 text-amber-900 border border-amber-200 rounded-full text-[11px] font-bold whitespace-nowrap transition cursor-pointer shadow-xs flex items-center gap-1"
           >
-            <i className="fa-solid fa-triangle-exclamation text-amber-600"></i> Low Stock
+            <i className="fa-solid fa-triangle-exclamation text-amber-600"></i> {activePills.stock}
           </button>
           <button 
-            onClick={() => handleQuickPrompt('Show GSTR tax breakdown')}
+            onClick={() => handleQuickPrompt(activePills.gstrPrompt)}
             className="px-2.5 py-1 bg-white hover:bg-purple-100/60 text-purple-900 border border-purple-200 rounded-full text-[11px] font-bold whitespace-nowrap transition cursor-pointer shadow-xs flex items-center gap-1"
           >
-            <i className="fa-solid fa-file-invoice text-purple-600"></i> GSTR Tax
+            <i className="fa-solid fa-file-invoice text-purple-600"></i> {activePills.gstr}
           </button>
           <button 
-            onClick={() => handleQuickPrompt('Is my store open right now?')}
+            onClick={() => handleQuickPrompt(activePills.storePrompt)}
             className="px-2.5 py-1 bg-white hover:bg-blue-100/60 text-blue-900 border border-blue-200 rounded-full text-[11px] font-bold whitespace-nowrap transition cursor-pointer shadow-xs flex items-center gap-1"
           >
-            <i className="fa-solid fa-store text-blue-600"></i> Store Status
+            <i className="fa-solid fa-store text-blue-600"></i> {activePills.store}
           </button>
         </div>
 
