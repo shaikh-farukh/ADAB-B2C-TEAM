@@ -124,8 +124,8 @@ describe('Complete ADAB MCP Tool Suite Verification', () => {
             store_name: 'Kirana King',
             is_online: true,
             soundbox_enabled: true,
-            open_time: '08:00',
-            close_time: '23:00',
+            open_time: '00:00',
+            close_time: '23:59',
             delivery_radius_km: 8
           }
         ]

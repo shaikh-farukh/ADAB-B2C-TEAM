@@ -254,10 +254,13 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
             };
           } else if ((exec.tool === 'adab_get_store_info' || exec.tool === 'adab_update_store_status') && exec.result?.data) {
             const d = exec.result.data;
+            const effectiveOpen = d.isOpen !== undefined ? Boolean(d.isOpen) : Boolean(d.isOnline);
             widget = {
               type: 'STORE_STATUS_CARD',
               storeName: d.storeName,
+              isOpen: effectiveOpen,
               isOnline: Boolean(d.isOnline),
+              reason: d.reason,
               soundboxEnabled: Boolean(d.soundboxEnabled),
               businessHours: d.businessHours,
               deliveryRadiusKm: d.deliveryRadiusKm
@@ -590,21 +593,21 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                           <div className="text-[10px] text-gray-500">{m.widget.businessHours} • {m.widget.deliveryRadiusKm} km radius</div>
                         </div>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                          m.widget.isOnline ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'
+                          m.widget.isOpen ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'
                         }`}>
-                          {m.widget.isOnline ? '● Open' : '○ Closed'}
+                          {m.widget.isOpen ? '● Open' : '○ Closed'}
                         </span>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-1.5 mt-2.5">
                         <button 
-                          onClick={() => handleSend(m.widget.isOnline ? 'Close my shop for today' : 'Open my shop for incoming orders')}
+                          onClick={() => handleSend(m.widget.isOpen ? 'Close my shop for today' : 'Open my shop for incoming orders')}
                           className={`py-1 px-2 rounded-lg text-[10px] font-bold transition cursor-pointer flex items-center justify-center gap-1 ${
-                            m.widget.isOnline ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200' : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                            m.widget.isOpen ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200' : 'bg-emerald-600 text-white hover:bg-emerald-700'
                           }`}
                         >
-                          <i className={`fa-solid ${m.widget.isOnline ? 'fa-door-closed' : 'fa-door-open'}`}></i>
-                          {m.widget.isOnline ? 'Close Store' : 'Open Store'}
+                          <i className={`fa-solid ${m.widget.isOpen ? 'fa-door-closed' : 'fa-door-open'}`}></i>
+                          {m.widget.isOpen ? 'Close Store' : 'Open Store'}
                         </button>
                         <button 
                           onClick={() => handleSend(m.widget.soundboxEnabled ? 'Mute soundbox voice announcements' : 'Enable voice soundbox for incoming orders')}
