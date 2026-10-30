@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import AiCopilotDrawer from './AiCopilotDrawer';
+import AiCopilotDrawer, { MarkdownMessage } from './AiCopilotDrawer';
 
 // Mock context providers
 vi.mock('../context/SellerContext', () => ({
@@ -75,5 +75,30 @@ describe('AiCopilotDrawer Component (Phase 3 UI Polish)', () => {
     const closeBtn = screen.getByLabelText('Close Assistant');
     fireEvent.click(closeBtn);
     expect(handleClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders markdown bold effect and bullets correctly without raw asterisks', () => {
+    const sample = `Namaste! 🙏\n\nNo, **Mayank Enterprise** is currently **CLOSED**.\n\n* **Operating Hours:** 8:00 AM – 10:00 PM\n* **Status Code:** \`outside_hours\`\n\n---\n### Summary`;
+    const { container } = render(<MarkdownMessage content={sample} isUser={false} />);
+
+    // Bold elements
+    const bolds = container.querySelectorAll('strong');
+    expect(bolds.length).toBe(4); // "Mayank Enterprise", "CLOSED", "Operating Hours:", "Status Code:"
+    expect(bolds[0].textContent).toBe('Mayank Enterprise');
+    expect(bolds[1].textContent).toBe('CLOSED');
+    expect(bolds[2].textContent).toBe('Operating Hours:');
+    expect(bolds[3].textContent).toBe('Status Code:');
+
+    // Code chip
+    const code = container.querySelector('code');
+    expect(code).not.toBeNull();
+    expect(code.textContent).toBe('outside_hours');
+
+    // Divider
+    expect(container.querySelector('hr')).not.toBeNull();
+
+    // No raw asterisks rendered around bold text
+    expect(container.textContent).not.toContain('**Mayank Enterprise**');
+    expect(container.textContent).not.toContain('**CLOSED**');
   });
 });
