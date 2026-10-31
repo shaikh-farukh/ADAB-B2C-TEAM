@@ -225,7 +225,7 @@ const updateStoreStatusTool = {
     values.push(storeId);
     const query = `
       UPDATE stores
-      SET ${fields.join(', ')}, updated_at = NOW()
+      SET ${fields.join(', ')}
       WHERE id = $${idx}::uuid
       RETURNING id, store_name, is_online, soundbox_enabled, delivery_radius_km, open_time, close_time
     `;

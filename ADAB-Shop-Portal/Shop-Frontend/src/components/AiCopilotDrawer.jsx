@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSeller } from '../context/SellerContext';
 import { useTranslation } from '../context/LanguageContext';
 import api from '../services/api';
-import { playNotificationChime } from '../utils/audioAlert';
+import { playNotificationChime, unlockAudioContext } from '../utils/audioAlert';
 
 /**
  * Renders message text with markdown bold (**text**), inline code (`code`),
@@ -263,6 +263,7 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
   };
 
   const handleSend = async (textToSend = input) => {
+    unlockAudioContext();
     const query = textToSend.trim();
     if (!query) return;
 
