@@ -404,8 +404,12 @@ export function SellerProvider({ children }) {
     // If store is closed (either manually or outside hours), clicking it turns it online (is_online: true).
     const currentEffectiveOpen = storeTiming?.isOpen;
     const nextOnline = !currentEffectiveOpen;
-    return await updateStoreSettings({ is_online: nextOnline });
-  }, [storeTiming?.isOpen, updateStoreSettings]);
+    const payload = { is_online: nextOnline };
+    if (nextOnline && !storeTiming?.isWithinHours) {
+      payload.close_time = '23:59:00';
+    }
+    return await updateStoreSettings(payload);
+  }, [storeTiming?.isOpen, storeTiming?.isWithinHours, updateStoreSettings]);
 
   return (
     <SellerContext.Provider

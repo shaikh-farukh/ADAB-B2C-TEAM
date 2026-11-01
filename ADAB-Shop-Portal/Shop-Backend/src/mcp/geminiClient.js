@@ -1,8 +1,8 @@
 const { defaultRegistry } = require('./registry');
-const { registerOrderTools } = require('./tools/orders');
+const { registerAllTools } = require('./tools');
 
-// Ensure tools are registered
-registerOrderTools(defaultRegistry);
+// Ensure all 12 MCP tools across all operational domains are registered
+registerAllTools(defaultRegistry);
 
 /**
  * Masks customer phone numbers to comply with India DPDP Act 2023

@@ -2,7 +2,131 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSeller } from '../context/SellerContext';
 import { useTranslation } from '../context/LanguageContext';
 import api from '../services/api';
-import { playNotificationChime } from '../utils/audioAlert';
+import { playNotificationChime, unlockAudioContext } from '../utils/audioAlert';
+
+/**
+ * Renders message text with markdown bold (**text**), inline code (`code`),
+ * headers (### / ##), dividers (---), and bulleted lists (* item / - item).
+ */
+export function MarkdownMessage({ content, isUser = false }) {
+  if (!content) return null;
+
+  const lines = String(content).split('\n');
+
+  const renderInline = (text) => {
+    if (!text) return null;
+    const regex = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+    const parts = text.split(regex);
+
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+        return (
+          <strong
+            key={i}
+            className={`font-black tracking-tight ${isUser ? 'text-white' : 'text-gray-950 font-bold'}`}
+          >
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+      if (part.startsWith('`') && part.endsWith('`') && part.length >= 2) {
+        return (
+          <code
+            key={i}
+            className={`px-1 py-0.2 rounded font-mono text-[10.5px] ${
+              isUser
+                ? 'bg-white/20 text-white font-medium'
+                : 'bg-gray-100 text-indigo-700 border border-gray-200 font-semibold'
+            }`}
+          >
+            {part.slice(1, -1)}
+          </code>
+        );
+      }
+      return part;
+    });
+  };
+
+  return (
+    <div className="space-y-0.5 leading-relaxed">
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+
+        // Empty line
+        if (!trimmed) {
+          return <div key={idx} className="h-1" />;
+        }
+
+        // Horizontal divider (--- or ***)
+        if (trimmed === '---' || trimmed === '***') {
+          return (
+            <hr
+              key={idx}
+              className={`my-1.5 border-t ${isUser ? 'border-white/20' : 'border-gray-200'}`}
+            />
+          );
+        }
+
+        // Headings (###, ##, #)
+        if (trimmed.startsWith('#')) {
+          const headingText = trimmed.replace(/^#+\s*/, '');
+          return (
+            <div
+              key={idx}
+              className={`font-extrabold text-[12px] mt-1.5 mb-0.5 ${
+                isUser ? 'text-white' : 'text-gray-950'
+              }`}
+            >
+              {renderInline(headingText)}
+            </div>
+          );
+        }
+
+        // Bullet lists (* or -)
+        if (/^[*•-]\s+/.test(trimmed)) {
+          const bulletText = trimmed.replace(/^[*•-]\s+/, '');
+          return (
+            <div key={idx} className="flex items-start gap-1.5 pl-0.5 my-0.5">
+              <span
+                className={`text-[8px] select-none mt-1 shrink-0 ${
+                  isUser ? 'text-white/80' : 'text-indigo-600 font-bold'
+                }`}
+              >
+                ●
+              </span>
+              <div className="flex-1">{renderInline(bulletText)}</div>
+            </div>
+          );
+        }
+
+        // Numbered list (1. 2. etc)
+        const numMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
+        if (numMatch) {
+          const [, num, numText] = numMatch;
+          return (
+            <div key={idx} className="flex items-start gap-1.5 pl-0.5 my-0.5">
+              <span
+                className={`text-[10.5px] font-bold select-none mt-0.2 shrink-0 ${
+                  isUser ? 'text-white/80' : 'text-indigo-700'
+                }`}
+              >
+                {num}.
+              </span>
+              <div className="flex-1">{renderInline(numText)}</div>
+            </div>
+          );
+        }
+
+        // Normal line
+        return (
+          <p key={idx} className="my-0.5">
+            {renderInline(line)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function AiCopilotDrawer({ isOpen, onClose }) {
   const { profile, store } = useSeller();
@@ -139,6 +263,7 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
   };
 
   const handleSend = async (textToSend = input) => {
+    unlockAudioContext();
     const query = textToSend.trim();
     if (!query) return;
 
@@ -254,10 +379,13 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
             };
           } else if ((exec.tool === 'adab_get_store_info' || exec.tool === 'adab_update_store_status') && exec.result?.data) {
             const d = exec.result.data;
+            const effectiveOpen = d.isOpen !== undefined ? Boolean(d.isOpen) : Boolean(d.isOnline);
             widget = {
               type: 'STORE_STATUS_CARD',
               storeName: d.storeName,
+              isOpen: effectiveOpen,
               isOnline: Boolean(d.isOnline),
+              reason: d.reason,
               soundboxEnabled: Boolean(d.soundboxEnabled),
               businessHours: d.businessHours,
               deliveryRadiusKm: d.deliveryRadiusKm
@@ -405,7 +533,7 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                     : 'bg-white text-gray-800 border border-gray-200 rounded-bl-xs'
                 }`}
               >
-                <p className="font-medium whitespace-pre-wrap">{m.text}</p>
+                <MarkdownMessage content={m.text} isUser={m.sender === 'user'} />
 
                 {/* Generative UI Widgets */}
                 {m.widget?.type === 'ORDER_PACK_CARD' && (
@@ -590,21 +718,21 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                           <div className="text-[10px] text-gray-500">{m.widget.businessHours} • {m.widget.deliveryRadiusKm} km radius</div>
                         </div>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                          m.widget.isOnline ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'
+                          m.widget.isOpen ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'
                         }`}>
-                          {m.widget.isOnline ? '● Open' : '○ Closed'}
+                          {m.widget.isOpen ? '● Open' : '○ Closed'}
                         </span>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-1.5 mt-2.5">
                         <button 
-                          onClick={() => handleSend(m.widget.isOnline ? 'Close my shop for today' : 'Open my shop for incoming orders')}
+                          onClick={() => handleSend(m.widget.isOpen ? 'Close my shop for today' : 'Open my shop for incoming orders')}
                           className={`py-1 px-2 rounded-lg text-[10px] font-bold transition cursor-pointer flex items-center justify-center gap-1 ${
-                            m.widget.isOnline ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200' : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                            m.widget.isOpen ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200' : 'bg-emerald-600 text-white hover:bg-emerald-700'
                           }`}
                         >
-                          <i className={`fa-solid ${m.widget.isOnline ? 'fa-door-closed' : 'fa-door-open'}`}></i>
-                          {m.widget.isOnline ? 'Close Store' : 'Open Store'}
+                          <i className={`fa-solid ${m.widget.isOpen ? 'fa-door-closed' : 'fa-door-open'}`}></i>
+                          {m.widget.isOpen ? 'Close Store' : 'Open Store'}
                         </button>
                         <button 
                           onClick={() => handleSend(m.widget.soundboxEnabled ? 'Mute soundbox voice announcements' : 'Enable voice soundbox for incoming orders')}
