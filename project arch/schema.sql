@@ -288,6 +288,22 @@ CREATE TABLE IF NOT EXISTS stores (
 CREATE INDEX IF NOT EXISTS idx_stores_loc ON stores(city, pincode);
 CREATE INDEX IF NOT EXISTS idx_stores_radius ON stores(latitude, longitude);
 
+CREATE TABLE IF NOT EXISTS seller_onboarding_steps (
+    user_id UUID PRIMARY KEY,
+    step1 BOOLEAN DEFAULT false,
+    step2 BOOLEAN DEFAULT false,
+    step3 BOOLEAN DEFAULT false,
+    step4 BOOLEAN DEFAULT false,
+    step5 BOOLEAN DEFAULT false,
+    step6 BOOLEAN DEFAULT false,
+    step7 BOOLEAN DEFAULT false,
+    profile_data JSONB DEFAULT '{}'::jsonb,
+    delivery_config JSONB DEFAULT '{}'::jsonb,
+    credit_config JSONB DEFAULT '{}'::jsonb,
+    starter_products JSONB DEFAULT '[]'::jsonb,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS seller_bank_accounts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     seller_id UUID NOT NULL REFERENCES seller_profiles(id) ON DELETE CASCADE,
@@ -411,13 +427,19 @@ CREATE TABLE IF NOT EXISTS categories (
     id SERIAL PRIMARY KEY,
     slug VARCHAR(100) UNIQUE NOT NULL,
     name VARCHAR(150) NOT NULL,
-    parent_id INT REFERENCES categories(id),
+    parent_id INT REFERENCES categories(id) ON DELETE RESTRICT,
+    level INT NOT NULL DEFAULT 1,
+    materialized_path VARCHAR(500),
+    is_leaf BOOLEAN DEFAULT true,
     icon_class VARCHAR(50),
     image_url TEXT,
     is_active BOOLEAN DEFAULT true,
-    display_order INT DEFAULT 0
+    display_order INT DEFAULT 0,
+    google_product_category_id INT
 );
 CREATE INDEX IF NOT EXISTS idx_cat_slug ON categories(slug);
+CREATE INDEX IF NOT EXISTS idx_categories_materialized_path ON categories(materialized_path);
+CREATE INDEX IF NOT EXISTS idx_categories_parent_id ON categories(parent_id);
 
 CREATE TABLE IF NOT EXISTS brands (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -489,24 +511,28 @@ CREATE INDEX IF NOT EXISTS idx_prod_img_prod ON product_images(product_id, displ
 CREATE TABLE IF NOT EXISTS seller_listings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
-    product_type VARCHAR(30) NOT NULL CHECK (product_type IN ('OWN_BRAND','LOOSE_WEIGHT','PACKED_ITEM')),
-    master_catalog_id UUID REFERENCES master_catalog_items(id),
+    product_type VARCHAR(50) NOT NULL DEFAULT 'PACKED_ITEM' CHECK (product_type IN ('OWN_BRAND','LOOSE_WEIGHT','PACKED_ITEM')),
+    master_catalog_id UUID REFERENCES master_catalog_items(id) ON DELETE SET NULL,
+    manufacturer_product_id INTEGER,
     title VARCHAR(255) NOT NULL,
     sku VARCHAR(100),
     barcode VARCHAR(50),
     brand_tag VARCHAR(100),
     category_id INT NOT NULL REFERENCES categories(id),
-    mrp NUMERIC(10,2) NOT NULL,
-    sell_price NUMERIC(10,2) NOT NULL,
+    mrp NUMERIC(12,2) NOT NULL,
+    sell_price NUMERIC(12,2) NOT NULL,
     unit VARCHAR(20) DEFAULT 'pcs',
-    min_order_qty NUMERIC(8,2) DEFAULT 1.0,
+    stock_qty NUMERIC(12,3) DEFAULT 0.000,
+    min_order_qty NUMERIC(12,3) DEFAULT 1.000,
     allowed_buyers VARCHAR(30) DEFAULT 'ALL' CHECK (allowed_buyers IN ('ALL','CUSTOMERS_ONLY','STORES_ONLY')),
-    approval_status VARCHAR(30) DEFAULT 'PENDING' CHECK (approval_status IN ('DRAFT','PENDING','APPROVED','REJECTED')),
+    approval_status VARCHAR(30) DEFAULT 'DRAFT' CHECK (approval_status IN ('DRAFT','SUBMITTED','PENDING','APPROVED','REJECTED','CHANGES_REQUIRED')),
     rejection_reason TEXT,
     is_active BOOLEAN DEFAULT true,
     is_refundable BOOLEAN DEFAULT true,
     refund_percentage NUMERIC(5,2) DEFAULT 100.00,
     return_window_days INT DEFAULT 7,
+    attributes JSONB DEFAULT '{}'::jsonb,
+    has_variants BOOLEAN DEFAULT false,
     rating NUMERIC(3,2) DEFAULT 5.00,
     review_count INT DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -515,6 +541,9 @@ CREATE TABLE IF NOT EXISTS seller_listings (
 CREATE INDEX IF NOT EXISTS idx_sl_store ON seller_listings(store_id);
 CREATE INDEX IF NOT EXISTS idx_sl_status ON seller_listings(approval_status, is_active);
 CREATE INDEX IF NOT EXISTS idx_sl_type ON seller_listings(product_type);
+CREATE INDEX IF NOT EXISTS idx_seller_listings_attributes ON seller_listings USING gin (attributes);
+CREATE INDEX IF NOT EXISTS idx_seller_listings_master_catalog ON seller_listings(master_catalog_id);
+CREATE INDEX IF NOT EXISTS idx_seller_listings_manufacturer_product ON seller_listings(manufacturer_product_id);
 
 CREATE TABLE IF NOT EXISTS listing_attributes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -534,6 +563,87 @@ CREATE TABLE IF NOT EXISTS listing_documents (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_ld_listing ON listing_documents(listing_id);
+
+-- Dynamic Catalog Specifications & Multi-SKU Variant Architecture
+CREATE TABLE IF NOT EXISTS category_aliases (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    category_id INT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+    alias_term VARCHAR(255) NOT NULL,
+    language_code VARCHAR(10) DEFAULT 'en',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_category_alias UNIQUE (category_id, alias_term)
+);
+CREATE INDEX IF NOT EXISTS idx_category_aliases_term ON category_aliases (alias_term);
+CREATE INDEX IF NOT EXISTS idx_category_aliases_cat ON category_aliases (category_id);
+
+CREATE TABLE IF NOT EXISTS attribute_definitions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code VARCHAR(100) NOT NULL UNIQUE,
+    label VARCHAR(255) NOT NULL,
+    description TEXT,
+    data_type VARCHAR(50) NOT NULL,
+    ui_type VARCHAR(50) NOT NULL,
+    allowed_values JSONB DEFAULT '[]'::jsonb,
+    unit_options JSONB DEFAULT '[]'::jsonb,
+    validation_regex VARCHAR(255),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_attribute_definitions_code ON attribute_definitions(code);
+
+CREATE TABLE IF NOT EXISTS category_attributes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    category_id INT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+    attribute_id UUID NOT NULL REFERENCES attribute_definitions(id) ON DELETE CASCADE,
+    is_required BOOLEAN DEFAULT false,
+    is_variant_key BOOLEAN DEFAULT false,
+    is_filter_facet BOOLEAN DEFAULT false,
+    display_order INT DEFAULT 0,
+    section_group VARCHAR(100) DEFAULT 'General',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_cat_attr UNIQUE (category_id, attribute_id)
+);
+CREATE INDEX IF NOT EXISTS idx_category_attributes_cat ON category_attributes(category_id);
+CREATE INDEX IF NOT EXISTS idx_category_attributes_attr ON category_attributes(attribute_id);
+
+CREATE TABLE IF NOT EXISTS listing_variants (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    listing_id UUID NOT NULL REFERENCES seller_listings(id) ON DELETE CASCADE,
+    sku VARCHAR(100) NOT NULL,
+    barcode VARCHAR(100),
+    mrp NUMERIC(12, 2) NOT NULL,
+    sell_price NUMERIC(12, 2) NOT NULL,
+    stock_qty NUMERIC(12, 3) NOT NULL DEFAULT 0.000,
+    variant_attributes JSONB NOT NULL DEFAULT '{}'::jsonb,
+    image_url TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_listing_variant_sku UNIQUE (listing_id, sku)
+);
+CREATE INDEX IF NOT EXISTS idx_listing_variants_listing_id ON listing_variants(listing_id);
+CREATE INDEX IF NOT EXISTS idx_listing_variants_barcode ON listing_variants(barcode) WHERE barcode IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_listing_variants_attributes ON listing_variants USING gin (variant_attributes);
+
+CREATE TABLE IF NOT EXISTS taxonomy_versions (
+    version_tag VARCHAR(50) PRIMARY KEY,
+    description TEXT,
+    migration_file VARCHAR(255),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS catalog_promotion_audit (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+    source_type VARCHAR(50) NOT NULL,
+    source_id VARCHAR(100) NOT NULL,
+    target_listing_id UUID REFERENCES seller_listings(id) ON DELETE SET NULL,
+    curation_notes TEXT,
+    action_by UUID,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_catalog_promo_audit_store ON catalog_promotion_audit(store_id);
+
 
 CREATE TABLE IF NOT EXISTS product_approval_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -749,9 +859,10 @@ CREATE TABLE IF NOT EXISTS cart_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     cart_id UUID NOT NULL REFERENCES carts(id) ON DELETE CASCADE,
     listing_id UUID NOT NULL REFERENCES seller_listings(id),
-    quantity NUMERIC(8,2) NOT NULL DEFAULT 1,
+    variant_id UUID REFERENCES listing_variants(id) ON DELETE SET NULL,
+    quantity NUMERIC(12,3) NOT NULL DEFAULT 1.000,
     added_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(cart_id, listing_id)
+    UNIQUE(cart_id, listing_id, variant_id)
 );
 CREATE INDEX IF NOT EXISTS idx_ci_cart ON cart_items(cart_id);
 
@@ -905,8 +1016,9 @@ CREATE TABLE IF NOT EXISTS order_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     seller_order_id UUID NOT NULL REFERENCES seller_orders(id) ON DELETE CASCADE,
     listing_id UUID NOT NULL REFERENCES seller_listings(id),
+    variant_id UUID REFERENCES listing_variants(id) ON DELETE SET NULL,
     product_name VARCHAR(255) NOT NULL,
-    quantity NUMERIC(8,2) NOT NULL,
+    quantity NUMERIC(12,3) NOT NULL,
     unit_price NUMERIC(10,2) NOT NULL,
     total_price NUMERIC(10,2) NOT NULL
 );
@@ -1737,6 +1849,638 @@ CREATE TABLE IF NOT EXISTS scheduled_reports (
     is_active BOOLEAN DEFAULT true,
     last_run_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ai_audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    store_id UUID NOT NULL,
+    user_id UUID,
+    prompt TEXT,
+    tool_name TEXT NOT NULL,
+    tool_tier TEXT DEFAULT 'TIER_1_READ',
+    arguments JSONB DEFAULT '{}'::jsonb,
+    result JSONB DEFAULT '{}'::jsonb,
+    success BOOLEAN NOT NULL DEFAULT true,
+    duration_ms INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ai_audit_logs_store_id ON ai_audit_logs(store_id);
+CREATE INDEX IF NOT EXISTS idx_ai_audit_logs_created_at ON ai_audit_logs(created_at);
+
+
+-- =========================================================================
+-- DOMAIN 11: B2B COMMERCE & MANUFACTURER PLATFORM (Standalone & Hybrid B2B)
+-- =========================================================================
+
+-- 1. B2B User Types & Roles
+CREATE TABLE IF NOT EXISTS manage_b_to_b_user_type (
+    id SERIAL PRIMARY KEY,
+    typename VARCHAR(100) UNIQUE NOT NULL,
+    description TEXT,
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. Geographic Coverage: State & City
+CREATE TABLE IF NOT EXISTS state (
+    id SERIAL PRIMARY KEY,
+    state_name VARCHAR(100) NOT NULL,
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS city (
+    id SERIAL PRIMARY KEY,
+    state_id INTEGER REFERENCES state(id),
+    city_name VARCHAR(100) NOT NULL,
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. B2B Campaigns & Marketing
+CREATE TABLE IF NOT EXISTS campaigns (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(100),
+    description TEXT,
+    start_date TIMESTAMP,
+    end_date TIMESTAMP,
+    created_by INTEGER,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS campaign_notifications (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255),
+    message TEXT,
+    target_role VARCHAR(50),
+    created_by INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS campaign_deliveries (
+    id SERIAL PRIMARY KEY,
+    campaign_notification_id INTEGER,
+    user_id INTEGER,
+    delivered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(50) DEFAULT 'delivered'
+);
+
+-- 4. B2B User Profiles & Discovery
+CREATE TABLE IF NOT EXISTS manage_b_to_b_userdetail (
+    id SERIAL PRIMARY KEY,
+    business_type_id INTEGER REFERENCES manage_b_to_b_user_type(id),
+    company_name VARCHAR(255),
+    owner_name VARCHAR(255),
+    contact_person VARCHAR(255),
+    email VARCHAR(255) UNIQUE,
+    mobile VARCHAR(20),
+    password VARCHAR(255),
+    gst_number VARCHAR(50),
+    pan_number VARCHAR(50),
+    kyc_status VARCHAR(50) DEFAULT 'PENDING',
+    address TEXT,
+    city VARCHAR(100),
+    state VARCHAR(100),
+    country VARCHAR(100) DEFAULT 'India',
+    pincode VARCHAR(20),
+    latitude NUMERIC(10,8),
+    longitude NUMERIC(11,8),
+    fk_state INTEGER REFERENCES state(id),
+    fk_city INTEGER REFERENCES city(id),
+    serviceable_pincodes VARCHAR(10)[],
+    is_featured BOOLEAN DEFAULT false,
+    campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL,
+    product_category VARCHAR(255),
+    age INTEGER,
+    gender VARCHAR(20),
+    personal_contact VARCHAR(20),
+    personal_email VARCHAR(255),
+    bank_name VARCHAR(255),
+    bank_account_no VARCHAR(100),
+    ifsc_code VARCHAR(50),
+    refresh_token VARCHAR(255),
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS shopdetail (
+    id SERIAL PRIMARY KEY,
+    shop_name VARCHAR(255),
+    owner_name VARCHAR(255),
+    first_name VARCHAR(255),
+    email_id VARCHAR(255),
+    mobile_number VARCHAR(20),
+    password VARCHAR(255),
+    gst_id VARCHAR(50),
+    fk_city INTEGER,
+    fk_state INTEGER,
+    fk_country INTEGER,
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    delete_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS territory_assignments (
+    id SERIAL PRIMARY KEY,
+    manufacturer_id INTEGER,
+    territory_name VARCHAR(255),
+    state VARCHAR(100),
+    city VARCHAR(100),
+    pincode VARCHAR(20),
+    state_id INTEGER,
+    city_id INTEGER,
+    distributor_id INTEGER,
+    status VARCHAR(50) DEFAULT 'active',
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+-- 5. B2B Taxonomy & Manufacturer Products
+CREATE TABLE IF NOT EXISTS manage_b_to_b_categories (
+    id SERIAL PRIMARY KEY,
+    manufacturer_id INTEGER,
+    category_name VARCHAR(255) NOT NULL,
+    description TEXT,
+    image_url TEXT,
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS manage_b_to_b_subcategories (
+    id SERIAL PRIMARY KEY,
+    category_id INTEGER REFERENCES manage_b_to_b_categories(id) ON DELETE CASCADE,
+    subcategory_name VARCHAR(255) NOT NULL,
+    description TEXT,
+    image_url TEXT,
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+
+CREATE TABLE IF NOT EXISTS distributor_products (
+    id SERIAL PRIMARY KEY,
+    distributor_id INTEGER,
+    product_name VARCHAR(255),
+    sku VARCHAR(100),
+    category VARCHAR(100),
+    price DECIMAL(12,2) DEFAULT 0,
+    stock INTEGER DEFAULT 0,
+    status VARCHAR(50) DEFAULT 'ACTIVE',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    product_id INTEGER,
+    stock_quantity INTEGER DEFAULT 0,
+    is_published BOOLEAN DEFAULT true,
+    CONSTRAINT unique_distributor_product UNIQUE (distributor_id, product_id)
+);
+
+CREATE TABLE IF NOT EXISTS manage_manufacturer_products (
+    id SERIAL PRIMARY KEY,
+    manufacturer_id INTEGER NOT NULL,
+    category_id INTEGER,
+    subcategory_id INTEGER,
+    category VARCHAR(255),
+    sub_category VARCHAR(255),
+    product_name VARCHAR(255) NOT NULL,
+    sku VARCHAR(100),
+    description TEXT,
+    unit VARCHAR(50) DEFAULT 'pcs',
+    price NUMERIC(12,2) DEFAULT 0,
+    mrp NUMERIC(12,2) DEFAULT 0,
+    manufacturer_price NUMERIC(12,2),
+    distributor_price NUMERIC(12,2),
+    retail_price NUMERIC(12,2),
+    moq INTEGER DEFAULT 1,
+    total_stock INTEGER DEFAULT 0,
+    stock_quantity INTEGER DEFAULT 0,
+    north_hub INTEGER DEFAULT 0,
+    south_hub INTEGER DEFAULT 0,
+    central_hub INTEGER DEFAULT 0,
+    image_url TEXT,
+    image TEXT,
+    product_image TEXT,
+    tier_pricing JSONB,
+    status VARCHAR(50) DEFAULT 'active',
+    active BOOLEAN DEFAULT true,
+    created_by INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+-- 6. B2B Cart, Orders & Procurement
+CREATE TABLE IF NOT EXISTS manage_b_to_b_cart (
+    id SERIAL PRIMARY KEY,
+    distributor_id INTEGER NOT NULL,
+    product_id INTEGER REFERENCES manage_manufacturer_products(id) ON DELETE CASCADE,
+    quantity INTEGER DEFAULT 1,
+    unit_price NUMERIC(12,2) DEFAULT 0,
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS manage_b_to_b_orders (
+    id SERIAL PRIMARY KEY,
+    order_number VARCHAR(100) UNIQUE NOT NULL,
+    distributor_id INTEGER NOT NULL,
+    manufacturer_id INTEGER NOT NULL,
+    shop_id INTEGER,
+    total_amount NUMERIC(12,2) DEFAULT 0,
+    tax_amount NUMERIC(12,2) DEFAULT 0,
+    discount_amount NUMERIC(12,2) DEFAULT 0,
+    delivery_charge NUMERIC(10,2) DEFAULT 0.00,
+    final_amount NUMERIC(12,2) DEFAULT 0,
+    status VARCHAR(50) DEFAULT 'PENDING',
+    payment_status VARCHAR(50) DEFAULT 'UNPAID',
+    delivery_mode VARCHAR(50) DEFAULT 'Standard Ground Shipping',
+    payment_mode VARCHAR(50) DEFAULT 'CASH',
+    tracking_number VARCHAR(100),
+    shipping_address TEXT,
+    active BOOLEAN DEFAULT true,
+    order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS manage_b_to_b_order_items (
+    id SERIAL PRIMARY KEY,
+    order_id INTEGER REFERENCES manage_b_to_b_orders(id) ON DELETE CASCADE,
+    product_id INTEGER REFERENCES manage_manufacturer_products(id),
+    product_name VARCHAR(255),
+    quantity INTEGER NOT NULL,
+    unit_price NUMERIC(12,2) NOT NULL,
+    total_price NUMERIC(12,2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS manage_b_to_b_order_status_history (
+    id SERIAL PRIMARY KEY,
+    order_id INTEGER REFERENCES manage_b_to_b_orders(id) ON DELETE CASCADE,
+    status VARCHAR(50) NOT NULL,
+    notes TEXT,
+    updated_by INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS manage_b2b_purchase_order (
+    id SERIAL PRIMARY KEY,
+    order_number VARCHAR(100),
+    distributor_id INTEGER,
+    manufacturer_id INTEGER,
+    total_amount NUMERIC(12,2) DEFAULT 0,
+    status VARCHAR(50) DEFAULT 'PENDING',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    item_count INTEGER DEFAULT 1,
+    notes TEXT,
+    delivery_date DATE,
+    fk_supplier_detail INTEGER,
+    fk_shop_detail INTEGER,
+    tax NUMERIC(12,2) DEFAULT 0,
+    grand_total NUMERIC(12,2) DEFAULT 0,
+    paid_amount NUMERIC(12,2) DEFAULT 0,
+    due_amount NUMERIC(12,2) DEFAULT 0,
+    payment_status VARCHAR(50) DEFAULT 'UNPAID',
+    po_number VARCHAR(100)
+);
+
+CREATE TABLE IF NOT EXISTS manage_b2b_purchase_order_detail (
+    id SERIAL PRIMARY KEY,
+    fk_purchase_order INTEGER REFERENCES manage_b2b_purchase_order(id) ON DELETE CASCADE,
+    product_id INTEGER,
+    product_name VARCHAR(255),
+    quantity INTEGER,
+    price NUMERIC(12,2),
+    tax NUMERIC(12,2),
+    grand_total NUMERIC(12,2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fk_product INTEGER,
+    unit_price NUMERIC(12,2)
+);
+
+-- 7. B2B Access & Connection RFQs
+CREATE TABLE IF NOT EXISTS manage_b_to_b_request_access (
+    id SERIAL PRIMARY KEY,
+    distributor_id INTEGER,
+    manufacturer_id INTEGER,
+    name VARCHAR(255),
+    email_distributer VARCHAR(255),
+    email_manufacturer VARCHAR(255),
+    description TEXT,
+    unique_request_id VARCHAR(100),
+    distributer_request INTEGER DEFAULT 1,
+    manufacture_request INTEGER DEFAULT 1,
+    request_type VARCHAR(50) DEFAULT 'CONNECTION',
+    status VARCHAR(50) DEFAULT 'PENDING',
+    proposed_price NUMERIC(12,2),
+    counter_price NUMERIC(12,2),
+    notes TEXT,
+    active BOOLEAN DEFAULT true,
+    created_by INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+-- 8. Settlements, Invoices & Financials
+CREATE TABLE IF NOT EXISTS manage_b_to_b_settlements (
+    id SERIAL PRIMARY KEY,
+    settlement_number VARCHAR(100) UNIQUE,
+    manufacturer_id INTEGER,
+    shop_id INTEGER,
+    total_invoice_amount NUMERIC(12,2) DEFAULT 0,
+    total_collected NUMERIC(12,2) DEFAULT 0,
+    commission NUMERIC(12,2) DEFAULT 0,
+    pg_charges NUMERIC(12,2) DEFAULT 0,
+    returns_amount NUMERIC(12,2) DEFAULT 0,
+    tds NUMERIC(12,2) DEFAULT 0,
+    net_payable NUMERIC(12,2) DEFAULT 0,
+    status VARCHAR(50) DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by INTEGER,
+    modified_at TIMESTAMP,
+    modified_by INTEGER,
+    deleted_at TIMESTAMP,
+    deleted_by INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS manage_b_to_b_invoices (
+    id SERIAL PRIMARY KEY,
+    invoice_number VARCHAR(100) UNIQUE,
+    order_id INTEGER REFERENCES manage_b_to_b_orders(id),
+    distributor_id INTEGER,
+    manufacturer_id INTEGER,
+    shop_id INTEGER,
+    settlement_id INTEGER,
+    total_amount NUMERIC(12,2) DEFAULT 0,
+    subtotal NUMERIC(12,2) DEFAULT 0,
+    tax_amount NUMERIC(12,2) DEFAULT 0,
+    gst_percentage NUMERIC(5,2) DEFAULT 0,
+    status VARCHAR(50) DEFAULT 'issued',
+    due_date DATE,
+    invoice_pdf_url TEXT,
+    items_json JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by INTEGER,
+    modified_at TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS manage_b_to_b_payments (
+    id SERIAL PRIMARY KEY,
+    distributor_id INTEGER,
+    shop_id INTEGER,
+    manufacturer_id INTEGER,
+    invoice_id INTEGER REFERENCES manage_b_to_b_invoices(id),
+    amount NUMERIC(12,2) DEFAULT 0,
+    mode VARCHAR(50),
+    reference_id VARCHAR(120),
+    status VARCHAR(50) DEFAULT 'completed',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by INTEGER,
+    deleted_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS manage_b_to_b_payment_allocations (
+    id SERIAL PRIMARY KEY,
+    payment_id INTEGER REFERENCES manage_b_to_b_payments(id),
+    invoice_id INTEGER REFERENCES manage_b_to_b_invoices(id),
+    allocated_amount NUMERIC(12,2) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(payment_id, invoice_id)
+);
+
+CREATE TABLE IF NOT EXISTS manage_b_to_b_credit_notes (
+    id SERIAL PRIMARY KEY,
+    credit_note_number VARCHAR(100) UNIQUE,
+    invoice_id INTEGER REFERENCES manage_b_to_b_invoices(id),
+    manufacturer_id INTEGER,
+    distributor_id INTEGER,
+    shop_id INTEGER,
+    amount NUMERIC(12,2) DEFAULT 0,
+    reason TEXT,
+    status VARCHAR(50) DEFAULT 'approved',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by INTEGER,
+    deleted_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS manage_b_to_b_ledger_entries (
+    id SERIAL PRIMARY KEY,
+    distributor_id INTEGER,
+    shop_id INTEGER,
+    type VARCHAR(50),
+    reference_id INTEGER,
+    description TEXT,
+    debit NUMERIC(12,2) DEFAULT 0,
+    credit NUMERIC(12,2) DEFAULT 0,
+    balance NUMERIC(12,2) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS relationship_credits (
+    id SERIAL PRIMARY KEY,
+    creditor_id INTEGER NOT NULL,
+    debtor_id INTEGER NOT NULL,
+    debtor_type VARCHAR(50) NOT NULL,
+    credit_limit NUMERIC(12,2) DEFAULT 0,
+    credit_days INTEGER DEFAULT 30,
+    outstanding_amount NUMERIC(12,2) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    modified_at TIMESTAMP,
+    UNIQUE(creditor_id, debtor_id, debtor_type)
+);
+
+CREATE TABLE IF NOT EXISTS manage_b_to_b_payouts (
+    id SERIAL PRIMARY KEY,
+    settlement_id INTEGER REFERENCES manage_b_to_b_settlements(id),
+    amount NUMERIC(12,2) DEFAULT 0,
+    status VARCHAR(50) DEFAULT 'completed',
+    transaction_ref VARCHAR(120),
+    failure_reason TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by INTEGER
+);
+
+-- 9. Razorpay Payment Gateway Integration
+CREATE TABLE IF NOT EXISTS razorpay_checkouts (
+    id SERIAL PRIMARY KEY,
+    distributor_id INTEGER NOT NULL,
+    razorpay_order_id VARCHAR(100) UNIQUE,
+    razorpay_payment_id VARCHAR(100),
+    amount_paise BIGINT NOT NULL,
+    amount_rupees NUMERIC(12,2) NOT NULL,
+    currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+    status VARCHAR(30) DEFAULT 'INITIATED' CHECK (status IN ('INITIATED','CREATED','PENDING','AUTHORIZED','CAPTURED','FAILED','CANCELLED','PROVIDER_ERROR','REFUNDED')),
+    payment_method VARCHAR(50),
+    signature_verified BOOLEAN DEFAULT FALSE,
+    webhook_verified BOOLEAN DEFAULT FALSE,
+    verification_source VARCHAR(20),
+    verified_at TIMESTAMP,
+    failure_reason TEXT,
+    error_code VARCHAR(100),
+    error_description TEXT,
+    idempotency_key VARCHAR(100) UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    captured_at TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_rzp_co_distributor ON razorpay_checkouts(distributor_id);
+CREATE INDEX IF NOT EXISTS idx_rzp_co_order ON razorpay_checkouts(razorpay_order_id);
+CREATE INDEX IF NOT EXISTS idx_rzp_co_payment ON razorpay_checkouts(razorpay_payment_id);
+CREATE INDEX IF NOT EXISTS idx_rzp_co_status ON razorpay_checkouts(status);
+
+CREATE TABLE IF NOT EXISTS razorpay_checkout_orders (
+    id SERIAL PRIMARY KEY,
+    checkout_id INTEGER NOT NULL REFERENCES razorpay_checkouts(id),
+    order_id INTEGER NOT NULL REFERENCES manage_b_to_b_orders(id),
+    manufacturer_id INTEGER NOT NULL,
+    order_amount_paise BIGINT NOT NULL,
+    order_amount_rupees NUMERIC(12,2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(checkout_id, order_id)
+);
+CREATE INDEX IF NOT EXISTS idx_rzp_co_orders_checkout ON razorpay_checkout_orders(checkout_id);
+CREATE INDEX IF NOT EXISTS idx_rzp_co_orders_order ON razorpay_checkout_orders(order_id);
+
+CREATE TABLE IF NOT EXISTS razorpay_webhook_events (
+    id SERIAL PRIMARY KEY,
+    event_id VARCHAR(100) NOT NULL UNIQUE,
+    event_type VARCHAR(100) NOT NULL,
+    razorpay_order_id VARCHAR(100),
+    razorpay_payment_id VARCHAR(100),
+    processing_status VARCHAR(30) DEFAULT 'RECEIVED' CHECK (processing_status IN ('RECEIVED','PROCESSING','PROCESSED','SKIPPED','FAILED')),
+    skip_reason VARCHAR(200),
+    processing_error TEXT,
+    received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    processed_at TIMESTAMP,
+    source_ip VARCHAR(45),
+    payload_summary JSONB
+);
+CREATE INDEX IF NOT EXISTS idx_rzp_wh_event_id ON razorpay_webhook_events(event_id);
+CREATE INDEX IF NOT EXISTS idx_rzp_wh_order_id ON razorpay_webhook_events(razorpay_order_id);
+CREATE INDEX IF NOT EXISTS idx_rzp_wh_status ON razorpay_webhook_events(processing_status);
+
+-- 10. Logistics & Fleet Management
+CREATE TABLE IF NOT EXISTS manage_b_to_b_logistics_providers (
+    id SERIAL PRIMARY KEY,
+    owner_id INTEGER,
+    provider_name VARCHAR(255),
+    contact_person VARCHAR(255),
+    mobile VARCHAR(20),
+    email VARCHAR(255),
+    address TEXT,
+    gst_number VARCHAR(100),
+    active_status BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS manage_b_to_b_drivers (
+    id SERIAL PRIMARY KEY,
+    owner_id INTEGER,
+    logistics_provider_id INTEGER REFERENCES manage_b_to_b_logistics_providers(id),
+    driver_name VARCHAR(255),
+    mobile VARCHAR(20),
+    license_number VARCHAR(100),
+    license_expiry_date DATE,
+    aadhaar_number VARCHAR(100),
+    emergency_contact VARCHAR(20),
+    is_available BOOLEAN DEFAULT true,
+    status VARCHAR(50) DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS manage_b_to_b_vehicles (
+    id SERIAL PRIMARY KEY,
+    owner_id INTEGER,
+    logistics_provider_id INTEGER REFERENCES manage_b_to_b_logistics_providers(id),
+    driver_id INTEGER REFERENCES manage_b_to_b_drivers(id),
+    vehicle_number VARCHAR(100),
+    vehicle_type VARCHAR(100),
+    capacity VARCHAR(100),
+    insurance_expiry_date DATE,
+    permit_expiry_date DATE,
+    is_available BOOLEAN DEFAULT true,
+    status VARCHAR(50) DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS manage_b_to_b_vehicle_routes (
+    id SERIAL PRIMARY KEY,
+    owner_id INTEGER,
+    vehicle_id INTEGER REFERENCES manage_b_to_b_vehicles(id),
+    driver_id INTEGER REFERENCES manage_b_to_b_drivers(id),
+    order_id INTEGER REFERENCES manage_b_to_b_orders(id),
+    route_name VARCHAR(255),
+    source_location VARCHAR(255),
+    destination_location VARCHAR(255),
+    waypoints JSONB,
+    estimated_distance_km NUMERIC(8,2),
+    estimated_time_hours NUMERIC(6,2),
+    status VARCHAR(50) DEFAULT 'SCHEDULED',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 11. B2B Support & Auditing
+CREATE TABLE IF NOT EXISTS manage_b_to_b_support_tickets (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER,
+    subject VARCHAR(255),
+    message TEXT,
+    status VARCHAR(50) DEFAULT 'OPEN',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS manage_b_to_b_contact_submissions (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255),
+    email VARCHAR(255),
+    phone VARCHAR(20),
+    message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS manage_b_to_b_audit_logs (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER,
+    user_role VARCHAR(50),
+    action VARCHAR(100),
+    entity_type VARCHAR(100),
+    entity_id INTEGER,
+    resource VARCHAR(100),
+    resource_id VARCHAR(100),
+    ip_address VARCHAR(50),
+    details JSONB,
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS audit_trail (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER,
+    user_role VARCHAR(50),
+    action VARCHAR(100),
+    endpoint VARCHAR(255),
+    ip_address VARCHAR(50),
+    details JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- =========================================================================

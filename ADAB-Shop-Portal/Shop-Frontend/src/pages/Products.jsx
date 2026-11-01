@@ -5,6 +5,11 @@ import { useListings } from '../hooks/useListings';
 import { useTranslation } from '../context/LanguageContext';
 import listingService from '../services/listingService';
 import { sellerApi } from '../api/sellerApi';
+import CategoryCascader from '../components/catalog/CategoryCascader';
+import PackedItemSelector from '../components/catalog/PackedItemSelector';
+import BarcodeScannerInput from '../components/catalog/BarcodeScannerInput';
+import DynamicAttributeForm from '../components/catalog/DynamicAttributeForm';
+import VariantMatrixBuilder from '../components/catalog/VariantMatrixBuilder';
 
 const FMCG_MASTER_CATALOG = [
   { id: 'tata-salt-1kg', name: 'Tata Salt Vacuum Evaporated Iodised 1kg', brand: 'Tata', barcode: '8901030383749', mrp: 28, sell_price: 25, unit: 'pack', category_id: 3 },
@@ -46,6 +51,7 @@ const Products = () => {
   const [isDeletingBatch, setIsDeletingBatch] = useState(false);
   const [listingIssues, setListingIssues] = useState({});
   const [categories, setCategories] = useState([]);
+  const [categoryTree, setCategoryTree] = useState([]);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const fileInputRef = useRef(null);
   const { uploadJobs, setUploadJobs } = useSeller();
@@ -64,7 +70,11 @@ const Products = () => {
   useEffect(() => {
     const fetchCats = async () => {
       try {
-        const res = await listingService.getCategories();
+        const [res, treeRes] = await Promise.all([
+          listingService.getCategories(),
+          listingService.getCategoryTree()
+        ]);
+        if (treeRes?.data) setCategoryTree(treeRes.data);
         const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
         setCategories(list);
       } catch (err) {
@@ -252,7 +262,12 @@ const Products = () => {
     stock_qty: 0,
     is_refundable: true,
     refund_percentage: 100,
-    return_window_days: 7
+    return_window_days: 7,
+    attributes: {},
+    has_variants: false,
+    variants: [],
+    master_catalog_id: null,
+    manufacturer_product_id: null
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -298,6 +313,24 @@ const Products = () => {
 
   const handleFormChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleCatalogProductSelect = (item) => {
+    setFormData(prev => ({
+      ...prev,
+      title: item.title,
+      brand_tag: item.brand_tag,
+      mrp: item.mrp,
+      sell_price: item.sell_price || item.mrp,
+      unit: item.unit || prev.unit,
+      barcode: item.barcode || prev.barcode,
+      image_url: item.image_url || prev.image_url,
+      category_id: item.category_id || prev.category_id,
+      attributes: { ...(typeof prev.attributes === 'object' && prev.attributes !== null && !Array.isArray(prev.attributes) ? prev.attributes : {}), ...(item.attributes || {}) },
+      master_catalog_id: item.master_catalog_id || null,
+      manufacturer_product_id: item.manufacturer_product_id || null,
+      product_type: 'PACKED_ITEM'
+    }));
   };
 
   const handleCatalogSelect = (e) => {
@@ -359,14 +392,24 @@ const Products = () => {
       is_active: listing.is_active !== undefined ? listing.is_active : true,
       is_refundable: listing.is_refundable !== false,
       refund_percentage: listing.refund_percentage !== undefined && listing.refund_percentage !== null ? listing.refund_percentage : 100,
-      return_window_days: listing.return_window_days !== undefined && listing.return_window_days !== null ? listing.return_window_days : 7
+      return_window_days: listing.return_window_days !== undefined && listing.return_window_days !== null ? listing.return_window_days : 7,
+      attributes: listing.attributes || {},
+      has_variants: Boolean(listing.has_variants),
+      variants: listing.variants || [],
+      master_catalog_id: listing.master_catalog_id || null,
+      manufacturer_product_id: listing.manufacturer_product_id || null
     });
     setShowModal(true);
   };
 
   const handleProductTypeChange = (newType) => {
     setFormData(prev => {
-      const updated = { ...prev, product_type: newType };
+      const updated = { 
+        ...prev, 
+        product_type: newType,
+        master_catalog_id: newType === 'PACKED_ITEM' ? prev.master_catalog_id : null,
+        manufacturer_product_id: newType === 'PACKED_ITEM' ? prev.manufacturer_product_id : null
+      };
       if (newType === 'LOOSE_WEIGHT') {
         // Loose products do not have brand tag, barcode, or SKU
         updated.brand_tag = '';
@@ -396,7 +439,14 @@ const Products = () => {
         category_id: formData.category_id ? parseInt(formData.category_id, 10) : null,
         mrp: parseFloat(formData.mrp || formData.sell_price), 
         sell_price: parseFloat(formData.sell_price),
-        stock_qty: parseInt(formData.stock_qty || 0, 10),
+        stock_qty: formData.has_variants && Array.isArray(formData.variants) && formData.variants.length > 0
+          ? formData.variants.reduce((acc, v) => acc + (parseFloat(v.stock_qty) || 0), 0)
+          : parseFloat(formData.stock_qty || 0),
+        attributes: (formData.attributes && typeof formData.attributes === 'object' && !Array.isArray(formData.attributes)) ? formData.attributes : {},
+        has_variants: Boolean(formData.has_variants),
+        variants: formData.variants || [],
+        master_catalog_id: formData.master_catalog_id || null,
+        manufacturer_product_id: formData.manufacturer_product_id || null,
         wholesale_price: formData.wholesale_price ? parseFloat(formData.wholesale_price) : null,
         sample_available: formData.sample_available !== false,
         is_refundable: formData.is_refundable !== false,
@@ -404,6 +454,22 @@ const Products = () => {
         return_window_days: formData.return_window_days !== '' && formData.return_window_days !== undefined ? parseInt(formData.return_window_days, 10) : 7
       };
       
+      // Legal MRP Ceiling Validation
+      if (dataToSave.sell_price > dataToSave.mrp) {
+        alert(`Sell price (₹${dataToSave.sell_price}) cannot be greater than Printed MRP (₹${dataToSave.mrp}).`);
+        return;
+      }
+
+      if (dataToSave.has_variants && Array.isArray(dataToSave.variants)) {
+        for (const v of dataToSave.variants) {
+          const varMrp = v.mrp > 0 ? v.mrp : dataToSave.mrp;
+          if (v.sell_price > varMrp) {
+            alert(`Variant "${v.sku}" sell price (₹${v.sell_price}) cannot be greater than Printed MRP (₹${varMrp}).`);
+            return;
+          }
+        }
+      }
+
       // Strict field sanitization per product type
       if (dataToSave.product_type === 'LOOSE_WEIGHT') {
         dataToSave.brand_tag = null;
@@ -781,6 +847,21 @@ const Products = () => {
                                 {l.approval_status === 'CHANGES_REQUIRED' && <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-orange-200">{t('badgeChangesRequired', 'CHANGES REQUIRED')}</span>}
                                 {l.approval_status === 'REJECTED' && <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-red-200">{t('badgeRejected', 'REJECTED')}</span>}
                                 {l.approval_status === 'PUBLISHED' && <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-green-200">{t('badgePublished', 'PUBLISHED')}</span>}
+                                {l.master_catalog_id && (
+                                  <span className="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-blue-200">
+                                    <i className="fa-solid fa-certificate mr-1"></i>Master Catalog
+                                  </span>
+                                )}
+                                {l.manufacturer_product_id && (
+                                  <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-emerald-200">
+                                    <i className="fa-solid fa-handshake mr-1"></i>B2B Verified
+                                  </span>
+                                )}
+                                {l.has_variants && (
+                                  <span className="bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-purple-200">
+                                    <i className="fa-solid fa-table-cells mr-1"></i>{l.variant_count || l.variants?.length || 'Multi'} Variants
+                                  </span>
+                                )}
                                 {l.is_refundable === false ? (
                                   <span className="bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded text-[9px] font-bold border border-rose-200">
                                     <i className="fa-solid fa-ban text-[8px] mr-1"></i>{t('nonReturnableBadge', 'Non-Returnable')}
@@ -979,7 +1060,7 @@ const Products = () => {
 
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50 p-4">
-          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto fade-in">
+          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto fade-in">
             <div className="px-6 pt-6 pb-4 flex justify-between items-start">
               <div className="flex gap-4">
                 <div className="w-12 h-12 rounded-full bg-green-50 text-brand-dark flex items-center justify-center text-xl shrink-0"><i className="fa-solid fa-plus"></i></div>
@@ -1212,21 +1293,23 @@ const Products = () => {
                     Select from standard FMCG master catalog to auto-fill title, brand, barcode, and MRP, or enter manually below.
                   </p>
                   
-                  {/* Master Catalog Dropdown */}
-                  <div className="mb-3">
-                    <label className="block text-xs font-bold text-blue-900 mb-1">Pick from 5,000+ FMCG Master Catalog (Auto-Fill):</label>
-                    <select
-                      onChange={handleCatalogSelect}
-                      defaultValue=""
-                      className="w-full px-3 py-2 rounded-xl border border-blue-200 bg-white text-sm outline-none focus:border-blue-500 font-semibold text-blue-900"
-                    >
-                      <option value="">-- Choose popular packed item to auto-fill --</option>
-                      {FMCG_MASTER_CATALOG.map(item => (
-                        <option key={item.id} value={item.id}>
-                          {item.name} (₹{item.mrp}) — {item.brand}
-                        </option>
-                      ))}
-                    </select>
+                  {/* Catalog Sourcing & Auto-Fill */}
+                  <div className="space-y-3 mb-3">
+                    <PackedItemSelector
+                      onSelect={handleCatalogProductSelect}
+                      selectedItem={formData}
+                      onClear={() => setFormData(prev => ({
+                        ...prev,
+                        master_catalog_id: null,
+                        manufacturer_product_id: null
+                      }))}
+                    />
+
+                    <BarcodeScannerInput
+                      value={formData.barcode}
+                      onChange={(code) => setFormData(prev => ({ ...prev, barcode: code }))}
+                      onBarcodeMatch={handleCatalogProductSelect}
+                    />
                   </div>
 
                   {/* Manual Brand, Barcode & Pack Unit fields */}
@@ -1279,30 +1362,90 @@ const Products = () => {
                 <input type="text" name="title" required value={formData.title} onChange={handleFormChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-dark" placeholder="e.g. Balaji Silk Kurti or Handcrafted Shirt" />
               </div>
 
-              {/* Category Selector (For All Products) */}
+              {/* Multi-Level Hierarchical Category Selector */}
               <div>
-                <label className="block text-sm font-bold text-gray-900 mb-2">{t('colCategory', 'Category')}</label>
-                <select 
-                  name="category_id" 
-                  value={formData.category_id || ''} 
-                  onChange={handleFormChange}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-dark bg-white font-medium text-gray-800"
-                >
-                  <option value="">-- Select Category --</option>
-                  {categories.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                <CategoryCascader
+                  value={formData.category_id}
+                  onChange={(catId) => setFormData(prev => ({ ...prev, category_id: catId }))}
+                  categoryTree={categoryTree}
+                />
               </div>
+
+              {/* Dynamic Category Specifications Form */}
+              <DynamicAttributeForm
+                categoryId={formData.category_id}
+                values={formData.attributes || {}}
+                onChange={(newAttrs, possibleVal) => {
+                  if (typeof newAttrs === 'object' && newAttrs !== null && !Array.isArray(newAttrs)) {
+                    setFormData(prev => ({ ...prev, attributes: newAttrs }));
+                  } else if (typeof newAttrs === 'string') {
+                    setFormData(prev => ({
+                      ...prev,
+                      attributes: {
+                        ...(typeof prev.attributes === 'object' && prev.attributes !== null && !Array.isArray(prev.attributes) ? prev.attributes : {}),
+                        [newAttrs]: possibleVal
+                      }
+                    }));
+                  }
+                }}
+              />
+
+              {/* Multi-SKU Variant Matrix Builder */}
+              <VariantMatrixBuilder
+                hasVariants={formData.has_variants}
+                onToggleVariants={(enabled) => setFormData(prev => ({ ...prev, has_variants: enabled }))}
+                variants={formData.variants || []}
+                onChangeVariants={(newVariants) => setFormData(prev => ({ ...prev, variants: newVariants }))}
+                basePrice={parseFloat(formData.sell_price) || 0}
+                baseMrp={parseFloat(formData.mrp) || 0}
+                baseSku={formData.sku || 'SKU'}
+              />
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-gray-900 mb-2">{t('printedMrpLabel', 'Printed MRP (₹)')}</label>
-                  <input type="number" name="mrp" required min="0" value={formData.mrp || ''} onChange={handleFormChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-dark" placeholder="999" />
+                  <input
+                    type="number"
+                    name="mrp"
+                    required
+                    min="0"
+                    step="0.01"
+                    value={formData.mrp || ''}
+                    onChange={handleFormChange}
+                    readOnly={Boolean(formData.master_catalog_id || formData.manufacturer_product_id)}
+                    className={`w-full px-4 py-3 rounded-xl border text-sm outline-none transition ${
+                      (formData.master_catalog_id || formData.manufacturer_product_id)
+                        ? 'bg-gray-100 text-gray-700 border-gray-300 cursor-not-allowed font-semibold'
+                        : 'border-gray-200 text-gray-900 focus:border-brand-dark'
+                    }`}
+                    placeholder="999"
+                  />
+                  {(formData.master_catalog_id || formData.manufacturer_product_id) && (
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      🔒 Printed MRP is fixed by manufacturer. Only Sell Price can be customized.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-900 mb-2">{t('sellPriceLabel', 'Sell Price (₹)')}</label>
-                  <input type="number" name="sell_price" required min="0" value={formData.sell_price} onChange={handleFormChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-dark" placeholder="899" />
+                  <input
+                    type="number"
+                    name="sell_price"
+                    required
+                    min="0"
+                    step="0.01"
+                    value={formData.sell_price}
+                    onChange={handleFormChange}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-dark font-semibold text-emerald-800"
+                    placeholder="899"
+                  />
+                  {parseFloat(formData.mrp) > 0 && parseFloat(formData.sell_price) > 0 && (
+                    <p className="text-[11px] text-emerald-600 mt-1 font-medium">
+                      {parseFloat(formData.sell_price) < parseFloat(formData.mrp)
+                        ? `Save ₹${(parseFloat(formData.mrp) - parseFloat(formData.sell_price)).toFixed(2)} (${Math.round(((parseFloat(formData.mrp) - parseFloat(formData.sell_price)) / parseFloat(formData.mrp)) * 100)}% discount)`
+                        : 'Selling at maximum retail price (MRP)'}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -1321,9 +1464,28 @@ const Products = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-900 mb-2">
-                    {formData.product_type === 'LOOSE_WEIGHT' ? 'Stock Available (e.g. 100 kg)' : formData.product_type === 'PACKED_ITEM' ? 'Stock Qty (Packs)' : 'Stock Qty (Pieces)'}
+                    {formData.has_variants
+                      ? 'Total Stock (Roll-up)'
+                      : formData.product_type === 'LOOSE_WEIGHT'
+                      ? 'Stock Available (e.g. 100.5 kg)'
+                      : formData.product_type === 'PACKED_ITEM' ? 'Stock Qty (Packs)' : 'Stock Qty (Pieces)'}
                   </label>
-                  <input type="number" name="stock_qty" value={formData.stock_qty || ''} onChange={handleFormChange} placeholder="50" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-dark" />
+                  {formData.has_variants ? (
+                    <div className="w-full px-4 py-3 rounded-xl border border-purple-200 bg-purple-50/50 text-sm font-extrabold text-purple-950 flex items-center justify-between">
+                      <span>{formData.variants?.reduce((sum, v) => sum + (parseFloat(v.stock_qty) || 0), 0) || 0} units</span>
+                      <span className="text-xs font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">Matrix Aggregate</span>
+                    </div>
+                  ) : (
+                    <input
+                      type="number"
+                      step={formData.product_type === 'LOOSE_WEIGHT' ? "0.001" : "1"}
+                      name="stock_qty"
+                      value={formData.stock_qty || ''}
+                      onChange={handleFormChange}
+                      placeholder={formData.product_type === 'LOOSE_WEIGHT' ? "150.5" : "50"}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-dark"
+                    />
+                  )}
                 </div>
               </div>
 
