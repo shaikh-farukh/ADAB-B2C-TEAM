@@ -1,6 +1,4 @@
 const { Pool } = require('pg');
-const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first');
 const dotenv = require('dotenv');
 dotenv.config();
 
@@ -10,8 +8,7 @@ const connectionString = process.env.DATABASE_URL ||
 const pool = new Pool({
   connectionString,
   ssl: process.env.DB_SSL_MODE === 'disable' ? false : {
-    rejectUnauthorized: false,
-    servername: process.env.DB_HOST
+    rejectUnauthorized: false
   },
   max: 4,
   keepAlive: true,
