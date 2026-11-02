@@ -323,7 +323,7 @@ Once merged into `development` or `main`, the deployment environments (Render, V
 #### Required Backend Environment Variables (`Shop-Backend/.env`):
 ```env
 PORT=5003
-DATABASE_URL=postgresql://neondb_owner:npg_UwMoBu9VyH4z@ep-restless-hat-azawryc7-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+DATABASE_URL=postgresql://neondb_owner:<YOUR_NEON_PASSWORD>@ep-restless-hat-azawryc7-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
 NODE_ENV=production
 JWT_SECRET=your_production_secure_jwt_secret_key_here
 GEMINI_API_KEY=your_gemini_api_key_here
