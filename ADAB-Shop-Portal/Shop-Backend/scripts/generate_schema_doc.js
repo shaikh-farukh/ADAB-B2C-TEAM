@@ -312,9 +312,17 @@ async function generateDoc() {
     }
   }
 
-  const outPath = 'C:/Users/MAYAN/.gemini/antigravity/brain/15832ff5-8640-448f-baf8-885fc4dbfe69/ADAB_DATABASE_TABLES_CATALOG.md';
-  fs.writeFileSync(outPath, md, 'utf8');
-  console.log(`✅ Successfully generated catalog with all ${tablesMap.size} tables at: ${outPath}`);
+  const workspaceOutPath = path.resolve(__dirname, '../../ADAB_DATABASE_TABLES_CATALOG.md');
+  fs.writeFileSync(workspaceOutPath, md, 'utf8');
+  console.log(`✅ Successfully saved catalog to repository workspace at: ${workspaceOutPath}`);
+
+  const artifactOutPath = 'C:/Users/MAYAN/.gemini/antigravity/brain/15832ff5-8640-448f-baf8-885fc4dbfe69/ADAB_DATABASE_TABLES_CATALOG.md';
+  try {
+    fs.writeFileSync(artifactOutPath, md, 'utf8');
+    console.log(`✅ Successfully mirrored catalog to artifact directory at: ${artifactOutPath}`);
+  } catch (e) {
+    // Artifact path optional
+  }
   process.exit(0);
 }
 
