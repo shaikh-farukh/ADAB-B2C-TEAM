@@ -648,7 +648,7 @@ export default function OrderItemsModal({ order, store: propStore, onClose, onUp
               <span className="text-base font-extrabold text-emerald-700">₹{Number(totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
             <div className="flex items-center gap-2">
-              {s === 'new' && onUpdateStatus && (
+              {(s === 'new' || s === 'placed') && onUpdateStatus && (
                 <>
                   <button
                     type="button"
@@ -657,6 +657,14 @@ export default function OrderItemsModal({ order, store: propStore, onClose, onUp
                     className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {busy ? t('orderUpdating', 'Updating...') : t('orderModalAcceptOrder', 'Accept Order')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => runAction('packed')}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {busy ? t('orderUpdating', 'Updating...') : t('orderModalPackOrder', 'Pack Order')}
                   </button>
                   {onDecline && (
                     <button
@@ -670,7 +678,7 @@ export default function OrderItemsModal({ order, store: propStore, onClose, onUp
                   )}
                 </>
               )}
-              {(s === 'packing' || s === 'processing') && onUpdateStatus && (
+              {(s === 'packing' || s === 'processing' || s === 'accepted' || s === 'preparing') && onUpdateStatus && (
                 <>
                   <button
                     type="button"

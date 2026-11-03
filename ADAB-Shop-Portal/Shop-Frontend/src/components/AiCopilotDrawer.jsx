@@ -8,6 +8,7 @@ import { useSpeechRecognition } from './copilot/hooks/useSpeechRecognition';
 import { useCopilotActions } from './copilot/hooks/useCopilotActions';
 import CopilotWidgetDispatcher from './copilot/cards/CopilotWidgetDispatcher';
 import OrderItemsModal from './orders/OrderItemsModal';
+import DeclineOrderModal from './orders/DeclineOrderModal';
 import { sellerApi } from '../api/sellerApi';
 
 // Re-export MarkdownMessage for backwards compatibility with tests and callers
@@ -89,6 +90,98 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
 
   // Order Details Modal state inside Copilot
   const [selectedOrderForModal, setSelectedOrderForModal] = useState(null);
+  const [declineOrderForModal, setDeclineOrderForModal] = useState(null);
+
+  const handleModalStatusUpdate = async (orderId, nextStatus) => {
+    const cleanId = (orderId || '').toString().replace(/^#/, '');
+    if (!cleanId) return;
+
+    try {
+      if (nextStatus === 'packed') {
+        await handleDirectPackOrder({ id: cleanId, actionId: cleanId });
+      } else {
+        await sellerApi.updateOrderStatus(cleanId, nextStatus);
+        playNotificationChime(true);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('adab-orders-updated', { detail: { orderId: cleanId, status: nextStatus } })
+          );
+        }
+        // Update widget in chat
+        setMessages((prev) =>
+          prev.map((msg) => {
+            if (msg.widget?.type === 'ORDER_PACK_CARD') {
+              const updatedOrders = msg.widget.orders.map((o) => {
+                const oId = (o.actionId || o.id).toString().replace(/^#/, '');
+                if (oId === cleanId) {
+                  return {
+                    ...o,
+                    status: nextStatus.toUpperCase(),
+                    isPacked: nextStatus === 'packed'
+                  };
+                }
+                return o;
+              });
+              return { ...msg, widget: { ...msg.widget, orders: updatedOrders } };
+            }
+            return msg;
+          })
+        );
+        const label = nextStatus === 'packing' ? 'Accepted & Moved to Packing' : nextStatus;
+        const confirmMsg = {
+          id: Date.now().toString(),
+          sender: 'assistant',
+          text: `✅ **Action Confirmed:** Order #${cleanId} marked as **${label}**.`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        setMessages((prev) => [...prev, confirmMsg]);
+      }
+    } catch (err) {
+      console.error('Modal status update failed:', err);
+      playNotificationChime(false);
+    } finally {
+      setSelectedOrderForModal(null);
+    }
+  };
+
+  const handleConfirmDecline = async (orderId, reason, note) => {
+    const cleanId = (orderId || '').toString().replace(/^#/, '');
+    try {
+      await sellerApi.updateOrderStatus(cleanId, 'cancelled');
+      playNotificationChime(true);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('adab-orders-updated', { detail: { orderId: cleanId, status: 'cancelled' } })
+        );
+      }
+      // Remove or update the order in Copilot cards
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.widget?.type === 'ORDER_PACK_CARD') {
+            const updatedOrders = msg.widget.orders.filter((o) => {
+              const oId = (o.actionId || o.id).toString().replace(/^#/, '');
+              return oId !== cleanId;
+            });
+            return { ...msg, widget: { ...msg.widget, orders: updatedOrders } };
+          }
+          return msg;
+        })
+      );
+      const declineMsg = {
+        id: Date.now().toString(),
+        sender: 'assistant',
+        text: `🚫 **Order Declined:** Order #${cleanId} declined (${reason}). Stock restored to product listings.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setMessages((prev) => [...prev, declineMsg]);
+    } catch (err) {
+      console.error('Decline order failed:', err);
+      playNotificationChime(false);
+    } finally {
+      setDeclineOrderForModal(null);
+      setSelectedOrderForModal(null);
+    }
+  };
 
   const handleOpenOrderModal = async (orderItem) => {
     let orderToOpen = orderItem.fullOrder || orderItem;
@@ -549,12 +642,21 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
           order={selectedOrderForModal}
           store={store}
           onClose={() => setSelectedOrderForModal(null)}
-          onUpdateStatus={async (orderId, nextStatus) => {
-            const clean = (orderId || '').toString().replace(/^#/, '');
-            await handleDirectPackOrder({ id: clean, actionId: clean });
+          onUpdateStatus={handleModalStatusUpdate}
+          onDecline={(order) => {
             setSelectedOrderForModal(null);
+            setDeclineOrderForModal(order);
           }}
           isUpdating={Boolean(actionLoading[`pack_${(selectedOrderForModal.actionId || selectedOrderForModal.id || '').toString().replace(/^#/, '')}`])}
+        />
+      )}
+
+      {/* Decline Order Reason Modal */}
+      {declineOrderForModal && (
+        <DeclineOrderModal
+          order={declineOrderForModal}
+          onClose={() => setDeclineOrderForModal(null)}
+          onConfirm={handleConfirmDecline}
         />
       )}
     </div>
