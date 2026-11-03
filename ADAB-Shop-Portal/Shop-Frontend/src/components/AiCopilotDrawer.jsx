@@ -22,36 +22,36 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
 
   const pillLabels = {
     en: {
-      pack: 'Pack Orders',
+      pack: 'List Orders',
       sales: 'Sales Report',
       stock: 'Low Stock',
       gstr: 'GSTR Tax',
       store: 'Store Status',
-      packPrompt: 'Pack all pending orders',
+      packPrompt: 'List all store orders',
       salesPrompt: "Show today's sales summary",
       stockPrompt: 'Check low stock items',
       gstrPrompt: 'Show GSTR tax breakdown',
       storePrompt: 'Is my store open right now?'
     },
     hi: {
-      pack: 'ऑर्डर पैक करें',
+      pack: 'ऑर्डर सूची',
       sales: 'बिक्री रिपोर्ट',
       stock: 'कम स्टॉक',
       gstr: 'GSTR टैक्स',
       store: 'दुकान स्थिति',
-      packPrompt: 'सभी लंबित ऑर्डर पैक करें',
+      packPrompt: 'दुकान के सभी ऑर्डर दिखाएं',
       salesPrompt: 'आज की बिक्री का हिसाब दिखाएं',
       stockPrompt: 'कम स्टॉक वाले सामान चेक करें',
       gstrPrompt: 'GSTR टैक्स का हिसाब दिखाएं',
       storePrompt: 'क्या मेरी दुकान अभी खुली है?'
     },
     gu: {
-      pack: 'ઓર્ડર પેક કરો',
+      pack: 'ઓર્ડર યાદી',
       sales: 'વેચાણ રિપોર્ટ',
       stock: 'ઓછો સ્ટોક',
       gstr: 'GSTR ટેક્સ',
       store: 'દુકાન સ્થિતિ',
-      packPrompt: 'બધા પેન્ડિંગ ઓર્ડર પેક કરો',
+      packPrompt: 'બધા સ્ટોર ઓર્ડર બતાવો',
       salesPrompt: 'આજના વેચાણનો રિપોર્ટ બતાવો',
       stockPrompt: 'ઓછા સ્ટોકવાળા સામાન તપાસો',
       gstrPrompt: 'GSTR ટેક્સનો હિસાબ બતાવો',
@@ -554,7 +554,7 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
             onClick={() => handleQuickPrompt(activePills.packPrompt)}
             className="px-2.5 py-1 bg-white hover:bg-indigo-100/60 text-indigo-900 border border-indigo-200 rounded-full text-[11px] font-bold whitespace-nowrap transition cursor-pointer shadow-xs flex items-center gap-1"
           >
-            <i className="fa-solid fa-boxes-packing text-indigo-600"></i> {activePills.pack}
+            <i className="fa-solid fa-boxes-stacked text-indigo-600"></i> {activePills.pack}
           </button>
           <button 
             onClick={() => handleQuickPrompt(activePills.salesPrompt)}

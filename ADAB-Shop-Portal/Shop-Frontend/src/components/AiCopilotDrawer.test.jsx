@@ -51,7 +51,7 @@ describe('AiCopilotDrawer Component (Phase 3 UI Polish)', () => {
     expect(screen.getByText(/Test Kirana Store/i)).toBeInTheDocument();
 
     // Quick suggestion pills
-    expect(screen.getByRole('button', { name: /Pack Orders/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /List Orders/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Sales Report/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Low Stock/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /GSTR Tax/i })).toBeInTheDocument();
