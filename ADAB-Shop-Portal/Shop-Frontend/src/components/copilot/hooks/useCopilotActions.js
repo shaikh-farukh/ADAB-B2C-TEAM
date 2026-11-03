@@ -39,7 +39,10 @@ export function useCopilotActions({ setMessages, toggleStoreOnline, updateStoreS
       // 4. Update the card widget in-place inside messages state
       setMessages((prev) =>
         prev.map((msg) => {
-          if (msg.id === messageId && msg.widget?.type === 'ORDER_PACK_CARD') {
+          if (
+            msg.id === messageId &&
+            (msg.widget?.type === 'ORDER_PACK_CARD' || msg.widget?.type === 'ORDER_LIST_CARD')
+          ) {
             const updatedOrders = msg.widget.orders.map((o) => {
               const oId = (o.actionId || o.id).toString().replace(/^#/, '');
               if (oId === cleanId) {
@@ -121,7 +124,10 @@ export function useCopilotActions({ setMessages, toggleStoreOnline, updateStoreS
       // 4. Update all orders in widget to PACKED
       setMessages((prev) =>
         prev.map((msg) => {
-          if (msg.id === messageId && msg.widget?.type === 'ORDER_PACK_CARD') {
+          if (
+            msg.id === messageId &&
+            (msg.widget?.type === 'ORDER_PACK_CARD' || msg.widget?.type === 'ORDER_LIST_CARD')
+          ) {
             const updatedOrders = msg.widget.orders.map((o) => ({
               ...o,
               status: 'PACKED',

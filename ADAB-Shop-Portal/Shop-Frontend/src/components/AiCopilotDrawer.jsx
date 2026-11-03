@@ -110,7 +110,7 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
         // Update widget in chat
         setMessages((prev) =>
           prev.map((msg) => {
-            if (msg.widget?.type === 'ORDER_PACK_CARD') {
+            if (msg.widget?.type === 'ORDER_PACK_CARD' || msg.widget?.type === 'ORDER_LIST_CARD') {
               const updatedOrders = msg.widget.orders.map((o) => {
                 const oId = (o.actionId || o.id).toString().replace(/^#/, '');
                 if (oId === cleanId) {
@@ -161,6 +161,15 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
             const updatedOrders = msg.widget.orders.filter((o) => {
               const oId = (o.actionId || o.id).toString().replace(/^#/, '');
               return oId !== cleanId;
+            });
+            return { ...msg, widget: { ...msg.widget, orders: updatedOrders } };
+          } else if (msg.widget?.type === 'ORDER_LIST_CARD') {
+            const updatedOrders = msg.widget.orders.map((o) => {
+              const oId = (o.actionId || o.id).toString().replace(/^#/, '');
+              if (oId === cleanId) {
+                return { ...o, status: 'CANCELLED' };
+              }
+              return o;
             });
             return { ...msg, widget: { ...msg.widget, orders: updatedOrders } };
           }
@@ -304,44 +313,66 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
           }
 
           if (exec.tool === 'adab_list_orders' && exec.result?.data?.orders?.length > 0) {
-            // Filter to orders needing packing / active fulfillment: exclude terminal states (DELIVERED, DISPATCHED, CANCELLED)
-            const activeOrders = exec.result.data.orders.filter((o) => {
-              const st = (o.status || '').toUpperCase();
-              return !['DELIVERED', 'DISPATCHED', 'SHIPPED', 'CANCELLED', 'RETURNED'].includes(st);
+            const rawOrders = exec.result.data.orders;
+            const mappedOrders = rawOrders.map((o) => {
+              const displayId = o.orderNumber || o.orderId || o.id || 'Order';
+              const actionId = o.orderNumber || o.orderId || o.id;
+              return {
+                id: displayId,
+                actionId: actionId,
+                customer: o.customer || 'Customer',
+                amount: o.amount || 0,
+                items: o.itemSummary || o.items || 'Items',
+                status: (o.status || 'NEW').toUpperCase(),
+                createdAt: o.createdAt || null,
+                fullOrder: {
+                  id: displayId,
+                  order_number: o.orderNumber || displayId,
+                  customer: o.customer || 'Customer',
+                  customer_phone: o.customerPhone || null,
+                  amount: o.amount || 0,
+                  status: (o.status || 'NEW').toLowerCase(),
+                  items: o.items || [],
+                  delivery_address: o.deliveryAddress || null,
+                  delivery_mode: o.deliveryMode || 'Normal',
+                  payment_method: o.paymentMethod || 'PREPAID',
+                  payment_status: o.paymentStatus || 'PAID',
+                  tax_amount: o.taxAmount || null,
+                  invoice_number: o.invoiceNumber || null,
+                  created_at: o.createdAt || null
+                }
+              };
             });
 
-            if (activeOrders.length > 0) {
-              widget = {
-                type: 'ORDER_PACK_CARD',
-                orders: activeOrders.slice(0, 5).map((o) => {
-                const displayId = o.orderNumber || o.orderId || o.id || 'Order';
-                const actionId = o.orderNumber || o.orderId || o.id;
-                return {
-                  id: displayId,
-                  actionId: actionId,
-                  customer: o.customer || 'Customer',
-                  amount: o.amount || 0,
-                  items: o.itemSummary || o.items || 'Items',
-                  status: o.status || 'NEW',
-                  fullOrder: {
-                    id: displayId,
-                    order_number: o.orderNumber || displayId,
-                    customer: o.customer || 'Customer',
-                    customer_phone: o.customerPhone || null,
-                    amount: o.amount || 0,
-                    status: (o.status || 'NEW').toLowerCase(),
-                    items: o.items || [],
-                    delivery_address: o.deliveryAddress || null,
-                    delivery_mode: o.deliveryMode || 'Normal',
-                    payment_method: o.paymentMethod || 'PREPAID',
-                    payment_status: o.paymentStatus || 'PAID',
-                    tax_amount: o.taxAmount || null,
-                    invoice_number: o.invoiceNumber || null,
-                    created_at: o.createdAt || null
-                  }
+            const queryLower = (query || '').toLowerCase();
+            const isPackIntent =
+              (queryLower.includes('pack') || queryLower.includes('पैक')) &&
+              !queryLower.includes('list') &&
+              !queryLower.includes('all');
+
+            if (isPackIntent) {
+              const activeOrders = mappedOrders.filter((o) => {
+                const st = (o.status || '').toUpperCase();
+                return !['DELIVERED', 'DISPATCHED', 'SHIPPED', 'CANCELLED', 'RETURNED'].includes(st);
+              });
+
+              if (activeOrders.length > 0) {
+                widget = {
+                  type: 'ORDER_PACK_CARD',
+                  orders: activeOrders.slice(0, 5)
                 };
-              })
-            };
+              } else {
+                widget = {
+                  type: 'ORDER_LIST_CARD',
+                  orders: mappedOrders
+                };
+              }
+            } else {
+              // General order listing query: emit ORDER_LIST_CARD containing all store orders in card format
+              widget = {
+                type: 'ORDER_LIST_CARD',
+                orders: mappedOrders
+              };
             }
           } else if (exec.tool === 'adab_update_order_state' && exec.result?.success) {
             widget = {

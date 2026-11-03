@@ -1,5 +1,6 @@
 import React from 'react';
 import OrderPackCard from './OrderPackCard';
+import OrderListCard from './OrderListCard';
 import OrderStatusUpdatedCard from './OrderStatusUpdatedCard';
 import SalesSummaryCard from './SalesSummaryCard';
 import LowStockCard from './LowStockCard';
@@ -27,6 +28,18 @@ export default function CopilotWidgetDispatcher({
   if (!widget || !widget.type) return null;
 
   switch (widget.type) {
+    case 'ORDER_LIST_CARD':
+      return (
+        <OrderListCard
+          widget={widget}
+          messageId={messageId}
+          actionLoading={actionLoading}
+          onPackOrder={onPackOrder}
+          onPackAll={onPackAll}
+          onSelectOrder={onSelectOrder}
+        />
+      );
+
     case 'ORDER_PACK_CARD':
       return (
         <OrderPackCard
