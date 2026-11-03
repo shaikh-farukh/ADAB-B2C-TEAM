@@ -26,6 +26,12 @@ export default function OrderListCard({
   onSelectOrder
 }) {
   const [filter, setFilter] = useState('ALL');
+  const [visibleCount, setVisibleCount] = useState(10);
+
+  const handleFilterChange = (newFilter) => {
+    setFilter(newFilter);
+    setVisibleCount(10);
+  };
 
   if (!widget?.orders || !Array.isArray(widget.orders) || widget.orders.length === 0) {
     return null;
@@ -92,6 +98,13 @@ export default function OrderListCard({
     return list;
   }, [widget.orders, filter]);
 
+  const displayedOrders = useMemo(() => {
+    return sortedOrders.slice(0, visibleCount);
+  }, [sortedOrders, visibleCount]);
+
+  const hasMore = visibleCount < sortedOrders.length;
+  const remainingCount = Math.min(10, sortedOrders.length - visibleCount);
+
   const pendingOrders = useMemo(() => {
     return widget.orders.filter(
       (o) => ['NEW', 'PLACED', 'ACCEPTED', 'PREPARING'].includes((o.status || '').toUpperCase()) && !o.isPacked
@@ -106,12 +119,14 @@ export default function OrderListCard({
       <div className="flex items-center justify-between gap-1 flex-wrap">
         <div className="flex items-center gap-1.5 text-xs font-bold text-gray-800">
           <i className="fa-solid fa-boxes-stacked text-indigo-600"></i>
-          <span>Store Orders ({widget.orders.length})</span>
+          <span>
+            Store Orders ({hasMore ? `${displayedOrders.length} of ${sortedOrders.length}` : sortedOrders.length})
+          </span>
         </div>
         <div className="flex items-center gap-1 text-[10px]">
           <button
             type="button"
-            onClick={() => setFilter('ALL')}
+            onClick={() => handleFilterChange('ALL')}
             className={`px-2 py-0.5 rounded-md font-bold transition cursor-pointer ${
               filter === 'ALL'
                 ? 'bg-indigo-600 text-white shadow-xs'
@@ -123,7 +138,7 @@ export default function OrderListCard({
           {counts.PENDING > 0 && (
             <button
               type="button"
-              onClick={() => setFilter('PENDING')}
+              onClick={() => handleFilterChange('PENDING')}
               className={`px-2 py-0.5 rounded-md font-bold transition cursor-pointer ${
                 filter === 'PENDING'
                   ? 'bg-amber-600 text-white shadow-xs'
@@ -136,7 +151,7 @@ export default function OrderListCard({
           {counts.DELIVERED > 0 && (
             <button
               type="button"
-              onClick={() => setFilter('DELIVERED')}
+              onClick={() => handleFilterChange('DELIVERED')}
               className={`px-2 py-0.5 rounded-md font-bold transition cursor-pointer ${
                 filter === 'DELIVERED'
                   ? 'bg-teal-600 text-white shadow-xs'
@@ -149,7 +164,7 @@ export default function OrderListCard({
           {counts.CANCELLED > 0 && (
             <button
               type="button"
-              onClick={() => setFilter('CANCELLED')}
+              onClick={() => handleFilterChange('CANCELLED')}
               className={`px-2 py-0.5 rounded-md font-bold transition cursor-pointer ${
                 filter === 'CANCELLED'
                   ? 'bg-rose-600 text-white shadow-xs'
@@ -163,13 +178,13 @@ export default function OrderListCard({
       </div>
 
       {/* Orders List */}
-      <div className="space-y-1.5 max-h-[340px] overflow-y-auto pr-0.5">
-        {sortedOrders.length === 0 ? (
+      <div className="space-y-1.5 max-h-[380px] overflow-y-auto pr-0.5">
+        {displayedOrders.length === 0 ? (
           <div className="text-center py-4 text-xs text-gray-400 bg-gray-50 rounded-xl border border-gray-100">
             No orders match the selected filter.
           </div>
         ) : (
-          sortedOrders.map((o) => {
+          displayedOrders.map((o) => {
             const cleanId = (o.actionId || o.id).toString().replace(/^#/, '');
             const isPacking = actionLoading[`pack_${cleanId}`];
             const st = (o.status || '').toUpperCase();
@@ -247,6 +262,18 @@ export default function OrderListCard({
           })
         )}
       </div>
+
+      {/* Show Next 10 Orders button */}
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => setVisibleCount((prev) => prev + 10)}
+          className="w-full py-1.5 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-700 hover:text-indigo-900 font-bold rounded-xl text-[11px] transition cursor-pointer flex items-center justify-center gap-1.5 border border-indigo-200/80 shadow-2xs mt-1"
+        >
+          <i className="fa-solid fa-chevron-down text-[10px]"></i>
+          <span>Show Next {remainingCount} Orders ({sortedOrders.length - visibleCount} remaining)</span>
+        </button>
+      )}
 
       {/* Batch Packing footer if pending orders exist */}
       {pendingOrders.length > 0 && (

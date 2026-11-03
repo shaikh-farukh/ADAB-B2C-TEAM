@@ -30,7 +30,7 @@ const listOrdersTool = {
       },
       limit: {
         type: 'INTEGER',
-        description: 'Maximum number of orders to return (default 10, max 50).'
+        description: 'Maximum number of orders to return (default 50, max 100).'
       },
       page: {
         type: 'INTEGER',
@@ -46,7 +46,7 @@ const listOrdersTool = {
     const { storeId } = authContext;
     const filters = {
       status: args.status && args.status !== 'ALL' ? args.status : null,
-      limit: args.limit ? Math.min(Math.max(1, parseInt(args.limit, 10)), 50) : 10,
+      limit: args.limit ? Math.min(Math.max(1, parseInt(args.limit, 10)), 100) : 50,
       page: args.page ? Math.max(1, parseInt(args.page, 10)) : 1,
       search: args.searchTerm || null
     };

@@ -171,4 +171,53 @@ describe('OrderListCard Component', () => {
       'msg-1'
     );
   });
+
+  it('only displays 10 orders at a time and expands when Show Next button is clicked', () => {
+    // Generate 15 mock orders
+    const fifteenOrders = Array.from({ length: 15 }, (_, i) => ({
+      id: `ORD-${200 + i}`,
+      actionId: `${200 + i}`,
+      customer: `Customer ${i + 1}`,
+      amount: 100 + i * 10,
+      items: 'Assorted Grocery',
+      status: 'DELIVERED',
+      createdAt: `2026-11-01T10:${i < 10 ? '0' + i : i}:00Z`,
+      fullOrder: { id: `ORD-${200 + i}`, status: 'delivered' }
+    }));
+
+    render(
+      <OrderListCard
+        widget={{ orders: fifteenOrders }}
+        messageId="msg-paged"
+        actionLoading={{}}
+        onPackOrder={vi.fn()}
+        onPackAll={vi.fn()}
+        onSelectOrder={vi.fn()}
+      />
+    );
+
+    // Header indicates 10 of 15
+    expect(screen.getByText(/Store Orders \(10 of 15\)/i)).toBeInTheDocument();
+
+    // Exactly 10 order cards visible initially (ORD-214 down to ORD-205 by newest date)
+    expect(screen.getByText(/ORD-214/i)).toBeInTheDocument();
+    expect(screen.getByText(/ORD-205/i)).toBeInTheDocument();
+    expect(screen.queryByText(/ORD-204/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/ORD-200/i)).not.toBeInTheDocument();
+
+    // Show Next button is present
+    const showNextBtn = screen.getByRole('button', { name: /Show Next 5 Orders \(5 remaining\)/i });
+    expect(showNextBtn).toBeInTheDocument();
+
+    // Click Show Next button
+    fireEvent.click(showNextBtn);
+
+    // Now all 15 orders are visible including ORD-204 down to ORD-200
+    expect(screen.getByText(/ORD-204/i)).toBeInTheDocument();
+    expect(screen.getByText(/ORD-200/i)).toBeInTheDocument();
+    expect(screen.getByText(/Store Orders \(15\)/i)).toBeInTheDocument();
+
+    // Show Next button disappears when all orders are displayed
+    expect(screen.queryByRole('button', { name: /Show Next/i })).not.toBeInTheDocument();
+  });
 });
