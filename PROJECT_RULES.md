@@ -297,6 +297,24 @@ After understanding a file:
 - Full file reads when snippets suffice
 - Ignoring budget warnings
 
+
+---
+
+## Code Hygiene & Anti-Accretion Standard
+
+### Core Principle: No Bottom-Dumping (Anti-Accretion)
+Never append new functions, models, state, or helpers to the bottom of an existing file.
+When adding a feature or modifying existing code, adhere to Kent Beck's "Tidy First" Scout Rule:
+1. Make room for the change by modularizing existing code if necessary.
+2. Place every piece of logic in its designated architectural layer.
+3. Leave every file cleaner and more modular than you found it.
+
+### Architectural Separation of Concerns
+1. **Views & Presentation (UI Layer):** Presentation components must only handle layout, display markup, and event dispatch. Distinct visual sub-units (cards, modals, list items) must be extracted into dedicated files in a subfolder (`cards/`, `modals/`).
+2. **Business Logic & State (Orchestration Layer):** Complex state, multi-step mutations, and subscriptions belong in dedicated custom hooks (`hooks/`) or service modules.
+3. **Data Access (Integration Layer):** API calls belong in dedicated `services/` or `api/` clients. Database queries belong in repository or model layers.
+4. **Pure Helpers & Utilities:** Formatters, regex parsers, validators, and math calculations must live in `utils/` or helper modules, never appended to the end of a page or component file.
+
 ---
 
 ## Quick Reference
