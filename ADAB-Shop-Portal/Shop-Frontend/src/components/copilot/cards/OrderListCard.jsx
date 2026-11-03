@@ -101,7 +101,7 @@ export default function OrderListCard({
   const isPackingAll = actionLoading[`pack_all_${messageId}`];
 
   return (
-    <div className="mt-2.5 pt-2 border-t border-gray-100 space-y-2">
+    <div className="space-y-2">
       {/* Header with Title and Filter Tabs */}
       <div className="flex items-center justify-between gap-1 flex-wrap">
         <div className="flex items-center gap-1.5 text-xs font-bold text-gray-800">

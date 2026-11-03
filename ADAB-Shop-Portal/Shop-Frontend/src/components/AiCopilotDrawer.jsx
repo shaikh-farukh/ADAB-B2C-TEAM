@@ -292,7 +292,7 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
       });
 
       const payload = res.data !== undefined ? res.data : res;
-      const replyText = payload.reply || "Done! I've updated your store records.";
+      let replyText = payload.reply || "Done! I've updated your store records.";
       let widget = null;
 
       // Check toolExecutions for interactive cards & sound feedback
@@ -366,6 +366,7 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                   type: 'ORDER_LIST_CARD',
                   orders: mappedOrders
                 };
+                replyText = '';
               }
             } else {
               // General order listing query: emit ORDER_LIST_CARD containing all store orders in card format
@@ -373,6 +374,8 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                 type: 'ORDER_LIST_CARD',
                 orders: mappedOrders
               };
+              // Suppress top text description - orders are cleanly presented in cards
+              replyText = '';
             }
           } else if (exec.tool === 'adab_update_order_state' && exec.result?.success) {
             widget = {
@@ -593,7 +596,9 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                     : 'bg-white text-gray-800 border border-gray-200 rounded-bl-xs'
                 }`}
               >
-                <MarkdownMessage content={m.text} isUser={m.sender === 'user'} />
+                {m.text && m.widget?.type !== 'ORDER_LIST_CARD' && (
+                  <MarkdownMessage content={m.text} isUser={m.sender === 'user'} />
+                )}
 
                 {/* Generative UI Widgets rendered via modular Dispatcher */}
                 <CopilotWidgetDispatcher
