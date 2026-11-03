@@ -115,6 +115,21 @@ CRITICAL OPERATIONAL RULES:
       prompt: userPrompt
     });
 
+    // Fast-path for Generative UI: adab_list_orders renders directly as interactive cards.
+    // Bypass the redundant second LLM generation step to achieve sub-second latency and zero token waste.
+    if (toolName === 'adab_list_orders') {
+      return {
+        reply: '',
+        toolExecutions: [
+          {
+            tool: toolName,
+            args: toolArgs,
+            result: toolResult
+          }
+        ]
+      };
+    }
+
     // Feed tool result back to Gemini for final natural language synthesis
     contents.push({
       role: 'model',

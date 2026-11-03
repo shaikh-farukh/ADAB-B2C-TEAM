@@ -292,7 +292,7 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
       });
 
       const payload = res.data !== undefined ? res.data : res;
-      let replyText = payload.reply || "Done! I've updated your store records.";
+      let replyText = payload.reply !== undefined ? payload.reply : "Done! I've updated your store records.";
       let widget = null;
 
       // Check toolExecutions for interactive cards & sound feedback
@@ -596,7 +596,7 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                     : 'bg-white text-gray-800 border border-gray-200 rounded-bl-xs'
                 }`}
               >
-                {m.text && m.widget?.type !== 'ORDER_LIST_CARD' && (
+                {m.text && !['ORDER_LIST_CARD', 'ORDER_PACK_CARD'].includes(m.widget?.type) && (
                   <MarkdownMessage content={m.text} isUser={m.sender === 'user'} />
                 )}
 

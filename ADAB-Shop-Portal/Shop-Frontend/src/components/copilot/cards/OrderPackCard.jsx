@@ -12,7 +12,7 @@ export default function OrderPackCard({ widget, messageId, actionLoading, onPack
   const isPackingAll = actionLoading[`pack_all_${messageId}`];
 
   return (
-    <div className="mt-2.5 pt-2 border-t border-gray-100 space-y-1.5">
+    <div className="space-y-1.5">
       {widget.orders.map((o) => {
         const cleanId = (o.actionId || o.id).toString().replace(/^#/, '');
         const isPacking = actionLoading[`pack_${cleanId}`];
