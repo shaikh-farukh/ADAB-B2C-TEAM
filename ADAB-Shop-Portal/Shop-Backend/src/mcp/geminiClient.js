@@ -166,23 +166,23 @@ CRITICAL OPERATIONAL RULES:
 
       // Model fallback cascade if primary model hits quota/busy
       if (isRateOrBusy && candidateModel === 'gemini-3.5-flash') {
-        console.warn(`[GeminiClient] gemini-3.5-flash busy (HTTP ${res.status}). Cascading to gemini-2.5-flash...`);
-        return this._postGenerate(payload, apiKey, 'gemini-2.5-flash', 0);
+        console.warn(`[GeminiClient] gemini-3.5-flash busy (HTTP ${res.status}). Cascading to gemini-3.5-flash-lite...`);
+        return this._postGenerate(payload, apiKey, 'gemini-3.5-flash-lite', 0);
       }
-      if (isRateOrBusy && candidateModel === 'gemini-2.5-flash') {
-        console.warn(`[GeminiClient] gemini-2.5-flash busy (HTTP ${res.status}). Cascading to gemini-3.1-flash-lite...`);
+      if (isRateOrBusy && candidateModel === 'gemini-3.5-flash-lite') {
+        console.warn(`[GeminiClient] gemini-3.5-flash-lite busy (HTTP ${res.status}). Cascading to gemini-3.1-flash-lite...`);
         return this._postGenerate(payload, apiKey, 'gemini-3.1-flash-lite', 0);
       }
       if (isRateOrBusy && candidateModel === 'gemini-3.1-flash-lite') {
-        console.warn(`[GeminiClient] gemini-3.1-flash-lite busy (HTTP ${res.status}). Cascading to gemini-2.5-flash-lite...`);
-        return this._postGenerate(payload, apiKey, 'gemini-2.5-flash-lite', 0);
+        console.warn(`[GeminiClient] gemini-3.1-flash-lite busy (HTTP ${res.status}). Cascading to gemini-flash-latest...`);
+        return this._postGenerate(payload, apiKey, 'gemini-flash-latest', 0);
       }
 
       // Key failover if configured
       const backupKey = process.env.GEMINI_BACKUP_KEY;
       if (isRateOrBusy && apiKey !== backupKey && backupKey) {
         console.warn(`[GeminiClient] Primary key rate-limited. Trying backup API key...`);
-        return this._postGenerate(payload, backupKey, 'gemini-2.5-flash', 0);
+        return this._postGenerate(payload, backupKey, 'gemini-3.5-flash', 0);
       }
 
       throw new Error(`Gemini API Error (${res.status}): ${JSON.stringify(data.error || data)}`);
