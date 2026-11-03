@@ -1,8 +1,8 @@
 # ADAB Enterprise Database Schema & Application Mapping Catalog
 
-**Total Database Tables:** 187  
+**Total Database Tables:** 188  
 **Target Database:** Neon PostgreSQL 18.6 (`neondb`, Schema: `public`)  
-**Document Version:** 1.0.0 (Production Verified)  
+**Document Version:** 1.0.1 (Production Verified)  
 
 ---
 
@@ -15,8 +15,8 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 | **ADAB Seller Portal** | Store Owners, Kirana Merchants | **58 Tables** (Tables 1 – 58) | In-store operations, listings, POS counter billing, stock edits, order fulfillment, AI Copilot audit logs |
 | **ADAB B2B Portal** | FMCG Wholesalers, Distributors, Millers | **55 Tables** (Tables 59 – 113) | Wholesale catalogs, bulk restock POs, 14-day trade credit lines, banking partner integrations |
 | **ADAB Customer Portal** | Shoppers, Grocery Consumers | **21 Tables** (Tables 114 – 134) | Cart, 1-tap checkout, consumer wallets, loyalty cashback, ratings & reviews, favorite stores |
-| **ADAB Admin Portal** | Ops Team, Risk, Compliance | **22 Tables** (Tables 135 – 156) | KYC verification, platform fees, seller suspensions, system settings, RBAC, fraud risk |
-| **Shared Core Infrastructure** | All Portals & Microservices | **31 Tables** (Tables 157 – 187) | Unified identities (`users`), parent `orders`, payments, notifications, taxonomy hierarchy |
+| **ADAB Admin Portal** | Ops Team, Risk, Compliance | **23 Tables** (Tables 135 – 157) | KYC verification, platform fees, seller suspensions, system settings, RBAC (roles, permissions, role_permissions), fraud risk |
+| **Shared Core Infrastructure** | All Portals & Microservices | **31 Tables** (Tables 158 – 188) | Unified identities (`users`), parent `orders`, payments, notifications, taxonomy hierarchy |
 
 ---
 
@@ -2714,7 +2714,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-## 4. ADAB Admin Portal (Tables 135 – 156)
+## 4. ADAB Admin Portal (Tables 135 – 157)
 
 ### 135. `audit_logs`
 * **Primary App:** Admin Portal
@@ -3084,9 +3084,22 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-## 5. Shared Core Infrastructure & Commerce (Tables 157 – 187)
+### 157. `role_permissions`
+* **Primary App:** ADAB Admin Portal
+* **Functional Domain:** Identity & Access / RBAC
+* **Description:** M:N junction mapping between system roles and granular RBAC permissions
 
-### 157. `addresses`
+| # | Column Name | Data Type | Nullable | Default Value |
+| :-: | :--- | :--- | :-: | :--- |
+| 1 | `role_id` | `integer` | **No** | — |
+| 2 | `permission_id` | `integer` | **No** | — |
+| 3 | `created_at` | `timestamp with time zone` | **No** | `now()` |
+
+---
+
+## 5. Shared Core Infrastructure & Commerce (Tables 158 – 188)
+
+### 158. `addresses`
 * **Primary App:** Shared / All Portals
 * **Functional Domain:** Geocoding & Logistics
 * **Description:** Physical geolocation address book
@@ -3110,7 +3123,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 158. `audit_trail`
+### 159. `audit_trail`
 * **Primary App:** Shared / Admin
 * **Functional Domain:** Security & Audit
 * **Description:** Unified cross-portal compliance and security audit trail
@@ -3128,7 +3141,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 159. `auth_challenges`
+### 160. `auth_challenges`
 * **Primary App:** Shared / All Portals
 * **Functional Domain:** Identity & Access
 * **Description:** OTP challenges, SMS/Email verification nonces
@@ -3147,7 +3160,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 160. `brands`
+### 161. `brands`
 * **Primary App:** Shared (Admin / Seller / Customer)
 * **Functional Domain:** Catalog & Taxonomies
 * **Description:** FMCG brand registry (Amul, Tata, Aashirvaad, Maggi)
@@ -3164,7 +3177,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 161. `categories`
+### 162. `categories`
 * **Primary App:** Shared (Admin / Seller / Customer)
 * **Functional Domain:** Catalog & Taxonomies
 * **Description:** Taxonomy hierarchy (Dairy, Pantry, Snacks, Beverages)
@@ -3186,7 +3199,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 162. `category_aliases`
+### 163. `category_aliases`
 * **Primary App:** Shared (Admin / Seller / Customer)
 * **Functional Domain:** Catalog & Taxonomies
 * **Description:** Category alternative search terms and vernacular synonyms
@@ -3201,7 +3214,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 163. `city`
+### 164. `city`
 * **Primary App:** Shared / All Portals
 * **Functional Domain:** Geocoding & Logistics
 * **Description:** Master registry of cities mapped to states for localized delivery
@@ -3216,7 +3229,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 164. `consents`
+### 165. `consents`
 * **Primary App:** Shared / All Portals
 * **Functional Domain:** Identity & Access
 * **Description:** DPDP Act user privacy and data consent audit log
@@ -3233,7 +3246,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 165. `file_uploads`
+### 166. `file_uploads`
 * **Primary App:** Shared / All Portals
 * **Functional Domain:** Media & Storage
 * **Description:** MinIO/S3 object storage metadata and presigned URLs
@@ -3252,7 +3265,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 166. `idempotency_keys`
+### 167. `idempotency_keys`
 * **Primary App:** Shared / All Portals
 * **Functional Domain:** API Infrastructure
 * **Description:** Prevents duplicate order creation or double payment charges
@@ -3270,7 +3283,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 167. `message_threads`
+### 168. `message_threads`
 * **Primary App:** Shared / All Portals
 * **Functional Domain:** Communication & Chat
 * **Description:** Chat threads between Buyer, Seller, Driver, and Support
@@ -3285,7 +3298,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 168. `messages`
+### 169. `messages`
 * **Primary App:** Shared / All Portals
 * **Functional Domain:** Communication & Chat
 * **Description:** Individual chat messages, timestamps, and read receipts
@@ -3301,7 +3314,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 169. `notification_deliveries`
+### 170. `notification_deliveries`
 * **Primary App:** Shared / All Portals
 * **Functional Domain:** Communication & Chat
 * **Description:** Push notification (FCM), SMS, and WhatsApp delivery logs
@@ -3317,7 +3330,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 170. `notification_preferences`
+### 171. `notification_preferences`
 * **Primary App:** Shared / All Portals
 * **Functional Domain:** Communication & Chat
 * **Description:** User channel opt-in/opt-out preferences
@@ -3337,7 +3350,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 171. `notifications`
+### 172. `notifications`
 * **Primary App:** Shared / All Portals
 * **Functional Domain:** Communication & Chat
 * **Description:** In-app alert feed for orders, stock, and payouts
@@ -3355,7 +3368,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 172. `order_items`
+### 173. `order_items`
 * **Primary App:** Shared (Customer / Seller)
 * **Functional Domain:** Orders & Fulfillment
 * **Description:** Purchased product lines, quantities, unit prices
@@ -3373,7 +3386,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 173. `order_status_history`
+### 174. `order_status_history`
 * **Primary App:** Shared (Customer / Seller)
 * **Functional Domain:** Orders & Fulfillment
 * **Description:** FSM state changes (NEW -> ACCEPTED -> PACKED -> DELIVERED)
@@ -3391,7 +3404,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 174. `orders`
+### 175. `orders`
 * **Primary App:** Shared (Customer / Seller / Admin)
 * **Functional Domain:** Orders & Fulfillment
 * **Description:** Parent multi-store customer order manifest
@@ -3416,7 +3429,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 175. `outbox_events`
+### 176. `outbox_events`
 * **Primary App:** Shared (Microservices)
 * **Functional Domain:** Event Driven Outbox
 * **Description:** Transactional outbox for reliable async domain event dispatching
@@ -3436,7 +3449,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 176. `passkeys`
+### 177. `passkeys`
 * **Primary App:** Shared / All Portals
 * **Functional Domain:** Identity & Access
 * **Description:** WebAuthn biometric passkey credentials
@@ -3453,7 +3466,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 177. `payment_transactions`
+### 178. `payment_transactions`
 * **Primary App:** Shared / Admin
 * **Functional Domain:** Payments & Settlements
 * **Description:** Detailed webhook logs from Razorpay/PayU/UPI
@@ -3475,7 +3488,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 178. `payments`
+### 179. `payments`
 * **Primary App:** Shared / Admin
 * **Functional Domain:** Payments & Settlements
 * **Description:** Order transaction charges and payment gateway tokens
@@ -3493,7 +3506,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 179. `product_images`
+### 180. `product_images`
 * **Primary App:** Shared (Admin / Seller / Customer)
 * **Functional Domain:** Master Catalog
 * **Description:** High-res product gallery photography and thumbnails
@@ -3511,7 +3524,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 180. `product_variants`
+### 181. `product_variants`
 * **Primary App:** Shared (Admin / Seller / Customer)
 * **Functional Domain:** Master Catalog
 * **Description:** SKU variants by pack size, weight, and volume
@@ -3532,7 +3545,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 181. `razorpay_webhook_events`
+### 182. `razorpay_webhook_events`
 * **Primary App:** Shared / Admin
 * **Functional Domain:** Payments & Settlements
 * **Description:** Signed Razorpay webhook payload events for transaction confirmation
@@ -3554,7 +3567,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 182. `schema_migrations`
+### 183. `schema_migrations`
 * **Primary App:** Infrastructure / DevOps
 * **Functional Domain:** Database DevOps
 * **Description:** Versioned database migration tracking
@@ -3566,7 +3579,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 183. `sessions`
+### 184. `sessions`
 * **Primary App:** Shared / All Portals
 * **Functional Domain:** Identity & Access
 * **Description:** Active authentication sessions and tokens
@@ -3585,7 +3598,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 184. `state`
+### 185. `state`
 * **Primary App:** Shared / All Portals
 * **Functional Domain:** Geocoding & Logistics
 * **Description:** Master registry of Indian states for GST compliance and shipping zones
@@ -3599,7 +3612,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 185. `trusted_devices`
+### 186. `trusted_devices`
 * **Primary App:** Shared / All Portals
 * **Functional Domain:** Identity & Access
 * **Description:** Device fingerprinting for fraud prevention
@@ -3618,7 +3631,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 186. `users`
+### 187. `users`
 * **Primary App:** Shared / All Portals
 * **Functional Domain:** Identity & Access
 * **Description:** Core user identity across Seller, Customer, B2B Wholesaler, and Admin accounts
@@ -3641,7 +3654,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 
 ---
 
-### 187. `webhook_events`
+### 188. `webhook_events`
 * **Primary App:** Shared / Admin
 * **Functional Domain:** API Infrastructure
 * **Description:** Inbound external partner webhook delivery records
