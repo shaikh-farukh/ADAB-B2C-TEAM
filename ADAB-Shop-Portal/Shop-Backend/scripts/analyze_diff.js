@@ -3,7 +3,9 @@ const path = require('path');
 const pool = require('../db');
 
 function parseMarkdownDoc() {
-  const mdPath = path.resolve(__dirname, '../../DATABASE_TABLES_AND_COLUMNS1.md');
+  const catalogPath = path.resolve(__dirname, '../../ADAB_DATABASE_TABLES_CATALOG.md');
+  const legacyPath = path.resolve(__dirname, '../../DATABASE_TABLES_AND_COLUMNS1.md');
+  const mdPath = fs.existsSync(catalogPath) ? catalogPath : legacyPath;
   const content = fs.readFileSync(mdPath, 'utf8');
   const lines = content.split('\n');
 
@@ -48,7 +50,7 @@ function parseMarkdownDoc() {
 }
 
 async function analyze() {
-  console.log('1. Parsing DATABASE_TABLES_AND_COLUMNS1.md...');
+  console.log('1. Parsing schema catalog...');
   const docTables = parseMarkdownDoc();
   const docTableNames = Object.keys(docTables);
   console.log(`Parsed ${docTableNames.length} tables from Markdown.`);
