@@ -6,7 +6,9 @@ import React from 'react';
 export default function OrderPackCard({ widget, messageId, actionLoading, onPackOrder, onPackAll, onSelectOrder }) {
   if (!widget?.orders || !Array.isArray(widget.orders)) return null;
 
-  const allPacked = widget.orders.every((o) => o.status === 'PACKED' || o.status === 'PREPARING' || o.isPacked);
+  const allPacked = widget.orders.every(
+    (o) => ['PACKED', 'PREPARING', 'DISPATCHED', 'DELIVERED'].includes((o.status || '').toUpperCase()) || o.isPacked
+  );
   const isPackingAll = actionLoading[`pack_all_${messageId}`];
 
   return (
@@ -14,7 +16,10 @@ export default function OrderPackCard({ widget, messageId, actionLoading, onPack
       {widget.orders.map((o) => {
         const cleanId = (o.actionId || o.id).toString().replace(/^#/, '');
         const isPacking = actionLoading[`pack_${cleanId}`];
-        const isPacked = o.status === 'PACKED' || o.status === 'PREPARING' || o.isPacked;
+        const st = (o.status || '').toUpperCase();
+        const isDelivered = st === 'DELIVERED';
+        const isDispatched = st === 'DISPATCHED' || st === 'SHIPPED';
+        const isPacked = st === 'PACKED' || st === 'PREPARING' || o.isPacked;
 
         return (
           <div
@@ -32,7 +37,15 @@ export default function OrderPackCard({ widget, messageId, actionLoading, onPack
               </div>
               <div className="text-[10px] text-gray-500 truncate">₹{o.amount} • {o.items}</div>
             </div>
-            {isPacked ? (
+            {isDelivered ? (
+              <span className="px-2 py-0.5 bg-teal-100 text-teal-800 border border-teal-200 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-xs shrink-0">
+                <i className="fa-solid fa-check-double"></i> Delivered
+              </span>
+            ) : isDispatched ? (
+              <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 border border-indigo-200 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-xs shrink-0">
+                <i className="fa-solid fa-truck"></i> Dispatched
+              </span>
+            ) : isPacked ? (
               <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-xs shrink-0">
                 <i className="fa-solid fa-check"></i> Packed
               </span>

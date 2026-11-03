@@ -25,8 +25,8 @@ const listOrdersTool = {
     properties: {
       status: {
         type: 'STRING',
-        enum: ['ALL', 'NEW', 'ACCEPTED', 'PACKED', 'DISPATCHED', 'DELIVERED', 'CANCELLED'],
-        description: 'Filter orders by status. Use ALL to retrieve all active and past orders.'
+        enum: ['ALL', 'PENDING', 'NEW', 'ACCEPTED', 'PACKED', 'DISPATCHED', 'DELIVERED', 'CANCELLED'],
+        description: "Filter orders by status. For order packing or fulfillment requests, ALWAYS use 'PENDING' or 'NEW' to exclude already delivered or cancelled orders. Use 'ALL' only for overall historical lookup."
       },
       limit: {
         type: 'INTEGER',

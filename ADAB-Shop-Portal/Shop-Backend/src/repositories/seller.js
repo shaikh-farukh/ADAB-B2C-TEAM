@@ -331,7 +331,11 @@ class SellerRepository {
       LEFT JOIN users u ON o.customer_id = u.id
       LEFT JOIN invoices inv ON inv.seller_order_id = so.id OR (inv.seller_order_id IS NULL AND inv.order_id = so.parent_order_id)
       WHERE so.store_id = $1::uuid
-        AND ($2::text IS NULL OR UPPER(so.status) = $2::text)
+        AND (
+          $2::text IS NULL
+          OR ($2::text = 'PENDING' AND UPPER(so.status) IN ('NEW', 'ACCEPTED', 'PLACED', 'PREPARING'))
+          OR UPPER(so.status) = $2::text
+        )
         AND ($3::text IS NULL OR o.order_number ILIKE $3::text OR COALESCE(u.full_name, '') ILIKE $3::text)
         AND (
           UPPER(COALESCE(o.payment_status, 'PAID')) = 'PAID'

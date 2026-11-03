@@ -304,9 +304,16 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
           }
 
           if (exec.tool === 'adab_list_orders' && exec.result?.data?.orders?.length > 0) {
-            widget = {
-              type: 'ORDER_PACK_CARD',
-              orders: exec.result.data.orders.slice(0, 3).map((o) => {
+            // Filter to orders needing packing / active fulfillment: exclude terminal states (DELIVERED, DISPATCHED, CANCELLED)
+            const activeOrders = exec.result.data.orders.filter((o) => {
+              const st = (o.status || '').toUpperCase();
+              return !['DELIVERED', 'DISPATCHED', 'SHIPPED', 'CANCELLED', 'RETURNED'].includes(st);
+            });
+
+            if (activeOrders.length > 0) {
+              widget = {
+                type: 'ORDER_PACK_CARD',
+                orders: activeOrders.slice(0, 5).map((o) => {
                 const displayId = o.orderNumber || o.orderId || o.id || 'Order';
                 const actionId = o.orderNumber || o.orderId || o.id;
                 return {
@@ -335,6 +342,7 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                 };
               })
             };
+            }
           } else if (exec.tool === 'adab_update_order_state' && exec.result?.success) {
             widget = {
               type: 'ORDER_STATUS_UPDATED_CARD',
