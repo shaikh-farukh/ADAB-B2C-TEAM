@@ -24,7 +24,7 @@ export function useCopilotActions({ setMessages, toggleStoreOnline, updateStoreS
 
     try {
       // 1. Direct Backend API mutation
-      await sellerApi.updateOrderStatus(cleanId, 'preparing');
+      await sellerApi.updateOrderStatus(cleanId, 'packed');
 
       // 2. Play tactile audio chime
       playNotificationChime(true);
@@ -32,7 +32,7 @@ export function useCopilotActions({ setMessages, toggleStoreOnline, updateStoreS
       // 3. Notify app components (Orders page, badges)
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
-          new CustomEvent('adab-orders-updated', { detail: { orderId: cleanId, status: 'preparing' } })
+          new CustomEvent('adab-orders-updated', { detail: { orderId: cleanId, status: 'packed' } })
         );
       }
 
@@ -43,7 +43,7 @@ export function useCopilotActions({ setMessages, toggleStoreOnline, updateStoreS
             const updatedOrders = msg.widget.orders.map((o) => {
               const oId = (o.actionId || o.id).toString().replace(/^#/, '');
               if (oId === cleanId) {
-                return { ...o, status: 'PREPARING', isPacked: true };
+                return { ...o, status: 'PACKED', isPacked: true };
               }
               return o;
             });
@@ -60,7 +60,7 @@ export function useCopilotActions({ setMessages, toggleStoreOnline, updateStoreS
       const confirmMsg = {
         id: Date.now().toString(),
         sender: 'assistant',
-        text: `✅ **Action Confirmed:** Order #${cleanId} marked as **Preparing / Packed**. Sent to fulfillment dispatch.`,
+        text: `✅ **Action Confirmed:** Order #${cleanId} marked as **Packed**. Sent to fulfillment dispatch.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages((prev) => [...prev, confirmMsg]);
@@ -92,7 +92,7 @@ export function useCopilotActions({ setMessages, toggleStoreOnline, updateStoreS
     if (actionLoading[loadingKey]) return;
     setActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
 
-    const pendingOrders = ordersList.filter((o) => o.status !== 'PREPARING' && !o.isPacked);
+    const pendingOrders = ordersList.filter((o) => o.status !== 'PACKED' && o.status !== 'PREPARING' && !o.isPacked);
     if (pendingOrders.length === 0) {
       setActionLoading((prev) => {
         const next = { ...prev };
@@ -106,7 +106,7 @@ export function useCopilotActions({ setMessages, toggleStoreOnline, updateStoreS
       // 1. Direct concurrent backend mutation
       const updatePromises = pendingOrders.map((o) => {
         const cleanId = (o.actionId || o.id).toString().replace(/^#/, '');
-        return sellerApi.updateOrderStatus(cleanId, 'preparing');
+        return sellerApi.updateOrderStatus(cleanId, 'packed');
       });
       await Promise.allSettled(updatePromises);
 
@@ -118,13 +118,13 @@ export function useCopilotActions({ setMessages, toggleStoreOnline, updateStoreS
         window.dispatchEvent(new CustomEvent('adab-orders-updated'));
       }
 
-      // 4. Update all orders in widget to PREPARING
+      // 4. Update all orders in widget to PACKED
       setMessages((prev) =>
         prev.map((msg) => {
           if (msg.id === messageId && msg.widget?.type === 'ORDER_PACK_CARD') {
             const updatedOrders = msg.widget.orders.map((o) => ({
               ...o,
-              status: 'PREPARING',
+              status: 'PACKED',
               isPacked: true
             }));
             return {
@@ -140,7 +140,7 @@ export function useCopilotActions({ setMessages, toggleStoreOnline, updateStoreS
       const confirmMsg = {
         id: Date.now().toString(),
         sender: 'assistant',
-        text: `✅ **Batch Completed:** All **${pendingOrders.length} pending orders** marked as **Preparing / Packed**. Sent to packaging station.`,
+        text: `✅ **Batch Completed:** All **${pendingOrders.length} pending orders** marked as **Packed**. Sent to packaging station.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages((prev) => [...prev, confirmMsg]);

@@ -6,7 +6,7 @@ import React from 'react';
 export default function OrderPackCard({ widget, messageId, actionLoading, onPackOrder, onPackAll }) {
   if (!widget?.orders || !Array.isArray(widget.orders)) return null;
 
-  const allPacked = widget.orders.every((o) => o.status === 'PREPARING' || o.isPacked);
+  const allPacked = widget.orders.every((o) => o.status === 'PACKED' || o.status === 'PREPARING' || o.isPacked);
   const isPackingAll = actionLoading[`pack_all_${messageId}`];
 
   return (
@@ -14,7 +14,7 @@ export default function OrderPackCard({ widget, messageId, actionLoading, onPack
       {widget.orders.map((o) => {
         const cleanId = (o.actionId || o.id).toString().replace(/^#/, '');
         const isPacking = actionLoading[`pack_${cleanId}`];
-        const isPacked = o.status === 'PREPARING' || o.isPacked;
+        const isPacked = o.status === 'PACKED' || o.status === 'PREPARING' || o.isPacked;
 
         return (
           <div
