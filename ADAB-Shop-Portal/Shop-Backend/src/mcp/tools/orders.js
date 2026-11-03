@@ -65,7 +65,15 @@ const listOrdersTool = {
         amount: Number(o.amount || o.grand_total || o.store_subtotal || 0),
         customer: o.customer || 'Customer',
         itemSummary: o.item_summary || 'Items',
-        createdAt: o.created_at || o.seller_order_created_at
+        createdAt: o.created_at || o.seller_order_created_at,
+        items: o.items_list || [],
+        deliveryAddress: o.delivery_address || null,
+        deliveryMode: o.delivery_mode || 'Normal',
+        paymentMethod: o.payment_method || 'PREPAID',
+        paymentStatus: o.payment_status || 'PAID',
+        taxAmount: o.tax_amount || null,
+        invoiceNumber: o.invoice_number || null,
+        customerPhone: o.customer_phone || null
       }))
     };
   }

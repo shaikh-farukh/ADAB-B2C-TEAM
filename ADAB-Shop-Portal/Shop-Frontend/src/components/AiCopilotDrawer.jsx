@@ -7,6 +7,8 @@ import MarkdownMessage from './copilot/MarkdownMessage';
 import { useSpeechRecognition } from './copilot/hooks/useSpeechRecognition';
 import { useCopilotActions } from './copilot/hooks/useCopilotActions';
 import CopilotWidgetDispatcher from './copilot/cards/CopilotWidgetDispatcher';
+import OrderItemsModal from './orders/OrderItemsModal';
+import { sellerApi } from '../api/sellerApi';
 
 // Re-export MarkdownMessage for backwards compatibility with tests and callers
 export { MarkdownMessage };
@@ -84,6 +86,50 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
     handleDirectToggleSoundbox,
     handleDirectDraftPO
   } = useCopilotActions({ setMessages, toggleStoreOnline, updateStoreSettings });
+
+  // Order Details Modal state inside Copilot
+  const [selectedOrderForModal, setSelectedOrderForModal] = useState(null);
+
+  const handleOpenOrderModal = async (orderItem) => {
+    let orderToOpen = orderItem.fullOrder || orderItem;
+    const cleanId = (orderItem.actionId || orderItem.id || '').toString().replace(/^#/, '');
+
+    // If order has no line items, hydrate from cache or backend API
+    if (!Array.isArray(orderToOpen.items) || orderToOpen.items.length === 0) {
+      try {
+        const cached = localStorage.getItem('seller_orders_cache');
+        if (cached) {
+          const list = JSON.parse(cached);
+          const matched = list.find((o) => {
+            const oClean = (o.order_number || o.id || '').toString().replace(/^#/, '');
+            return oClean === cleanId;
+          });
+          if (matched && (matched.items_list?.length || matched.items?.length)) {
+            orderToOpen = { ...matched, items: matched.items_list || matched.items };
+          }
+        }
+      } catch (e) {}
+
+      // If still missing items, fetch from sellerApi
+      if (!Array.isArray(orderToOpen.items) || orderToOpen.items.length === 0) {
+        try {
+          const res = await sellerApi.getOrders();
+          const list = Array.isArray(res?.data?.data) ? res.data.data : (Array.isArray(res?.data) ? res.data : []);
+          const matched = list.find((o) => {
+            const oClean = (o.order_number || o.id || '').toString().replace(/^#/, '');
+            return oClean === cleanId;
+          });
+          if (matched) {
+            orderToOpen = { ...matched, items: matched.items_list || matched.items || [] };
+          }
+        } catch (e) {
+          console.warn('Could not fetch full order details:', e);
+        }
+      }
+    }
+
+    setSelectedOrderForModal(orderToOpen);
+  };
 
   // Hook 2: Web Speech Recognition
   const { isListening, toggleSpeech } = useSpeechRecognition({
@@ -176,7 +222,23 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                   customer: o.customer || 'Customer',
                   amount: o.amount || 0,
                   items: o.itemSummary || o.items || 'Items',
-                  status: o.status || 'NEW'
+                  status: o.status || 'NEW',
+                  fullOrder: {
+                    id: displayId,
+                    order_number: o.orderNumber || displayId,
+                    customer: o.customer || 'Customer',
+                    customer_phone: o.customerPhone || null,
+                    amount: o.amount || 0,
+                    status: (o.status || 'NEW').toLowerCase(),
+                    items: o.items || [],
+                    delivery_address: o.deliveryAddress || null,
+                    delivery_mode: o.deliveryMode || 'Normal',
+                    payment_method: o.paymentMethod || 'PREPAID',
+                    payment_status: o.paymentStatus || 'PAID',
+                    tax_amount: o.taxAmount || null,
+                    invoice_number: o.invoiceNumber || null,
+                    created_at: o.createdAt || null
+                  }
                 };
               })
             };
@@ -408,6 +470,7 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                   actionLoading={actionLoading}
                   onPackOrder={handleDirectPackOrder}
                   onPackAll={handleDirectPackAll}
+                  onSelectOrder={handleOpenOrderModal}
                   onToggleStore={handleDirectToggleStore}
                   onToggleSoundbox={handleDirectToggleSoundbox}
                   onDraftPO={handleDirectDraftPO}
@@ -479,6 +542,21 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
         </div>
 
       </div>
+
+      {/* Itemized Order Modal (when clicking an order card section in Copilot) */}
+      {selectedOrderForModal && (
+        <OrderItemsModal
+          order={selectedOrderForModal}
+          store={store}
+          onClose={() => setSelectedOrderForModal(null)}
+          onUpdateStatus={async (orderId, nextStatus) => {
+            const clean = (orderId || '').toString().replace(/^#/, '');
+            await handleDirectPackOrder({ id: clean, actionId: clean });
+            setSelectedOrderForModal(null);
+          }}
+          isUpdating={Boolean(actionLoading[`pack_${(selectedOrderForModal.actionId || selectedOrderForModal.id || '').toString().replace(/^#/, '')}`])}
+        />
+      )}
     </div>
   );
 }

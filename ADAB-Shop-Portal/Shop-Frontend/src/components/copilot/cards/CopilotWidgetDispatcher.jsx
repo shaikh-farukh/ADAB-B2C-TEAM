@@ -18,6 +18,7 @@ export default function CopilotWidgetDispatcher({
   actionLoading,
   onPackOrder,
   onPackAll,
+  onSelectOrder,
   onToggleStore,
   onToggleSoundbox,
   onDraftPO,
@@ -34,6 +35,7 @@ export default function CopilotWidgetDispatcher({
           actionLoading={actionLoading}
           onPackOrder={onPackOrder}
           onPackAll={onPackAll}
+          onSelectOrder={onSelectOrder}
         />
       );
 
