@@ -7,7 +7,7 @@ const pool = require('../../../db');
  */
 const checkLowStockTool = {
   name: 'adab_check_low_stock',
-  description: 'Inspect catalog inventory to find items running low on stock (stock <= threshold).',
+  description: 'Inspect catalog inventory to find or list items running low on stock (stock <= threshold). Use whenever the merchant asks to check or list low stock items, inventory running out, or items needing restock.',
   tier: 'TIER_1_READ',
   parameters: {
     type: 'OBJECT',

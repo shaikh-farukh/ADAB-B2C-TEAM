@@ -277,11 +277,17 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
     setIsProcessing(true);
 
     try {
-      // Build sliding-window history for the API
-      const historyPayload = messages.slice(-6).map((m) => ({
-        sender: m.sender,
-        text: m.text
-      }));
+      // Build sliding-window history for the API, ensuring valid text payloads
+      const historyPayload = messages.slice(-6).map((m) => {
+        let text = m.text || '';
+        if (!text.trim() && m.widget) {
+          text = `[Displayed ${m.widget.type || 'card'}]`;
+        }
+        return {
+          sender: m.sender,
+          text: text || 'Acknowledged.'
+        };
+      });
 
       const res = await api.post('/assistant/chat', {
         prompt: query,

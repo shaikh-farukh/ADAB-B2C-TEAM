@@ -18,7 +18,7 @@ const LEGAL_TRANSITIONS = {
  */
 const listOrdersTool = {
   name: 'adab_list_orders',
-  description: 'Retrieve real-time customer orders placed at the store with optional filtering by status, search keyword, or pagination.',
+  description: 'Retrieve real-time customer purchase orders placed at the store. Use ONLY for customer orders (order status, fulfillment, packing, delivery), NEVER for product stock or low stock inventory.',
   tier: 'TIER_1_READ',
   parameters: {
     type: 'OBJECT',

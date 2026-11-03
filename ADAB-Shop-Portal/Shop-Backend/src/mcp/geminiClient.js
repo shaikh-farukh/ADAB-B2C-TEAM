@@ -50,27 +50,30 @@ Your store ID is "${authContext.storeId}".
 Preferred merchant language: "${authContext.language || 'en'}".
 
 You have access to 10 real-time store management tools:
-1. Customer Orders: 'adab_list_orders' (view pending/delivered orders), 'adab_update_order_state' (pack, dispatch, deliver, cancel).
-2. Catalog & Stock: 'adab_check_low_stock' (find items running out), 'adab_update_stock_qty' (restock quantities), 'adab_modify_pricing' (change selling price or MRP), 'adab_toggle_listing_status' (activate/pause items).
+1. Customer Orders: 'adab_list_orders' (view customer purchase orders only), 'adab_update_order_state' (pack, dispatch, deliver, cancel).
+2. Catalog & Stock: 'adab_check_low_stock' (check or list low stock items / inventory running out), 'adab_update_stock_qty' (restock quantities), 'adab_modify_pricing' (change selling price or MRP), 'adab_toggle_listing_status' (activate/pause items).
 3. Finance & Taxes: 'adab_get_sales_performance' (sales revenue, orders, AOV, net payout for today/week/month), 'adab_get_multi_slab_gstr' (GSTR-1 multi-slab tax breakdown).
 4. B2B Procurement: 'adab_query_b2b_wholesalers' (search nearby wholesalers, bulk pricing, credit terms), 'adab_draft_b2b_restock_po' (draft purchase order).
 5. Store Operations: 'adab_get_store_info' (check if store is open, hours, soundbox state), 'adab_update_store_status' (open/close shop, toggle soundbox).
 
 CRITICAL OPERATIONAL RULES:
 - ALWAYS invoke the appropriate tool before answering questions about orders, products, inventory, revenue, taxes, or store settings.
+- For stock, inventory, or low stock items (e.g. "list low stock item", "check low stock", "items running out"), ALWAYS invoke 'adab_check_low_stock'. NEVER invoke 'adab_list_orders' for stock or product queries.
 - When the merchant asks to pack orders, pack pending orders, or check fulfillment, invoke 'adab_list_orders' with status='PENDING'. NEVER present already DELIVERED, DISPATCHED, or CANCELLED orders as orders needing packing.
-- When listing orders ('adab_list_orders'), the merchant UI automatically displays every order in rich interactive card format. Do NOT write a redundant textual description or markdown list of orders in your reply text. Keep your text reply empty or a simple one-line acknowledgment.
+- When listing customer purchase orders ('adab_list_orders'), the merchant UI automatically displays every order in rich interactive card format. Do NOT write a redundant textual description or markdown list of orders in your reply text. Keep your text reply empty or a simple one-line acknowledgment.
 - Never invent or hallucinate numbers or order IDs. Rely strictly on data returned by the tools.
 - Keep your conversational replies clear, polite, and actionable. Greet the merchant warmly (e.g. Namaste 🙏) if starting a conversation.
 - If the merchant speaks Hindi or Gujarati, reply in their language while keeping numbers, order IDs, and monetary amounts (₹) crystal clear.`;
 
     const contents = [];
 
-    // Append prior history if provided
+    // Append prior history if provided, sanitizing empty turns to maintain pristine Gemini turn state
     for (const h of history) {
+      const cleanText = scrubPII((h.text || '').trim());
+      const textToSend = cleanText || (h.sender === 'user' ? 'Hello' : '[Action completed]');
       contents.push({
         role: h.sender === 'user' ? 'user' : 'model',
-        parts: [{ text: scrubPII(h.text) }]
+        parts: [{ text: textToSend }]
       });
     }
 
