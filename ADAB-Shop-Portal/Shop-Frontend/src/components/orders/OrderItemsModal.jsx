@@ -658,14 +658,6 @@ export default function OrderItemsModal({ order, store: propStore, onClose, onUp
                   >
                     {busy ? t('orderUpdating', 'Updating...') : t('orderModalAcceptOrder', 'Accept Order')}
                   </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => runAction('packed')}
-                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {busy ? t('orderUpdating', 'Updating...') : t('orderModalPackOrder', 'Pack Order')}
-                  </button>
                   {onDecline && (
                     <button
                       type="button"
