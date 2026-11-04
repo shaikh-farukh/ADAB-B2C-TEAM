@@ -413,5 +413,46 @@ describe('OrdersPage Component', () => {
 
     HTMLAnchorElement.prototype.click = originalClick;
   });
+
+  it('reactively updates order status and action button when adab-orders-updated event is dispatched from AI copilot', async () => {
+    sellerApi.getOrders.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'ORD-9001',
+          customer: 'Ramesh Patel',
+          distance: '1.2',
+          delivery_mode: 'normal',
+          items: 'Basmati Rice 5kg',
+          amount: 550,
+          status: 'packing' // Currently in packing status -> shows "Pack" button
+        }
+      ]
+    });
+
+    render(
+      <BrowserRouter>
+        <OrdersPage />
+      </BrowserRouter>
+    );
+
+    // Verify initial "Pack" button is present
+    await waitFor(() => {
+      expect(screen.getByText('#ORD-9001')).toBeDefined();
+    });
+    expect(screen.getByRole('button', { name: /^Pack$/i })).toBeDefined();
+
+    // AI Copilot packs the order and dispatches the reactive event
+    window.dispatchEvent(
+      new CustomEvent('adab-orders-updated', {
+        detail: { orderId: 'ORD-9001', status: 'packed' }
+      })
+    );
+
+    // Verify that OrdersPage immediately updates to "packed" and button changes to "Send"
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^Send$/i })).toBeDefined();
+    });
+  });
 });
 

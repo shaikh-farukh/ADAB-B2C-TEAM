@@ -35,7 +35,7 @@ export function useOrders() {
       setOrders(list);
       persistOrdersCache(list);
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('adab-orders-updated', { detail: { count: list.length, orders: list } }));
+        window.dispatchEvent(new CustomEvent('adab-orders-updated', { detail: { count: list.length, orders: list, source: 'useOrders' } }));
       }
     } catch (err) {
       console.error('Failed to fetch orders:', err);
@@ -67,7 +67,7 @@ export function useOrders() {
         });
         persistOrdersCache(next);
         if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('adab-orders-updated', { detail: { count: next.length, orders: next } }));
+          window.dispatchEvent(new CustomEvent('adab-orders-updated', { detail: { count: next.length, orders: next, source: 'useOrders' } }));
         }
         return next;
       });
@@ -88,6 +88,52 @@ export function useOrders() {
 
   useEffect(() => {
     fetchOrders();
+  }, [fetchOrders]);
+
+  // Reactive Cross-Component State Synchronization (Copilot Drawer, MCP Tools, WebSockets)
+  useEffect(() => {
+    const handleOrderUpdate = (e) => {
+      // Prevent feedback loops from self-emitted events
+      if (!e?.detail || e.detail.source === 'useOrders') return;
+
+      const { orderId, status, orders: incomingOrders } = e.detail;
+
+      if (Array.isArray(incomingOrders) && incomingOrders.length > 0) {
+        setOrders(incomingOrders);
+        persistOrdersCache(incomingOrders);
+        return;
+      }
+
+      if (orderId && status) {
+        const cleanTargetId = orderId.toString().replace(/^#/, '');
+        const targetNum = cleanTargetId.replace(/^ORD-/i, '');
+        const normalizedStatus = status.toLowerCase();
+
+        setOrders((prev) => {
+          const next = prev.map((o) => {
+            const oClean = o.id ? o.id.toString().replace(/^#/, '') : '';
+            const oNum = oClean.replace(/^ORD-/i, '');
+            const oReal = o.real_id ? o.real_id.toString().replace(/^#/, '') : '';
+
+            const matches =
+              oClean.toLowerCase() === cleanTargetId.toLowerCase() ||
+              oNum.toLowerCase() === targetNum.toLowerCase() ||
+              oReal.toLowerCase() === cleanTargetId.toLowerCase() ||
+              o.id === orderId;
+
+            return matches ? { ...o, status: normalizedStatus } : o;
+          });
+          persistOrdersCache(next);
+          return next;
+        });
+      } else {
+        // Full refresh requested by batch operations
+        fetchOrders();
+      }
+    };
+
+    window.addEventListener('adab-orders-updated', handleOrderUpdate);
+    return () => window.removeEventListener('adab-orders-updated', handleOrderUpdate);
   }, [fetchOrders]);
 
   return {

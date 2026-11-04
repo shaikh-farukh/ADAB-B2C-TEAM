@@ -384,11 +384,24 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
               replyText = '';
             }
           } else if (exec.tool === 'adab_update_order_state' && exec.result?.success) {
+            const resData = exec.result.data || exec.result;
+            const updatedOrderNum = resData?.orderNumber || resData?.orderId;
+            const updatedStatus = (resData?.newStatus || 'PACKED').toLowerCase();
+
+            // Broadcast real-time event to synchronize OrdersPage, Sidebar badges, etc.
+            if (typeof window !== 'undefined' && updatedOrderNum) {
+              window.dispatchEvent(
+                new CustomEvent('adab-orders-updated', {
+                  detail: { orderId: updatedOrderNum, status: updatedStatus }
+                })
+              );
+            }
+
             widget = {
               type: 'ORDER_STATUS_UPDATED_CARD',
-              orderNumber: exec.result.data.orderNumber,
-              newStatus: exec.result.data.newStatus,
-              message: exec.result.data.message
+              orderNumber: updatedOrderNum,
+              newStatus: resData?.newStatus,
+              message: resData?.message
             };
           } else if (exec.tool === 'adab_get_sales_performance' && exec.result?.data?.summary) {
             const s = exec.result.data.summary;
