@@ -420,8 +420,9 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
             const items = exec.result?.data?.items || [];
             widget = {
               type: 'LOW_STOCK_CARD',
-              count: items.length,
-              items: items.slice(0, 4).map((i) => ({
+              count: exec.result?.data?.lowStockCount ?? items.length,
+              threshold: exec.result?.data?.threshold ?? 5,
+              items: items.map((i) => ({
                 id: i.id,
                 title: i.title,
                 remaining: i.stockQty,
@@ -430,6 +431,8 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                 category: i.category
               }))
             };
+            // Suppress redundant text descriptions - items are cleanly presented in cards
+            replyText = '';
           } else if (exec.tool === 'adab_get_multi_slab_gstr' && exec.result?.data?.taxSummary) {
             const t = exec.result.data.taxSummary;
             widget = {
@@ -611,13 +614,17 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
               className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}
             >
               <div 
-                className={`max-w-[85%] rounded-2xl p-3 text-xs leading-relaxed shadow-xs ${
+                className={`${
+                  ['ORDER_LIST_CARD', 'ORDER_PACK_CARD', 'LOW_STOCK_CARD'].includes(m.widget?.type)
+                    ? 'w-full max-w-[92%]'
+                    : 'max-w-[85%]'
+                } rounded-2xl p-3 text-xs leading-relaxed shadow-xs ${
                   m.sender === 'user'
                     ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-br-xs'
                     : 'bg-white text-gray-800 border border-gray-200 rounded-bl-xs'
                 }`}
               >
-                {m.text && !['ORDER_LIST_CARD', 'ORDER_PACK_CARD'].includes(m.widget?.type) && (
+                {m.text && !['ORDER_LIST_CARD', 'ORDER_PACK_CARD', 'LOW_STOCK_CARD'].includes(m.widget?.type) && (
                   <MarkdownMessage content={m.text} isUser={m.sender === 'user'} />
                 )}
 

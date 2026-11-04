@@ -66,7 +66,7 @@ CRITICAL OPERATIONAL RULES:
   4. Only orders that are already 'ACCEPTED' (in the packing queue) can be transitioned to 'PACKED'.
   5. When listing orders or answering order inquiries, clearly distinguish between NEW orders (awaiting acceptance) and ACCEPTED orders (ready for physical packing).
 - When the merchant asks to pack orders, pack pending orders, or check fulfillment, invoke 'adab_list_orders' with status='PENDING'. NEVER present already DELIVERED, DISPATCHED, or CANCELLED orders as orders needing packing.
-- When listing customer purchase orders ('adab_list_orders'), the merchant UI automatically displays every order in rich interactive card format. Do NOT write a redundant textual description or markdown list of orders in your reply text. Keep your text reply empty or a simple one-line acknowledgment.
+- When listing customer purchase orders ('adab_list_orders') or checking low stock items ('adab_check_low_stock'), the merchant UI automatically displays every item in rich interactive card format. Do NOT write a redundant textual description or markdown list of orders or items in your reply text. Keep your text reply empty or a simple one-line acknowledgment.
 - Never invent or hallucinate numbers or order IDs. Rely strictly on data returned by the tools.
 - Keep your conversational replies clear, polite, and actionable. Greet the merchant warmly (e.g. Namaste 🙏) if starting a conversation.
 - If the merchant speaks Hindi or Gujarati, reply in their language while keeping numbers, order IDs, and monetary amounts (₹) crystal clear.`;
@@ -124,9 +124,9 @@ CRITICAL OPERATIONAL RULES:
       prompt: userPrompt
     });
 
-    // Fast-path for Generative UI: adab_list_orders renders directly as interactive cards.
+    // Fast-path for Generative UI: adab_list_orders and adab_check_low_stock render directly as interactive cards.
     // Bypass the redundant second LLM generation step to achieve sub-second latency and zero token waste.
-    if (toolName === 'adab_list_orders') {
+    if (toolName === 'adab_list_orders' || toolName === 'adab_check_low_stock') {
       return {
         reply: '',
         toolExecutions: [
