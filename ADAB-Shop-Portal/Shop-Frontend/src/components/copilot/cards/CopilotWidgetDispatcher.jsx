@@ -17,6 +17,8 @@ export default function CopilotWidgetDispatcher({
   widget,
   messageId,
   actionLoading,
+  onAcceptOrder,
+  onAcceptAll,
   onPackOrder,
   onPackAll,
   onSelectOrder,
@@ -34,6 +36,8 @@ export default function CopilotWidgetDispatcher({
           widget={widget}
           messageId={messageId}
           actionLoading={actionLoading}
+          onAcceptOrder={onAcceptOrder}
+          onAcceptAll={onAcceptAll}
           onPackOrder={onPackOrder}
           onPackAll={onPackAll}
           onSelectOrder={onSelectOrder}
@@ -46,6 +50,8 @@ export default function CopilotWidgetDispatcher({
           widget={widget}
           messageId={messageId}
           actionLoading={actionLoading}
+          onAcceptOrder={onAcceptOrder}
+          onAcceptAll={onAcceptAll}
           onPackOrder={onPackOrder}
           onPackAll={onPackAll}
           onSelectOrder={onSelectOrder}

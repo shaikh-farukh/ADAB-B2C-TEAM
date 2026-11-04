@@ -1,11 +1,11 @@
 const sellerService = require('../../services/seller');
 const pool = require('../../../db');
 
-// Legal finite state machine progression
-// NEW / PLACED orders can be directly packed (auto-accepted + packed) by merchant copilot
+// Legal finite state machine progression:
+// Order lifecycle must be strictly sequential: NEW/PLACED -> ACCEPTED -> PACKED -> DISPATCHED -> DELIVERED
 const LEGAL_TRANSITIONS = {
-  NEW: ['ACCEPTED', 'PACKED', 'CANCELLED'],
-  PLACED: ['ACCEPTED', 'PACKED', 'CANCELLED'],
+  NEW: ['ACCEPTED', 'CANCELLED'],
+  PLACED: ['ACCEPTED', 'CANCELLED'],
   ACCEPTED: ['PACKED', 'CANCELLED'],
   PACKED: ['DISPATCHED', 'CANCELLED'],
   DISPATCHED: ['DELIVERED'],
@@ -149,7 +149,7 @@ const updateOrderStateTool = {
     const allowedNext = LEGAL_TRANSITIONS[currentStatus] || [];
     if (!allowedNext.includes(cleanTarget)) {
       throw new Error(
-        `INVALID_TRANSITION: Cannot transition order ${orderNumber} from '${currentStatus}' directly to '${cleanTarget}'. Legal progression: NEW/PLACED -> ACCEPTED/PACKED -> DISPATCHED -> DELIVERED.`
+        `INVALID_TRANSITION: Cannot transition order ${orderNumber} from '${currentStatus}' directly to '${cleanTarget}'. Legal progression: NEW/PLACED -> ACCEPTED -> PACKED -> DISPATCHED -> DELIVERED. Orders must be accepted before packing.`
       );
     }
 

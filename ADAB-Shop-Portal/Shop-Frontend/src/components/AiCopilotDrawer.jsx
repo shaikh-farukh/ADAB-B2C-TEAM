@@ -81,6 +81,8 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
   // Hook 1: Direct Deterministic Actions
   const {
     actionLoading,
+    handleDirectAcceptOrder,
+    handleDirectAcceptAll,
     handleDirectPackOrder,
     handleDirectPackAll,
     handleDirectToggleStore,
@@ -624,6 +626,8 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
                   widget={m.widget}
                   messageId={m.id}
                   actionLoading={actionLoading}
+                  onAcceptOrder={handleDirectAcceptOrder}
+                  onAcceptAll={handleDirectAcceptAll}
                   onPackOrder={handleDirectPackOrder}
                   onPackAll={handleDirectPackAll}
                   onSelectOrder={handleOpenOrderModal}

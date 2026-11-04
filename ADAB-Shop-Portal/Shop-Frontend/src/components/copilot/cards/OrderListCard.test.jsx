@@ -220,4 +220,57 @@ describe('OrderListCard Component', () => {
     // Show Next button disappears when all orders are displayed
     expect(screen.queryByRole('button', { name: /Show Next/i })).not.toBeInTheDocument();
   });
+
+  it('renders Accept button for NEW orders and Pack button only after order is ACCEPTED', () => {
+    const handleAcceptOrder = vi.fn();
+    const handlePackOrder = vi.fn();
+
+    const mixedOrders = [
+      {
+        id: 'ORD-301',
+        actionId: '301',
+        customer: 'Karan Mehra',
+        amount: 250,
+        items: 'Besan 1kg',
+        status: 'NEW',
+        createdAt: '2026-11-04T12:00:00Z'
+      },
+      {
+        id: 'ORD-302',
+        actionId: '302',
+        customer: 'Deepa Shah',
+        amount: 500,
+        items: 'Toor Dal 2kg',
+        status: 'ACCEPTED',
+        createdAt: '2026-11-04T11:00:00Z'
+      }
+    ];
+
+    render(
+      <OrderListCard
+        widget={{ orders: mixedOrders }}
+        messageId="msg-seq"
+        actionLoading={{}}
+        onAcceptOrder={handleAcceptOrder}
+        onPackOrder={handlePackOrder}
+      />
+    );
+
+    // NEW order shows Accept button (not Pack)
+    const acceptBtn = screen.getByRole('button', { name: /^Accept$/i });
+    expect(acceptBtn).toBeInTheDocument();
+    fireEvent.click(acceptBtn);
+    expect(handleAcceptOrder).toHaveBeenCalledWith(mixedOrders[0], 'msg-seq');
+
+    // ACCEPTED order shows Pack button (not Accept)
+    const packBtn = screen.getByRole('button', { name: /^Pack$/i });
+    expect(packBtn).toBeInTheDocument();
+    fireEvent.click(packBtn);
+    expect(handlePackOrder).toHaveBeenCalledWith(mixedOrders[1], 'msg-seq');
+
+    // Batch button prioritizes accepting new incoming orders
+    expect(
+      screen.getByRole('button', { name: /Accept All New Orders \(1\)/i })
+    ).toBeInTheDocument();
+  });
 });

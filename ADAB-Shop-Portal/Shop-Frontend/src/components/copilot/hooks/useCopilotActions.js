@@ -11,6 +11,153 @@ import { playNotificationChime, unlockAudioContext } from '../../../utils/audioA
 export function useCopilotActions({ setMessages, toggleStoreOnline, updateStoreSettings }) {
   const [actionLoading, setActionLoading] = useState({});
 
+  // Direct Action 0: Accept a Single New Order (<100ms)
+  const handleDirectAcceptOrder = useCallback(async (order, messageId) => {
+    unlockAudioContext();
+    const rawId = order.actionId || order.id;
+    if (!rawId) return;
+    const cleanId = rawId.toString().replace(/^#/, '');
+    const loadingKey = `accept_${cleanId}`;
+
+    if (actionLoading[loadingKey]) return;
+    setActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
+
+    try {
+      // 1. Direct Backend API mutation to 'packing' (maps to ACCEPTED in DB)
+      await sellerApi.updateOrderStatus(cleanId, 'packing');
+
+      // 2. Play tactile audio chime
+      playNotificationChime(true);
+
+      // 3. Notify app components (Orders page, badges)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('adab-orders-updated', { detail: { orderId: cleanId, status: 'packing' } })
+        );
+      }
+
+      // 4. Update the card widget in-place inside messages state: NEW -> ACCEPTED
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (
+            msg.id === messageId &&
+            (msg.widget?.type === 'ORDER_PACK_CARD' || msg.widget?.type === 'ORDER_LIST_CARD')
+          ) {
+            const updatedOrders = msg.widget.orders.map((o) => {
+              const oId = (o.actionId || o.id).toString().replace(/^#/, '');
+              if (oId === cleanId) {
+                return { ...o, status: 'ACCEPTED', isPacked: false };
+              }
+              return o;
+            });
+            return {
+              ...msg,
+              widget: { ...msg.widget, orders: updatedOrders }
+            };
+          }
+          return msg;
+        })
+      );
+
+      // 5. Inject confirmation message into chat stream
+      const confirmMsg = {
+        id: Date.now().toString(),
+        sender: 'assistant',
+        text: `✅ **Action Confirmed:** Order #${cleanId} **Accepted**. Moved to the packing station.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setMessages((prev) => [...prev, confirmMsg]);
+    } catch (err) {
+      console.error('Direct accept order failed:', err);
+      playNotificationChime(false);
+      const errMsg = {
+        id: Date.now().toString(),
+        sender: 'assistant',
+        text: `❌ **Failed to accept Order #${cleanId}:** ${err.response?.data?.message || err.message || 'Server error'}. Please try again.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setMessages((prev) => [...prev, errMsg]);
+    } finally {
+      setActionLoading((prev) => {
+        const next = { ...prev };
+        delete next[loadingKey];
+        return next;
+      });
+    }
+  }, [actionLoading, setMessages]);
+
+  // Direct Action 0.5: Accept All New Incoming Orders
+  const handleDirectAcceptAll = useCallback(async (ordersList, messageId) => {
+    unlockAudioContext();
+    if (!Array.isArray(ordersList) || ordersList.length === 0) return;
+    const loadingKey = `accept_all_${messageId}`;
+
+    if (actionLoading[loadingKey]) return;
+    setActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
+
+    const newOrders = ordersList.filter((o) => ['NEW', 'PLACED'].includes((o.status || '').toUpperCase()));
+    if (newOrders.length === 0) {
+      setActionLoading((prev) => {
+        const next = { ...prev };
+        delete next[loadingKey];
+        return next;
+      });
+      return;
+    }
+
+    try {
+      const updatePromises = newOrders.map((o) => {
+        const cleanId = (o.actionId || o.id).toString().replace(/^#/, '');
+        return sellerApi.updateOrderStatus(cleanId, 'packing');
+      });
+      await Promise.allSettled(updatePromises);
+
+      playNotificationChime(true);
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('adab-orders-updated'));
+      }
+
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (
+            msg.id === messageId &&
+            (msg.widget?.type === 'ORDER_PACK_CARD' || msg.widget?.type === 'ORDER_LIST_CARD')
+          ) {
+            const updatedOrders = msg.widget.orders.map((o) => {
+              const isTarget = newOrders.some(
+                (no) => (no.actionId || no.id).toString().replace(/^#/, '') === (o.actionId || o.id).toString().replace(/^#/, '')
+              );
+              return isTarget ? { ...o, status: 'ACCEPTED', isPacked: false } : o;
+            });
+            return {
+              ...msg,
+              widget: { ...msg.widget, orders: updatedOrders }
+            };
+          }
+          return msg;
+        })
+      );
+
+      const confirmMsg = {
+        id: Date.now().toString(),
+        sender: 'assistant',
+        text: `✅ **Batch Accepted:** All **${newOrders.length} incoming orders** accepted and moved to packing.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setMessages((prev) => [...prev, confirmMsg]);
+    } catch (err) {
+      console.error('Batch accept failed:', err);
+      playNotificationChime(false);
+    } finally {
+      setActionLoading((prev) => {
+        const next = { ...prev };
+        delete next[loadingKey];
+        return next;
+      });
+    }
+  }, [actionLoading, setMessages]);
+
   // Direct Action 1: Pack a Single Order (<100ms)
   const handleDirectPackOrder = useCallback(async (order, messageId) => {
     unlockAudioContext();
@@ -332,6 +479,8 @@ export function useCopilotActions({ setMessages, toggleStoreOnline, updateStoreS
 
   return {
     actionLoading,
+    handleDirectAcceptOrder,
+    handleDirectAcceptAll,
     handleDirectPackOrder,
     handleDirectPackAll,
     handleDirectToggleStore,
