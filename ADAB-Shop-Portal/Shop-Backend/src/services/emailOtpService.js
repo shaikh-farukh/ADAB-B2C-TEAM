@@ -191,54 +191,81 @@ class EmailOtpService {
 
     const htmlBody = `
       <!DOCTYPE html>
-      <html>
+      <html lang="en">
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>ADAB Portal Verification Code</title>
-        <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0b0f19; color: #f1f5f9; margin: 0; padding: 24px; }
-          .card { max-width: 540px; margin: 0 auto; background: #111827; border: 1px solid #1f2937; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); }
-          .banner { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%); padding: 32px 24px; text-align: center; }
-          .banner h1 { margin: 0; font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px; }
-          .banner p { margin: 8px 0 0; color: rgba(255,255,255,0.85); font-size: 13px; }
-          .body { padding: 32px 28px; }
-          .greeting { font-size: 16px; font-weight: 600; color: #f9fafb; margin-bottom: 12px; }
-          .text { font-size: 14px; line-height: 1.6; color: #9ca3af; margin: 0 0 24px; }
-          .code-box { background: #1e1b4b; border: 1px dashed #6366f1; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0; }
-          .code-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #a5b4fc; margin-bottom: 8px; font-weight: 700; }
-          .code-digits { font-size: 38px; font-weight: 900; letter-spacing: 10px; color: #ffffff; font-family: 'Courier New', monospace; }
-          .warning-box { background: rgba(245, 158, 11, 0.1); border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 6px; margin: 20px 0; font-size: 13px; color: #fbbf24; }
-          .footer { padding: 20px 28px; background: #0f172a; border-top: 1px solid #1e293b; text-align: center; font-size: 12px; color: #64748b; }
-        </style>
+        <title>ADAB Seller Portal - Verification Code</title>
       </head>
-      <body>
-        <div class="card">
-          <div class="banner">
-            <h1>ADAB SELLER PORTAL</h1>
-            <p>Merchant Verification & Secure Authentication</p>
-          </div>
-          <div class="body">
-            <div class="greeting">Hello ${recipientName},</div>
-            <p class="text">
-              We received a request to access your ADAB Seller account for <strong>${storeName}</strong>. 
-              Please enter the one-time verification code below to proceed:
-            </p>
-            <div class="code-box">
-              <div class="code-label">Your One-Time Code</div>
-              <div class="code-digits">${otp}</div>
-            </div>
-            <div class="warning-box">
-              ⏰ This verification code is valid for <strong>${expiryMinutes} minutes</strong> and can only be used once.
-            </div>
-            <p class="text" style="font-size: 12px; margin-bottom: 0;">
-              🛡️ <strong>Security Tip:</strong> Never share this code with anyone. ADAB support personnel will never ask for your verification code or password.
-            </p>
-          </div>
-          <div class="footer">
-            &copy; ${new Date().getFullYear()} ADAB B2C/B2B Commerce. Automated system email.
-          </div>
-        </div>
+      <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+        <table width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 32px 12px;">
+          <tr>
+            <td align="center">
+              <table width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width: 520px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06); border: 1px solid #e2e8f0;">
+                
+                <!-- Header Banner -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #15803d 0%, #16a34a 50%, #22c55e 100%); padding: 32px 28px; text-align: center;">
+                    <div style="display: inline-block; padding: 6px 14px; background: rgba(255, 255, 255, 0.2); border-radius: 8px; margin-bottom: 10px;">
+                      <span style="font-size: 11px; font-weight: 800; color: #ffffff; letter-spacing: 2px; text-transform: uppercase;">ADAB COMMERCE</span>
+                    </div>
+                    <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 800; letter-spacing: -0.3px;">Seller Portal Verification</h1>
+                    <p style="margin: 6px 0 0; color: #dcfce7; font-size: 13px; font-weight: 500;">Secure Merchant Authentication</p>
+                  </td>
+                </tr>
+
+                <!-- Body Content -->
+                <tr>
+                  <td style="padding: 32px 32px 24px;">
+                    <p style="margin: 0 0 14px; font-size: 15px; font-weight: 600; color: #1e293b;">
+                      Hello ${recipientName},
+                    </p>
+                    <p style="margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: #475569;">
+                      We received a request to access your ADAB Seller account for <strong>${storeName}</strong>. Please enter the one-time verification code below to proceed:
+                    </p>
+
+                    <!-- OTP Code Box -->
+                    <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin: 22px 0;">
+                      <tr>
+                        <td align="center" style="background-color: #f0fdf4; border: 2px dashed #22c55e; border-radius: 12px; padding: 22px 16px;">
+                          <span style="display: block; font-size: 11px; font-weight: 800; color: #15803d; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px;">
+                            Your One-Time Code
+                          </span>
+                          <span style="display: block; font-size: 38px; font-weight: 900; letter-spacing: 12px; color: #15803d; font-family: Consolas, 'Courier New', Courier, monospace; margin-left: 12px;">
+                            ${otp}
+                          </span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Expiry Alert -->
+                    <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 6px; padding: 12px 16px; margin: 20px 0;">
+                      <p style="margin: 0; font-size: 12px; color: #92400e; line-height: 1.5;">
+                        ⏱️ <strong>Valid for ${expiryMinutes} minutes.</strong> This single-use code will expire shortly. Do not share it with anyone.
+                      </p>
+                    </div>
+
+                    <!-- Security Notice -->
+                    <p style="margin: 20px 0 0; font-size: 12px; line-height: 1.5; color: #64748b;">
+                      🛡️ <strong>Security Tip:</strong> Never share this code with anyone. ADAB support personnel will never ask for your verification code or password.
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="padding: 20px 32px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;">
+                    <p style="margin: 0; font-size: 11px; color: #94a3b8; line-height: 1.5;">
+                      &copy; ${new Date().getFullYear()} ADAB B2C & B2B Commerce. Automated system email.<br>
+                      Please do not reply directly to this automated email.
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
       </body>
       </html>
     `;
@@ -317,7 +344,7 @@ class EmailOtpService {
         html: htmlBody
       });
 
-      console.log('[Brevo Service] ✅ OTP email dispatched successfully:', info.messageId);
+      console.log(`[Brevo Service] ✅ OTP email dispatched from "${fromName}" <${fromEmail}> to ${recipient} (Generated Code: ${otp}) - MessageId: ${info.messageId}`);
       this.saveOTP(recipient, otp);
       return {
         success: true,

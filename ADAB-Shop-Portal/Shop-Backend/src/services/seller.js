@@ -265,6 +265,7 @@ class SellerService {
     const otp = emailOtpService.generateOTP();
     const isEmail = identifier && identifier.includes('@');
     if (isEmail) {
+      console.log(`[Seller Service] 📨 Dispatching real Email OTP to ${identifier}: ${otp}`);
       return await emailOtpService.sendOTPEmail(identifier, otp, meta);
     }
     // For phone identifier, save OTP and return simulated / dev confirmation
