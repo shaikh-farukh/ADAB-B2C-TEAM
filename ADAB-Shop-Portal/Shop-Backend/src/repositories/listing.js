@@ -156,6 +156,14 @@ class ListingRepository {
       values.push(`%${filters.search}%`);
       conditions.push(`(sl.title ILIKE $${values.length} OR sl.barcode ILIKE $${values.length} OR sl.sku ILIKE $${values.length})`);
     }
+    if (filters.category_id && filters.category_id !== 'all' && filters.category_id !== 'ALL') {
+      values.push(parseInt(filters.category_id, 10));
+      conditions.push(`(sl.category_id = $${values.length} OR sl.category_id IN (
+        SELECT id FROM categories WHERE parent_id = $${values.length} OR parent_id IN (
+          SELECT id FROM categories WHERE parent_id = $${values.length}
+        )
+      ))`);
+    }
 
     const whereClause = conditions.join(' AND ');
 
@@ -164,6 +172,7 @@ class ListingRepository {
         sl.*, 
         pi.image_url, 
         c.name as category_name,
+        parent_cat.name as parent_category_name,
         (SELECT COUNT(*) FROM listing_variants lv WHERE lv.listing_id = sl.id AND lv.is_active = true) as variant_count,
         (
           SELECT json_agg(
@@ -185,6 +194,7 @@ class ListingRepository {
       FROM seller_listings sl
       LEFT JOIN product_images pi ON sl.id = pi.product_id AND pi.is_primary = true
       LEFT JOIN categories c ON sl.category_id = c.id
+      LEFT JOIN categories parent_cat ON c.parent_id = parent_cat.id
       WHERE ${whereClause}
       ORDER BY sl.created_at DESC
     `;
@@ -263,7 +273,11 @@ class ListingRepository {
       for (const [key, value] of Object.entries(data)) {
         if (key !== 'image_url') {
           fields.push(`${key} = $${idx}`);
-          values.push(key === 'attributes' && typeof value === 'object' ? JSON.stringify(value) : value);
+          values.push(
+            (key === 'attributes' || key === 'tiered_pricing') && typeof value === 'object' && value !== null
+              ? JSON.stringify(value)
+              : value
+          );
           idx++;
         }
       }
@@ -388,6 +402,77 @@ class ListingRepository {
     `;
     const result = await pool.query(query, [id, data.document_type, data.file_url]);
     return result.rows[0];
+  }
+
+  async deleteImage(imageId) {
+    const query = `DELETE FROM product_images WHERE id = $1 RETURNING *;`;
+    const result = await pool.query(query, [imageId]);
+    return result.rows[0];
+  }
+
+  async getListingIssues(storeId, id) {
+    const query = `
+      SELECT sl.approval_status, sl.rejection_reason, sl.mrp, sl.sell_price, sl.stock_qty,
+             i.available_quantity, i.low_stock_threshold
+      FROM seller_listings sl
+      LEFT JOIN inventory i ON sl.id = i.listing_id
+      WHERE sl.id = $1 AND sl.store_id = $2
+    `;
+    const result = await pool.query(query, [id, storeId]);
+    if (!result.rows || result.rows.length === 0) return null;
+    
+    const row = result.rows[0];
+    const issues = [];
+
+    // 1. Inventory Issues (Fallback to sl.stock_qty if inventory row is absent)
+    const effectiveStock = row.available_quantity !== null && row.available_quantity !== undefined 
+      ? Number(row.available_quantity) 
+      : Number(row.stock_qty || 0);
+
+    if (effectiveStock <= 0) {
+      issues.push({
+        issue_type: 'INVENTORY',
+        severity: 'high',
+        message: 'Product is out of stock',
+        details: { stock: effectiveStock }
+      });
+    } else if (row.low_stock_threshold !== null && row.low_stock_threshold !== undefined && effectiveStock <= Number(row.low_stock_threshold)) {
+      issues.push({
+        issue_type: 'INVENTORY',
+        severity: 'medium',
+        message: 'Product is running low on stock',
+        details: { stock: effectiveStock, low_stock_threshold: Number(row.low_stock_threshold) }
+      });
+    } else if (effectiveStock <= 5) {
+      issues.push({
+        issue_type: 'INVENTORY',
+        severity: 'medium',
+        message: 'Product is running low on stock',
+        details: { stock: effectiveStock, low_stock_threshold: 5 }
+      });
+    }
+
+    // 2. Price Issues (Selling price greater than MRP)
+    if (row.mrp !== null && row.sell_price !== null && Number(row.sell_price) > Number(row.mrp)) {
+      issues.push({
+        issue_type: 'PRICE',
+        severity: 'high',
+        message: 'Selling price cannot be greater than MRP',
+        details: { mrp: Number(row.mrp), sell_price: Number(row.sell_price) }
+      });
+    }
+
+    // 3. Listing / Approval Issues
+    if (['REJECTED', 'CHANGES_REQUIRED'].includes(row.approval_status)) {
+      issues.push({
+        issue_type: 'LISTING',
+        severity: 'high',
+        message: `Product is ${row.approval_status.toLowerCase()}`,
+        details: { approval_status: row.approval_status, rejection_reason: row.rejection_reason }
+      });
+    }
+
+    return issues;
   }
 }
 

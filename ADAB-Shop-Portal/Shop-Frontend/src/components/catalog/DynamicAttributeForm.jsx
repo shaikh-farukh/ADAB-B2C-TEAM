@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import listingService from '../../services/listingService';
+import { useSeller } from '../../context/SellerContext';
 
 export default function DynamicAttributeForm({ categoryId, values = {}, onChange }) {
   const [attributes, setAttributes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const { profile, store } = useSeller() || {};
 
   useEffect(() => {
     if (!categoryId) {
@@ -28,6 +30,7 @@ export default function DynamicAttributeForm({ categoryId, values = {}, onChange
           if (typeof onChange === 'function') {
             const currentValues = (values && typeof values === 'object' && !Array.isArray(values)) ? { ...values } : {};
             let hasNewDefaults = false;
+            const sellerFssai = profile?.fssai_license || store?.fssai_number || (typeof window !== 'undefined' ? localStorage.getItem('seller_fssai_license') : null);
 
             nonVariantAttrs.forEach(a => {
               if (currentValues[a.code] === undefined || currentValues[a.code] === '' || currentValues[a.code] === null) {
@@ -38,11 +41,19 @@ export default function DynamicAttributeForm({ categoryId, values = {}, onChange
                   currentValues['country_of_origin'] = 'India';
                   hasNewDefaults = true;
                 } else if (a.code === 'fssai_license_number') {
-                  const savedFssai = typeof window !== 'undefined' ? localStorage.getItem('seller_fssai_license') : null;
-                  if (savedFssai) {
-                    currentValues['fssai_license_number'] = savedFssai;
+                  if (sellerFssai) {
+                    currentValues['fssai_license_number'] = sellerFssai;
                     hasNewDefaults = true;
                   }
+                } else if (a.code === 'shelf_life_days') {
+                  currentValues['shelf_life_days'] = '180';
+                  hasNewDefaults = true;
+                } else if (a.code === 'storage_temperature') {
+                  currentValues['storage_temperature'] = 'Store in a cool & dry place';
+                  hasNewDefaults = true;
+                } else if (a.code === 'packaging_type') {
+                  currentValues['packaging_type'] = 'Pouch / Packet';
+                  hasNewDefaults = true;
                 }
               }
             });

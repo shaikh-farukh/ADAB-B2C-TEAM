@@ -23,14 +23,40 @@ class ListingService {
 
   async updateListing(storeId, id, data) {
     const existing = await this.getListingById(storeId, id);
-    if (!['DRAFT', 'CHANGES_REQUIRED', 'APPROVED', 'REJECTED'].includes(existing.approval_status)) {
-      throw new Error(`Cannot edit listing while it is in ${existing.approval_status} state. It must be in DRAFT, CHANGES_REQUIRED, APPROVED, or REJECTED.`);
+    if (!['DRAFT', 'CHANGES_REQUIRED', 'APPROVED', 'REJECTED', 'PUBLISHED'].includes(existing.approval_status)) {
+      throw new Error(`Cannot edit listing while it is in ${existing.approval_status} state. It must be in DRAFT, CHANGES_REQUIRED, APPROVED, REJECTED, or PUBLISHED.`);
     }
     const validatedData = updateListingSchema.parse(data);
 
-    // If an approved listing is edited, transition its status to SUBMITTED for admin re-review
-    if (existing.approval_status === 'APPROVED') {
-      validatedData.approval_status = 'SUBMITTED';
+    // Identify if this is strictly an operational update (active/deactive toggle, stock update, allowed buyers)
+    const operationalKeys = ['is_active', 'stock_qty', 'allowed_buyers'];
+    const passedKeys = Object.keys(data).filter(k => data[k] !== undefined);
+    const isOperationalOnly = passedKeys.length > 0 && passedKeys.every(k => operationalKeys.includes(k) || k === 'approval_status');
+
+    let shouldReSubmit = false;
+
+    if (existing.approval_status === 'PUBLISHED') {
+      if (isOperationalOnly) {
+        // Operational changes (active toggle, stock, allowed buyers) remain PUBLISHED
+        validatedData.approval_status = 'PUBLISHED';
+      } else {
+        // Core specification change requires admin re-review
+        validatedData.approval_status = 'SUBMITTED';
+        shouldReSubmit = true;
+      }
+    } else if (existing.approval_status === 'APPROVED') {
+      if (isOperationalOnly) {
+        // If activating an APPROVED listing, it goes to PUBLISHED
+        if (data.is_active === true) {
+          validatedData.approval_status = 'PUBLISHED';
+        } else {
+          validatedData.approval_status = 'APPROVED';
+        }
+      } else {
+        // Core edits on an approved listing re-submit for review
+        validatedData.approval_status = 'SUBMITTED';
+        shouldReSubmit = true;
+      }
     } else if (existing.approval_status === 'REJECTED') {
       // If seller edits a rejected listing, allow moving it back to DRAFT or SUBMITTED
       if (data.approval_status === 'DRAFT') {
@@ -45,14 +71,18 @@ class ListingService {
     const listing = await ListingRepository.updateListing(storeId, id, validatedData);
     if (!listing) throw new Error('Listing not found');
 
-    if (existing.approval_status === 'APPROVED') {
+    if (shouldReSubmit) {
       const pool = require('../../db');
       await pool.query(
-        `INSERT INTO product_approval_history (listing_id, previous_status, new_status, rejection_reason) VALUES ($1, $2, $3, $4)`,
-        [id, 'APPROVED', 'SUBMITTED', 'Seller edited approved listing and re-submitted for review']
+        `INSERT INTO product_approval_history (listing_id, previous_status, new_status, rejection_reason, action_at) VALUES ($1, $2, $3, $4, NOW())`,
+        [id, existing.approval_status, 'SUBMITTED', 'Seller edited listing details and re-submitted for review']
       );
-      const notificationProducer = require('./notificationProducer');
-      await notificationProducer.listingSubmitted(storeId, listing.title);
+      try {
+        const notificationProducer = require('./notificationProducer');
+        await notificationProducer.listingSubmitted(storeId, listing.title);
+      } catch (notifErr) {
+        console.warn('[ListingService] Failed to dispatch notification (non-fatal):', notifErr.message);
+      }
     }
 
     return listing;
@@ -86,7 +116,7 @@ class ListingService {
       : 'Seller submitted for review';
 
     await pool.query(
-      `INSERT INTO product_approval_history (listing_id, previous_status, new_status, rejection_reason) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO product_approval_history (listing_id, previous_status, new_status, rejection_reason, action_at) VALUES ($1, $2, $3, $4, NOW())`,
       [id, listing.approval_status, 'SUBMITTED', reasonText]
     );
 
@@ -94,8 +124,14 @@ class ListingService {
       approval_status: 'SUBMITTED',
       rejection_reason: null
     });
-    const notificationProducer = require('./notificationProducer');
-    await notificationProducer.listingSubmitted(storeId, listing.title);
+
+    try {
+      const notificationProducer = require('./notificationProducer');
+      await notificationProducer.listingSubmitted(storeId, listing.title);
+    } catch (notifErr) {
+      console.warn('[ListingService] Failed to dispatch notification (non-fatal):', notifErr.message);
+    }
+
     return updated;
   }
 
@@ -105,45 +141,52 @@ class ListingService {
     if (listing.approval_status !== 'SUBMITTED') {
       throw new Error(`Cannot start review from state: ${listing.approval_status}`);
     }
-    
     const pool = require('../../db');
     await pool.query(
-      `INSERT INTO product_approval_history (listing_id, previous_status, new_status, rejection_reason) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO product_approval_history (listing_id, previous_status, new_status, rejection_reason, action_at) VALUES ($1, $2, $3, $4, NOW())`,
       [id, listing.approval_status, 'UNDER_REVIEW', 'Admin started review']
     );
-
     return await ListingRepository.updateListing(storeId, id, { approval_status: 'UNDER_REVIEW' });
   }
 
-  // Admin simulation endpoint
-  async adminReviewListing(storeId, id, status, reason = '') {
+  // Admin endpoint: make decision
+  async adminReviewListing(storeId, id, status, reason) {
     if (!['APPROVED', 'REJECTED', 'CHANGES_REQUIRED'].includes(status)) {
-      throw new Error('Invalid review status');
+      throw new Error(`Invalid decision status: ${status}`);
     }
     const listing = await this.getListingById(storeId, id);
     if (listing.approval_status !== 'UNDER_REVIEW') {
       throw new Error(`Cannot make decision from state: ${listing.approval_status}. Must be UNDER_REVIEW.`);
     }
-
-    const data = { approval_status: status };
+    // When Admin approves, directly set status to PUBLISHED and is_active: true
+    const finalStatus = status === 'APPROVED' ? 'PUBLISHED' : status;
+    const data = { approval_status: finalStatus };
+    if (finalStatus === 'PUBLISHED') {
+      data.is_active = true;
+    }
     if (reason) data.rejection_reason = reason;
+
+    const updated = await ListingRepository.updateListing(storeId, id, data);
 
     // Write history
     const pool = require('../../db');
     await pool.query(
-      `INSERT INTO product_approval_history (listing_id, previous_status, new_status, rejection_reason) VALUES ($1, $2, $3, $4)`,
-      [id, listing.approval_status, status, reason || 'Admin review decision']
+      `INSERT INTO product_approval_history (listing_id, previous_status, new_status, rejection_reason, action_at) VALUES ($1, $2, $3, $4, NOW())`,
+      [id, listing.approval_status, finalStatus, reason || (finalStatus === 'PUBLISHED' ? 'Admin approved & published listing' : 'Admin review decision')]
     );
 
-    const updated = await ListingRepository.updateListing(storeId, id, data);
-    
-    const notificationProducer = require('./notificationProducer');
-    if (status === 'APPROVED') {
-      await notificationProducer.listingApproved(storeId, listing.title);
-    } else if (status === 'REJECTED') {
-      await notificationProducer.listingRejected(storeId, listing.title, reason);
-    } else if (status === 'CHANGES_REQUIRED') {
-      await notificationProducer.listingChangesRequired(storeId, listing.title, reason);
+    try {
+      const notificationProducer = require('./notificationProducer');
+      if (finalStatus === 'PUBLISHED') {
+        await notificationProducer.listingApproved(storeId, listing.title);
+        await notificationProducer.listingPublished(storeId, listing.title);
+      } else if (status === 'REJECTED') {
+        await notificationProducer.listingRejected(storeId, listing.title, reason);
+      } else if (status === 'CHANGES_REQUIRED') {
+        await notificationProducer.listingChangesRequired(storeId, listing.title, reason);
+      }
+    } catch (notifErr) {
+      console.warn('[ListingService] Failed to dispatch notification (non-fatal):', notifErr.message);
     }
 
     return updated;
@@ -157,15 +200,20 @@ class ListingService {
 
     const pool = require('../../db');
     await pool.query(
-      `INSERT INTO product_approval_history (listing_id, previous_status, new_status, rejection_reason) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO product_approval_history (listing_id, previous_status, new_status, rejection_reason, action_at) VALUES ($1, $2, $3, $4, NOW())`,
       [id, listing.approval_status, 'PUBLISHED', 'Seller or System published listing']
     );
 
-    const updated = await ListingRepository.updateListing(storeId, id, { approval_status: 'PUBLISHED' });
-    const notificationProducer = require('./notificationProducer');
-    await notificationProducer.listingPublished(storeId, listing.title);
+    const updated = await ListingRepository.updateListing(storeId, id, { approval_status: 'PUBLISHED', is_active: true });
+    try {
+      const notificationProducer = require('./notificationProducer');
+      await notificationProducer.listingPublished(storeId, listing.title);
+    } catch (notifErr) {
+      console.warn('[ListingService] Failed to dispatch notification (non-fatal):', notifErr.message);
+    }
     return updated;
   }
+
   async getApprovalHistory(storeId, id) {
     // Basic authorization check - is this listing owned by this store?
     await this.getListingById(storeId, id);
@@ -184,9 +232,7 @@ class ListingService {
   }
 
   async getListingIssues(storeId, id) {
-    const issues = await ListingRepository.getListingIssues(storeId, id);
-    if (!issues) throw new Error('Listing not found');
-    return issues;
+    return await ListingRepository.getListingIssues(storeId, id);
   }
 }
 

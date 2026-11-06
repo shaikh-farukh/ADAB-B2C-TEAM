@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import listingService from '../../services/listingService';
+import { useSeller } from '../../context/SellerContext';
 
 // Helper to tokenize title for deduplication comparison
 function normalizeTokens(title) {
@@ -29,6 +30,7 @@ function isSameProduct(masterItem, b2bItem) {
 }
 
 export default function PackedItemSelector({ onSelect, selectedItem, onClear }) {
+  const { profile, store } = useSeller() || {};
   const [catalogItems, setCatalogItems] = useState([]);
   const [b2bItems, setB2BItems] = useState([]);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -109,12 +111,17 @@ export default function PackedItemSelector({ onSelect, selectedItem, onClear }) 
       titleStr = master.product_name || '';
 
       const titleLower = titleStr.toLowerCase();
-      const savedFssai = typeof window !== 'undefined' ? localStorage.getItem('seller_fssai_license') : null;
+      const savedFssai = profile?.fssai_license || store?.fssai_number || (typeof window !== 'undefined' ? localStorage.getItem('seller_fssai_license') : null);
+      const isRefrigerated = titleLower.includes('butter') || titleLower.includes('cheese') || titleLower.includes('milk') || titleLower.includes('paneer') || titleLower.includes('curd');
+      const isBox = titleLower.includes('butter') || titleLower.includes('paste') || titleLower.includes('soap') || titleLower.includes('biscuit') || (titleLower.includes('detergent') && titleLower.includes('box'));
+      const isBottle = titleLower.includes('bottle') || titleLower.includes('coke') || titleLower.includes('pepsi') || titleLower.includes('drink') || (titleLower.includes('oil') && !titleLower.includes('pouch'));
+
       const defaultAttributes = {
         dietary_type: 'Veg',
         country_of_origin: 'India',
-        shelf_life_days: titleLower.includes('butter') ? '180' : titleLower.includes('oil') ? '270' : titleLower.includes('salt') ? '720' : titleLower.includes('atta') ? '90' : '180',
-        storage_instructions: titleLower.includes('butter') ? 'Keep refrigerated at 4°C' : 'Store in a cool, dry place'
+        shelf_life_days: isRefrigerated ? '180' : titleLower.includes('oil') ? '270' : titleLower.includes('salt') ? '720' : titleLower.includes('atta') ? '90' : '180',
+        storage_temperature: isRefrigerated ? 'Refrigerated (2°C - 8°C)' : 'Store in a cool & dry place',
+        packaging_type: isBox ? 'Box / Carton' : isBottle ? 'Bottle / Jar' : 'Pouch / Packet'
       };
       if (savedFssai) defaultAttributes.fssai_license_number = savedFssai;
 
@@ -139,12 +146,17 @@ export default function PackedItemSelector({ onSelect, selectedItem, onClear }) 
       titleStr = b2b.product_name || '';
 
       const titleLower = titleStr.toLowerCase();
-      const savedFssai = typeof window !== 'undefined' ? localStorage.getItem('seller_fssai_license') : null;
+      const savedFssai = profile?.fssai_license || store?.fssai_number || (typeof window !== 'undefined' ? localStorage.getItem('seller_fssai_license') : null);
+      const isRefrigerated = titleLower.includes('butter') || titleLower.includes('cheese') || titleLower.includes('milk') || titleLower.includes('paneer') || titleLower.includes('curd');
+      const isBox = titleLower.includes('butter') || titleLower.includes('paste') || titleLower.includes('soap') || titleLower.includes('biscuit') || (titleLower.includes('detergent') && titleLower.includes('box'));
+      const isBottle = titleLower.includes('bottle') || titleLower.includes('coke') || titleLower.includes('pepsi') || titleLower.includes('drink') || (titleLower.includes('oil') && !titleLower.includes('pouch'));
+
       const defaultAttributes = {
         dietary_type: 'Veg',
         country_of_origin: 'India',
-        shelf_life_days: titleLower.includes('butter') ? '180' : titleLower.includes('oil') ? '270' : titleLower.includes('salt') ? '720' : titleLower.includes('atta') ? '90' : '180',
-        storage_instructions: titleLower.includes('butter') ? 'Keep refrigerated at 4°C' : 'Store in a cool, dry place'
+        shelf_life_days: isRefrigerated ? '180' : titleLower.includes('oil') ? '270' : titleLower.includes('salt') ? '720' : titleLower.includes('atta') ? '90' : '180',
+        storage_temperature: isRefrigerated ? 'Refrigerated (2°C - 8°C)' : 'Store in a cool & dry place',
+        packaging_type: isBox ? 'Box / Carton' : isBottle ? 'Bottle / Jar' : 'Pouch / Packet'
       };
       if (savedFssai) defaultAttributes.fssai_license_number = savedFssai;
 

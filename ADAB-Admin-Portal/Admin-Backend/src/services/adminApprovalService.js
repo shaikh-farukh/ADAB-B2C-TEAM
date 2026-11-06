@@ -14,8 +14,8 @@ exports.getPendingApprovals = async (type, params = {}) => {
       query = "SELECT count(*) OVER() as full_count, * FROM users WHERE user_type='CUSTOMER' AND status='PENDING' ORDER BY created_at DESC LIMIT $1 OFFSET $2";
       values = [pageSize, offset];
     } else if (type === 'product') {
-      // Products might not exist yet, mock for now
-      return { data: [], total: 0, page: parseInt(page), pageSize: parseInt(pageSize) };
+      query = "SELECT count(*) OVER() as full_count, id, title as full_name, approval_status as status, created_at FROM seller_listings WHERE approval_status IN ('SUBMITTED', 'UNDER_REVIEW') ORDER BY created_at DESC LIMIT $1 OFFSET $2";
+      values = [pageSize, offset];
     } else {
       return { data: [], total: 0, page: parseInt(page), pageSize: parseInt(pageSize) };
     }
@@ -44,6 +44,23 @@ exports.updateApprovalStatus = async (type, id, action) => {
       const res = await pool.query(
         "UPDATE users SET status=$1 WHERE id=$2 RETURNING *",
         [newStatus, id]
+      );
+      return res.rows[0] ? mapToApprovalDto(res.rows[0], type) : null;
+    } else if (type === 'product') {
+      let productStatus = 'SUBMITTED';
+      let isActive = false;
+      if (action === 'approve') {
+        productStatus = 'PUBLISHED';
+        isActive = true;
+      } else if (action === 'reject') {
+        productStatus = 'REJECTED';
+      } else if (action === 'request_changes') {
+        productStatus = 'CHANGES_REQUIRED';
+      }
+
+      const res = await pool.query(
+        "UPDATE seller_listings SET approval_status = $1, is_active = $2, updated_at = NOW() WHERE id = $3 RETURNING *",
+        [productStatus, isActive, id]
       );
       return res.rows[0] ? mapToApprovalDto(res.rows[0], type) : null;
     } else {

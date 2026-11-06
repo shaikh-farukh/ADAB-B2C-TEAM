@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useSeller } from '../context/SellerContext';
 import { useListings } from '../hooks/useListings';
 import { useTranslation } from '../context/LanguageContext';
@@ -12,22 +12,151 @@ import DynamicAttributeForm from '../components/catalog/DynamicAttributeForm';
 import VariantMatrixBuilder from '../components/catalog/VariantMatrixBuilder';
 
 const FMCG_MASTER_CATALOG = [
-  { id: 'tata-salt-1kg', name: 'Tata Salt Vacuum Evaporated Iodised 1kg', brand: 'Tata', barcode: '8901030383749', mrp: 28, sell_price: 25, unit: 'pack', category_id: 3 },
-  { id: 'amul-butter-500g', name: 'Amul Pasteurised Butter 500g', brand: 'Amul', barcode: '8901262010054', mrp: 275, sell_price: 265, unit: 'pack', category_id: 2 },
-  { id: 'maggi-noodles-140g', name: 'Maggi 2-Minute Masala Noodles 140g', brand: 'Nestle', barcode: '8901058852332', mrp: 30, sell_price: 28, unit: 'pack', category_id: 4 },
-  { id: 'fortune-sunflower-1l', name: 'Fortune Sunlite Refined Sunflower Oil 1L Pouch', brand: 'Fortune', barcode: '8906007280014', mrp: 165, sell_price: 145, unit: 'pouch', category_id: 10 },
-  { id: 'parle-g-800g', name: 'Parle-G Gold Glucose Biscuits 800g', brand: 'Parle', barcode: '8901719101234', mrp: 95, sell_price: 85, unit: 'pack', category_id: 4 },
-  { id: 'coca-cola-750ml', name: 'Coca-Cola Soft Drink PET Bottle 750ml', brand: 'Coca-Cola', barcode: '8901764012224', mrp: 45, sell_price: 40, unit: 'bottle', category_id: 5 },
-  { id: 'colgate-maxfresh-150g', name: 'Colgate MaxFresh Spicy Fresh Toothpaste 150g', brand: 'Colgate', barcode: '8901314010202', mrp: 120, sell_price: 105, unit: 'pack', category_id: 6 },
-  { id: 'surf-excel-easywash-1kg', name: 'Surf Excel Easy Wash Detergent Powder 1kg', brand: 'Surf Excel', barcode: '8901030012345', mrp: 145, sell_price: 130, unit: 'pack', category_id: 7 }
+  { 
+    id: 'tata-salt-1kg', 
+    name: 'Tata Salt Vacuum Evaporated Iodised 1kg', 
+    brand: 'Tata', 
+    barcode: '8901030383749', 
+    mrp: 28, 
+    sell_price: 25, 
+    unit: 'pack', 
+    category_id: 44,
+    attributes: {
+      dietary_type: 'Veg',
+      country_of_origin: 'India',
+      shelf_life_days: '720',
+      storage_temperature: 'Store in a cool & dry place',
+      packaging_type: 'Pouch / Packet'
+    }
+  },
+  { 
+    id: 'amul-butter-500g', 
+    name: 'Amul Pasteurised Butter 500g', 
+    brand: 'Amul', 
+    barcode: '8901262010054', 
+    mrp: 275, 
+    sell_price: 265, 
+    unit: 'pack', 
+    category_id: 23,
+    attributes: {
+      dietary_type: 'Veg',
+      country_of_origin: 'India',
+      shelf_life_days: '180',
+      storage_temperature: 'Refrigerated (2°C - 8°C)',
+      packaging_type: 'Box / Carton'
+    }
+  },
+  { 
+    id: 'maggi-noodles-140g', 
+    name: 'Maggi 2-Minute Masala Noodles 140g', 
+    brand: 'Nestle', 
+    barcode: '8901058852332', 
+    mrp: 30, 
+    sell_price: 28, 
+    unit: 'pack', 
+    category_id: 54,
+    attributes: {
+      dietary_type: 'Veg',
+      country_of_origin: 'India',
+      shelf_life_days: '270',
+      storage_temperature: 'Store in a cool & dry place',
+      packaging_type: 'Pouch / Packet'
+    }
+  },
+  { 
+    id: 'fortune-sunflower-1l', 
+    name: 'Fortune Sunlite Refined Sunflower Oil 1L Pouch', 
+    brand: 'Fortune', 
+    barcode: '8906007280014', 
+    mrp: 165, 
+    sell_price: 145, 
+    unit: 'pouch', 
+    category_id: 88,
+    attributes: {
+      dietary_type: 'Veg',
+      country_of_origin: 'India',
+      shelf_life_days: '270',
+      storage_temperature: 'Store in a cool & dry place',
+      packaging_type: 'Pouch / Packet'
+    }
+  },
+  { 
+    id: 'parle-g-800g', 
+    name: 'Parle-G Gold Glucose Biscuits 800g', 
+    brand: 'Parle', 
+    barcode: '8901719101234', 
+    mrp: 95, 
+    sell_price: 85, 
+    unit: 'pack', 
+    category_id: 46,
+    attributes: {
+      dietary_type: 'Veg',
+      country_of_origin: 'India',
+      shelf_life_days: '180',
+      storage_temperature: 'Store in a cool & dry place',
+      packaging_type: 'Pouch / Packet'
+    }
+  },
+  { 
+    id: 'coca-cola-750ml', 
+    name: 'Coca-Cola Soft Drink PET Bottle 750ml', 
+    brand: 'Coca-Cola', 
+    barcode: '8901764012224', 
+    mrp: 45, 
+    sell_price: 40, 
+    unit: 'bottle', 
+    category_id: 63,
+    attributes: {
+      dietary_type: 'Veg',
+      country_of_origin: 'India',
+      shelf_life_days: '120',
+      storage_temperature: 'Ambient / Room Temperature',
+      packaging_type: 'Bottle / Jar'
+    }
+  },
+  { 
+    id: 'colgate-maxfresh-150g', 
+    name: 'Colgate MaxFresh Spicy Fresh Toothpaste 150g', 
+    brand: 'Colgate', 
+    barcode: '8901314010202', 
+    mrp: 120, 
+    sell_price: 105, 
+    unit: 'pack', 
+    category_id: 69,
+    attributes: {
+      dietary_type: 'Veg',
+      country_of_origin: 'India',
+      shelf_life_days: '720',
+      storage_temperature: 'Ambient / Room Temperature',
+      packaging_type: 'Box / Carton'
+    }
+  },
+  { 
+    id: 'surf-excel-easywash-1kg', 
+    name: 'Surf Excel Easy Wash Detergent Powder 1kg', 
+    brand: 'Surf Excel', 
+    barcode: '8901030012345', 
+    mrp: 145, 
+    sell_price: 130, 
+    unit: 'pack', 
+    category_id: 71,
+    attributes: {
+      dietary_type: 'Veg',
+      country_of_origin: 'India',
+      shelf_life_days: '720',
+      storage_temperature: 'Store in a cool & dry place',
+      packaging_type: 'Pouch / Packet'
+    }
+  }
 ];
 
 const Products = () => {
   const { t } = useTranslation();
   const { 
     listings, 
+    setListings,
     loading, 
-    filters: { searchQuery, setSearchQuery, stockFilter, setStockFilter, typeFilter, setTypeFilter, buyerFilter, setBuyerFilter },
+    filters: { searchQuery, setSearchQuery, stockFilter, setStockFilter, typeFilter, setTypeFilter, buyerFilter, setBuyerFilter, categoryFilter, setCategoryFilter },
     pagination: { currentPage, setCurrentPage, itemsPerPage, setItemsPerPage, totalItems },
     globalStats,
     createListing,
@@ -35,6 +164,7 @@ const Products = () => {
     deleteListing,
     batchDeleteListings,
     submitListing,
+    publishListing,
     bulkUpload,
     checkUploadStatus,
     bulkExport,
@@ -49,13 +179,104 @@ const Products = () => {
   const [selectedIds, setSelectedIds] = useState([]);
   const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false);
   const [isDeletingBatch, setIsDeletingBatch] = useState(false);
+  const [updatingStockId, setUpdatingStockId] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [savingAction, setSavingAction] = useState(null);
+  const [showTieredStudio, setShowTieredStudio] = useState(false);
+  const [publishingId, setPublishingId] = useState(null);
+
+  const handlePublishListing = async (listing) => {
+    if (!listing || !listing.id) return;
+    try {
+      setPublishingId(listing.id);
+      await publishListing(listing.id);
+      setSuccessBanner(`"${listing.title}" is now PUBLISHED and live on your store catalog!`);
+      if (typeof refresh === 'function') await refresh();
+    } catch (err) {
+      console.error('Failed to publish listing:', err);
+      const errMsg = err.response?.data?.error || err.message || 'Failed to publish listing';
+      alert(`Error publishing product: ${errMsg}`);
+    } finally {
+      setPublishingId(null);
+    }
+  };
+
+  const handleAddTierSlab = () => {
+    setFormData(prev => ({
+      ...prev,
+      tiered_pricing: [
+        ...(Array.isArray(prev.tiered_pricing) ? prev.tiered_pricing : []),
+        {
+          id: 'tier-' + Date.now(),
+          buyer_type: 'CUSTOMER',
+          min_qty: prev.product_type === 'LOOSE_WEIGHT' ? 5 : 10,
+          price: ''
+        }
+      ]
+    }));
+  };
+
+  const handleUpdateTierSlab = (index, field, value) => {
+    setFormData(prev => {
+      const updated = [...(prev.tiered_pricing || [])];
+      if (updated[index]) {
+        updated[index] = { ...updated[index], [field]: value };
+      }
+      return { ...prev, tiered_pricing: updated };
+    });
+  };
+
+  const handleRemoveTierSlab = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      tiered_pricing: (prev.tiered_pricing || []).filter((_, i) => i !== index)
+    }));
+  };
   const [listingIssues, setListingIssues] = useState({});
   const [categories, setCategories] = useState([]);
   const [categoryTree, setCategoryTree] = useState([]);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [csvCategorySearch, setCsvCategorySearch] = useState('');
+
+  // Flatten leaf categories for CSV Guide & Quick Reference
+  const flattenedLeafCategories = useMemo(() => {
+    const list = [];
+    function traverse(nodes, path = []) {
+      if (!Array.isArray(nodes)) return;
+      nodes.forEach(node => {
+        if (!node) return;
+        const currentPath = [...path, node.name || ''];
+        if (node.is_leaf || !node.children || node.children.length === 0) {
+          list.push({
+            id: node.id,
+            name: node.name,
+            breadcrumb: currentPath.join(' › ')
+          });
+        }
+        if (Array.isArray(node.children) && node.children.length > 0) {
+          traverse(node.children, currentPath);
+        }
+      });
+    }
+    if (Array.isArray(categoryTree)) {
+      traverse(categoryTree);
+    }
+    return list;
+  }, [categoryTree]);
+
+  const filteredLeafCategories = useMemo(() => {
+    if (!csvCategorySearch.trim()) return flattenedLeafCategories;
+    const q = csvCategorySearch.toLowerCase();
+    return flattenedLeafCategories.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      c.breadcrumb.toLowerCase().includes(q) ||
+      String(c.id).includes(q)
+    );
+  }, [csvCategorySearch, flattenedLeafCategories]);
   const fileInputRef = useRef(null);
   const { uploadJobs, setUploadJobs } = useSeller();
   const location = useLocation();
+  const navigate = useNavigate();
   const [successBanner, setSuccessBanner] = useState(location.state?.message || '');
 
   useEffect(() => {
@@ -267,7 +488,8 @@ const Products = () => {
     has_variants: false,
     variants: [],
     master_catalog_id: null,
-    manufacturer_product_id: null
+    manufacturer_product_id: null,
+    tiered_pricing: []
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -280,8 +502,8 @@ const Products = () => {
 
   const handleQuickToggleB2B = async (listingId) => {
     const target = listings.find((x) => x.id === listingId);
-    if (target?.master_catalog_id || target?.original_listing_id) {
-      alert('This is a partner brand product. It can only be sold directly to retail consumers and cannot be distributed wholesale to other stores.');
+    if (target?.original_listing_id) {
+      alert('This is a resold product sourced from another store and can only be sold directly to retail consumers.');
       return;
     }
 
@@ -306,6 +528,69 @@ const Products = () => {
       console.error('Failed to toggle B2B status', err);
       alert('Failed to update B2B availability: ' + (err.response?.data?.error || err.message));
       refresh();
+    }
+  };
+
+  const handleQuickToggleActive = async (listingId) => {
+    const target = listings.find((x) => x.id === listingId);
+    if (!target) return;
+
+    if (target.approval_status === 'DRAFT' || target.approval_status === 'SUBMITTED' || target.approval_status === 'UNDER_REVIEW') {
+      alert(`This product is currently in "${target.approval_status}" status. Only approved or published products can be toggled active on your store.`);
+      return;
+    }
+
+    const currentActive = target.is_active !== false;
+    const nextActive = !currentActive;
+
+    // Optimistic UI update
+    setListings((prev) =>
+      prev.map((l) => (l.id === listingId ? { 
+        ...l, 
+        is_active: nextActive,
+        approval_status: nextActive && l.approval_status === 'APPROVED' ? 'PUBLISHED' : l.approval_status
+      } : l))
+    );
+
+    try {
+      await updateListing(listingId, { 
+        is_active: nextActive,
+        approval_status: nextActive && target.approval_status === 'APPROVED' ? 'PUBLISHED' : target.approval_status
+      });
+      if (typeof refresh === 'function') refresh();
+    } catch (err) {
+      console.error('Failed to toggle active status', err);
+      alert('Failed to update product active status: ' + (err.response?.data?.error || err.message));
+      if (typeof refresh === 'function') refresh();
+    }
+  };
+
+
+  const handleQuickStock = async (listingId, delta) => {
+    const target = listings.find((x) => x.id === listingId);
+    if (!target) return;
+    const currentStock = parseFloat(target.stock_qty || 0);
+    const nextStock = Math.max(0, currentStock + delta);
+
+    setUpdatingStockId(listingId);
+
+    // Optimistic UI update
+    setListings((prev) =>
+      prev.map((l) => (l.id === listingId ? { ...l, stock_qty: nextStock } : l))
+    );
+
+    try {
+      await updateListing(listingId, { stock_qty: nextStock });
+      refresh();
+    } catch (err) {
+      console.error('Failed to update stock', err);
+      // Rollback on failure
+      setListings((prev) =>
+        prev.map((l) => (l.id === listingId ? { ...l, stock_qty: currentStock } : l))
+      );
+      alert('Failed to update stock: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setUpdatingStockId(null);
     }
   };
 
@@ -346,7 +631,11 @@ const Products = () => {
         mrp: item.mrp,
         sell_price: item.sell_price,
         unit: item.unit,
-        category_id: item.category_id || prev.category_id
+        category_id: item.category_id || prev.category_id,
+        attributes: {
+          ...(typeof prev.attributes === 'object' && prev.attributes !== null && !Array.isArray(prev.attributes) ? prev.attributes : {}),
+          ...(item.attributes || {})
+        }
       }));
     }
   };
@@ -371,6 +660,28 @@ const Products = () => {
   };
 
   const openEdit = (listing) => {
+    let parsedAttrs = {};
+    if (typeof listing.attributes === 'string') {
+      try {
+        parsedAttrs = JSON.parse(listing.attributes);
+      } catch (e) {
+        parsedAttrs = {};
+      }
+    } else if (typeof listing.attributes === 'object' && listing.attributes !== null && !Array.isArray(listing.attributes)) {
+      parsedAttrs = { ...listing.attributes };
+    }
+
+    let parsedTiers = [];
+    if (typeof listing.tiered_pricing === 'string') {
+      try {
+        parsedTiers = JSON.parse(listing.tiered_pricing);
+      } catch (e) {
+        parsedTiers = [];
+      }
+    } else if (Array.isArray(listing.tiered_pricing)) {
+      parsedTiers = [...listing.tiered_pricing];
+    }
+
     setEditingListing(listing);
     setFormData({
       title: listing.title || '',
@@ -393,11 +704,12 @@ const Products = () => {
       is_refundable: listing.is_refundable !== false,
       refund_percentage: listing.refund_percentage !== undefined && listing.refund_percentage !== null ? listing.refund_percentage : 100,
       return_window_days: listing.return_window_days !== undefined && listing.return_window_days !== null ? listing.return_window_days : 7,
-      attributes: listing.attributes || {},
+      attributes: parsedAttrs,
       has_variants: Boolean(listing.has_variants),
       variants: listing.variants || [],
       master_catalog_id: listing.master_catalog_id || null,
-      manufacturer_product_id: listing.manufacturer_product_id || null
+      manufacturer_product_id: listing.manufacturer_product_id || null,
+      tiered_pricing: parsedTiers
     });
     setShowModal(true);
   };
@@ -417,8 +729,10 @@ const Products = () => {
         updated.sku = '';
         updated.unit = ['kg', 'g', 'litre'].includes(prev.unit) ? prev.unit : 'kg';
       } else if (newType === 'PACKED_ITEM') {
-        // Packed products identify by barcode & brand, SKU is not used
+        // Packed products identify by barcode & brand, SKU is not used, no wholesale/tiered
         updated.sku = '';
+        updated.wholesale_price = '';
+        updated.tiered_pricing = [];
         updated.unit = ['pack', 'pcs', 'bottle', 'box', 'can', 'pouch'].includes(prev.unit) ? prev.unit : 'pack';
       } else if (newType === 'OWN_BRAND') {
         // Own brand uses style SKU & brand, barcode is not used
@@ -430,33 +744,103 @@ const Products = () => {
   };
 
   const saveListing = async (e, submitForReview = false) => {
-    e.preventDefault();
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (isSaving) return; // Immediate double-click guard
+
+    setIsSaving(true);
+    setSavingAction(submitForReview ? 'submit' : 'draft');
+
     try {
       const defaultUnit = formData.product_type === 'LOOSE_WEIGHT' ? 'kg' : formData.product_type === 'PACKED_ITEM' ? 'pack' : 'pcs';
+      
+      const sellPriceValue = parseFloat(formData.sell_price);
+      if (isNaN(sellPriceValue) || sellPriceValue <= 0) {
+        alert('Please enter a valid Selling Price greater than 0.');
+        setIsSaving(false);
+        setSavingAction(null);
+        return;
+      }
+
+      const mrpValue = parseFloat(formData.mrp);
+      const effectiveMrp = (!isNaN(mrpValue) && mrpValue > 0) ? mrpValue : sellPriceValue;
+
+      // UUID check helper
+      const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      const validMasterId = (formData.master_catalog_id && UUID_REGEX.test(formData.master_catalog_id)) 
+        ? formData.master_catalog_id 
+        : null;
+
       const dataToSave = { 
         ...formData, 
         unit: formData.unit || defaultUnit,
         category_id: formData.category_id ? parseInt(formData.category_id, 10) : null,
-        mrp: parseFloat(formData.mrp || formData.sell_price), 
-        sell_price: parseFloat(formData.sell_price),
+        mrp: effectiveMrp, 
+        sell_price: sellPriceValue,
         stock_qty: formData.has_variants && Array.isArray(formData.variants) && formData.variants.length > 0
           ? formData.variants.reduce((acc, v) => acc + (parseFloat(v.stock_qty) || 0), 0)
-          : parseFloat(formData.stock_qty || 0),
+          : Math.max(0, parseFloat(formData.stock_qty || 0)),
+        min_order_qty: parseFloat(formData.min_order_qty) > 0 ? parseFloat(formData.min_order_qty) : 1,
         attributes: (formData.attributes && typeof formData.attributes === 'object' && !Array.isArray(formData.attributes)) ? formData.attributes : {},
         has_variants: Boolean(formData.has_variants),
         variants: formData.variants || [],
-        master_catalog_id: formData.master_catalog_id || null,
-        manufacturer_product_id: formData.manufacturer_product_id || null,
-        wholesale_price: formData.wholesale_price ? parseFloat(formData.wholesale_price) : null,
+        master_catalog_id: validMasterId,
+        manufacturer_product_id: formData.manufacturer_product_id ? String(formData.manufacturer_product_id) : null,
+        wholesale_price: (formData.product_type !== 'PACKED_ITEM' && formData.wholesale_price && parseFloat(formData.wholesale_price) > 0)
+          ? parseFloat(formData.wholesale_price)
+          : null,
+        tiered_pricing: (formData.product_type !== 'PACKED_ITEM' && Array.isArray(formData.tiered_pricing))
+          ? formData.tiered_pricing.filter(t => parseFloat(t.min_qty) > 0 && parseFloat(t.price) > 0)
+          : [],
         sample_available: formData.sample_available !== false,
         is_refundable: formData.is_refundable !== false,
         refund_percentage: formData.refund_percentage !== '' && formData.refund_percentage !== undefined ? parseFloat(formData.refund_percentage) : 100,
         return_window_days: formData.return_window_days !== '' && formData.return_window_days !== undefined ? parseInt(formData.return_window_days, 10) : 7
       };
       
+      // Category & Leaf Guard Validation
+      if (!formData.category_id) {
+        alert('Please select a complete Category down to the 3rd level (Leaf Category) before saving.');
+        setIsSaving(false);
+        setSavingAction(null);
+        return;
+      }
+
+      // Ensure the selected category is actually a leaf node (not an intermediate department/subcategory)
+      const findCategoryNode = (nodes, id) => {
+        if (!Array.isArray(nodes)) return null;
+        for (const n of nodes) {
+          if (String(n.id) === String(id)) return n;
+          if (Array.isArray(n.children) && n.children.length > 0) {
+            const found = findCategoryNode(n.children, id);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+      const selectedNode = findCategoryNode(categoryTree, formData.category_id);
+      if (selectedNode && Array.isArray(selectedNode.children) && selectedNode.children.length > 0) {
+        alert(`"${selectedNode.name}" is a parent category. Please select a specific leaf item under it.`);
+        setIsSaving(false);
+        setSavingAction(null);
+        return;
+      }
+
+      // Mandatory FSSAI Validation if entered
+      if (formData.attributes?.fssai_license_number) {
+        const fssai = String(formData.attributes.fssai_license_number).trim();
+        if (fssai && !/^[0-9]{14}$/.test(fssai)) {
+          alert('FSSAI License Number must be a valid 14-digit numeric registration number.');
+          setIsSaving(false);
+          setSavingAction(null);
+          return;
+        }
+      }
+
       // Legal MRP Ceiling Validation
       if (dataToSave.sell_price > dataToSave.mrp) {
         alert(`Sell price (₹${dataToSave.sell_price}) cannot be greater than Printed MRP (₹${dataToSave.mrp}).`);
+        setIsSaving(false);
+        setSavingAction(null);
         return;
       }
 
@@ -465,24 +849,32 @@ const Products = () => {
           const varMrp = v.mrp > 0 ? v.mrp : dataToSave.mrp;
           if (v.sell_price > varMrp) {
             alert(`Variant "${v.sku}" sell price (₹${v.sell_price}) cannot be greater than Printed MRP (₹${varMrp}).`);
+            setIsSaving(false);
+            setSavingAction(null);
             return;
           }
         }
       }
 
       // Strict field sanitization per product type
-      if (dataToSave.product_type === 'LOOSE_WEIGHT') {
-        dataToSave.brand_tag = null;
-        dataToSave.sku = null;
-        dataToSave.barcode = null;
-      } else if (dataToSave.product_type === 'PACKED_ITEM') {
+      if (dataToSave.product_type === 'PACKED_ITEM') {
         dataToSave.sku = null;
         dataToSave.brand_tag = dataToSave.brand_tag ? dataToSave.brand_tag.trim() : null;
         dataToSave.barcode = dataToSave.barcode ? dataToSave.barcode.trim() : null;
+        dataToSave.wholesale_price = null;
+        dataToSave.tiered_pricing = [];
+      } else if (dataToSave.product_type === 'LOOSE_WEIGHT') {
+        dataToSave.brand_tag = null;
+        dataToSave.sku = null;
+        dataToSave.barcode = null;
+        dataToSave.master_catalog_id = null;
+        dataToSave.manufacturer_product_id = null;
       } else if (dataToSave.product_type === 'OWN_BRAND') {
         dataToSave.barcode = null;
         dataToSave.brand_tag = dataToSave.brand_tag ? dataToSave.brand_tag.trim() : null;
         dataToSave.sku = dataToSave.sku ? dataToSave.sku.trim() : null;
+        dataToSave.master_catalog_id = null;
+        dataToSave.manufacturer_product_id = null;
       }
 
       if (!dataToSave.image_url) dataToSave.image_url = null;
@@ -511,7 +903,16 @@ const Products = () => {
       refresh();
     } catch (err) {
       console.error('Failed to save listing', err);
-      let rawErr = err.response?.data?.error || err.message;
+      let rawErr = err.response?.data?.error || err.response?.data?.message;
+      if (!rawErr) {
+        if (typeof err.response?.data === 'string' && err.response.data.trim()) {
+          rawErr = err.response.data;
+        } else if (typeof err.response?.data === 'object' && err.response?.data !== null) {
+          rawErr = JSON.stringify(err.response.data);
+        } else {
+          rawErr = err.message || 'An error occurred while saving.';
+        }
+      }
       if (typeof rawErr === 'string' && rawErr.trim().startsWith('[')) {
         try {
           const parsed = JSON.parse(rawErr);
@@ -521,6 +922,9 @@ const Products = () => {
         } catch (e) {}
       }
       alert('Failed to save: ' + rawErr);
+    } finally {
+      setIsSaving(false);
+      setSavingAction(null);
     }
   };
 
@@ -687,11 +1091,11 @@ const Products = () => {
           <button onClick={() => fileInputRef.current.click()} className="px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2 shadow-sm">
             <i className="fa-solid fa-upload"></i> {t('productsBulkUpload', 'Bulk Upload')}
           </button>
-          <button className="px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2 shadow-sm">
-            <i className="fa-solid fa-tag"></i> {t('productsMassPrice', 'Mass Price')}
+          <button onClick={() => navigate('/pricing')} className="px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2 shadow-sm transition">
+            <i className="fa-solid fa-tag text-purple-600"></i> {t('productsMassPrice', 'Mass Price')}
           </button>
-          <button className="px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2 shadow-sm">
-            <i className="fa-solid fa-barcode"></i> {t('productsScan', 'Scan')}
+          <button onClick={() => { openAddModal(); handleProductTypeChange('PACKED_ITEM'); }} className="px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2 shadow-sm transition" title="Scan or search barcode">
+            <i className="fa-solid fa-barcode text-blue-600"></i> {t('productsScan', 'Scan')}
           </button>
           <button onClick={openAddModal} className="px-4 py-2 rounded-xl bg-brand-dark hover:bg-green-800 text-white text-sm font-bold flex items-center gap-2 shadow-sm transition">
             <i className="fa-solid fa-plus"></i> {t('productsAddProduct', 'Add Product')}
@@ -737,16 +1141,42 @@ const Products = () => {
             <i className="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
             <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={t('productsSearchPlaceholder', 'Search product name or barcode...')} className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl outline-none focus:border-green-500 text-sm bg-gray-50/50" />
           </div>
-          <select value={stockFilter} onChange={(e) => setStockFilter(e.target.value)} className="px-4 py-3 border border-gray-200 rounded-xl outline-none focus:border-green-500 text-sm font-semibold bg-gray-50/50">
+          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="px-3 py-3 border border-gray-200 rounded-xl outline-none focus:border-green-500 text-xs font-semibold bg-gray-50/50">
+            <option value="ALL">All Categories</option>
+            {categoryTree.map(dept => (
+              <option key={dept.id} value={String(dept.id)}>
+                {dept.name}
+              </option>
+            ))}
+          </select>
+          <select value={stockFilter} onChange={(e) => setStockFilter(e.target.value)} className="px-3 py-3 border border-gray-200 rounded-xl outline-none focus:border-green-500 text-xs font-semibold bg-gray-50/50">
             <option>{t('productsAllStock', 'All stock')}</option>
             <option>{t('productsInStockFilter', 'In stock')}</option>
             <option>{t('productsOutOfStockFilter', 'Out of stock')}</option>
           </select>
+          {(searchQuery || stockFilter !== 'All stock' || typeFilter !== 'ALL' || buyerFilter !== 'ALL' || categoryFilter !== 'ALL') && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setStockFilter('All stock');
+                setTypeFilter('ALL');
+                setBuyerFilter('ALL');
+                setCategoryFilter('ALL');
+              }}
+              className="px-3 py-2 text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100/70 border border-red-200 rounded-xl transition flex items-center gap-1.5 shrink-0"
+              title="Reset all filters"
+            >
+              <i className="fa-solid fa-xmark"></i>
+              <span>Clear</span>
+            </button>
+          )}
         </div>
 
         {/* Pills Row */}
         <div className="flex flex-wrap gap-2 mb-4">
           <button onClick={() => setTypeFilter('ALL')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'ALL' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>{t('all', 'All')} ({globalStats.total})</button>
+          <button onClick={() => setTypeFilter('PACKED_ITEM')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'PACKED_ITEM' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>Packaged / FMCG ({globalStats.packed})</button>
           <button onClick={() => setTypeFilter('OWN_BRAND')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'OWN_BRAND' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>{t('typeOwnBrand', 'Own Brand')} ({globalStats.ownBrand})</button>
           <button onClick={() => setTypeFilter('LOOSE_WEIGHT')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'LOOSE_WEIGHT' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>{t('typeLoose', 'Loose / Weight')} ({globalStats.loose})</button>
           <button onClick={() => setTypeFilter('NATIONAL_PACK')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${typeFilter === 'NATIONAL_PACK' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-600 border border-gray-200'}`}>National Pack (0)</button>
@@ -785,11 +1215,11 @@ const Products = () => {
         )}
 
         {/* Table */}
-        <div className="overflow-x-auto rounded-xl border border-gray-100">
-          <table className="w-full text-sm text-left min-w-[1050px]">
-            <thead className="bg-gray-50 text-gray-500 text-[11px] uppercase font-bold tracking-wider">
+        <div className="overflow-x-auto rounded-2xl border border-gray-200/80 bg-white shadow-xs">
+          <table className="w-full text-sm text-left border-collapse">
+            <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold tracking-wider border-b border-gray-200">
               <tr>
-                <th className="px-4 py-4 w-10">
+                <th className="px-3.5 py-3 w-10 text-center">
                   <input 
                     type="checkbox" 
                     checked={allCurrentPageSelected} 
@@ -797,30 +1227,31 @@ const Products = () => {
                     className="rounded text-brand-dark focus:ring-brand-dark cursor-pointer" 
                   />
                 </th>
-                <th className="px-4 py-4">{t('colProduct', 'Product')}</th>
-                <th className="px-4 py-4">{t('colCategory', 'Category')}</th>
-                <th className="px-4 py-4">{t('colBrandLabel', 'Brand / Label')}</th>
-                <th className="px-4 py-4">{t('colBarcodeSku', 'Barcode / SKU')}</th>
-                <th className="px-4 py-4">{t('colType', 'Type')}</th>
-                <th className="px-4 py-4">{t('priceCol', 'Price')}</th>
-                <th className="px-4 py-4">{t('stockCol', 'Stock')}</th>
-                <th className="px-4 py-4">{t('colWhoCanBuy', 'Who can buy?')}</th>
-                <th className="px-4 py-4 text-right">{t('actions', 'Action')}</th>
+                <th className="px-3.5 py-3 min-w-[200px]">{t('colProduct', 'Product')}</th>
+                <th className="px-3 py-3 w-36">{t('colCategory', 'Category')}</th>
+                <th className="px-3 py-3 w-28">{t('colBrandLabel', 'Brand / Label')}</th>
+                <th className="px-3 py-3 w-28">{t('colBarcodeSku', 'Barcode / SKU')}</th>
+                <th className="px-3 py-3 w-24">{t('colType', 'Type')}</th>
+                <th className="px-3 py-3 w-24">{t('priceCol', 'Price')}</th>
+                <th className="px-3 py-3 w-28">{t('stockCol', 'Stock')}</th>
+                <th className="px-3 py-3 w-32">{t('colWhoCanBuy', 'Who can buy?')}</th>
+                <th className="px-3 py-3 w-28 text-center">{t('colStatus', 'Status')}</th>
+                <th className="px-3.5 py-3 w-24 text-right sticky right-0 bg-slate-50 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)]">{t('actions', 'Action')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan="10" className="text-center py-8 text-gray-500 font-bold">{t('loadingCatalog', 'Loading your catalog...')}</td></tr>
+                <tr><td colSpan="11" className="text-center py-10 text-gray-400 font-semibold">{t('loadingCatalog', 'Loading your catalog...')}</td></tr>
               ) : paginatedListings.length === 0 ? (
-                <tr><td colSpan="10" className="text-center py-8 text-gray-500 font-bold">{t('noProductsMatchFilters', 'No products match your filters.')}</td></tr>
+                <tr><td colSpan="11" className="text-center py-10 text-gray-400 font-semibold">{t('noProductsMatchFilters', 'No products match your filters.')}</td></tr>
               ) : (
                 paginatedListings.map(l => {
                   const issues = listingIssues[l.id] || [];
                   const hasIssues = issues.length > 0;
                   return (
                     <React.Fragment key={l.id}>
-                      <tr className={`hover:bg-gray-50 transition ${selectedIds.includes(l.id) ? 'bg-emerald-50/40' : ''} ${hasIssues ? 'border-l-4 border-l-red-500 bg-red-50/10' : ''}`}>
-                        <td className="px-4 py-4">
+                      <tr className={`group hover:bg-slate-50/70 transition-colors ${selectedIds.includes(l.id) ? 'bg-emerald-50/30' : ''} ${hasIssues ? 'border-l-4 border-l-red-500 bg-red-50/10' : ''}`}>
+                        <td className="px-3.5 py-3 text-center">
                           <input 
                             type="checkbox" 
                             checked={selectedIds.includes(l.id)} 
@@ -828,149 +1259,314 @@ const Products = () => {
                             className="rounded text-brand-dark border-gray-300 focus:ring-brand-dark cursor-pointer" 
                           />
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="px-3.5 py-3">
                           <div className="flex items-center gap-3">
-                            {l.image_url ? (
-                              <img src={l.image_url} alt={l.title} className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0 shadow-sm" />
-                            ) : (
-                              <div className="w-10 h-10 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center shrink-0">
-                                <i className="fa-solid fa-box-open text-gray-300 text-sm"></i>
+                            {/* Product Thumbnail with safe error fallback */}
+                            <div className="relative w-10 h-10 shrink-0 rounded-xl overflow-hidden border border-gray-200 bg-slate-50 flex items-center justify-center shadow-2xs">
+                              {l.image_url ? (
+                                <img
+                                  src={l.image_url}
+                                  alt={l.title}
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    const fb = e.currentTarget.parentElement?.querySelector('.img-fallback-icon');
+                                    if (fb) fb.classList.remove('hidden');
+                                  }}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : null}
+                              <div className={`img-fallback-icon w-full h-full bg-gradient-to-br from-emerald-50 to-teal-50 flex items-center justify-center text-brand-dark ${l.image_url ? 'hidden' : 'flex'}`}>
+                                <i className="fa-solid fa-cube text-base opacity-70"></i>
                               </div>
-                            )}
-                            <div>
-                              <div className="font-bold text-gray-900 flex items-center gap-2 flex-wrap">
-                                <span>{l.title}</span>
-                                {l.approval_status === 'DRAFT' && <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-gray-200">{t('badgeDraft', 'DRAFT')}</span>} 
-                                {l.approval_status === 'SUBMITTED' && <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-blue-200">{t('badgeSubmitted', 'SUBMITTED')}</span>}
-                                {l.approval_status === 'UNDER_REVIEW' && <span className="bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-yellow-200">{t('badgeUnderReview', 'UNDER REVIEW')}</span>}
-                                {l.approval_status === 'APPROVED' && <span className="bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-teal-200">{t('badgeApproved', 'APPROVED')}</span>}
-                                {l.approval_status === 'CHANGES_REQUIRED' && <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-orange-200">{t('badgeChangesRequired', 'CHANGES REQUIRED')}</span>}
-                                {l.approval_status === 'REJECTED' && <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-red-200">{t('badgeRejected', 'REJECTED')}</span>}
-                                {l.approval_status === 'PUBLISHED' && <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-green-200">{t('badgePublished', 'PUBLISHED')}</span>}
+                            </div>
+
+                            {/* Title & Status Badge Line */}
+                            <div className="min-w-0 max-w-[240px]">
+                              <div className="font-bold text-gray-900 text-sm leading-snug flex items-center gap-1.5">
+                                <span className="truncate max-w-[150px] hover:text-brand-dark transition" title={l.title}>
+                                  {l.title}
+                                </span>
+                                {l.approval_status === 'PUBLISHED' && (
+                                  <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-green-200 shrink-0">
+                                    {t('badgePublished', 'PUBLISHED')}
+                                  </span>
+                                )}
+                                {l.approval_status === 'APPROVED' && (
+                                  <span className="bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-teal-200 shrink-0">
+                                    {t('badgeApproved', 'APPROVED')}
+                                  </span>
+                                )}
+                                {l.approval_status === 'SUBMITTED' && (
+                                  <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-blue-200 shrink-0">
+                                    {t('badgeSubmitted', 'SUBMITTED')}
+                                  </span>
+                                )}
+                                {l.approval_status === 'UNDER_REVIEW' && (
+                                  <span className="bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-yellow-200 shrink-0">
+                                    {t('badgeUnderReview', 'UNDER REVIEW')}
+                                  </span>
+                                )}
+                                {l.approval_status === 'DRAFT' && (
+                                  <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-gray-200 shrink-0">
+                                    {t('badgeDraft', 'DRAFT')}
+                                  </span>
+                                )}
+                                {l.approval_status === 'CHANGES_REQUIRED' && (
+                                  <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-orange-200 shrink-0">
+                                    {t('badgeChangesRequired', 'CHANGES REQUIRED')}
+                                  </span>
+                                )}
+                                {l.approval_status === 'REJECTED' && (
+                                  <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-red-200 shrink-0">
+                                    {t('badgeRejected', 'REJECTED')}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                {l.sku ? (
+                                  <span className="text-[10px] text-gray-400 font-mono tracking-tight">
+                                    SKU: {l.sku}
+                                  </span>
+                                ) : l.barcode ? (
+                                  <span className="text-[10px] text-gray-400 font-mono tracking-tight">
+                                    {l.barcode}
+                                  </span>
+                                ) : null}
+
                                 {l.master_catalog_id && (
-                                  <span className="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-blue-200">
-                                    <i className="fa-solid fa-certificate mr-1"></i>Master Catalog
+                                  <span className="bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded text-[9px] font-bold border border-blue-200" title="Master Catalog Item">
+                                    <i className="fa-solid fa-certificate mr-0.5 text-[8px]"></i>Master
                                   </span>
                                 )}
-                                {l.manufacturer_product_id && (
-                                  <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-emerald-200">
-                                    <i className="fa-solid fa-handshake mr-1"></i>B2B Verified
-                                  </span>
-                                )}
+
                                 {l.has_variants && (
-                                  <span className="bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-purple-200">
-                                    <i className="fa-solid fa-table-cells mr-1"></i>{l.variant_count || l.variants?.length || 'Multi'} Variants
+                                  <span className="bg-purple-50 text-purple-700 px-1.5 py-0.2 rounded text-[9px] font-bold border border-purple-200">
+                                    {l.variant_count || l.variants?.length || 'Multi'} Vars
                                   </span>
                                 )}
+
                                 {l.is_refundable === false ? (
-                                  <span className="bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded text-[9px] font-bold border border-rose-200">
-                                    <i className="fa-solid fa-ban text-[8px] mr-1"></i>{t('nonReturnableBadge', 'Non-Returnable')}
+                                  <span className="text-[9px] text-rose-500 font-medium" title="Non-Returnable">
+                                    <i className="fa-solid fa-ban text-[8px] mr-0.5"></i>No return
                                   </span>
                                 ) : (
-                                  <span className="bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded text-[9px] font-bold border border-emerald-200">
-                                    <i className="fa-solid fa-rotate-left text-[8px] mr-1"></i>{l.refund_percentage ?? 100}% ({l.return_window_days ?? 7}d)
+                                  <span className="text-[9px] text-emerald-600 font-medium" title={`${l.refund_percentage ?? 100}% refund within ${l.return_window_days ?? 7} days`}>
+                                    <i className="fa-solid fa-rotate-left text-[8px] mr-0.5"></i>{l.return_window_days ?? 7}d
                                   </span>
                                 )}
                               </div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap">
+                        <td className="px-3 py-3 whitespace-nowrap">
                           {l.category_name ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-100">
-                              {l.category_name}
-                            </span>
+                            <div>
+                              <div className="font-semibold text-gray-800 text-xs">
+                                {l.category_name}
+                              </div>
+                              {l.parent_category_name && (
+                                <div className="text-[10px] text-gray-400 truncate max-w-[130px]" title={l.parent_category_name}>
+                                  {l.parent_category_name}
+                                </div>
+                              )}
+                            </div>
                           ) : (
-                            <span className="text-gray-300">—</span>
+                            <span className="text-gray-300 text-xs">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap">
+                        <td className="px-3 py-3 whitespace-nowrap">
                           {l.brand_tag ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-purple-50 text-purple-700 text-xs font-bold border border-purple-100">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 text-xs font-bold border border-purple-100">
                               {l.brand_tag}
                             </span>
                           ) : (
-                            <span className="text-gray-300">—</span>
+                            <span className="text-gray-300 text-xs">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap">
+                        <td className="px-3 py-3 whitespace-nowrap">
                           {l.barcode ? (
-                            <div className="text-xs text-gray-900 font-mono font-bold" title="Barcode">{l.barcode}</div>
-                          ) : null}
-                          {l.sku ? (
-                            <div className="text-[10px] text-gray-400 font-mono" title="SKU">SKU: {l.sku}</div>
-                          ) : null}
-                          {!l.barcode && !l.sku && <span className="text-gray-300">—</span>}
+                            <div className="text-xs text-gray-900 font-mono font-bold tracking-tight" title="Barcode">{l.barcode}</div>
+                          ) : l.sku ? (
+                            <div className="text-xs text-gray-500 font-mono" title="SKU">{l.sku}</div>
+                          ) : (
+                            <span className="text-gray-300 text-xs">—</span>
+                          )}
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          {l.product_type === 'PACKED_ITEM' && <span className="px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-[10px] font-extrabold border border-blue-100">{t('typePacked', 'Packed')}</span>}
-                          {l.product_type === 'LOOSE_WEIGHT' && <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 text-[10px] font-extrabold border border-amber-100">{t('typeLoose', 'Loose')}</span>}
-                          {l.product_type === 'OWN_BRAND' && <span className="px-2 py-1 rounded-lg bg-purple-50 text-purple-700 text-[10px] font-extrabold border border-purple-100">{t('typeOwnBrand', 'Own Brand')}</span>}
-                          {l.product_type === 'FOOD' && <span className="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 text-[10px] font-extrabold border border-rose-100">{t('typeFood', 'Food')}</span>}
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap font-bold text-brand-dark">₹{l.sell_price}</td>
-                        <td className="px-4 py-4 whitespace-nowrap text-gray-600 text-sm">
-                          {l.stock_qty || 0} {l.unit || (l.product_type === 'LOOSE_WEIGHT' ? 'kg' : l.product_type === 'PACKED_ITEM' ? 'packs' : 'pcs')}
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          {l.master_catalog_id || l.original_listing_id ? (
-                            <span
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200"
-                              title="Partner Brand product — only sold directly to retail consumers"
-                            >
-                              <i className="fa-solid fa-lock text-[10px] text-amber-600"></i>
-                              <span>{t('customersOnly', 'Customers Only')}</span>
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          {l.product_type === 'PACKED_ITEM' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10px] font-extrabold border border-blue-200">
+                              <i className="fa-solid fa-box-archive text-[9px]"></i> Packed
                             </span>
-                          ) : l.product_type === 'OWN_BRAND' ? (
+                          )}
+                          {l.product_type === 'LOOSE_WEIGHT' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-[10px] font-extrabold border border-amber-200">
+                              <i className="fa-solid fa-scale-balanced text-[9px]"></i> Loose
+                            </span>
+                          )}
+                          {l.product_type === 'OWN_BRAND' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-800 text-[10px] font-extrabold border border-purple-200">
+                              <i className="fa-solid fa-tag text-[9px]"></i> Own Brand
+                            </span>
+                          )}
+                          {l.product_type === 'FOOD' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 text-rose-800 text-[10px] font-extrabold border border-rose-200">
+                              <i className="fa-solid fa-utensils text-[9px]"></i> Food
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          <div>
+                            <span className="font-extrabold text-gray-900 text-sm">
+                              ₹{parseFloat(l.sell_price || 0).toFixed(2)}
+                            </span>
+                            {parseFloat(l.mrp || 0) > parseFloat(l.sell_price || 0) && (
+                              <div className="text-[10px] text-gray-400 line-through">
+                                ₹{parseFloat(l.mrp).toFixed(2)}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <div>
+                              <span className={`font-bold text-sm ${parseFloat(l.stock_qty || 0) <= 0 ? 'text-red-600' : parseFloat(l.stock_qty || 0) <= 5 ? 'text-amber-600' : 'text-gray-900'}`}>
+                                {l.product_type === 'LOOSE_WEIGHT'
+                                  ? parseFloat(l.stock_qty || 0).toFixed(3)
+                                  : Math.floor(parseFloat(l.stock_qty || 0)).toLocaleString()}
+                              </span>
+                              <span className="text-[11px] text-gray-400 ml-1">
+                                {l.unit || (l.product_type === 'LOOSE_WEIGHT' ? 'kg' : 'packs')}
+                              </span>
+                            </div>
+
+                            {!l.has_variants && (
+                              updatingStockId === l.id ? (
+                                <i className="fa-solid fa-circle-notch fa-spin text-xs text-emerald-600"></i>
+                              ) : (
+                                <div className="inline-flex items-center gap-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); handleQuickStock(l.id, 1); }}
+                                    className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold bg-gray-100 hover:bg-emerald-100 text-gray-700 hover:text-emerald-800 transition"
+                                    title="Add +1 Stock"
+                                  >
+                                    +1
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); handleQuickStock(l.id, 5); }}
+                                    className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition"
+                                    title="Add +5 Stock"
+                                  >
+                                    +5
+                                  </button>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => handleQuickToggleB2B(l.id)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition border ${
+                              l.allowed_buyers === 'ALL'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                                : l.allowed_buyers === 'STORES_ONLY'
+                                ? 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100'
+                                : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
+                            }`}
+                            title={
+                              l.allowed_buyers === 'ALL'
+                                ? 'Selling to Customers + Stores. Click to toggle.'
+                                : l.allowed_buyers === 'STORES_ONLY'
+                                ? 'Selling to Stores only. Click to toggle.'
+                                : 'Selling to Customers only. Click to toggle.'
+                            }
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                l.allowed_buyers === 'ALL' ? 'bg-emerald-500' : l.allowed_buyers === 'STORES_ONLY' ? 'bg-blue-500' : 'bg-amber-500'
+                              }`}
+                            ></span>
+                            <span>
+                              {l.allowed_buyers === 'ALL'
+                                ? 'All Buyers'
+                                : l.allowed_buyers === 'STORES_ONLY'
+                                ? 'Stores only'
+                                : 'Customers'}
+                            </span>
+                          </button>
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap text-center">
+                          {l.approval_status === 'PUBLISHED' || l.approval_status === 'APPROVED' ? (
                             <button
                               type="button"
-                              onClick={() => handleQuickToggleB2B(l.id)}
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition shadow-sm ${
-                                l.allowed_buyers === 'ALL' || l.allowed_buyers === 'STORES_ONLY'
-                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
-                                  : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+                              onClick={() => handleQuickToggleActive(l.id)}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition border cursor-pointer ${
+                                l.is_active !== false
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                                  : 'bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-200'
                               }`}
                               title={
-                                l.allowed_buyers === 'ALL' || l.allowed_buyers === 'STORES_ONLY'
-                                  ? 'Click to make Exclusive to your store only (Close B2B)'
-                                  : 'Click to Open for other Stores to buy wholesale'
+                                l.is_active !== false
+                                  ? 'Product is Active on your store. Click to Deactivate.'
+                                  : 'Product is Deactivated (hidden from buyers). Click to Activate.'
                               }
                             >
                               <span
                                 className={`w-2 h-2 rounded-full ${
-                                  l.allowed_buyers === 'ALL' || l.allowed_buyers === 'STORES_ONLY'
-                                    ? 'bg-emerald-500 animate-pulse'
-                                    : 'bg-gray-400'
+                                  l.is_active !== false ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'
                                 }`}
                               ></span>
-                              <span>
-                                {l.allowed_buyers === 'ALL' || l.allowed_buyers === 'STORES_ONLY'
-                                  ? t('b2bOpen', 'B2B Open (₹{price})', { price: l.wholesale_price || l.sell_price })
-                                  : t('shopExclusive', 'Shop Exclusive')}
-                              </span>
+                              <span>{l.is_active !== false ? 'Active' : 'Deactivated'}</span>
                             </button>
+                          ) : l.approval_status === 'DRAFT' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200" title="Draft product — not yet submitted for review">
+                              <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                              <span>Draft</span>
+                            </span>
+                          ) : l.approval_status === 'SUBMITTED' || l.approval_status === 'UNDER_REVIEW' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200" title="Awaiting Admin approval">
+                              <i className="fa-solid fa-clock text-[9px] text-blue-500 animate-pulse"></i>
+                              <span>In Review</span>
+                            </span>
+                          ) : l.approval_status === 'REJECTED' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-200" title="Rejected by Admin — click Edit to revise">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                              <span>Rejected</span>
+                            </span>
                           ) : (
-                            <span className="text-gray-500 text-xs">
-                              {l.allowed_buyers === 'ALL'
-                                ? t('customersAndStores', 'Customers + Stores')
-                                : l.allowed_buyers === 'CUSTOMERS_ONLY'
-                                ? t('customersOnly', 'Customers only')
-                                : t('storesOnly', 'Stores only')}
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200" title="Admin requested changes">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                              <span>Needs Edits</span>
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-4 text-right space-x-3 whitespace-nowrap">
-                          <button onClick={() => openEdit(l)} className="text-gray-400 hover:text-brand-dark transition tooltip-trigger" title={t('edit', 'Edit')}>
-                            <i className="fa-solid fa-pen"></i>
-                          </button>
-                          <button onClick={() => setDeleteConfirm(l.id)} className="text-gray-400 hover:text-red-500 transition tooltip-trigger" title={t('delete', 'Delete')}>
-                            <i className="fa-solid fa-trash"></i>
-                          </button>
+                        <td className="px-3.5 py-3 text-right whitespace-nowrap sticky right-0 bg-white/95 group-hover:bg-slate-50/95 transition shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)]">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openEdit(l)}
+                              className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-brand-dark hover:text-white text-gray-600 flex items-center justify-center transition shadow-2xs"
+                              title={t('edit', 'Edit Product')}
+                            >
+                              <i className="fa-solid fa-pen text-xs"></i>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteConfirm(l.id)}
+                              className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-red-600 hover:text-white text-gray-600 flex items-center justify-center transition shadow-2xs"
+                              title={t('delete', 'Delete Product')}
+                            >
+                              <i className="fa-solid fa-trash text-xs"></i>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                       {hasIssues && (
                         <tr>
-                          <td colSpan="10" className="px-4 py-2 bg-red-50/50 border-b border-gray-100">
+                          <td colSpan="11" className="px-4 py-2 bg-red-50/50 border-b border-gray-100">
                             <div className="flex flex-col gap-1 pl-8">
                               {issues.map((issue, idx) => (
                                 <div key={idx} className="flex items-start gap-2 text-xs">
@@ -1151,104 +1747,7 @@ const Products = () => {
                     </select>
                   </div>
 
-                  {/* B2B Wholesale Pricing & Network Settings */}
-                  {editingListing?.master_catalog_id || editingListing?.original_listing_id ? (
-                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-2 text-xs">
-                      <div className="flex items-center gap-2 text-amber-900 font-bold">
-                        <i className="fa-solid fa-lock text-amber-600"></i>
-                        <span>Partner Brand Product (Retail Exclusive)</span>
-                      </div>
-                      <p className="text-[11px] text-amber-800">
-                        This product was sourced from a partner manufacturer. It is sold directly to <strong>Retail Customers Only</strong> and cannot be redistributed wholesale to other stores.
-                      </p>
-                      <div className="flex items-center justify-between text-[11px] text-gray-600 bg-white p-2 rounded-lg border border-amber-200">
-                        <span>Wholesale Cost: <strong>₹{editingListing.wholesale_price || '—'}</strong></span>
-                        <span>Allowed Buyers: <strong className="text-emerald-700">Retail Customers Only</strong></span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-3 bg-white rounded-xl border border-purple-200 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-extrabold text-purple-950 flex items-center gap-1.5">
-                          <i className="fa-solid fa-store text-emerald-600"></i>
-                          Store-to-Store Wholesale Pricing (B2B)
-                        </span>
-                        {formData.wholesale_price && formData.sell_price && Number(formData.sell_price) > Number(formData.wholesale_price) && (
-                          <span className="text-[10px] font-black px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                            Reseller Margin: {Math.round(((Number(formData.sell_price) - Number(formData.wholesale_price)) / Number(formData.sell_price)) * 100)}%
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                            Wholesale Price to Other Stores (₹)
-                          </label>
-                          <input 
-                            type="number" 
-                            step="0.01"
-                            name="wholesale_price" 
-                            value={formData.wholesale_price || ''} 
-                            onChange={handleFormChange} 
-                            placeholder="Wholesale (e.g. 500)" 
-                            className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-bold text-emerald-800 outline-none focus:border-purple-500" 
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                            Wholesale Min Order Qty (MOQ)
-                          </label>
-                          <input 
-                            type="number" 
-                            min="1"
-                            name="min_order_qty" 
-                            value={formData.min_order_qty || ''} 
-                            onChange={handleFormChange} 
-                            placeholder="Min units (e.g. 5)" 
-                            className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-800 outline-none focus:border-purple-500" 
-                          />
-                        </div>
-                      </div>
-
-                      <div className="pt-1 space-y-2 border-t border-purple-100">
-                        <label className="flex items-start gap-2.5 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={formData.allowed_buyers === 'ALL' || formData.allowed_buyers === 'STORES_ONLY'} 
-                            onChange={(e) => setFormData({
-                              ...formData, 
-                              allowed_buyers: e.target.checked ? 'ALL' : 'CUSTOMERS_ONLY'
-                            })}
-                            className="w-4 h-4 text-emerald-600 rounded mt-0.5 focus:ring-emerald-500" 
-                          />
-                          <div>
-                            <div className="text-xs font-bold text-gray-900">
-                              Distribute on B2B Partner Network
-                            </div>
-                            <div className="text-[11px] text-gray-500">
-                              Allow neighboring kiranas and stores to order wholesale stock and resell in their shops
-                            </div>
-                          </div>
-                        </label>
-
-                        <label className="flex items-center gap-2.5 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={formData.sample_available !== false} 
-                            onChange={(e) => setFormData({
-                              ...formData, 
-                              sample_available: e.target.checked
-                            })}
-                            className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500" 
-                          />
-                          <span className="text-xs font-semibold text-gray-700">
-                            Allow 1-unit sample orders so partner stores can inspect quality before bulk restock
-                          </span>
-                        </label>
-                      </div>
-                    </div>
-                  )}
+                  
                 </div>
               )}
 
@@ -1489,6 +1988,212 @@ const Products = () => {
                 </div>
               </div>
 
+              {/* B2B Wholesale Pricing & Volume Slabs (Strictly for Own Brand & Loose / Weight) */}
+              {(formData.product_type === 'OWN_BRAND' || formData.product_type === 'LOOSE_WEIGHT') && (
+                <div id="volume-tiered-pricing-section" className="p-4 bg-gradient-to-br from-purple-50/70 via-indigo-50/50 to-purple-50/60 rounded-2xl border border-purple-200 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <i className="fa-solid fa-store text-emerald-600 text-sm"></i>
+                      <span className="font-extrabold text-sm text-purple-950">Store-to-Store Wholesale Pricing (B2B)</span>
+                    </div>
+                    {formData.wholesale_price && formData.sell_price && Number(formData.sell_price) > Number(formData.wholesale_price) && (
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                        Reseller Margin: {Math.round(((Number(formData.sell_price) - Number(formData.wholesale_price)) / Number(formData.sell_price)) * 100)}%
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-purple-700 leading-relaxed">
+                    Set a discounted trader rate to allow partner Kirana stores to order bulk sacks or wholesale units. Hidden from public shoppers.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                        Wholesale Price to Other Stores (₹)
+                      </label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        name="wholesale_price" 
+                        value={formData.wholesale_price || ''} 
+                        onChange={handleFormChange} 
+                        placeholder={formData.product_type === 'LOOSE_WEIGHT' ? "e.g. 35.00 / kg" : "e.g. 250.00 / pc"} 
+                        className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm font-bold text-emerald-800 outline-none focus:border-purple-500 shadow-sm" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                        Wholesale Min Order Qty (MOQ)
+                      </label>
+                      <input 
+                        type="number" 
+                        min="1"
+                        name="min_order_qty" 
+                        value={formData.min_order_qty || ''} 
+                        onChange={handleFormChange} 
+                        placeholder={formData.product_type === 'LOOSE_WEIGHT' ? "Min kg (e.g. 20)" : "Min units (e.g. 10)"} 
+                        className="w-full px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-800 outline-none focus:border-purple-500 shadow-sm" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-purple-100 space-y-2">
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={formData.allowed_buyers === 'ALL' || formData.allowed_buyers === 'STORES_ONLY'} 
+                        onChange={(e) => setFormData({
+                          ...formData, 
+                          allowed_buyers: e.target.checked ? 'ALL' : 'CUSTOMERS_ONLY'
+                        })}
+                        className="w-4 h-4 text-emerald-600 rounded mt-0.5 focus:ring-emerald-500" 
+                      />
+                      <div>
+                        <div className="text-xs font-bold text-gray-900">
+                          Distribute on B2B Partner Network
+                        </div>
+                        <div className="text-[11px] text-gray-500">
+                          Allow neighboring kiranas and stores to order wholesale stock and resell in their shops
+                        </div>
+                      </div>
+                    </label>
+
+                    <label className="flex items-center gap-2.5 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={formData.sample_available !== false} 
+                        onChange={(e) => setFormData({
+                          ...formData, 
+                          sample_available: e.target.checked
+                        })}
+                        className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500" 
+                      />
+                      <span className="text-xs font-semibold text-gray-700">
+                        Allow 1-unit sample orders so partner stores can inspect quality before bulk restock
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Volume Tiered Discount Slabs Studio */}
+                  <div className="mt-3 pt-3 border-t border-purple-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-1.5">
+                        <i className="fa-solid fa-layer-group text-purple-700 text-xs"></i>
+                        <span className="text-xs font-extrabold text-purple-950">Volume Tiered Discount Slabs</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 bg-purple-100 text-purple-800 rounded-full">
+                          {(formData.tiered_pricing || []).length} slabs
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddTierSlab}
+                        className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-1 shadow-sm transition"
+                      >
+                        <i className="fa-solid fa-plus text-[10px]"></i> Add Volume Slab
+                      </button>
+                    </div>
+
+                    <p className="text-[11px] text-gray-600 mb-3">
+                      Configure quantity-based discount tiers. <strong>Retail slabs</strong> apply to general customers on the app. <strong>Wholesale slabs</strong> apply exclusively to verified stores.
+                    </p>
+
+                    {(formData.tiered_pricing || []).length === 0 ? (
+                      <div className="p-3 rounded-xl border border-dashed border-purple-300 bg-white text-center">
+                        <p className="text-xs text-gray-500">No volume slabs added yet.</p>
+                        <button
+                          type="button"
+                          onClick={handleAddTierSlab}
+                          className="mt-1 text-xs font-bold text-purple-700 hover:underline"
+                        >
+                          + Click here to add your first bulk discount slab
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {formData.tiered_pricing.map((slab, idx) => {
+                          const isWholesale = slab.buyer_type === 'WHOLESALE';
+                          const basePrice = isWholesale ? parseFloat(formData.wholesale_price || 0) : parseFloat(formData.sell_price || 0);
+                          const slabPrice = parseFloat(slab.price || 0);
+                          const savings = basePrice > 0 && slabPrice > 0 && slabPrice < basePrice ? (basePrice - slabPrice) : 0;
+                          const savingsPct = basePrice > 0 && savings > 0 ? Math.round((savings / basePrice) * 100) : 0;
+
+                          return (
+                            <div key={slab.id || idx} className="p-2.5 bg-white rounded-xl border border-purple-200 flex flex-wrap sm:flex-nowrap items-center gap-2 shadow-sm">
+                              <div className="w-full sm:w-40">
+                                <label className="block text-[10px] font-bold text-gray-500 uppercase">Buyer Type</label>
+                                <select
+                                  value={slab.buyer_type || 'CUSTOMER'}
+                                  onChange={(e) => handleUpdateTierSlab(idx, 'buyer_type', e.target.value)}
+                                  className={`w-full px-2 py-1.5 rounded-lg border text-xs font-bold outline-none ${
+                                    isWholesale ? 'border-indigo-300 bg-indigo-50 text-indigo-900' : 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                                  }`}
+                                >
+                                  <option value="CUSTOMER">Retail Customers</option>
+                                  <option value="WHOLESALE">Other Stores (B2B)</option>
+                                </select>
+                              </div>
+
+                              <div className="w-1/2 sm:w-28">
+                                <label className="block text-[10px] font-bold text-gray-500 uppercase">Min Qty ({formData.unit || 'units'})</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  step="any"
+                                  value={slab.min_qty || ''}
+                                  onChange={(e) => handleUpdateTierSlab(idx, 'min_qty', e.target.value)}
+                                  placeholder="e.g. 5"
+                                  className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs font-bold outline-none focus:border-purple-500"
+                                />
+                              </div>
+
+                              <div className="w-1/2 sm:w-32">
+                                <label className="block text-[10px] font-bold text-gray-500 uppercase">Slab Price (₹)</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={slab.price || ''}
+                                  onChange={(e) => handleUpdateTierSlab(idx, 'price', e.target.value)}
+                                  placeholder="e.g. 42.00"
+                                  className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-emerald-800 outline-none focus:border-purple-500"
+                                />
+                              </div>
+
+                              <div className="flex-1 flex items-center justify-between text-xs">
+                                <div>
+                                  {savings > 0 ? (
+                                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                      Save ₹{savings.toFixed(2)} ({savingsPct}%)
+                                    </span>
+                                  ) : slabPrice >= basePrice && basePrice > 0 ? (
+                                    <span className="text-[11px] font-bold text-amber-600">
+                                      Must be &lt; {isWholesale ? 'wholesale' : 'retail'} ₹{basePrice}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[11px] text-gray-400">
+                                      {isWholesale && !formData.wholesale_price ? 'Set wholesale price above' : 'Enter slab price'}
+                                    </span>
+                                  )}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveTierSlab(idx)}
+                                  className="w-7 h-7 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center transition"
+                                  title="Delete Slab"
+                                >
+                                  <i className="fa-solid fa-trash-can text-xs"></i>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Checkboxes Group */}
               <div>
                 <label className="block text-sm font-bold text-gray-900 mb-2">{t('whoCanBuyThis', 'Who can buy this?')}</label>
@@ -1506,6 +2211,30 @@ const Products = () => {
                     <span className="text-sm font-semibold text-gray-700">Stores only — hide from public customers</span>
                   </label>
                 </div>
+              </div>
+
+              {/* Listing Active Status Toggle */}
+              <div className="p-3.5 rounded-xl border border-gray-200 bg-gray-50/70 flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${formData.is_active !== false ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`}></span>
+                    <span>{formData.is_active !== false ? 'Listing Active (Live on Store)' : 'Listing Deactivated (Hidden from Buyers)'}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {formData.is_active !== false
+                      ? 'Customers and store buyers can view and order this product'
+                      : 'Product is paused and hidden from public search and store shelves'}
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_active !== false}
+                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                </label>
               </div>
 
               {/* Return & Refund Policy Section */}
@@ -1603,22 +2332,80 @@ const Products = () => {
                 )}
                 <div className="flex gap-3">
                   {editingListing?.approval_status === 'APPROVED' ? (
-                    <button type="button" onClick={(e) => saveListing(e, true)} className="w-full py-3.5 rounded-xl bg-brand-dark hover:bg-green-800 text-white font-extrabold text-sm shadow-md transition flex justify-center items-center gap-2">
-                      <i className="fa-solid fa-paper-plane"></i> Submit Edits for Re-Review
+                    <button 
+                      type="button" 
+                      disabled={isSaving}
+                      onClick={(e) => saveListing(e, true)} 
+                      className="w-full py-3.5 rounded-xl bg-brand-dark hover:bg-green-800 disabled:opacity-60 disabled:cursor-not-allowed text-white font-extrabold text-sm shadow-md transition flex justify-center items-center gap-2 cursor-pointer"
+                    >
+                      {isSaving && savingAction === 'submit' ? (
+                        <>
+                          <i className="fa-solid fa-spinner fa-spin"></i> Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <i className="fa-solid fa-paper-plane"></i> Submit Edits for Re-Review
+                        </>
+                      )}
                     </button>
                   ) : (
                     <>
-                      <button type="button" onClick={(e) => saveListing(e, false)} className="flex-1 py-3.5 rounded-xl bg-white border-2 border-gray-200 hover:border-gray-300 text-gray-700 font-extrabold text-sm transition flex justify-center items-center gap-2">
-                        <i className="fa-solid fa-save"></i> {t('saveAsDraftBtn', 'Save as Draft')}
+                      <button 
+                        type="button" 
+                        disabled={isSaving}
+                        onClick={(e) => saveListing(e, false)} 
+                        className="flex-1 py-3.5 rounded-xl bg-white border-2 border-gray-200 hover:border-gray-300 disabled:opacity-60 disabled:cursor-not-allowed text-gray-700 font-extrabold text-sm transition flex justify-center items-center gap-2 cursor-pointer"
+                      >
+                        {isSaving && savingAction === 'draft' ? (
+                          <>
+                            <i className="fa-solid fa-spinner fa-spin text-brand-dark"></i> Saving Draft...
+                          </>
+                        ) : (
+                          <>
+                            <i className="fa-solid fa-save"></i> {t('saveAsDraftBtn', 'Save as Draft')}
+                          </>
+                        )}
                       </button>
-                      <button type="button" onClick={(e) => saveListing(e, true)} className="flex-1 py-3.5 rounded-xl bg-brand-dark hover:bg-green-800 text-white font-extrabold text-sm shadow-md transition flex justify-center items-center gap-2">
-                        <i className="fa-solid fa-paper-plane"></i> {editingListing?.approval_status === 'REJECTED' ? t('reSubmitForReviewBtn', 'Re-Submit for Review') : t('submitForReviewBtn', 'Submit for Review')}
+                      <button 
+                        type="button" 
+                        disabled={isSaving}
+                        onClick={(e) => saveListing(e, true)} 
+                        className="flex-1 py-3.5 rounded-xl bg-brand-dark hover:bg-green-800 disabled:opacity-60 disabled:cursor-not-allowed text-white font-extrabold text-sm shadow-md transition flex justify-center items-center gap-2 cursor-pointer"
+                      >
+                        {isSaving && savingAction === 'submit' ? (
+                          <>
+                            <i className="fa-solid fa-spinner fa-spin"></i> {editingListing?.approval_status === 'REJECTED' ? 'Re-Submitting...' : 'Submitting...'}
+                          </>
+                        ) : (
+                          <>
+                            <i className="fa-solid fa-paper-plane"></i> {editingListing?.approval_status === 'REJECTED' ? t('reSubmitForReviewBtn', 'Re-Submit for Review') : t('submitForReviewBtn', 'Submit for Review')}
+                          </>
+                        )}
                       </button>
                     </>
                   )}
                 </div>
                 <div className="text-center mt-4">
-                  <a href="#" className="text-xs font-bold text-brand-dark hover:underline">Need advanced variants, barcodes, or tiered bulk pricing? Open Product Studio →</a>
+                  {formData.product_type === 'PACKED_ITEM' ? (
+                    <button 
+                      type="button" 
+                      onClick={() => navigate('/pricing')} 
+                      className="text-xs font-bold text-brand-dark hover:underline flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
+                    >
+                      <i className="fa-solid fa-chart-line text-[11px]"></i> Manage Store-Wide Pricing & Discounts in Pricing Studio →
+                    </button>
+                  ) : (
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        const el = document.getElementById('volume-tiered-pricing-section');
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      }} 
+                      className="text-xs font-bold text-brand-dark hover:underline flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
+                    >
+                      <i className="fa-solid fa-layer-group text-[11px]"></i> Configure Tiered Bulk Pricing & Wholesale Slabs ↑
+                    </button>
+                  )}
                 </div>
               </div>
             </form>
@@ -1802,29 +2589,31 @@ const Products = () => {
 
             {/* Category ID Reference */}
             <div className="mb-6">
-              <h4 className="text-sm font-extrabold text-gray-900 mb-3 flex items-center gap-2">
-                <i className="fa-solid fa-layer-group text-gray-500"></i> Category Reference (<span className="font-mono text-emerald-700">category_id</span> column)
-              </h4>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 text-xs">
-                {(categories.length > 0 ? categories : [
-                  { id: 1, name: 'Fresh Produce' },
-                  { id: 2, name: 'Dairy & Eggs' },
-                  { id: 3, name: 'Pantry Staples' },
-                  { id: 4, name: 'Snacks & Packaged' },
-                  { id: 5, name: 'Beverages & Drinks' },
-                  { id: 6, name: 'Personal Care' },
-                  { id: 7, name: 'Cleaning & Household' },
-                  { id: 8, name: 'Fashion & Apparel' },
-                  { id: 9, name: 'Bakery' },
-                  { id: 10, name: 'Spices & Edible Oils' }
-                ]).map(cat => (
-                  <div key={cat.id} className="p-2.5 rounded-xl border border-gray-100 bg-gray-50 flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-md bg-white border border-gray-200 text-gray-800 font-extrabold text-[10px] flex items-center justify-center shrink-0">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-extrabold text-gray-900 flex items-center gap-2">
+                  <i className="fa-solid fa-layer-group text-emerald-600"></i> Category Reference (<span className="font-mono text-emerald-700">category_id</span> column)
+                </h4>
+                <span className="text-[11px] font-bold text-gray-500">
+                  {flattenedLeafCategories.length} Leaf Categories Available
+                </span>
+              </div>
+              <input
+                type="text"
+                value={csvCategorySearch}
+                onChange={(e) => setCsvCategorySearch(e.target.value)}
+                placeholder="🔍 Search leaf category IDs for CSV (e.g. Atta, Rice, Milk, Soap, Tea)..."
+                className="w-full mb-2.5 px-3 py-2 rounded-xl border border-gray-200 bg-gray-50 text-xs outline-none focus:border-brand-dark focus:bg-white transition"
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs max-h-52 overflow-y-auto p-1 border border-gray-100 rounded-xl bg-gray-50/50">
+                {(filteredLeafCategories.length > 0 ? filteredLeafCategories.slice(0, 30) : categories).map(cat => (
+                  <div key={cat.id} className="p-2 rounded-xl border border-gray-100 bg-white shadow-2xs flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-md bg-emerald-100 text-emerald-800 font-extrabold text-[10px] flex items-center justify-center shrink-0">
                       {cat.id}
                     </span>
-                    <span className="font-semibold text-gray-700 truncate text-[11px]" title={cat.name}>
-                      {cat.name}
-                    </span>
+                    <div className="truncate min-w-0">
+                      <div className="font-bold text-gray-800 truncate text-[11px]" title={cat.name}>{cat.name}</div>
+                      {cat.breadcrumb && <div className="text-[9px] text-gray-400 truncate" title={cat.breadcrumb}>{cat.breadcrumb}</div>}
+                    </div>
                   </div>
                 ))}
               </div>
