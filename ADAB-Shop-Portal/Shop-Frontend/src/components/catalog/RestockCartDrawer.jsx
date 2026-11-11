@@ -26,12 +26,15 @@ export default function RestockCartDrawer({ isOpen, onClose, onOrderPlaced }) {
         notes: 'Restock order from Seller FMCG Restock Cart'
       });
 
-      if (res.data?.success) {
-        setOrderSuccess(res.data.data);
+      const isSuccess = res?.success || res?.data?.success;
+      const orderData = res?.data?.data || res?.data;
+
+      if (isSuccess && orderData) {
+        setOrderSuccess(orderData);
         clearCart();
-        if (onOrderPlaced) onOrderPlaced(res.data.data);
+        if (onOrderPlaced) onOrderPlaced(orderData);
       } else {
-        setErrorMessage(res.data?.message || 'Failed to place restock order');
+        setErrorMessage(res?.message || res?.data?.message || 'Failed to place restock order');
       }
     } catch (err) {
       console.error('Checkout error:', err);

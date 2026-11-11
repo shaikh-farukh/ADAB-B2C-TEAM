@@ -39,12 +39,21 @@ export default function ProductDetailPage() {
       setLoading(true);
       setError('');
       const res = await sellerApi.getMasterProductById(id);
-      if (res.data?.success && res.data?.data?.product) {
-        const prod = res.data.data.product;
+      const prod =
+        res?.data?.data?.product ||
+        res?.data?.product ||
+        res?.product;
+
+      const storePin =
+        res?.data?.data?.storePincode ||
+        res?.data?.storePincode ||
+        res?.storePincode;
+
+      if (prod) {
         setProduct(prod);
         setCustomSellPrice(prod.printed_mrp ? Number(prod.printed_mrp).toString() : '50');
-        if (res.data.data.storePincode) {
-          setStorePincode(res.data.data.storePincode);
+        if (storePin) {
+          setStorePincode(storePin);
         }
       } else {
         setError('Manufacturer product not found');
@@ -73,7 +82,7 @@ export default function ProductDetailPage() {
         stockQty: Number(customStock)
       });
 
-      if (res.data?.success) {
+      if (res?.success || res?.data?.success) {
         setIsAdoptModalOpen(false);
         setProduct((prev) => ({ ...prev, already_in_store: true }));
         showToast(`🎉 "${product.product_name}" is now live on your store POS & inventory!`);
@@ -102,8 +111,9 @@ export default function ProductDetailPage() {
         notes: `Quick 1-click restock from product detail page`
       });
 
-      if (res.data?.success) {
-        setQuickOrderSuccess(res.data.data);
+      if (res?.success || res?.data?.success) {
+        const orderData = res?.data?.data || res?.data;
+        setQuickOrderSuccess(orderData);
       }
     } catch (err) {
       console.error('Quick order error:', err);
