@@ -794,8 +794,8 @@ class SellerController {
   async getMasterCatalog(req, res) {
     try {
       const { storeId } = getAuthenticatedSellerContext(req);
-      const { q, category_id, limit, offset } = req.query;
-      const result = await sellerService.getMasterCatalog(storeId, { q, category_id, limit, offset });
+      const { q, category_id, brand, limit, offset } = req.query;
+      const result = await sellerService.getMasterCatalog(storeId, { q, category_id, brand, limit, offset });
       res.json({ success: true, data: result });
     } catch (error) {
       handleError(res, error);
@@ -807,6 +807,17 @@ class SellerController {
       const { storeId } = getAuthenticatedSellerContext(req);
       const { masterCatalogId, sellPrice, stockQty } = req.body;
       const result = await sellerService.adoptMasterCatalogItem(storeId, { masterCatalogId, sellPrice, stockQty });
+      res.status(201).json({ success: true, data: result });
+    } catch (error) {
+      handleError(res, error);
+    }
+  }
+
+  async orderRestockCases(req, res) {
+    try {
+      const { storeId, userId } = getAuthenticatedSellerContext(req);
+      const { masterCatalogId, orderedCases, notes } = req.body;
+      const result = await sellerService.orderRestockCases(storeId, userId, { masterCatalogId, orderedCases, notes });
       res.status(201).json({ success: true, data: result });
     } catch (error) {
       handleError(res, error);

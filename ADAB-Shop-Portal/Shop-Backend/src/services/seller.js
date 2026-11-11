@@ -296,6 +296,10 @@ class SellerService {
     return await sellerRepository.adoptMasterCatalogItem(storeId, data);
   }
 
+  async orderRestockCases(storeId, userId, data) {
+    return await sellerRepository.orderRestockCases(storeId, userId, data);
+  }
+
   async getBankPartners() {
     return await sellerRepository.getBankPartners();
   }
