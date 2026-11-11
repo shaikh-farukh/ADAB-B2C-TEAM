@@ -2,68 +2,123 @@ const pool = require('../../db');
 
 class ListingRepository {
   async createListing(storeId, data) {
-    const effectiveUnit = data.unit || (
-      data.product_type === 'LOOSE_WEIGHT' ? 'kg' :
-      data.product_type === 'PACKED_ITEM' ? 'pack' : 'pcs'
-    );
-    const isRefundable = data.is_refundable !== undefined ? Boolean(data.is_refundable) : true;
-    const refundPercentage = data.refund_percentage !== undefined && data.refund_percentage !== null ? Number(data.refund_percentage) : 100.00;
-    const returnWindowDays = data.return_window_days !== undefined && data.return_window_days !== null ? parseInt(data.return_window_days, 10) : 7;
-    let listing;
+    const client = await pool.connect();
     try {
-      const query = `
+      await client.query('BEGIN');
+
+      const effectiveUnit = data.unit || (
+        data.product_type === 'LOOSE_WEIGHT' ? 'kg' :
+        data.product_type === 'PACKED_ITEM' ? 'pack' : 'pcs'
+      );
+      const isRefundable = data.is_refundable !== undefined ? Boolean(data.is_refundable) : true;
+      const refundPercentage = data.refund_percentage !== undefined && data.refund_percentage !== null ? Number(data.refund_percentage) : 100.00;
+      const returnWindowDays = data.return_window_days !== undefined && data.return_window_days !== null ? parseInt(data.return_window_days, 10) : 7;
+      
+      const hasVariants = Boolean(data.has_variants && Array.isArray(data.variants) && data.variants.length > 0);
+
+      // If product has variations, calculate roll-up aggregate stock
+      let calculatedStock = parseFloat(data.stock_qty || 0);
+      if (hasVariants) {
+        calculatedStock = data.variants.reduce((sum, v) => sum + (parseFloat(v.stock_qty) || 0), 0);
+      }
+
+      const attributesJson = data.attributes ? JSON.stringify(data.attributes) : '{}';
+
+      const insertQuery = `
         INSERT INTO seller_listings (
           store_id, title, sku, barcode, brand_tag, product_type, unit, 
           mrp, sell_price, min_order_qty, allowed_buyers, approval_status, is_active, stock_qty, category_id,
-          wholesale_price, tiered_pricing, sample_available, is_refundable, refund_percentage, return_window_days
+          wholesale_price, tiered_pricing, sample_available, is_refundable, refund_percentage, return_window_days,
+          attributes, has_variants, master_catalog_id, manufacturer_product_id
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25
         ) RETURNING *;
       `;
+
       const values = [
-        storeId, data.title, data.sku || null, data.barcode || null, data.brand_tag || null, data.product_type, effectiveUnit,
-        data.mrp, data.sell_price, data.min_order_qty || 1, data.allowed_buyers || 'ALL', data.approval_status || 'DRAFT', data.is_active !== undefined ? data.is_active : true, data.stock_qty || 0,
+        storeId,
+        data.title,
+        data.sku || null,
+        data.barcode || null,
+        data.brand_tag || null,
+        data.product_type || 'PACKED_ITEM',
+        effectiveUnit,
+        data.mrp,
+        data.sell_price,
+        data.min_order_qty !== undefined ? parseFloat(data.min_order_qty) : 1,
+        data.allowed_buyers || 'ALL',
+        data.approval_status || 'DRAFT',
+        data.is_active !== undefined ? Boolean(data.is_active) : true,
+        calculatedStock,
         data.category_id ? parseInt(data.category_id, 10) : null,
         data.wholesale_price !== undefined && data.wholesale_price !== null ? data.wholesale_price : null,
         data.tiered_pricing ? (typeof data.tiered_pricing === 'string' ? data.tiered_pricing : JSON.stringify(data.tiered_pricing)) : '[]',
         data.sample_available !== undefined ? Boolean(data.sample_available) : true,
-        isRefundable, refundPercentage, returnWindowDays
+        isRefundable,
+        refundPercentage,
+        returnWindowDays,
+        attributesJson,
+        hasVariants,
+        data.master_catalog_id || null,
+        data.manufacturer_product_id || null
       ];
-      const result = await pool.query(query, values);
-      listing = result.rows[0];
-    } catch (_) {
-      const fallbackQuery = `
-        INSERT INTO seller_listings (
-          store_id, title, sku, barcode, brand_tag, product_type, unit, 
-          mrp, sell_price, min_order_qty, allowed_buyers, approval_status, is_active, stock_qty, category_id
-        ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
-        ) RETURNING *;
-      `;
-      const fallbackValues = [
-        storeId, data.title, data.sku || null, data.barcode || null, data.brand_tag || null, data.product_type, effectiveUnit,
-        data.mrp, data.sell_price, data.min_order_qty || 1, data.allowed_buyers || 'ALL', data.approval_status || 'DRAFT', data.is_active !== undefined ? data.is_active : true, data.stock_qty || 0,
-        data.category_id ? parseInt(data.category_id, 10) : null
-      ];
-      const result = await pool.query(fallbackQuery, fallbackValues);
-      listing = result.rows[0];
-    }
 
-    // Handle mock image insert if provided
-    if (data.image_url) {
-      const imgQuery = `
-        INSERT INTO product_images (product_id, image_url, is_primary) 
-        VALUES ($1, $2, true) RETURNING *;
-      `;
-      await pool.query(imgQuery, [listing.id, data.image_url]);
-    }
+      const result = await client.query(insertQuery, values);
+      const listing = result.rows[0];
 
-    return listing;
+      // Insert primary image if provided
+      if (data.image_url) {
+        await client.query(
+          `INSERT INTO product_images (product_id, image_url, is_primary) VALUES ($1, $2, true)`,
+          [listing.id, data.image_url]
+        );
+      }
+
+      // Insert child variants if multi-SKU product
+      const insertedVariants = [];
+      if (hasVariants) {
+        for (const variant of data.variants) {
+          const varMrp = variant.mrp !== undefined ? parseFloat(variant.mrp) : parseFloat(listing.mrp);
+          const varSellPrice = variant.sell_price !== undefined ? parseFloat(variant.sell_price) : parseFloat(listing.sell_price);
+          if (varSellPrice > varMrp) {
+            throw new Error(`Variant "${variant.sku}" sell price (₹${varSellPrice}) cannot exceed Printed MRP (₹${varMrp})`);
+          }
+          const varSku = variant.sku || `${listing.sku || 'SKU'}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+          const varAttributes = variant.variant_attributes ? JSON.stringify(variant.variant_attributes) : '{}';
+
+          const varRes = await client.query(
+            `INSERT INTO listing_variants (
+               listing_id, sku, barcode, mrp, sell_price, stock_qty, variant_attributes, image_url, is_active
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;`,
+            [
+              listing.id,
+              varSku,
+              variant.barcode || null,
+              variant.mrp !== undefined ? parseFloat(variant.mrp) : listing.mrp,
+              variant.sell_price !== undefined ? parseFloat(variant.sell_price) : listing.sell_price,
+              variant.stock_qty !== undefined ? parseFloat(variant.stock_qty) : 0,
+              varAttributes,
+              variant.image_url || null,
+              variant.is_active !== undefined ? Boolean(variant.is_active) : true
+            ]
+          );
+          insertedVariants.push(varRes.rows[0]);
+        }
+      }
+
+      await client.query('COMMIT');
+      return { ...listing, variants: insertedVariants };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async getCategories() {
     const result = await pool.query(
-      'SELECT id, name, slug FROM categories WHERE is_active = true OR is_active IS NULL ORDER BY display_order ASC, name ASC'
+      'SELECT id, name, slug, parent_id, level, materialized_path, is_leaf FROM categories WHERE is_active = true OR is_active IS NULL ORDER BY display_order ASC, name ASC'
     );
     return result.rows;
   }
@@ -81,12 +136,11 @@ class ListingRepository {
       conditions.push(`sl.product_type = $${values.length}`);
     }
     if (filters.stock === 'in_stock') {
-      conditions.push(`COALESCE(sl.stock_qty, i.available_quantity::integer, 0) > 0`);
+      conditions.push(`COALESCE(sl.stock_qty, 0) > 0`);
     } else if (filters.stock === 'out_of_stock') {
-      conditions.push(`COALESCE(sl.stock_qty, i.available_quantity::integer, 0) <= 0`);
+      conditions.push(`COALESCE(sl.stock_qty, 0) <= 0`);
     }
     if (filters.buyer && filters.buyer !== 'all' && filters.buyer !== 'ALL') {
-      // buyer maps to allowed_buyers
       if (filters.buyer === 'CUSTOMERS') {
         values.push('CUSTOMERS_ONLY');
         conditions.push(`sl.allowed_buyers = $${values.length}`);
@@ -102,21 +156,49 @@ class ListingRepository {
       values.push(`%${filters.search}%`);
       conditions.push(`(sl.title ILIKE $${values.length} OR sl.barcode ILIKE $${values.length} OR sl.sku ILIKE $${values.length})`);
     }
+    if (filters.category_id && filters.category_id !== 'all' && filters.category_id !== 'ALL') {
+      values.push(parseInt(filters.category_id, 10));
+      conditions.push(`(sl.category_id = $${values.length} OR sl.category_id IN (
+        SELECT id FROM categories WHERE parent_id = $${values.length} OR parent_id IN (
+          SELECT id FROM categories WHERE parent_id = $${values.length}
+        )
+      ))`);
+    }
 
     const whereClause = conditions.join(' AND ');
 
     let query = `
-      SELECT sl.*, pi.image_url, COALESCE(sl.stock_qty, i.available_quantity::integer, 0) as stock_qty,
-             c.name as category_name
+      SELECT 
+        sl.*, 
+        pi.image_url, 
+        c.name as category_name,
+        parent_cat.name as parent_category_name,
+        (SELECT COUNT(*) FROM listing_variants lv WHERE lv.listing_id = sl.id AND lv.is_active = true) as variant_count,
+        (
+          SELECT json_agg(
+            json_build_object(
+              'id', lv.id,
+              'sku', lv.sku,
+              'barcode', lv.barcode,
+              'mrp', lv.mrp,
+              'sell_price', lv.sell_price,
+              'stock_qty', lv.stock_qty,
+              'variant_attributes', lv.variant_attributes,
+              'image_url', lv.image_url,
+              'is_active', lv.is_active
+            )
+          )
+          FROM listing_variants lv
+          WHERE lv.listing_id = sl.id AND lv.is_active = true
+        ) as variants
       FROM seller_listings sl
       LEFT JOIN product_images pi ON sl.id = pi.product_id AND pi.is_primary = true
-      LEFT JOIN inventory i ON sl.id = i.listing_id
       LEFT JOIN categories c ON sl.category_id = c.id
+      LEFT JOIN categories parent_cat ON c.parent_id = parent_cat.id
       WHERE ${whereClause}
       ORDER BY sl.created_at DESC
     `;
 
-    // Extract pagination parameters and remove them from the 'values' array for the count query
     let dataValues = [...values];
     
     if (filters.limit) {
@@ -133,7 +215,6 @@ class ListingRepository {
     const countQuery = `
       SELECT COUNT(*) 
       FROM seller_listings sl 
-      LEFT JOIN inventory i ON sl.id = i.listing_id 
       WHERE ${whereClause}
     `;
     const countResult = await pool.query(countQuery, values);
@@ -146,7 +227,28 @@ class ListingRepository {
 
   async getListingById(storeId, id) {
     const result = await pool.query(
-      `SELECT sl.*, pi.image_url, c.name as category_name FROM seller_listings sl 
+      `SELECT 
+        sl.*, 
+        pi.image_url, 
+        c.name as category_name,
+        (
+          SELECT json_agg(
+            json_build_object(
+              'id', lv.id,
+              'sku', lv.sku,
+              'barcode', lv.barcode,
+              'mrp', lv.mrp,
+              'sell_price', lv.sell_price,
+              'stock_qty', lv.stock_qty,
+              'variant_attributes', lv.variant_attributes,
+              'image_url', lv.image_url,
+              'is_active', lv.is_active
+            )
+          )
+          FROM listing_variants lv
+          WHERE lv.listing_id = sl.id
+        ) as variants
+       FROM seller_listings sl 
        LEFT JOIN product_images pi ON sl.id = pi.product_id AND pi.is_primary = true 
        LEFT JOIN categories c ON sl.category_id = c.id
        WHERE sl.id = $1 AND sl.store_id = $2`, 
@@ -156,56 +258,118 @@ class ListingRepository {
   }
 
   async updateListing(storeId, id, data) {
-    const fields = [];
-    const values = [];
-    let idx = 1;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    for (const [key, value] of Object.entries(data)) {
-      if (key !== 'image_url') {
-        fields.push(`${key} = $${idx}`);
-        values.push(value);
-        idx++;
+      const fields = [];
+      const values = [];
+      let idx = 1;
+
+      // Extract variants if provided
+      const variants = data.variants;
+      delete data.variants;
+
+      for (const [key, value] of Object.entries(data)) {
+        if (key !== 'image_url') {
+          fields.push(`${key} = $${idx}`);
+          values.push(
+            (key === 'attributes' || key === 'tiered_pricing') && typeof value === 'object' && value !== null
+              ? JSON.stringify(value)
+              : value
+          );
+          idx++;
+        }
       }
-    }
 
-    if (fields.length === 0 && !data.image_url) return null;
-
-    values.push(id, storeId);
-    let listing = null;
-    
-    if (fields.length > 0) {
-      const query = `
-        UPDATE seller_listings 
-        SET ${fields.join(', ')}, updated_at = NOW() 
-        WHERE id = $${idx} AND store_id = $${idx + 1}
-        RETURNING *;
-      `;
-      const result = await pool.query(query, values);
-      listing = result.rows[0];
-    } else {
-      listing = await this.getListingById(storeId, id);
-    }
-
-    if (data.image_url) {
-      // Upsert primary image safely without relying on partial index constraint
-      const existingImg = await pool.query(
-        'SELECT id FROM product_images WHERE product_id = $1 AND is_primary = true LIMIT 1',
-        [id]
-      );
-      if (existingImg.rows.length > 0) {
-        await pool.query(
-          'UPDATE product_images SET image_url = $1, created_at = NOW() WHERE id = $2',
-          [data.image_url, existingImg.rows[0].id]
-        );
+      let listing = null;
+      if (fields.length > 0) {
+        values.push(id, storeId);
+        const query = `
+          UPDATE seller_listings 
+          SET ${fields.join(', ')}, updated_at = NOW() 
+          WHERE id = $${idx} AND store_id = $${idx + 1}
+          RETURNING *;
+        `;
+        const result = await client.query(query, values);
+        listing = result.rows[0];
       } else {
-        await pool.query(
-          'INSERT INTO product_images (product_id, image_url, is_primary) VALUES ($1, $2, true)',
-          [id, data.image_url]
-        );
+        const fetchRes = await client.query('SELECT * FROM seller_listings WHERE id = $1 AND store_id = $2', [id, storeId]);
+        listing = fetchRes.rows[0];
       }
-    }
 
-    return listing;
+      if (!listing) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+
+      // Update primary image if provided
+      if (data.image_url) {
+        const existingImg = await client.query(
+          'SELECT id FROM product_images WHERE product_id = $1 AND is_primary = true LIMIT 1',
+          [id]
+        );
+        if (existingImg.rows.length > 0) {
+          await client.query(
+            'UPDATE product_images SET image_url = $1, created_at = NOW() WHERE id = $2',
+            [data.image_url, existingImg.rows[0].id]
+          );
+        } else {
+          await client.query(
+            'INSERT INTO product_images (product_id, image_url, is_primary) VALUES ($1, $2, true)',
+            [id, data.image_url]
+          );
+        }
+      }
+
+      // Update child variants if provided
+      if (Array.isArray(variants)) {
+        // Delete old variants and re-insert new ones
+        await client.query('DELETE FROM listing_variants WHERE listing_id = $1', [id]);
+        
+        let totalVariantStock = 0;
+        for (const variant of variants) {
+          const varSku = variant.sku || `${listing.sku || 'SKU'}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+          const varStock = variant.stock_qty !== undefined ? parseFloat(variant.stock_qty) : 0;
+          totalVariantStock += varStock;
+
+          await client.query(
+            `INSERT INTO listing_variants (
+               listing_id, sku, barcode, mrp, sell_price, stock_qty, variant_attributes, image_url, is_active
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+            [
+              id,
+              varSku,
+              variant.barcode || null,
+              variant.mrp !== undefined ? parseFloat(variant.mrp) : listing.mrp,
+              variant.sell_price !== undefined ? parseFloat(variant.sell_price) : listing.sell_price,
+              varStock,
+              variant.variant_attributes ? JSON.stringify(variant.variant_attributes) : '{}',
+              variant.image_url || null,
+              variant.is_active !== undefined ? Boolean(variant.is_active) : true
+            ]
+          );
+        }
+
+        // If listing has variants, roll up aggregate stock on parent
+        if (variants.length > 0) {
+          await client.query(
+            'UPDATE seller_listings SET stock_qty = $1, has_variants = true WHERE id = $2',
+            [totalVariantStock, id]
+          );
+          listing.stock_qty = totalVariantStock;
+          listing.has_variants = true;
+        }
+      }
+
+      await client.query('COMMIT');
+      return await this.getListingById(storeId, id);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async deleteListing(storeId, id) {
@@ -220,6 +384,7 @@ class ListingRepository {
     const result = await pool.query(query, [storeId, ids]);
     return result.rows;
   }
+
   async getApprovalHistory(id) {
     const query = `
       SELECT * FROM product_approval_history 
@@ -246,7 +411,6 @@ class ListingRepository {
   }
 
   async getListingIssues(storeId, id) {
-    // Read seller_listings and inventory
     const query = `
       SELECT sl.approval_status, sl.rejection_reason, sl.mrp, sl.sell_price, sl.stock_qty,
              i.available_quantity, i.low_stock_threshold
@@ -255,43 +419,50 @@ class ListingRepository {
       WHERE sl.id = $1 AND sl.store_id = $2
     `;
     const result = await pool.query(query, [id, storeId]);
-    if (!result.rows[0]) return null;
+    if (!result.rows || result.rows.length === 0) return null;
     
     const row = result.rows[0];
     const issues = [];
 
-    // Operational Issues (Inventory and Price) only apply to approved/published products
-    if (['APPROVED', 'PUBLISHED'].includes(row.approval_status)) {
-      // Inventory Issues (Cross-domain read-only from Mayank's table, fallback to sl.stock_qty)
-      const effectiveStock = row.available_quantity !== null ? Number(row.available_quantity) : Number(row.stock_qty);
-      if (effectiveStock <= 0) {
-        issues.push({
-          issue_type: 'INVENTORY',
-          severity: 'high',
-          message: 'Product is out of stock',
-          details: { stock: effectiveStock }
-        });
-      } else if (row.low_stock_threshold !== null && effectiveStock <= Number(row.low_stock_threshold)) {
-        issues.push({
-          issue_type: 'INVENTORY',
-          severity: 'medium',
-          message: 'Product is running low on stock',
-          details: { stock: effectiveStock, low_stock_threshold: Number(row.low_stock_threshold) }
-        });
-      }
+    // 1. Inventory Issues (Fallback to sl.stock_qty if inventory row is absent)
+    const effectiveStock = row.available_quantity !== null && row.available_quantity !== undefined 
+      ? Number(row.available_quantity) 
+      : Number(row.stock_qty || 0);
 
-      // Price Issues
-      if (row.mrp !== null && row.sell_price !== null && Number(row.sell_price) > Number(row.mrp)) {
-        issues.push({
-          issue_type: 'PRICE',
-          severity: 'high',
-          message: 'Selling price cannot be greater than MRP',
-          details: { mrp: Number(row.mrp), sell_price: Number(row.sell_price) }
-        });
-      }
+    if (effectiveStock <= 0) {
+      issues.push({
+        issue_type: 'INVENTORY',
+        severity: 'high',
+        message: 'Product is out of stock',
+        details: { stock: effectiveStock }
+      });
+    } else if (row.low_stock_threshold !== null && row.low_stock_threshold !== undefined && effectiveStock <= Number(row.low_stock_threshold)) {
+      issues.push({
+        issue_type: 'INVENTORY',
+        severity: 'medium',
+        message: 'Product is running low on stock',
+        details: { stock: effectiveStock, low_stock_threshold: Number(row.low_stock_threshold) }
+      });
+    } else if (effectiveStock <= 5) {
+      issues.push({
+        issue_type: 'INVENTORY',
+        severity: 'medium',
+        message: 'Product is running low on stock',
+        details: { stock: effectiveStock, low_stock_threshold: 5 }
+      });
     }
 
-    // Listing / Approval Issues
+    // 2. Price Issues (Selling price greater than MRP)
+    if (row.mrp !== null && row.sell_price !== null && Number(row.sell_price) > Number(row.mrp)) {
+      issues.push({
+        issue_type: 'PRICE',
+        severity: 'high',
+        message: 'Selling price cannot be greater than MRP',
+        details: { mrp: Number(row.mrp), sell_price: Number(row.sell_price) }
+      });
+    }
+
+    // 3. Listing / Approval Issues
     if (['REJECTED', 'CHANGES_REQUIRED'].includes(row.approval_status)) {
       issues.push({
         issue_type: 'LISTING',

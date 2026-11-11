@@ -15,6 +15,26 @@ const listingService = {
     return api.get('/seller/listings/categories');
   },
 
+  getCategoryTree: () => {
+    return api.get('/shop/catalog/categories/tree');
+  },
+
+  getCategoryAttributes: (categoryId) => {
+    return api.get(`/shop/catalog/categories/${categoryId}/attributes`);
+  },
+
+  searchMasterCatalog: (q) => {
+    return api.get('/shop/catalog/master/search', { params: { q } });
+  },
+
+  getB2BProducts: (q) => {
+    return api.get('/shop/catalog/b2b/products', { params: { q } });
+  },
+
+  lookupBarcode: (barcode) => {
+    return api.get(`/shop/catalog/barcode/${encodeURIComponent(barcode)}`);
+  },
+
   createListing: (data) => {
     return api.post('/seller/listings', data);
   },

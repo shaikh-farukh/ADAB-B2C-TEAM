@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
@@ -73,13 +74,21 @@ function verifyToken(token) {
 }
 
 function hashPassword(password) {
-  const salt = 'adab_pin_salt_v1';
-  return crypto.scryptSync(String(password), salt, 32).toString('hex');
+  return bcrypt.hashSync(String(password), 10);
 }
 
 function verifyPassword(password, storedHash) {
   if (!storedHash) return false;
-  const computed = hashPassword(password);
+  const str = String(storedHash);
+  if (str.startsWith('$2a$') || str.startsWith('$2b$') || str.startsWith('$2y$')) {
+    try {
+      return bcrypt.compareSync(String(password), str);
+    } catch (e) {
+      return false;
+    }
+  }
+  const salt = 'adab_pin_salt_v1';
+  const computed = crypto.scryptSync(String(password), salt, 32).toString('hex');
   return storedHash === computed || storedHash === String(password);
 }
 

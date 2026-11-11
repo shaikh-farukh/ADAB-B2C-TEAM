@@ -5111,57 +5111,235 @@ class SellerRepository {
 
   // --- Phase 2: National FMCG Master Catalog Browser & Adoption ---
   async getMasterCatalog(storeId, options = {}) {
-    const { q, category_id, limit = 40, offset = 0 } = options;
-    const params = [storeId || null];
+    const { q, category_id, brand, limit = 50, offset = 0 } = options;
+
+    // 1. Resolve store pincode
+    let storePincode = '400001';
+    if (storeId) {
+      try {
+        const sRes = await pool.query('SELECT pincode FROM stores WHERE id = $1', [storeId]);
+        if (sRes.rows.length > 0 && sRes.rows[0].pincode) {
+          storePincode = sRes.rows[0].pincode;
+        }
+      } catch (err) {
+        console.warn('Failed to resolve store pincode:', err.message);
+      }
+    }
+
+    const params = [storeId || null, storePincode];
     let query = `
       SELECT 
         mci.id,
         mci.barcode,
         mci.product_name,
-        mci.brand_name,
+        COALESCE(mci.brand_name, 'Generic') as brand_name,
         mci.category_id,
-        COALESCE(c.name, 'General') as category_name,
-        mci.printed_mrp,
-        mci.standard_unit,
-        mci.default_image_url,
+        COALESCE(mci.category, c.name, 'General') as category_name,
+        mci.sub_category,
+        COALESCE(mci.retail_price, mci.mrp, 0) as printed_mrp,
+        COALESCE(mci.distributor_price, ROUND(COALESCE(mci.retail_price, mci.mrp, 0) * 0.85, 2)) as wholesale_price,
+        ROUND(((COALESCE(mci.retail_price, mci.mrp, 0) - COALESCE(mci.distributor_price, ROUND(COALESCE(mci.retail_price, mci.mrp, 0) * 0.85, 2))) / NULLIF(COALESCE(mci.retail_price, mci.mrp, 0), 0)) * 100, 1) as retailer_margin_pct,
+        COALESCE(mci.case_size, 1) as case_size,
+        COALESCE(mci.packaging_type, 'Shipper Carton') as packaging_type,
+        COALESCE(mci.case_mrp, ROUND(COALESCE(mci.retail_price, mci.mrp, 0) * COALESCE(mci.case_size, 1), 2)) as case_mrp,
+        COALESCE(mci.case_distributor_price, ROUND(COALESCE(mci.distributor_price, mci.retail_price * 0.85, 0) * COALESCE(mci.case_size, 1), 2)) as case_wholesale_price,
+        COALESCE(mci.unit, 'Piece') as standard_unit,
+        COALESCE(mci.product_image, mci.image_url, mci.image) as default_image_url,
+        COALESCE(mci.attributes, '{}'::jsonb) as attributes,
         mci.created_at,
+        dist.distributor_id,
+        COALESCE(dist.distributor_name, 'Regional Mother Depot') as distributor_name,
+        COALESCE(dist.lead_time_hours, 24) as lead_time_hours,
+        COALESCE(dist.available_cases, 50) as available_cases,
+        (dist.distributor_id IS NOT NULL) as is_in_stock_locally,
         EXISTS (
           SELECT 1 FROM seller_listings sl 
-          WHERE sl.master_catalog_id = mci.id 
+          WHERE sl.manufacturer_product_id = mci.id
             AND sl.store_id = $1
             AND sl.is_active = true
         ) AS already_in_store
-      FROM master_catalog_items mci
+      FROM manage_manufacturer_products mci
       LEFT JOIN categories c ON mci.category_id = c.id
-      WHERE 1=1
+      LEFT JOIN LATERAL (
+        SELECT 
+          dp.distributor_id,
+          COALESCE(u.company_name, u.owner_name, 'Authorized Local Stockist') as distributor_name,
+          dp.lead_time_hours,
+          COALESCE(di.available_cases, 0) as available_cases
+        FROM distributor_pincodes dp
+        JOIN distributor_brand_authorizations dba ON dp.distributor_id = dba.distributor_id
+        JOIN manage_b_to_b_userdetail u ON dp.distributor_id = u.id
+        LEFT JOIN distributor_inventory di ON di.distributor_id = dp.distributor_id
+        WHERE dp.pincode = $2
+          AND LOWER(dba.brand_name) = LOWER(mci.brand_name)
+          AND dba.status = 'active'
+        ORDER BY dp.lead_time_hours ASC, di.available_cases DESC
+        LIMIT 1
+      ) dist ON true
+      WHERE mci.deleted_at IS NULL
+        AND (mci.status = 'active' OR mci.status IS NULL)
     `;
 
     if (q && q.trim()) {
       params.push(`%${q.trim()}%`);
       const qIdx = params.length;
-      query += ` AND (mci.product_name ILIKE ${qIdx} OR mci.brand_name ILIKE ${qIdx} OR mci.barcode = ${qIdx - 1 + 1})`;
+      query += ` AND (mci.product_name ILIKE $${qIdx} OR mci.brand_name ILIKE $${qIdx} OR mci.barcode ILIKE $${qIdx})`;
+    }
+
+    if (brand && brand !== 'all') {
+      params.push(brand.trim());
+      query += ` AND LOWER(mci.brand_name) = LOWER($${params.length})`;
     }
 
     if (category_id && category_id !== 'all') {
       params.push(Number(category_id));
-      query += ` AND mci.category_id = ${params.length}`;
+      query += ` AND mci.category_id = $${params.length}`;
     }
 
-    query += ` ORDER BY mci.brand_name ASC, mci.product_name ASC`;
+    query += ` ORDER BY mci.created_at DESC, mci.product_name ASC`;
 
     params.push(Number(limit));
-    query += ` LIMIT ${params.length}`;
+    query += ` LIMIT $${params.length}`;
 
     params.push(Number(offset));
-    query += ` OFFSET ${params.length}`;
+    query += ` OFFSET $${params.length}`;
 
     const res = await pool.query(query, params);
 
-    // Get total count
-    const countRes = await pool.query('SELECT COUNT(*) FROM master_catalog_items');
+    // Get distinct brands from manage_manufacturer_products for filtering
+    const brandRes = await pool.query(`
+      SELECT DISTINCT brand_name 
+      FROM manage_manufacturer_products 
+      WHERE brand_name IS NOT NULL 
+        AND deleted_at IS NULL 
+        AND (status = 'active' OR status IS NULL)
+      ORDER BY brand_name ASC;
+    `);
+    const brands = brandRes.rows.map(b => b.brand_name);
+
+    // Total count from manage_manufacturer_products
+    const countRes = await pool.query(`
+      SELECT COUNT(*) 
+      FROM manage_manufacturer_products 
+      WHERE deleted_at IS NULL 
+        AND (status = 'active' OR status IS NULL)
+    `);
     return {
       items: res.rows,
-      total: parseInt(countRes.rows[0].count, 10)
+      total: parseInt(countRes.rows[0].count, 10),
+      brands,
+      storePincode
+    };
+  }
+
+  async orderRestockCases(storeId, userId, data = {}) {
+    const { masterCatalogId, orderedCases = 1, notes } = data;
+    if (!storeId && !userId) throw new Error('Seller identity is required');
+    if (!masterCatalogId) throw new Error('Master Catalog Item ID is required');
+
+    // 1. Fetch item from manage_manufacturer_products
+    const mRes = await pool.query(
+      `SELECT * FROM manage_manufacturer_products WHERE id = $1 AND deleted_at IS NULL`,
+      [masterCatalogId]
+    );
+    if (mRes.rows.length === 0) throw new Error('Manufacturer product item not found');
+    const master = mRes.rows[0];
+
+    // 2. Fetch Store Details
+    const sRes = await pool.query('SELECT id, store_name, pincode, address_line FROM stores WHERE id = $1', [storeId]);
+    const store = sRes.rows[0] || {};
+    const storePincode = store.pincode || '400001';
+
+    // 3. Resolve Distributor for this brand & pincode
+    const distRes = await pool.query(`
+      SELECT dp.distributor_id, COALESCE(u.company_name, u.owner_name, 'Apex City Stockists') as distributor_name, dp.lead_time_hours
+      FROM distributor_pincodes dp
+      JOIN distributor_brand_authorizations dba ON dp.distributor_id = dba.distributor_id
+      JOIN manage_b_to_b_userdetail u ON dp.distributor_id = u.id
+      WHERE dp.pincode = $1
+        AND LOWER(dba.brand_name) = LOWER($2)
+        AND dba.status = 'active'
+      ORDER BY dp.lead_time_hours ASC
+      LIMIT 1
+    `, [storePincode, master.brand_name]);
+
+    const assignedDistributorId = distRes.rows.length > 0 ? distRes.rows[0].distributor_id : 2; // fallback to Apex City Stockists
+    const distributorName = distRes.rows.length > 0 ? distRes.rows[0].distributor_name : 'Apex City Stockists';
+
+    const numCases = Math.max(1, parseInt(orderedCases, 10) || 1);
+    const caseSize = Number(master.case_size) || 1;
+    const unitWholesale = Number(master.distributor_price) || Math.round(Number(master.retail_price || master.mrp || 0) * 0.85 * 100) / 100;
+    const casePrice = Number(master.case_distributor_price) || Math.round(unitWholesale * caseSize * 100) / 100;
+    const totalAmount = Math.round(casePrice * numCases * 100) / 100;
+
+    const orderNumber = 'B2B-ORD-' + Date.now().toString().slice(-6) + '-' + Math.floor(100 + Math.random() * 900);
+
+    // 4. Create Order in manage_b_to_b_orders
+    const ordRes = await pool.query(`
+      INSERT INTO manage_b_to_b_orders (
+        order_number, distributor_id, manufacturer_id, shop_id,
+        total_amount, final_amount, status, payment_status,
+        delivery_mode, payment_mode, shipping_address, active, order_date
+      ) VALUES (
+        $1, $2, $3, 3,
+        $4, $4, 'PENDING', 'UNPAID',
+        'Local Distributor Delivery Van', 'CASH', $5, true, NOW()
+      ) RETURNING *;
+    `, [
+      orderNumber,
+      assignedDistributorId,
+      master.manufacturer_id || 1,
+      totalAmount,
+      store.address_line ? `${store.store_name}, ${store.address_line}, Pincode: ${storePincode}` : `Pincode: ${storePincode}`
+    ]);
+
+    const order = ordRes.rows[0];
+
+    // 5. Insert Item in manage_b_to_b_order_items
+    await pool.query(`
+      INSERT INTO manage_b_to_b_order_items (
+        order_id, product_name, quantity, unit_price, total_price
+      ) VALUES (
+        $1, $2, $3, $4, $5
+      );
+    `, [
+      order.id,
+      `${master.brand_name} - ${master.product_name} (${caseSize} packs/carton)`,
+      numCases,
+      casePrice,
+      totalAmount
+    ]);
+
+    // 6. Record status history
+    await pool.query(`
+      INSERT INTO manage_b_to_b_order_status_history (
+        order_id, status, notes
+      ) VALUES ($1, 'PENDING', $2);
+    `, [
+      order.id,
+      `Restock order placed by ${store.store_name || 'Kirana Store'}. Auto-routed to ${distributorName} for Pincode ${storePincode}.`
+    ]);
+
+    // 7. Decrement local distributor inventory if exists
+    try {
+      await pool.query(`
+        UPDATE distributor_inventory
+        SET available_cases = GREATEST(0, available_cases - $1)
+        WHERE distributor_id = $2;
+      `, [numCases, assignedDistributorId]);
+    } catch (invErr) {
+      console.warn('Inventory decrement notice:', invErr.message);
+    }
+
+    return {
+      success: true,
+      order_number: orderNumber,
+      order_id: order.id,
+      assigned_distributor: distributorName,
+      ordered_cases: numCases,
+      total_units: numCases * caseSize,
+      total_amount: totalAmount,
+      lead_time_hours: distRes.rows[0]?.lead_time_hours || 12
     };
   }
 
@@ -5170,18 +5348,21 @@ class SellerRepository {
     if (!storeId) throw new Error('Store ID is required');
     if (!masterCatalogId) throw new Error('Master Catalog Item ID is required');
 
-    // 1. Fetch master item
-    const mRes = await pool.query('SELECT * FROM master_catalog_items WHERE id = $1', [masterCatalogId]);
+    // 1. Fetch item from manage_manufacturer_products
+    const mRes = await pool.query(
+      `SELECT * FROM manage_manufacturer_products WHERE id = $1 AND deleted_at IS NULL`,
+      [masterCatalogId]
+    );
     if (mRes.rows.length === 0) {
-      throw new Error('Master catalog item not found');
+      throw new Error('Manufacturer product item not found');
     }
     const master = mRes.rows[0];
-    const finalSellPrice = Number(sellPrice) || Number(master.printed_mrp) || 50;
+    const finalSellPrice = Number(sellPrice) || Number(master.retail_price || master.mrp || 0) || 50;
     const finalStock = Number(stockQty) || 20;
 
     // 2. Check if listing already exists
     const existing = await pool.query(
-      'SELECT id FROM seller_listings WHERE store_id = $1 AND master_catalog_id = $2',
+      `SELECT id FROM seller_listings WHERE store_id = $1 AND manufacturer_product_id = $2`,
       [storeId, masterCatalogId]
     );
 
@@ -5202,22 +5383,24 @@ class SellerRepository {
     // 3. Insert new listing
     const inserted = await pool.query(`
       INSERT INTO seller_listings (
-        store_id, master_catalog_id, title, barcode, brand_tag, category_id,
-        mrp, sell_price, unit, min_order_qty, stock_qty, product_type, approval_status, is_active
+        store_id, manufacturer_product_id, title, barcode, brand_tag, category_id,
+        mrp, wholesale_price, sell_price, unit, min_order_qty, stock_qty, product_type, approval_status, is_active, attributes
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, 1, $10, 'PACKED_ITEM', 'APPROVED', true
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1, $11, 'PACKED_ITEM', 'APPROVED', true, $12
       ) RETURNING *
     `, [
       storeId,
-      masterCatalogId,
+      master.id,
       master.product_name,
       master.barcode,
       master.brand_name,
-      master.category_id,
-      master.printed_mrp,
+      master.category_id || 1,
+      Number(master.retail_price || master.mrp || 0),
+      Number(master.distributor_price || 0),
       finalSellPrice,
-      master.standard_unit || 'pcs',
-      finalStock
+      master.unit || 'Piece',
+      finalStock,
+      master.attributes || {}
     ]);
 
     return { adopted: true, action: 'created', listing: inserted.rows[0] };

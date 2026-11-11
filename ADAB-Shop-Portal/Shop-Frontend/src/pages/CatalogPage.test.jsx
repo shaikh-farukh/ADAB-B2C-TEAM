@@ -94,8 +94,8 @@ describe('CatalogPage Component', () => {
     fireEvent.click(addButton);
 
     // Verify modal is open
-    expect(screen.getByText('Add to Store Inventory')).toBeInTheDocument();
-    expect(screen.getByText(/Your Selling Price/i)).toBeInTheDocument();
+    expect(screen.getByText('1-Click Add to Store Catalog')).toBeInTheDocument();
+    expect(screen.getByText(/Your Retail Selling Price/i)).toBeInTheDocument();
 
     const publishBtn = screen.getByText('Publish to Store');
     fireEvent.click(publishBtn);

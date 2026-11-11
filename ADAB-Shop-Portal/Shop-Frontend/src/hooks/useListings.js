@@ -11,6 +11,7 @@ export const useListings = () => {
   const [stockFilter, setStockFilter] = useState('All stock');
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [buyerFilter, setBuyerFilter] = useState('ALL');
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -30,6 +31,7 @@ export const useListings = () => {
         stock: stock,
         type: typeFilter,
         buyer: buyerFilter,
+        category_id: categoryFilter,
         limit: itemsPerPage,
         offset: (currentPage - 1) * itemsPerPage
       };
@@ -49,8 +51,8 @@ export const useListings = () => {
           loose: all.filter(l => l.product_type === 'LOOSE_WEIGHT').length,
           packed: all.filter(l => l.product_type === 'PACKED_ITEM').length,
           food: all.filter(l => l.product_type === 'FOOD').length,
-          lowStock: all.filter(l => l.stock_qty > 0 && l.stock_qty <= 10).length,
-          outOfStock: all.filter(l => l.stock_qty === 0).length
+          lowStock: all.filter(l => (parseFloat(l.stock_qty) || 0) > 0 && (parseFloat(l.stock_qty) || 0) <= 10).length,
+          outOfStock: all.filter(l => (parseFloat(l.stock_qty) || 0) <= 0).length
         });
       }).catch(e => console.error("Stats fetch failed", e));
 
@@ -60,7 +62,7 @@ export const useListings = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, stockFilter, typeFilter, buyerFilter, currentPage, itemsPerPage]);
+  }, [searchQuery, stockFilter, typeFilter, buyerFilter, categoryFilter, currentPage, itemsPerPage]);
 
   useEffect(() => {
     fetchListings();
@@ -86,6 +88,10 @@ export const useListings = () => {
     return await listingApi.submitListing(id);
   };
 
+  const publishListing = async (id) => {
+    return await listingApi.publishListing(id);
+  };
+
   const bulkUpload = async (formData) => {
     return await listingApi.bulkUpload(formData);
   };
@@ -104,13 +110,15 @@ export const useListings = () => {
 
   return {
     listings,
+    setListings,
     loading,
     error,
     filters: {
       searchQuery, setSearchQuery,
       stockFilter, setStockFilter,
       typeFilter, setTypeFilter,
-      buyerFilter, setBuyerFilter
+      buyerFilter, setBuyerFilter,
+      categoryFilter, setCategoryFilter
     },
     pagination: {
       currentPage, setCurrentPage,
@@ -123,6 +131,7 @@ export const useListings = () => {
     deleteListing,
     batchDeleteListings,
     submitListing,
+    publishListing,
     bulkUpload,
     checkUploadStatus,
     bulkExport,

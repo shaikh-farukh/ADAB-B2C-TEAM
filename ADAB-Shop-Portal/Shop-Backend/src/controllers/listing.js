@@ -2,12 +2,28 @@ const ListingService = require('../services/listing');
 const minioService = require('../services/minioService');
 const { getAuthenticatedSellerContext } = require('../middlewares/auth');
 
+function formatErrorMessage(err) {
+  if (err && Array.isArray(err.issues)) {
+    return err.issues.map(e => `${e.path && e.path.length > 0 ? e.path.join('.') : 'field'}: ${e.message}`).join('; ');
+  }
+  if (err && Array.isArray(err.errors)) {
+    return err.errors.map(e => `${e.path && e.path.length > 0 ? e.path.join('.') : 'field'}: ${e.message}`).join('; ');
+  }
+  return err?.message || 'Validation error';
+}
+
 class ListingController {
-  formatErrorMessage(err) {
-    if (err && Array.isArray(err.errors)) {
-      return err.errors.map(e => `${e.path?.join('.') || 'field'}: ${e.message}`).join('; ');
+  constructor() {
+    const proto = Object.getPrototypeOf(this);
+    for (const key of Object.getOwnPropertyNames(proto)) {
+      if (key !== 'constructor' && typeof this[key] === 'function') {
+        this[key] = this[key].bind(this);
+      }
     }
-    return err?.message || 'Validation error';
+  }
+
+  formatErrorMessage(err) {
+    return formatErrorMessage(err);
   }
 
   async createListing(req, res) {
@@ -18,7 +34,8 @@ class ListingController {
       const listing = await ListingService.createListing(storeId, req.body);
       res.status(201).json(listing);
     } catch (err) {
-      res.status(400).json({ error: this.formatErrorMessage(err) });
+      console.error('[ListingController.createListing] Error:', err);
+      res.status(400).json({ error: formatErrorMessage(err) });
     }
   }
 
@@ -32,6 +49,7 @@ class ListingController {
       const url = await minioService.uploadImage(req.file.buffer, req.file.originalname, req.file.mimetype);
       res.status(201).json({ url });
     } catch (err) {
+      console.error('[ListingController.uploadImage] Error:', err);
       res.status(500).json({ error: err.message });
     }
   }
@@ -54,6 +72,7 @@ class ListingController {
       const result = await ListingService.getListings(storeId, filters);
       res.json(result);
     } catch (err) {
+      console.error('[ListingController.getListings] Error:', err);
       res.status(500).json({ error: err.message });
     }
   }
@@ -63,6 +82,7 @@ class ListingController {
       const categories = await ListingService.getCategories();
       res.json(categories);
     } catch (err) {
+      console.error('[ListingController.getCategories] Error:', err);
       res.status(500).json({ error: err.message });
     }
   }
@@ -75,6 +95,7 @@ class ListingController {
       const listing = await ListingService.getListingById(storeId, req.params.id);
       res.json(listing);
     } catch (err) {
+      console.error('[ListingController.getListingById] Error:', err);
       res.status(404).json({ error: err.message });
     }
   }
@@ -87,7 +108,8 @@ class ListingController {
       const listing = await ListingService.updateListing(storeId, req.params.id, req.body);
       res.json(listing);
     } catch (err) {
-      res.status(400).json({ error: this.formatErrorMessage(err) });
+      console.error('[ListingController.updateListing] Error:', err);
+      res.status(400).json({ error: formatErrorMessage(err) });
     }
   }
 
@@ -99,6 +121,7 @@ class ListingController {
       await ListingService.deleteListing(storeId, req.params.id);
       res.json({ success: true });
     } catch (err) {
+      console.error('[ListingController.deleteListing] Error:', err);
       res.status(400).json({ error: err.message });
     }
   }
@@ -112,6 +135,7 @@ class ListingController {
       const deleted = await ListingService.batchDeleteListings(storeId, ids);
       res.json({ success: true, count: deleted.length });
     } catch (err) {
+      console.error('[ListingController.batchDeleteListings] Error:', err);
       res.status(400).json({ error: err.message });
     }
   }
@@ -124,6 +148,7 @@ class ListingController {
       const listing = await ListingService.submitListing(storeId, req.params.id);
       res.json(listing);
     } catch (err) {
+      console.error('[ListingController.submitListing] Error:', err);
       res.status(400).json({ error: err.message });
     }
   }
@@ -172,6 +197,7 @@ class ListingController {
       const history = await ListingService.getApprovalHistory(storeId, req.params.id);
       res.json(history);
     } catch (err) {
+      console.error('[ListingController.getApprovalHistory] Error:', err);
       res.status(400).json({ error: err.message });
     }
   }

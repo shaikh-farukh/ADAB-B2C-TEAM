@@ -1,7 +1,8 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const dotenv = require('dotenv');
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 const pool = require('./db');
 
@@ -26,6 +27,7 @@ const listingRoutes = require('./src/routes/listing');
 const marketingRoutes = require('./src/routes/marketing');
 const pricingRoutes = require('./src/routes/pricing');
 const assistantRoutes = require('./src/routes/assistant');
+const catalogRoutes = require('./src/routes/catalog');
 
 // Initialize Background Jobs
 require('./src/jobs/bulkUploadJob');
@@ -50,6 +52,8 @@ app.get('/api/health', async (req, res) => {
 });
 
 // Domain Routes
+app.use('/api/v1/shop/catalog', catalogRoutes);
+app.use('/api/v1/seller/catalog', catalogRoutes);
 app.use('/api/v1/seller/listings', listingRoutes);
 app.use('/api/v1/seller/pricing', pricingRoutes);
 app.use('/api/v1/seller', sellerRoutes);

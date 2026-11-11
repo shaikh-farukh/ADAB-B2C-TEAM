@@ -123,6 +123,7 @@ export const sellerApi = {
   // National FMCG Master Catalog Domain
   getMasterCatalog: (params) => apiClient.get('/catalog/master', { params }),
   adoptMasterCatalogItem: (data) => apiClient.post('/catalog/adopt', data),
+  orderRestockCases: (data) => apiClient.post('/catalog/restock', data),
 
   // Store Credit Terms & Rules
   getCreditTerms: () => apiClient.get('/credit-terms'),
