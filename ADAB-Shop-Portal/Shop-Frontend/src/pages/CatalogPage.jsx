@@ -3,9 +3,13 @@ import { Link } from 'react-router-dom';
 import { sellerApi } from '../api/sellerApi';
 import listingService from '../services/listingService';
 import { useTranslation } from '../context/LanguageContext';
+import useRestockCart from '../hooks/useRestockCart';
+import RestockCartDrawer from '../components/catalog/RestockCartDrawer';
 
 export default function CatalogPage() {
   const { t } = useTranslation();
+  const { totalCartons } = useRestockCart();
+  const [isRestockCartOpen, setIsRestockCartOpen] = useState(false);
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -176,9 +180,24 @@ export default function CatalogPage() {
             Verified master products from national FMCG brands — 1-click addition to your live POS, plus bulk restock cartons delivered to your store.
           </p>
         </div>
-        <Link to="/products" className="btn-soft !text-xs self-start md:self-auto flex items-center gap-1.5 shadow-2xs">
-          <i className="fa-solid fa-boxes-stacked"></i> My Store Inventory
-        </Link>
+        <div className="flex items-center gap-2 self-start md:self-auto">
+          <button
+            type="button"
+            onClick={() => setIsRestockCartOpen(true)}
+            className="btn-soft !text-xs flex items-center gap-1.5 relative cursor-pointer font-bold hover:border-indigo-300"
+          >
+            <i className="fa-solid fa-cart-shopping text-indigo-600"></i>
+            <span>Restock Cart</span>
+            {totalCartons > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-indigo-600 text-white font-black text-[10px] animate-pulse">
+                {totalCartons}
+              </span>
+            )}
+          </button>
+          <Link to="/products" className="btn-soft !text-xs flex items-center gap-1.5 shadow-2xs">
+            <i className="fa-solid fa-boxes-stacked"></i> My Store Inventory
+          </Link>
+        </div>
       </div>
 
       {/* Brand Carousel Filter */}
@@ -310,37 +329,39 @@ export default function CatalogPage() {
                   </div>
 
                   {/* Product Title & EAN Barcode */}
-                  <div className="flex items-start gap-3">
-                    <div className="w-14 h-14 shrink-0 rounded-xl overflow-hidden bg-slate-50 border border-gray-200 flex items-center justify-center">
-                      {item.default_image_url ? (
-                        <img
-                          src={item.default_image_url}
-                          alt={item.product_name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            e.currentTarget.nextSibling.style.display = 'flex';
-                          }}
-                        />
-                      ) : null}
-                      <div className={`w-full h-full items-center justify-center text-gray-300 ${item.default_image_url ? 'hidden' : 'flex'}`}>
-                        <i className="fa-solid fa-box text-xl"></i>
+                  <Link to={`/catalog/${item.id}`} className="block group/link cursor-pointer hover:opacity-90 transition">
+                    <div className="flex items-start gap-3">
+                      <div className="w-14 h-14 shrink-0 rounded-xl overflow-hidden bg-slate-50 border border-gray-200 flex items-center justify-center">
+                        {item.default_image_url ? (
+                          <img
+                            src={item.default_image_url}
+                            alt={item.product_name}
+                            className="w-full h-full object-cover group-hover/link:scale-105 transition-transform duration-200"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.nextSibling.style.display = 'flex';
+                            }}
+                          />
+                        ) : null}
+                        <div className={`w-full h-full items-center justify-center text-gray-300 ${item.default_image_url ? 'hidden' : 'flex'}`}>
+                          <i className="fa-solid fa-box text-xl"></i>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-sm text-gray-900 leading-snug line-clamp-2 group-hover:text-indigo-600 transition">
-                        {item.product_name}
-                      </h3>
-                      <div className="flex items-center gap-1.5 mt-1 text-[10px] text-gray-400 font-mono">
-                        <span>{item.barcode ? `EAN: ${item.barcode}` : 'Standard GTIN'}</span>
-                        <span>•</span>
-                        <span className="text-gray-500 font-sans font-medium">
-                          Box of {caseSize} {item.standard_unit || 'packs'}
-                        </span>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-sm text-gray-900 leading-snug line-clamp-2 group-hover/link:text-indigo-600 transition">
+                          {item.product_name}
+                        </h3>
+                        <div className="flex items-center gap-1.5 mt-1 text-[10px] text-gray-400 font-mono">
+                          <span>{item.barcode ? `EAN: ${item.barcode}` : 'Standard GTIN'}</span>
+                          <span>•</span>
+                          <span className="text-gray-500 font-sans font-medium">
+                            Box of {caseSize} {item.standard_unit || 'packs'}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </Link>
 
                   {/* Pricing & Retailer Margin Breakdown */}
                   <div className="mt-3 p-2.5 rounded-xl bg-slate-50/80 border border-gray-100 space-y-1.5">
@@ -652,6 +673,14 @@ export default function CatalogPage() {
           </div>
         </div>
       )}
+      {/* Wholesale Restock Cart Drawer */}
+      <RestockCartDrawer
+        isOpen={isRestockCartOpen}
+        onClose={() => setIsRestockCartOpen(false)}
+        onOrderPlaced={(order) => {
+          showToast(`🎉 Bulk Restock Order placed! Van delivery in 12h.`);
+        }}
+      />
     </section>
   );
 }

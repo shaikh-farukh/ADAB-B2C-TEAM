@@ -293,12 +293,20 @@ class SellerService {
     return await sellerRepository.getMasterCatalog(storeId, options);
   }
 
+  async getMasterProductById(storeId, productId) {
+    return await sellerRepository.getMasterProductById(storeId, productId);
+  }
+
   async adoptMasterCatalogItem(storeId, data) {
     return await sellerRepository.adoptMasterCatalogItem(storeId, data);
   }
 
   async orderRestockCases(storeId, userId, data) {
     return await sellerRepository.orderRestockCases(storeId, userId, data);
+  }
+
+  async bulkOrderRestockCases(storeId, userId, data) {
+    return await sellerRepository.bulkOrderRestockCases(storeId, userId, data);
   }
 
   async getBankPartners() {

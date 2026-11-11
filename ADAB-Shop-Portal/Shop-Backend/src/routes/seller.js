@@ -89,8 +89,11 @@ router.post('/pos/sales', idempotencyMiddleware, (req, res) => sellerController.
 
 // Phase 2: National FMCG Master Catalog Browser & 1-Click Store Adoption
 router.get('/catalog/master', (req, res) => sellerController.getMasterCatalog(req, res));
+router.get('/catalog/product/:id', (req, res) => sellerController.getMasterProductById(req, res));
+router.get('/catalog/:id', (req, res) => sellerController.getMasterProductById(req, res));
 router.post('/catalog/adopt', idempotencyMiddleware, (req, res) => sellerController.adoptMasterCatalogItem(req, res));
 router.post('/catalog/restock', idempotencyMiddleware, (req, res) => sellerController.orderRestockCases(req, res));
+router.post('/catalog/bulk-restock', idempotencyMiddleware, (req, res) => sellerController.bulkOrderRestockCases(req, res));
 
 // Phase 2: Bank Credit Applications & Partners
 router.get('/finance/bank-partners', (req, res) => sellerController.getBankPartners(req, res));

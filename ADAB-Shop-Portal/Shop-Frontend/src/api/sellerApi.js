@@ -122,8 +122,10 @@ export const sellerApi = {
 
   // National FMCG Master Catalog Domain
   getMasterCatalog: (params) => apiClient.get('/catalog/master', { params }),
+  getMasterProductById: (id) => apiClient.get(`/catalog/${id}`),
   adoptMasterCatalogItem: (data) => apiClient.post('/catalog/adopt', data),
   orderRestockCases: (data) => apiClient.post('/catalog/restock', data),
+  bulkOrderRestockCases: (data) => apiClient.post('/catalog/bulk-restock', data),
 
   // Store Credit Terms & Rules
   getCreditTerms: () => apiClient.get('/credit-terms'),
