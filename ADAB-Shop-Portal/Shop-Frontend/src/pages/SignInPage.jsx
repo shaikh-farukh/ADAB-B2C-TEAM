@@ -521,14 +521,14 @@ export default function SignInPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full h-[46px] flex justify-center items-center py-2.5 px-4 rounded-xl shadow-lg shadow-emerald-500/20 text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] transition cursor-pointer disabled:bg-slate-300 disabled:shadow-none disabled:cursor-not-allowed"
+              className="w-full h-[44px] flex justify-center items-center py-2 px-4 rounded-xl shadow-md shadow-emerald-500/20 text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] transition cursor-pointer disabled:bg-slate-300 disabled:shadow-none disabled:cursor-not-allowed"
             >
-              {submitting ? 'Authenticating...' : 'Sign In to Store'}
+              {submitting ? 'Authenticating...' : 'Sign In to Account'}
             </button>
           </form>
 
           {/* Social Divider */}
-          <div className="relative my-4">
+          <div className="relative my-2.5">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-200" />
             </div>
@@ -542,7 +542,7 @@ export default function SignInPage() {
             type="button"
             onClick={handleGoogleLogin}
             disabled={submitting}
-            className="w-full h-[42px] flex justify-center items-center py-2 px-4 border border-slate-300/90 rounded-xl shadow-xs text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 transition cursor-pointer disabled:opacity-60"
+            className="w-full h-[40px] flex justify-center items-center py-2 px-4 border border-slate-300/90 rounded-xl shadow-xs text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 transition cursor-pointer disabled:opacity-60"
           >
             <svg className="w-4 h-4 mr-2 shrink-0" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -553,23 +553,25 @@ export default function SignInPage() {
             Sign In with Google
           </button>
 
-          {/* Error / Info Feedback Slot */}
-          <div className="mt-3.5 min-h-[44px] w-full">
-            {error ? (
-              <div className="w-full px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700 flex items-center gap-2">
-                <i className="fa-solid fa-circle-exclamation text-rose-500 shrink-0"></i>
-                <span className="leading-tight flex-1">{error}</span>
-              </div>
-            ) : infoMsg ? (
-              <div className="w-full px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 flex items-center gap-2">
-                <i className="fa-solid fa-circle-check text-emerald-600 shrink-0"></i>
-                <span className="leading-tight flex-1">{infoMsg}</span>
-              </div>
-            ) : null}
-          </div>
+          {/* Error / Info Feedback Slot (Only renders when active to prevent ghost gap) */}
+          {(error || infoMsg) && (
+            <div className="mt-2.5 w-full">
+              {error ? (
+                <div className="w-full px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700 flex items-center gap-2">
+                  <i className="fa-solid fa-circle-exclamation text-rose-500 shrink-0"></i>
+                  <span className="leading-tight flex-1">{error}</span>
+                </div>
+              ) : (
+                <div className="w-full px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 flex items-center gap-2">
+                  <i className="fa-solid fa-circle-check text-emerald-600 shrink-0"></i>
+                  <span className="leading-tight flex-1">{infoMsg}</span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Link to Sign Up */}
-          <div className="mt-4 pt-4 border-t border-slate-100 text-center">
+          <div className="mt-3 pt-3 border-t border-slate-100 text-center">
             <p className="text-xs text-slate-500">
               New merchant on ADAB?{' '}
               <Link to="/signup" className="font-bold text-emerald-600 hover:text-emerald-700 ml-1">

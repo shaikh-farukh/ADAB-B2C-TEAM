@@ -25,7 +25,7 @@ describe('Authentication Overhaul - SignInPage', () => {
 
     expect(screen.getByText(/Welcome Back/i)).toBeInTheDocument();
     expect(screen.getByText(/Seller Central/i)).toBeInTheDocument();
-    expect(screen.getByText(/Sign In to Store/i)).toBeInTheDocument();
+    expect(screen.getByText(/Sign In to Account/i)).toBeInTheDocument();
     expect(screen.getByText(/Create a Seller Account/i)).toBeInTheDocument();
   });
 
@@ -78,7 +78,7 @@ describe('Authentication Overhaul - SignUpPage', () => {
     expect(screen.getByText(/Mobile Phone Number/i)).toBeInTheDocument();
     expect(screen.getByText(/Create Password/i)).toBeInTheDocument();
     expect(screen.getByText(/Create Seller Account & Continue/i)).toBeInTheDocument();
-    expect(screen.getByText(/Sign In to Store/i)).toBeInTheDocument();
+    expect(screen.getByText(/Sign In to Account/i)).toBeInTheDocument();
   });
 
   it('validates required fields on submission', async () => {
