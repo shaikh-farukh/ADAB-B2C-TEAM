@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useSeller } from '../context/SellerContext';
 import { routeAfterAuth } from '../utils/authRouter';
@@ -17,15 +17,6 @@ export default function SignUpPage() {
   const { signup, loginWithGoogle } = useSeller();
   const navigate = useNavigate();
 
-  // Reset fields on mount to prevent browser pre-filling when shuffling between pages
-  useEffect(() => {
-    setFullName('');
-    setStoreName('');
-    setPhone('');
-    setEmail('');
-    setPassword('');
-    setError('');
-  }, []);
 
   const handlePhoneChange = (e) => {
     const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 10);
@@ -214,7 +205,7 @@ export default function SignUpPage() {
                       id="signup_fullname"
                       name="fullName"
                       type="text"
-                      autoComplete="off"
+                      autoComplete="name"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       placeholder="Rajesh Sharma"
@@ -236,7 +227,7 @@ export default function SignUpPage() {
                       id="signup_storename"
                       name="storeName"
                       type="text"
-                      autoComplete="off"
+                      autoComplete="organization"
                       value={storeName}
                       onChange={(e) => setStoreName(e.target.value)}
                       placeholder="Sharma Mart"
@@ -263,7 +254,7 @@ export default function SignUpPage() {
                       name="phone"
                       type="tel"
                       inputMode="numeric"
-                      autoComplete="off"
+                      autoComplete="tel"
                       maxLength={10}
                       value={phone}
                       onChange={handlePhoneChange}
@@ -286,7 +277,7 @@ export default function SignUpPage() {
                       id="signup_email"
                       name="email"
                       type="email"
-                      autoComplete="off"
+                      autoComplete="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="name@store.com"

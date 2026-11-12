@@ -41,16 +41,10 @@ export default function SignInPage() {
     return () => clearTimeout(timer);
   }, [countdown]);
 
-  // Clean all fields on mount to prevent browser pre-fill when navigating/shuffling pages
+  // Focus active identifier input on mode change
   useEffect(() => {
-    setPhone('');
-    setEmail('');
-    setPassword('');
-    setOtp('');
-    setOtpSent(false);
-    setError('');
-    setInfoMsg('');
-  }, []);
+    identifierInputRef.current?.focus({ preventScroll: true });
+  }, [idMode]);
 
   const selectIdMode = (mode) => {
     setIdMode(mode);
@@ -59,9 +53,6 @@ export default function SignInPage() {
     setOtpSent(false);
     setOtp('');
     setError('');
-    setTimeout(() => {
-      identifierInputRef.current?.focus({ preventScroll: true });
-    }, 10);
   };
 
   const handlePhoneChange = (e) => {
@@ -390,7 +381,7 @@ export default function SignInPage() {
                       name="phone"
                       type="tel"
                       inputMode="numeric"
-                      autoComplete="off"
+                      autoComplete="tel"
                       maxLength={10}
                       value={phone}
                       onChange={handlePhoneChange}
@@ -405,7 +396,7 @@ export default function SignInPage() {
                       name="email"
                       type="email"
                       inputMode="email"
-                      autoComplete="off"
+                      autoComplete="email"
                       value={email}
                       onChange={handleEmailChange}
                       placeholder="name@store.com"
@@ -478,7 +469,7 @@ export default function SignInPage() {
                           id="signin_password"
                           name="password"
                           type={showPassword ? 'text' : 'password'}
-                          autoComplete="off"
+                          autoComplete="current-password"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           placeholder="••••••••"
