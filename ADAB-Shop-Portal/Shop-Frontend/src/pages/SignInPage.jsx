@@ -289,45 +289,45 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-gray-50 to-slate-100 flex flex-col justify-center items-center py-8 px-4 sm:px-6 lg:px-8 font-sans relative overflow-hidden">
+    <div className="h-screen h-[100dvh] w-full bg-gradient-to-b from-slate-50 via-gray-50 to-slate-100 flex flex-col justify-center items-center p-3 sm:p-4 font-sans relative overflow-hidden select-none">
       
       {/* Subtle Background Ambient Accents */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-emerald-200/30 rounded-full blur-3xl pointer-events-none"></div>
 
       {/* Main Centered Floating Card */}
-      <div className="w-full max-w-md relative z-10">
-        <div className="bg-white/95 backdrop-blur-md py-8 px-6 sm:px-8 shadow-2xl shadow-slate-200/70 border border-slate-200/80 rounded-3xl transition-all">
+      <div className="w-full max-w-md relative z-10 my-auto">
+        <div className="bg-white/95 backdrop-blur-md py-4 sm:py-5 px-5 sm:px-7 shadow-xl shadow-slate-200/60 border border-slate-200/80 rounded-2xl sm:rounded-3xl transition-all max-h-[calc(100dvh-1.5rem)] overflow-y-auto">
           
           {/* Logo & Branding */}
-          <div className="flex items-center justify-center gap-2.5 mb-5">
-            <div className="w-11 h-11 bg-emerald-500 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-md shadow-emerald-500/25">
+          <div className="flex items-center justify-center gap-2 mb-2 sm:mb-2.5">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-black text-lg sm:text-xl shadow-md shadow-emerald-500/25">
               A
             </div>
             <div className="flex flex-col text-left">
-              <span className="text-2xl font-black tracking-tight text-slate-900 leading-none">
+              <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 leading-none">
                 ada<span className="text-emerald-500">B</span>
               </span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                 Seller Central
               </span>
             </div>
           </div>
 
-          <div className="text-center mb-6">
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+          <div className="text-center mb-3 sm:mb-3.5">
+            <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight leading-tight">
               Welcome Back
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 mt-0.5">
               Sign in to manage your store, orders & inventory
             </p>
           </div>
 
           {/* Identifier Selector: Phone vs Email */}
-          <div className="flex p-1 bg-slate-100/90 rounded-xl mb-4 border border-slate-200/60">
+          <div className="flex p-0.5 bg-slate-100/90 rounded-xl mb-2.5 sm:mb-3 border border-slate-200/60">
             <button
               type="button"
               onClick={() => selectIdMode('phone')}
-              className={`flex-1 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+              className={`flex-1 py-1 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                 idMode === 'phone'
                   ? 'bg-white text-emerald-600 shadow-sm'
                   : 'text-slate-500 hover:text-slate-800'
@@ -338,7 +338,7 @@ export default function SignInPage() {
             <button
               type="button"
               onClick={() => selectIdMode('email')}
-              className={`flex-1 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+              className={`flex-1 py-1 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
                 idMode === 'email'
                   ? 'bg-white text-emerald-600 shadow-sm'
                   : 'text-slate-500 hover:text-slate-800'
@@ -349,22 +349,22 @@ export default function SignInPage() {
           </div>
 
           {/* Sign In Form */}
-          <form className="space-y-4" onSubmit={handleUnifiedSubmit} noValidate autoComplete="off">
+          <form className="space-y-2.5" onSubmit={handleUnifiedSubmit} noValidate autoComplete="off">
             
             {/* Identifier Input */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                 {idMode === 'phone' ? 'Mobile Phone Number' : 'Work Email Address'}
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                   {idMode === 'phone' ? (
                     <>
                       <i className="fa-solid fa-phone text-xs"></i>
                       <span className="text-xs font-bold text-slate-700 ml-1.5">+91</span>
                     </>
                   ) : (
-                    <i className="fa-regular fa-envelope text-sm"></i>
+                    <i className="fa-regular fa-envelope text-xs"></i>
                   )}
                 </div>
                 <input
@@ -376,8 +376,8 @@ export default function SignInPage() {
                   value={idMode === 'phone' ? phone : email}
                   onChange={idMode === 'phone' ? handlePhoneChange : handleEmailChange}
                   placeholder={idMode === 'phone' ? '9876543210' : 'name@store.com'}
-                  className={`block w-full pr-3.5 py-2.5 h-[44px] bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-sm transition-all ${
-                    idMode === 'phone' ? 'pl-16 font-mono font-bold' : 'pl-10 font-sans'
+                  className={`block w-full pr-3 py-1.5 h-[38px] bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm transition-all ${
+                    idMode === 'phone' ? 'pl-16 font-mono font-bold' : 'pl-9 font-sans'
                   }`}
                 />
               </div>
@@ -385,7 +385,7 @@ export default function SignInPage() {
 
             {/* Method Switcher: Password vs OTP */}
             <div>
-              <div className="flex p-1 bg-slate-100/90 rounded-xl mb-2.5 border border-slate-200/60">
+              <div className="flex p-0.5 bg-slate-100/90 rounded-lg mb-1.5 border border-slate-200/60">
                 <button
                   type="button"
                   onClick={() => {
@@ -393,9 +393,9 @@ export default function SignInPage() {
                     setError('');
                     setInfoMsg('');
                   }}
-                  className={`flex-1 py-1 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                  className={`flex-1 py-0.5 text-[11px] font-bold uppercase tracking-wider rounded-md transition-all cursor-pointer ${
                     authMode === 'password'
-                      ? 'bg-white text-emerald-600 shadow-sm'
+                      ? 'bg-white text-emerald-600 shadow-xs'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
@@ -408,9 +408,9 @@ export default function SignInPage() {
                     setError('');
                     setInfoMsg('');
                   }}
-                  className={`flex-1 py-1 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                  className={`flex-1 py-0.5 text-[11px] font-bold uppercase tracking-wider rounded-md transition-all cursor-pointer ${
                     authMode === 'otp'
-                      ? 'bg-white text-emerald-600 shadow-sm'
+                      ? 'bg-white text-emerald-600 shadow-xs'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
@@ -419,11 +419,11 @@ export default function SignInPage() {
               </div>
 
               {/* Password or OTP Area */}
-              <div className="min-h-[70px]">
+              <div>
                 {authMode === 'password' ? (
                   <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
                         Password
                       </label>
                       <button
@@ -432,13 +432,13 @@ export default function SignInPage() {
                           setError('');
                           setIsForgotModalOpen(true);
                         }}
-                        className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                        className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 cursor-pointer"
                       >
                         Forgot password?
                       </button>
                     </div>
                     <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                         <i className="fa-solid fa-lock text-xs"></i>
                       </div>
                       <input
@@ -446,27 +446,27 @@ export default function SignInPage() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="block w-full h-[44px] pl-10 pr-10 py-2.5 bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-sm"
+                        className="block w-full h-[38px] pl-9 pr-9 py-1.5 bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm"
                       />
                       <button
                         type="button"
                         tabIndex={-1}
                         onClick={() => setShowPassword((p) => !p)}
-                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-emerald-600 cursor-pointer"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-emerald-600 cursor-pointer"
                       >
-                        <i className={showPassword ? 'fa-regular fa-eye-slash text-sm' : 'fa-regular fa-eye text-sm'}></i>
+                        <i className={showPassword ? 'fa-regular fa-eye-slash text-xs' : 'fa-regular fa-eye text-xs'}></i>
                       </button>
                     </div>
                   </div>
                 ) : (
                   <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
                         {otpSent ? 'Enter 6-Digit OTP' : 'One-Time Code'}
                       </label>
                       {otpSent && (
-                        <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
-                          <i className="fa-solid fa-circle-check text-[10px]"></i> OTP Sent
+                        <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
+                          <i className="fa-solid fa-circle-check text-[9px]"></i> OTP Sent
                         </span>
                       )}
                     </div>
@@ -476,15 +476,15 @@ export default function SignInPage() {
                         type="button"
                         onClick={handleSendOtp}
                         disabled={submitting}
-                        className="w-full h-[44px] rounded-xl border border-emerald-500 bg-emerald-50/60 hover:bg-emerald-100/80 text-emerald-700 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition disabled:opacity-60"
+                        className="w-full h-[38px] rounded-xl border border-emerald-500 bg-emerald-50/60 hover:bg-emerald-100/80 text-emerald-700 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition disabled:opacity-60"
                       >
                         <i className="fa-solid fa-paper-plane text-xs text-emerald-600"></i>
                         <span>{submitting ? 'Sending Code...' : 'Request OTP Code'}</span>
                       </button>
                     ) : (
-                      <div className="flex items-center gap-2.5 h-[44px] w-full">
+                      <div className="flex items-center gap-2 h-[38px] w-full">
                         <div className="relative flex-1 h-full">
-                          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                             <i className="fa-solid fa-shield-halved text-xs"></i>
                           </div>
                           <input
@@ -495,14 +495,14 @@ export default function SignInPage() {
                             value={otp}
                             onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                             placeholder="123456"
-                            className="block w-full h-[44px] pl-10 pr-3.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm font-mono font-bold tracking-widest outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white"
+                            className="block w-full h-[38px] pl-9 pr-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm font-mono font-bold tracking-widest outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white"
                           />
                         </div>
                         <button
                           type="button"
                           onClick={handleSendOtp}
                           disabled={submitting || countdown > 0}
-                          className={`h-[44px] px-3.5 rounded-xl text-xs font-bold shrink-0 transition cursor-pointer ${
+                          className={`h-[38px] px-3 rounded-xl text-xs font-bold shrink-0 transition cursor-pointer ${
                             countdown > 0
                               ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
                               : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
@@ -521,19 +521,19 @@ export default function SignInPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full h-[44px] flex justify-center items-center py-2 px-4 rounded-xl shadow-md shadow-emerald-500/20 text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] transition cursor-pointer disabled:bg-slate-300 disabled:shadow-none disabled:cursor-not-allowed"
+              className="w-full h-[38px] sm:h-[40px] flex justify-center items-center py-2 px-4 rounded-xl shadow-md shadow-emerald-500/20 text-xs sm:text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] transition cursor-pointer disabled:bg-slate-300 disabled:shadow-none disabled:cursor-not-allowed"
             >
               {submitting ? 'Authenticating...' : 'Sign In to Account'}
             </button>
           </form>
 
           {/* Social Divider */}
-          <div className="relative my-2.5">
+          <div className="relative my-2">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-200" />
             </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="px-3 bg-white text-slate-400 font-medium">Or continue with</span>
+            <div className="relative flex justify-center text-[11px]">
+              <span className="px-2.5 bg-white text-slate-400 font-medium">Or continue with</span>
             </div>
           </div>
 
@@ -542,7 +542,7 @@ export default function SignInPage() {
             type="button"
             onClick={handleGoogleLogin}
             disabled={submitting}
-            className="w-full h-[40px] flex justify-center items-center py-2 px-4 border border-slate-300/90 rounded-xl shadow-xs text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 transition cursor-pointer disabled:opacity-60"
+            className="w-full h-[36px] sm:h-[38px] flex justify-center items-center py-1.5 px-4 border border-slate-300/90 rounded-xl shadow-xs text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 transition cursor-pointer disabled:opacity-60"
           >
             <svg className="w-4 h-4 mr-2 shrink-0" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -555,15 +555,15 @@ export default function SignInPage() {
 
           {/* Error / Info Feedback Slot (Only renders when active to prevent ghost gap) */}
           {(error || infoMsg) && (
-            <div className="mt-2.5 w-full">
+            <div className="mt-2 w-full">
               {error ? (
-                <div className="w-full px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700 flex items-center gap-2">
-                  <i className="fa-solid fa-circle-exclamation text-rose-500 shrink-0"></i>
+                <div className="w-full px-2.5 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700 flex items-center gap-2">
+                  <i className="fa-solid fa-circle-exclamation text-rose-500 shrink-0 text-xs"></i>
                   <span className="leading-tight flex-1">{error}</span>
                 </div>
               ) : (
-                <div className="w-full px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 flex items-center gap-2">
-                  <i className="fa-solid fa-circle-check text-emerald-600 shrink-0"></i>
+                <div className="w-full px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 flex items-center gap-2">
+                  <i className="fa-solid fa-circle-check text-emerald-600 shrink-0 text-xs"></i>
                   <span className="leading-tight flex-1">{infoMsg}</span>
                 </div>
               )}
@@ -571,7 +571,7 @@ export default function SignInPage() {
           )}
 
           {/* Link to Sign Up */}
-          <div className="mt-3 pt-3 border-t border-slate-100 text-center">
+          <div className="mt-2.5 pt-2 border-t border-slate-100 text-center">
             <p className="text-xs text-slate-500">
               New merchant on ADAB?{' '}
               <Link to="/signup" className="font-bold text-emerald-600 hover:text-emerald-700 ml-1">
