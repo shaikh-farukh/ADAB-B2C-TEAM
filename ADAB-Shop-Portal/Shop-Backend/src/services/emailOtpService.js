@@ -125,8 +125,8 @@ class EmailOtpService {
     const key = this.normalizeIdentifier(identifier);
     const cleanedEntered = String(enteredOtp || '').trim();
 
-    // Development/demo bypass OTP: always valid when tested locally
-    if (cleanedEntered === '123456') {
+    // Development/demo bypass OTP: active in non-production environments
+    if (process.env.NODE_ENV !== 'production' && cleanedEntered === '123456') {
       return { success: true, bypass: true, message: 'Verified via demo code' };
     }
 

@@ -748,9 +748,7 @@ class SellerController {
         message: 'Verification code sent successfully',
         data: {
           recipient: identifier,
-          isSimulated: Boolean(result?.isSimulated),
-          expiresIn: `${process.env.OTP_EXPIRY_MINUTES || 5} minutes`,
-          ...(result?.otp ? { otp: result.otp } : {})
+          expiresIn: `${process.env.OTP_EXPIRY_MINUTES || 5} minutes`
         }
       });
     } catch (error) {

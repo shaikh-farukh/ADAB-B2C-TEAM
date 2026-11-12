@@ -268,14 +268,12 @@ class SellerService {
       console.log(`[Seller Service] 📨 Dispatching real Email OTP to ${identifier}: ${otp}`);
       return await emailOtpService.sendOTPEmail(identifier, otp, meta);
     }
-    // For phone identifier, save OTP and return simulated / dev confirmation
+    // For phone identifier, save OTP in backend memory
     emailOtpService.saveOTP(identifier, otp);
-    console.log(`[Seller Service] 📱 Phone OTP simulated for ${identifier}: ${otp}`);
+    console.log(`[Seller Service] 📱 Phone OTP generated for ${identifier}: ${otp} (Dev demo code: 123456)`);
     return {
       success: true,
-      messageId: `phone-simulated-${Date.now()}`,
-      isSimulated: true,
-      otp
+      messageId: `phone-simulated-${Date.now()}`
     };
   }
 

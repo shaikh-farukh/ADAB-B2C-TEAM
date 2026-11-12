@@ -4041,7 +4041,7 @@ class SellerRepository {
       throw new Error('Please enter a valid OTP verification code');
     }
 
-    let isOtpValid = rawOtp === '123456';
+    let isOtpValid = (process.env.NODE_ENV !== 'production' && rawOtp === '123456');
     if (!isOtpValid) {
       const identifier = idMode === 'email' ? rawEmail : cleanDigits;
       const verifyRes = emailOtpService.verifyOTP(identifier, rawOtp);
@@ -4049,7 +4049,9 @@ class SellerRepository {
     }
 
     if (!isOtpValid) {
-      throw new Error('Invalid or expired OTP code. Please try again or use demo code 123456.');
+      throw new Error(process.env.NODE_ENV !== 'production'
+        ? 'Invalid or expired OTP code. Please try again or use demo code 123456.'
+        : 'Invalid or expired OTP code. Please try again.');
     }
 
     let userRes;
@@ -4275,7 +4277,7 @@ class SellerRepository {
     }
 
     // Verify OTP
-    let isOtpValid = rawOtp === '123456';
+    let isOtpValid = (process.env.NODE_ENV !== 'production' && rawOtp === '123456');
     if (!isOtpValid) {
       const identifier = idMode === 'email' ? rawEmail : cleanDigits;
       const verifyRes = emailOtpService.verifyOTP(identifier, rawOtp);
