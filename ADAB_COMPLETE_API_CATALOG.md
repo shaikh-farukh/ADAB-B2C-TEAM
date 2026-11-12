@@ -41,7 +41,7 @@ Base URL: `/api/v1/seller` (requires `requireSellerAuth` JWT middleware)
 | Method | Full Endpoint Path | Controller Handler | Middleware / Auth | Status | Purpose & Parameters |
 | :--- | :--- | :--- | :--- | :---: | :--- |
 | `GET` | `/api/v1/seller/onboarding` | `sellerController.getOnboarding` | `requireSellerAuth` | 🟢 | Retrieves current 7-step KYC state, completion flags, and verification status from `seller_kyc`. |
-| `POST` | `/api/v1/seller/onboarding/step/:stepNum` | `sellerController.saveOnboardingStep` | `requireSellerAuth` | 🟢 | Saves progress for step 1 through 7 (Store Details, PAN, GSTIN, Bank Account, Delivery Radius, FSSAI). |
+| `POST` | `/api/v1/seller/onboarding/step/:stepNum` | `sellerController.saveOnboardingStep` | `requireSellerAuth` | 🟢 | Saves progress for step 1-7. Supports numbers (`1`-`7`) or semantic slugs (`stage-1-store-profile` to `stage-7-final-submission`) for clear DevTools visibility. |
 | `GET` | `/api/v1/seller/profile` | `sellerController.getProfile` | `requireSellerAuth` | 🟢 | Retrieves merchant personal profile (`full_name`, `email`, `phone`, `role`, `language`). |
 | `PATCH` | `/api/v1/seller/profile` | `sellerController.updateProfile` | `requireSellerAuth` | 🟢 | Updates merchant name, avatar, contact details. |
 | `GET` | `/api/v1/seller/store` | `sellerController.getStore` | `requireSellerAuth` | 🟢 | Retrieves store details, coordinates (`latitude`, `longitude`), operational radius, and opening hours. |

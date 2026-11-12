@@ -4597,7 +4597,14 @@ class SellerRepository {
 
   async saveOnboardingStep(userId, stepNum, data = {}) {
     await this.ensureOnboardingTable();
-    const step = Number(stepNum);
+    // Resolve step number from number, numeric string, or descriptive slug (e.g. 1, "1", "stage-1-store-profile")
+    let step = Number(stepNum);
+    if (isNaN(step)) {
+      const match = String(stepNum).match(/\d+/);
+      if (match) {
+        step = parseInt(match[0], 10);
+      }
+    }
     const current = await this.getOnboardingData(userId);
     const profile = current.profile;
     const store = current.store;
