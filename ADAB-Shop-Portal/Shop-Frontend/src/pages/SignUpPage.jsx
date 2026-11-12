@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useSeller } from '../context/SellerContext';
 import { routeAfterAuth } from '../utils/authRouter';
@@ -16,6 +16,16 @@ export default function SignUpPage() {
 
   const { signup, loginWithGoogle } = useSeller();
   const navigate = useNavigate();
+
+  // Reset fields on mount to prevent browser pre-filling when shuffling between pages
+  useEffect(() => {
+    setFullName('');
+    setStoreName('');
+    setPhone('');
+    setEmail('');
+    setPassword('');
+    setError('');
+  }, []);
 
   const handlePhoneChange = (e) => {
     const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 10);
@@ -200,7 +210,11 @@ export default function SignUpPage() {
                       <i className="fa-regular fa-user text-xs"></i>
                     </div>
                     <input
+                      key="signup-fullname-input"
+                      id="signup_fullname"
+                      name="fullName"
                       type="text"
+                      autoComplete="off"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       placeholder="Rajesh Sharma"
@@ -218,7 +232,11 @@ export default function SignUpPage() {
                       <i className="fa-solid fa-store text-xs"></i>
                     </div>
                     <input
+                      key="signup-storename-input"
+                      id="signup_storename"
+                      name="storeName"
                       type="text"
+                      autoComplete="off"
                       value={storeName}
                       onChange={(e) => setStoreName(e.target.value)}
                       placeholder="Sharma Mart"
@@ -240,8 +258,12 @@ export default function SignUpPage() {
                       <span className="text-xs font-bold text-slate-700 ml-1.5">+91</span>
                     </div>
                     <input
+                      key="signup-phone-input"
+                      id="signup_phone"
+                      name="phone"
                       type="tel"
                       inputMode="numeric"
+                      autoComplete="off"
                       maxLength={10}
                       value={phone}
                       onChange={handlePhoneChange}
@@ -260,7 +282,11 @@ export default function SignUpPage() {
                       <i className="fa-regular fa-envelope text-xs"></i>
                     </div>
                     <input
+                      key="signup-email-input"
+                      id="signup_email"
+                      name="email"
                       type="email"
+                      autoComplete="off"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="name@store.com"
@@ -280,7 +306,11 @@ export default function SignUpPage() {
                     <i className="fa-solid fa-lock text-xs"></i>
                   </div>
                   <input
+                    key="signup-password-input"
+                    id="signup_password"
+                    name="new-password"
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="At least 6 characters"

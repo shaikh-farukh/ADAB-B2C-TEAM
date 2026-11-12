@@ -41,17 +41,27 @@ export default function SignInPage() {
     return () => clearTimeout(timer);
   }, [countdown]);
 
+  // Clean all fields on mount to prevent browser pre-fill when navigating/shuffling pages
+  useEffect(() => {
+    setPhone('');
+    setEmail('');
+    setPassword('');
+    setOtp('');
+    setOtpSent(false);
+    setError('');
+    setInfoMsg('');
+  }, []);
+
   const selectIdMode = (mode) => {
-    if (mode === 'phone') {
-      setEmail('');
-    } else {
-      setPhone('');
-    }
     setIdMode(mode);
+    setPhone('');
+    setEmail('');
     setOtpSent(false);
     setOtp('');
     setError('');
-    identifierInputRef.current?.focus({ preventScroll: true });
+    setTimeout(() => {
+      identifierInputRef.current?.focus({ preventScroll: true });
+    }, 10);
   };
 
   const handlePhoneChange = (e) => {
@@ -372,19 +382,36 @@ export default function SignInPage() {
                       <i className="fa-regular fa-envelope text-xs"></i>
                     )}
                   </div>
-                  <input
-                    ref={identifierInputRef}
-                    type={idMode === 'phone' ? 'tel' : 'email'}
-                    inputMode={idMode === 'phone' ? 'numeric' : 'email'}
-                    autoComplete={idMode === 'phone' ? 'tel' : 'email'}
-                    maxLength={idMode === 'phone' ? 10 : undefined}
-                    value={idMode === 'phone' ? phone : email}
-                    onChange={idMode === 'phone' ? handlePhoneChange : handleEmailChange}
-                    placeholder={idMode === 'phone' ? '9876543210' : 'name@store.com'}
-                    className={`block w-full pr-3.5 py-1.5 h-[40px] sm:h-[42px] bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm transition-all ${
-                      idMode === 'phone' ? 'pl-16 font-mono font-bold' : 'pl-10 font-sans'
-                    }`}
-                  />
+                  {idMode === 'phone' ? (
+                    <input
+                      key="signin-phone-input"
+                      ref={identifierInputRef}
+                      id="signin_phone"
+                      name="phone"
+                      type="tel"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={10}
+                      value={phone}
+                      onChange={handlePhoneChange}
+                      placeholder="9876543210"
+                      className="block w-full pl-16 pr-3.5 py-1.5 h-[40px] sm:h-[42px] bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 font-mono font-bold text-xs sm:text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white transition-all"
+                    />
+                  ) : (
+                    <input
+                      key="signin-email-input"
+                      ref={identifierInputRef}
+                      id="signin_email"
+                      name="email"
+                      type="email"
+                      inputMode="email"
+                      autoComplete="off"
+                      value={email}
+                      onChange={handleEmailChange}
+                      placeholder="name@store.com"
+                      className="block w-full pl-10 pr-3.5 py-1.5 h-[40px] sm:h-[42px] bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 font-sans text-xs sm:text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white transition-all"
+                    />
+                  )}
                 </div>
               </div>
 
@@ -447,7 +474,11 @@ export default function SignInPage() {
                           <i className="fa-solid fa-lock text-xs"></i>
                         </div>
                         <input
+                          key="signin-password-input"
+                          id="signin_password"
+                          name="password"
                           type={showPassword ? 'text' : 'password'}
+                          autoComplete="off"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           placeholder="••••••••"
@@ -493,9 +524,13 @@ export default function SignInPage() {
                               <i className="fa-solid fa-shield-halved text-xs"></i>
                             </div>
                             <input
+                              key="signin-otp-input"
                               ref={otpInputRef}
+                              id="signin_otp"
+                              name="otp"
                               type="text"
                               inputMode="numeric"
+                              autoComplete="one-time-code"
                               maxLength={6}
                               value={otp}
                               onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
