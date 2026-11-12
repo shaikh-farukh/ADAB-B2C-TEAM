@@ -1,6 +1,8 @@
 const { Pool } = require('pg');
 const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first');
+if (process.env.DNS_IPV4_FIRST === 'true') {
+  dns.setDefaultResultOrder('ipv4first');
+}
 const path = require('path');
 const dotenv = require('dotenv');
 dotenv.config({ path: path.join(__dirname, '.env') });

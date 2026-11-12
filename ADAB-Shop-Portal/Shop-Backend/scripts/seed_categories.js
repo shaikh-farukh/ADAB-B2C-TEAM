@@ -1,5 +1,7 @@
 const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first');
+if (process.env.DNS_IPV4_FIRST === 'true') {
+  dns.setDefaultResultOrder('ipv4first');
+}
 const { Client } = require('./ADAB-Shop-Portal/Shop-Backend/node_modules/pg');
 const dotenv = require('./ADAB-Shop-Portal/Shop-Backend/node_modules/dotenv');
 const path = require('path');

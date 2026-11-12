@@ -4,7 +4,9 @@
 // ============================================================================
 
 const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first');
+if (process.env.DNS_IPV4_FIRST === 'true') {
+  dns.setDefaultResultOrder('ipv4first');
+}
 const path = require('path');
 const fs = require('fs');
 const dotenv = require('dotenv');
