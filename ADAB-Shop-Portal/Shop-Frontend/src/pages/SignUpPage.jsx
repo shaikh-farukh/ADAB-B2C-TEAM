@@ -156,7 +156,7 @@ export default function SignUpPage() {
 
       {/* Main Centered Floating Card */}
       <div className="w-full max-w-lg relative z-10 my-auto">
-        <div className="bg-white/95 backdrop-blur-md py-6 sm:py-6.5 px-6 sm:px-9 shadow-xl shadow-slate-200/60 border border-slate-200/80 rounded-2xl sm:rounded-3xl transition-all max-h-[calc(100dvh-1.5rem)] overflow-y-auto sm:h-[580px] flex flex-col justify-between">
+        <div className="bg-white/95 backdrop-blur-md py-6 sm:py-6.5 px-6 sm:px-9 shadow-xl shadow-slate-200/60 border border-slate-200/80 rounded-2xl sm:rounded-3xl transition-all sm:h-[600px] flex flex-col justify-between overflow-hidden">
           
           {/* Top Section: Branding & Header */}
           <div>
