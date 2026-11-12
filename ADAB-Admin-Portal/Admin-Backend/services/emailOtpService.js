@@ -5,6 +5,7 @@ const pool = require('../db');
 
 const BCRYPT_SALT_ROUNDS = 10;
 const DEFAULT_EXPIRY_MINUTES = 5;
+const DEFAULT_RESET_EXPIRY_MINUTES = 15;
 const DEFAULT_MAX_ATTEMPTS = 5;
 
 let tableInitialized = false;
@@ -31,47 +32,56 @@ async function ensureOtpTable() {
 }
 
 /**
- * Generate a cryptographically secure 6-digit OTP
+ * Generate a cryptographically secure 6-digit code
  */
 function generateOtpCode() {
   return crypto.randomInt(100000, 999999).toString();
 }
 
 /**
- * Create and store a hashed LOGIN_OTP challenge for an admin email
+ * Create and store a hashed challenge (LOGIN_OTP or PASSWORD_RESET) in auth_challenges
  */
-async function createOtpChallenge(email) {
+async function createChallengeByType(email, challengeType = 'LOGIN_OTP', defaultMinutes = DEFAULT_EXPIRY_MINUTES) {
   await ensureOtpTable();
 
   const normalizedEmail = email.trim().toLowerCase();
   const otp = generateOtpCode();
-  const expiryMinutes = parseInt(process.env.OTP_EXPIRY_MINUTES, 10) || DEFAULT_EXPIRY_MINUTES;
+  const expiryMinutes =
+    challengeType === 'PASSWORD_RESET'
+      ? defaultMinutes
+      : parseInt(process.env.OTP_EXPIRY_MINUTES, 10) || defaultMinutes;
   const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000);
   const otpHash = await bcrypt.hash(otp, BCRYPT_SALT_ROUNDS);
 
-  // Invalidate any previous unused LOGIN_OTP challenges for this email
+  // Invalidate any previous unused challenges of this type for this email
   await pool.query(
     `UPDATE auth_challenges
      SET is_used = true
      WHERE LOWER(email) = LOWER($1)
-       AND challenge_type = 'LOGIN_OTP'
+       AND challenge_type = $2
        AND is_used = false`,
-    [normalizedEmail]
+    [normalizedEmail, challengeType]
   );
 
-  await pool.query(
+  const insertRes = await pool.query(
     `INSERT INTO auth_challenges (email, otp_code_hash, challenge_type, attempts, is_used, expires_at)
-     VALUES ($1, $2, 'LOGIN_OTP', 0, false, $3)`,
-    [normalizedEmail, otpHash, expiresAt]
+     VALUES ($1, $2, $3, 0, false, $4)
+     RETURNING id`,
+    [normalizedEmail, otpHash, challengeType, expiresAt]
   );
 
-  return { otp, expiryMinutes, expiresAt };
+  return {
+    challengeId: insertRes.rows[0]?.id || null,
+    otp,
+    expiryMinutes,
+    expiresAt
+  };
 }
 
 /**
- * Verify a 6-digit OTP against the latest active LOGIN_OTP challenge
+ * Verify a 6-digit code against the latest active challenge of the given type
  */
-async function verifyOtpChallenge(email, otp) {
+async function verifyChallengeByType(email, otp, challengeType = 'LOGIN_OTP') {
   await ensureOtpTable();
 
   const normalizedEmail = email.trim().toLowerCase();
@@ -81,18 +91,21 @@ async function verifyOtpChallenge(email, otp) {
     `SELECT id, otp_code_hash, attempts, is_used, expires_at
      FROM auth_challenges
      WHERE LOWER(email) = LOWER($1)
-       AND challenge_type = 'LOGIN_OTP'
+       AND challenge_type = $2
        AND is_used = false
      ORDER BY created_at DESC
      LIMIT 1`,
-    [normalizedEmail]
+    [normalizedEmail, challengeType]
   );
 
   if (res.rows.length === 0) {
     return {
       valid: false,
       code: 'OTP_NOT_FOUND',
-      message: 'No active OTP found. Please request a new verification code.'
+      message:
+        challengeType === 'PASSWORD_RESET'
+          ? 'No active password reset code found. Please request a new reset code.'
+          : 'No active OTP found. Please request a new verification code.'
     };
   }
 
@@ -103,7 +116,7 @@ async function verifyOtpChallenge(email, otp) {
     return {
       valid: false,
       code: 'OTP_EXPIRED',
-      message: 'Verification code has expired. Please request a new OTP.'
+      message: 'Verification code has expired. Please request a new code.'
     };
   }
 
@@ -112,7 +125,7 @@ async function verifyOtpChallenge(email, otp) {
     return {
       valid: false,
       code: 'OTP_MAX_ATTEMPTS',
-      message: 'Maximum verification attempts exceeded. Please request a new OTP.'
+      message: 'Maximum verification attempts exceeded. Please request a new code.'
     };
   }
 
@@ -130,14 +143,30 @@ async function verifyOtpChallenge(email, otp) {
       code: 'INVALID_OTP',
       message: remaining > 0
         ? `Invalid verification code. ${remaining} attempt(s) remaining.`
-        : 'Maximum verification attempts exceeded. Please request a new OTP.'
+        : 'Maximum verification attempts exceeded. Please request a new code.'
     };
   }
 
   // Mark challenge as used
   await pool.query('UPDATE auth_challenges SET is_used = true WHERE id = $1', [challenge.id]);
 
-  return { valid: true };
+  return { valid: true, challengeId: challenge.id };
+}
+
+async function createOtpChallenge(email) {
+  return createChallengeByType(email, 'LOGIN_OTP', DEFAULT_EXPIRY_MINUTES);
+}
+
+async function verifyOtpChallenge(email, otp) {
+  return verifyChallengeByType(email, otp, 'LOGIN_OTP');
+}
+
+async function createPasswordResetChallenge(email) {
+  return createChallengeByType(email, 'PASSWORD_RESET', DEFAULT_RESET_EXPIRY_MINUTES);
+}
+
+async function verifyPasswordResetChallenge(email, code) {
+  return verifyChallengeByType(email, code, 'PASSWORD_RESET');
 }
 
 /**
@@ -203,7 +232,6 @@ async function sendAdminOtpEmail(email, otp, adminName = 'Administrator', expiry
 
   const text = `Hello ${adminName},\n\nYour ADAB Admin Portal verification code is: ${otp}\n\nThis code expires in ${expiryMinutes} minutes.\n\nIf you did not request this code, please ignore this email.`;
 
-  // 1. Try Brevo HTTP API if SENDINBLUE_API_KEY is configured
   if (process.env.SENDINBLUE_API_KEY) {
     const response = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
@@ -227,14 +255,103 @@ async function sendAdminOtpEmail(email, otp, adminName = 'Administrator', expiry
     return { success: true, messageId: data.messageId };
   }
 
-  // 2. Send via SMTP (e.g. Gmail smtp.gmail.com) so it arrives in the user's phone email app
   const transporter = getTransporter();
   if (!transporter) {
     return {
       success: false,
       code: 'SMTP_NOT_CONFIGURED',
       message:
-        'SMTP_PASS is not set in Admin-Backend/.env. Please add your 16-character Gmail App Password to SMTP_PASS in Admin-Backend/.env so the OTP email can be sent to your phone.'
+        'SMTP_PASS is not set in Admin-Backend/.env. Please add your 16-character Gmail App Password to SMTP_PASS in Admin-Backend/.env.'
+    };
+  }
+
+  const info = await transporter.sendMail({
+    from: `"${fromName}" <${fromEmail}>`,
+    to: email,
+    subject,
+    html,
+    text
+  });
+
+  return { success: true, messageId: info.messageId };
+}
+
+/**
+ * Send Admin Password Reset email (contains both 6-digit reset code and direct reset link)
+ */
+async function sendAdminPasswordResetEmail(email, resetCode, resetUrl, adminName = 'Administrator', expiryMinutes = 15) {
+  const fromEmail = (
+    process.env.EMAIL_FROM ||
+    process.env.BREVO_FROM_EMAIL ||
+    process.env.SMTP_USER ||
+    process.env.BREVO_SMTP_USER ||
+    'no-reply@adab.com'
+  ).trim();
+  const fromName = process.env.EMAIL_FROM_NAME || 'ADAB Admin Portal';
+  const subject = `${resetCode} — Reset your ADAB Admin Portal password`;
+
+  const html = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 520px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden;">
+      <div style="background: #1e1b4b; color: #ffffff; padding: 24px 28px;">
+        <h2 style="margin: 0; font-size: 20px; font-weight: 800;">ADAB Admin Password Reset</h2>
+        <p style="margin: 4px 0 0; font-size: 12px; color: #a5b4fc;">Enterprise Platform Control — Account Recovery</p>
+      </div>
+      <div style="padding: 28px; color: #1e293b;">
+        <p style="margin: 0 0 12px; font-size: 14px;">Hello <strong>${adminName}</strong>,</p>
+        <p style="margin: 0 0 20px; font-size: 13px; color: #475569; line-height: 1.5;">
+          We received a request to reset your <strong>ADAB Admin Portal</strong> password. Enter the 6-digit reset code below or click the button to set a new password:
+        </p>
+        <div style="background: #f8fafc; border: 2px dashed #6366f1; border-radius: 12px; padding: 18px; text-align: center; margin: 20px 0;">
+          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 6px;">Password Reset Code</div>
+          <div style="font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #312e81; font-family: monospace;">${resetCode}</div>
+        </div>
+        <div style="text-align: center; margin: 24px 0;">
+          <a href="${resetUrl}" style="display: inline-block; background: #4f46e5; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 13px; padding: 12px 28px; border-radius: 10px;">
+            Reset Password Now
+          </a>
+        </div>
+        <p style="margin: 0 0 8px; font-size: 12px; color: #64748b;">
+          This reset code expires in <strong>${expiryMinutes} minutes</strong>.
+        </p>
+        <p style="margin: 0; font-size: 12px; color: #94a3b8;">
+          If you did not request a password reset, you can safely ignore this email.
+        </p>
+      </div>
+    </div>
+  `;
+
+  const text = `Hello ${adminName},\n\nYour ADAB Admin Portal password reset code is: ${resetCode}\n\nOr open this link to reset your password:\n${resetUrl}\n\nThis code expires in ${expiryMinutes} minutes.\n\nIf you did not request this, please ignore this email.`;
+
+  if (process.env.SENDINBLUE_API_KEY) {
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': process.env.SENDINBLUE_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        sender: { email: fromEmail, name: fromName },
+        to: [{ email }],
+        subject,
+        htmlContent: html,
+        textContent: text
+      })
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.message || 'Brevo API failed to send password reset email');
+    }
+    const data = await response.json();
+    return { success: true, messageId: data.messageId };
+  }
+
+  const transporter = getTransporter();
+  if (!transporter) {
+    return {
+      success: false,
+      code: 'SMTP_NOT_CONFIGURED',
+      message:
+        'SMTP_PASS is not set in Admin-Backend/.env. Please add your 16-character Gmail App Password to SMTP_PASS in Admin-Backend/.env.'
     };
   }
 
@@ -252,5 +369,8 @@ async function sendAdminOtpEmail(email, otp, adminName = 'Administrator', expiry
 module.exports = {
   createOtpChallenge,
   verifyOtpChallenge,
-  sendAdminOtpEmail
+  createPasswordResetChallenge,
+  verifyPasswordResetChallenge,
+  sendAdminOtpEmail,
+  sendAdminPasswordResetEmail
 };

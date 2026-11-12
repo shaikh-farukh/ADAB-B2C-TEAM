@@ -22,6 +22,7 @@ apiClient.interceptors.response.use(
     if (error.response && (error.response.status === 401 || error.response.status === 403)) {
       if (localStorage.getItem('token')) {
         localStorage.removeItem('token');
+        sessionStorage.removeItem('admin_authenticated');
       }
     }
     return Promise.reject(error);

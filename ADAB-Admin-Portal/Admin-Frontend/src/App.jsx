@@ -24,7 +24,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={<Login initialMode="LOGIN" />} />
+        <Route path="/signup" element={<Login initialMode="SIGNUP" />} />
+        <Route path="/forgot-password" element={<Login initialMode="FORGOT" />} />
+        <Route path="/reset-password" element={<Login initialMode="RESET" />} />
         <Route path="/" element={<AdminLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="approvals" element={<ApprovalQueue />} />

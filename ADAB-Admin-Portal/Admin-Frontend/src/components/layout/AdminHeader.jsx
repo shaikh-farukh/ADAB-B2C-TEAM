@@ -20,7 +20,7 @@ export default function AdminHeader() {
           setUnreadCount(res.data.count);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     // 2. Fetch pending approvals count
     apiClient.get('/approvals/counts')
@@ -29,20 +29,20 @@ export default function AdminHeader() {
           setPendingCount(res.data.data.pending);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     // 3. Current authenticated user profile (Contract #26: GET /auth/me)
     apiClient.get('/auth/me')
       .then(res => {
         if (res.data?.success && res.data?.data) {
           setUser(res.data.data);
-          try { localStorage.setItem('user', JSON.stringify(res.data.data)); } catch (e) {}
+          try { localStorage.setItem('user', JSON.stringify(res.data.data)); } catch (e) { }
         }
       })
       .catch(() => {
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
-          try { setUser(JSON.parse(storedUser)); } catch (e) {}
+          try { setUser(JSON.parse(storedUser)); } catch (e) { }
         }
       });
   };
@@ -59,7 +59,7 @@ export default function AdminHeader() {
         .then(res => {
           setNotifications(res.data.data || []);
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   };
 
@@ -69,7 +69,7 @@ export default function AdminHeader() {
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
         setUnreadCount(prev => Math.max(0, prev - 1));
       })
-      .catch(() => {});
+      .catch(() => { });
   };
 
   const handleLogout = async () => {
@@ -78,9 +78,10 @@ export default function AdminHeader() {
     } catch (e) {
       // Ignore network errors on logout
     }
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/login');
+    localStorage.clear();
+    sessionStorage.clear();
+    setUser(null);
+    navigate('/login', { replace: true });
   };
 
   return (

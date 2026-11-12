@@ -23,9 +23,15 @@ router.post('/dev-login', (req, res) => {
   res.json({ success: true, token });
 });
 
-// Apply auth middlewares to all admin routes
-router.use(auth);
-router.use(adminAuth);
+// Apply auth middlewares to all admin routes (bypass /auth/*)
+router.use((req, res, next) => {
+  if (req.path === '/dev-login' || req.path.startsWith('/auth')) return next();
+  return auth(req, res, next);
+});
+router.use((req, res, next) => {
+  if (req.path === '/dev-login' || req.path.startsWith('/auth')) return next();
+  return adminAuth(req, res, next);
+});
 
 // Dashboard
 router.get('/dashboard/actions', dashboardController.getDashboardActions);
