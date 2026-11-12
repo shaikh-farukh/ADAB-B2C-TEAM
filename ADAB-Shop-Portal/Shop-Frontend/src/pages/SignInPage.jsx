@@ -297,12 +297,12 @@ export default function SignInPage() {
 
       {/* Main Centered Floating Card */}
       <div className="w-full max-w-lg relative z-10 my-auto">
-        <div className="bg-white/95 backdrop-blur-md py-6 sm:py-6.5 px-6 sm:px-9 shadow-xl shadow-slate-200/60 border border-slate-200/80 rounded-2xl sm:rounded-3xl transition-all sm:h-[600px] flex flex-col justify-between overflow-hidden">
+        <div className="bg-white/95 backdrop-blur-md py-5 sm:py-6 px-6 sm:px-9 shadow-xl shadow-slate-200/60 border border-slate-200/80 rounded-2xl sm:rounded-3xl transition-all sm:h-[600px] flex flex-col justify-between overflow-hidden">
           
           {/* Top Section: Branding & Header */}
           <div>
             {/* Logo & Branding */}
-            <div className="flex items-center justify-center gap-2.5 mb-2 sm:mb-2.5">
+            <div className="flex items-center justify-center gap-2.5 mb-1.5 sm:mb-2">
               <div className="w-9 h-9 sm:w-10 sm:h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-black text-xl sm:text-2xl shadow-md shadow-emerald-500/25">
                 A
               </div>
@@ -316,11 +316,11 @@ export default function SignInPage() {
               </div>
             </div>
 
-            <div className="text-center mb-3 sm:mb-3.5">
+            <div className="text-center mb-2 sm:mb-2.5">
               <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight leading-tight">
                 Welcome Back
               </h1>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1">
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5 sm:mt-1">
                 Sign in to manage your store, orders & inventory
               </p>
             </div>
@@ -329,7 +329,7 @@ export default function SignInPage() {
           {/* Middle Section: Sliders & Form */}
           <div className="my-auto py-0.5">
             {/* Identifier Selector: Phone vs Email (Slider 1) */}
-            <div className="flex p-1 bg-slate-100/90 rounded-xl mb-2.5 sm:mb-3 border border-slate-200/60 h-[38px] sm:h-[40px]">
+            <div className="flex p-1 bg-slate-100/90 rounded-xl mb-2 sm:mb-2.5 border border-slate-200/60 h-[38px] sm:h-[40px]">
               <button
                 type="button"
                 onClick={() => selectIdMode('phone')}
@@ -355,11 +355,11 @@ export default function SignInPage() {
             </div>
 
             {/* Sign In Form */}
-            <form className="space-y-2.5 sm:space-y-3" onSubmit={handleUnifiedSubmit} noValidate autoComplete="off">
+            <form className="space-y-2 sm:space-y-2.5" onSubmit={handleUnifiedSubmit} noValidate autoComplete="off">
               
               {/* Identifier Input */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 h-[16px] leading-none">
                   {idMode === 'phone' ? 'Mobile Number' : 'Work Email Address'}
                 </label>
                 <div className="relative">
@@ -408,7 +408,7 @@ export default function SignInPage() {
 
               {/* Method Switcher: Password vs OTP (Slider 2 - synced to match Slider 1) */}
               <div>
-                <div className="flex p-1 bg-slate-100/90 rounded-xl mb-2 border border-slate-200/60 h-[38px] sm:h-[40px]">
+                <div className="flex p-1 bg-slate-100/90 rounded-xl mb-1.5 sm:mb-2 border border-slate-200/60 h-[38px] sm:h-[40px]">
                   <button
                     type="button"
                     onClick={() => {
@@ -445,7 +445,7 @@ export default function SignInPage() {
                 <div>
                   {authMode === 'password' ? (
                     <div>
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center justify-between mb-1 h-[16px] leading-none">
                         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                           Password
                         </label>
@@ -487,7 +487,7 @@ export default function SignInPage() {
                     </div>
                   ) : (
                     <div>
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center justify-between mb-1 h-[16px] leading-none">
                         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                           {otpSent ? 'Enter 6-Digit OTP' : 'One-Time Code'}
                         </label>
@@ -562,7 +562,7 @@ export default function SignInPage() {
           {/* Bottom Section: Social & Navigation */}
           <div>
             {/* Social Divider */}
-            <div className="relative my-2.5 sm:my-3">
+            <div className="relative my-2 sm:my-2.5">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-slate-200" />
               </div>
@@ -587,25 +587,23 @@ export default function SignInPage() {
               Continue with Google
             </button>
 
-            {/* Error / Info Feedback Slot (Only renders when active to prevent ghost gap) */}
-            {(error || infoMsg) && (
-              <div className="mt-2 w-full">
-                {error ? (
-                  <div className="w-full px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700 flex items-center gap-2">
-                    <i className="fa-solid fa-circle-exclamation text-rose-500 shrink-0 text-xs"></i>
-                    <span className="leading-tight flex-1">{error}</span>
-                  </div>
-                ) : (
-                  <div className="w-full px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 flex items-center gap-2">
-                    <i className="fa-solid fa-circle-check text-emerald-600 shrink-0 text-xs"></i>
-                    <span className="leading-tight flex-1">{infoMsg}</span>
-                  </div>
-                )}
-              </div>
-            )}
+            {/* Feedback / Dialogue Buffer Box (Permanent height buffer to eliminate layout shift) */}
+            <div className="mt-2 w-full h-[36px] sm:h-[38px] flex items-center">
+              {error ? (
+                <div className="w-full h-full px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700 flex items-center gap-2">
+                  <i className="fa-solid fa-circle-exclamation text-rose-500 shrink-0 text-xs"></i>
+                  <span className="leading-tight flex-1 truncate">{error}</span>
+                </div>
+              ) : infoMsg ? (
+                <div className="w-full h-full px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 flex items-center gap-2">
+                  <i className="fa-solid fa-circle-check text-emerald-600 shrink-0 text-xs"></i>
+                  <span className="leading-tight flex-1 truncate">{infoMsg}</span>
+                </div>
+              ) : null}
+            </div>
 
             {/* Link to Sign Up */}
-            <div className="mt-2.5 pt-2.5 border-t border-slate-100 text-center">
+            <div className="mt-2 pt-2 border-t border-slate-100 text-center">
               <p className="text-xs sm:text-sm text-slate-500">
                 New merchant on ADAB?{' '}
                 <Link to="/signup" className="font-bold text-emerald-600 hover:text-emerald-700 ml-1">

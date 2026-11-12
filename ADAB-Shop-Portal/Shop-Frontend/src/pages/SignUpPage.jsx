@@ -157,12 +157,12 @@ export default function SignUpPage() {
 
       {/* Main Centered Floating Card */}
       <div className="w-full max-w-lg relative z-10 my-auto">
-        <div className="bg-white/95 backdrop-blur-md py-6 sm:py-6.5 px-6 sm:px-9 shadow-xl shadow-slate-200/60 border border-slate-200/80 rounded-2xl sm:rounded-3xl transition-all sm:h-[600px] flex flex-col justify-between overflow-hidden">
+        <div className="bg-white/95 backdrop-blur-md py-5 sm:py-6 px-6 sm:px-9 shadow-xl shadow-slate-200/60 border border-slate-200/80 rounded-2xl sm:rounded-3xl transition-all sm:h-[600px] flex flex-col justify-between overflow-hidden">
           
           {/* Top Section: Branding & Header */}
           <div>
             {/* Logo & Branding */}
-            <div className="flex items-center justify-center gap-2.5 mb-2 sm:mb-2.5">
+            <div className="flex items-center justify-center gap-2.5 mb-1.5 sm:mb-2">
               <div className="w-9 h-9 sm:w-10 sm:h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-black text-xl sm:text-2xl shadow-md shadow-emerald-500/25">
                 A
               </div>
@@ -176,11 +176,11 @@ export default function SignUpPage() {
               </div>
             </div>
 
-            <div className="text-center mb-3 sm:mb-3.5">
+            <div className="text-center mb-2 sm:mb-2.5">
               <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight leading-tight">
                 Register Your Store
               </h1>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1">
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5 sm:mt-1">
                 Join ADAB and start selling to thousands of nearby buyers
               </p>
             </div>
@@ -364,16 +364,18 @@ export default function SignUpPage() {
               Continue with Google
             </button>
 
-            {/* Error Feedback */}
-            {error && (
-              <div className="mt-2 w-full px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700 flex items-center gap-2">
-                <i className="fa-solid fa-circle-exclamation text-rose-500 shrink-0 text-xs"></i>
-                <span className="leading-tight flex-1">{error}</span>
-              </div>
-            )}
+            {/* Feedback / Dialogue Buffer Box (Permanent height buffer to eliminate layout shift) */}
+            <div className="mt-2 w-full h-[36px] sm:h-[38px] flex items-center">
+              {error ? (
+                <div className="w-full h-full px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700 flex items-center gap-2">
+                  <i className="fa-solid fa-circle-exclamation text-rose-500 shrink-0 text-xs"></i>
+                  <span className="leading-tight flex-1 truncate">{error}</span>
+                </div>
+              ) : null}
+            </div>
 
             {/* Link to Sign In */}
-            <div className="mt-2.5 pt-2.5 border-t border-slate-100 text-center">
+            <div className="mt-2 pt-2 border-t border-slate-100 text-center">
               <p className="text-xs sm:text-sm text-slate-500">
                 Already have a registered store?{' '}
                 <Link to="/login" className="font-bold text-emerald-600 hover:text-emerald-700 ml-1">
