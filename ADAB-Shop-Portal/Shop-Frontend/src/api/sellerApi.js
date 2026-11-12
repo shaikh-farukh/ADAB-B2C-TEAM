@@ -26,7 +26,7 @@ export const sellerApi = {
 
   // POS Domain
   checkoutPOS: (cart, paymentMethod, customerPhone) =>
-    apiClient.post('/pos/sales', { cart, paymentMethod, customerPhone }),
+    apiClient.post('/pos/checkout-sale', { cart, paymentMethod, customerPhone }),
 
   // Returns Domain
   getReturns: () => apiClient.get('/returns'),
@@ -99,17 +99,17 @@ export const sellerApi = {
   getRecommendations: () => apiClient.get('/recommendations'),
   getThreads: () => apiClient.get('/messages/threads'),
   getMessages: () => apiClient.get('/messages/threads'),
-  getThreadMessages: (threadId) => apiClient.get(`/messages/threads/${threadId}`),
+  getThreadMessages: (threadId) => apiClient.get(`/messages/threads/${threadId}/messages`),
   sendThreadMessage: (threadId, content) => apiClient.post(`/messages/threads/${threadId}/messages`, { content }),
   markThreadRead: (threadId) => apiClient.post(`/messages/threads/${threadId}/read`, {}),
 
   // Finance (Summary, Transactions, Settlements, Withdrawal, Khata, Credit Apply)
-  getFinanceSummary: () => apiClient.get('/finance/summary'),
+  getFinanceSummary: () => apiClient.get('/finance/financial-summary'),
   getFinanceTransactions: () => apiClient.get('/finance/transactions'),
   getFinanceSettlements: () => apiClient.get('/finance/settlements'),
   withdrawToBank: () =>
     apiClient.post('/finance/withdraw', {}, buildIdempotencyHeaders('finance-withdraw')),
-  getKhata: () => apiClient.get('/finance/khata'),
+  getKhata: () => apiClient.get('/finance/khata-ledger'),
   payKhataOrder: (poId) =>
     apiClient.post(
       `/finance/khata/${encodeURIComponent(poId)}/pay`,
@@ -122,7 +122,7 @@ export const sellerApi = {
 
   // National FMCG Master Catalog Domain
   getMasterCatalog: (params) => apiClient.get('/catalog/master', { params }),
-  getMasterProductById: (id) => apiClient.get(`/catalog/${id}`),
+  getMasterProductById: (id) => apiClient.get(`/catalog/${id}/product-details`),
   adoptMasterCatalogItem: (data) => apiClient.post('/catalog/adopt', data),
   orderRestockCases: (data) => apiClient.post('/catalog/restock', data),
   bulkOrderRestockCases: (data) => apiClient.post('/catalog/bulk-restock', data),

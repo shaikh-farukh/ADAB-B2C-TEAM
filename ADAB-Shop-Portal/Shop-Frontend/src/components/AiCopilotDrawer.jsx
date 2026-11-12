@@ -291,7 +291,7 @@ export default function AiCopilotDrawer({ isOpen, onClose }) {
         };
       });
 
-      const res = await api.post('/assistant/chat', {
+      const res = await api.post('/assistant/ai-copilot-chat', {
         prompt: query,
         history: historyPayload,
         model: selectedModel

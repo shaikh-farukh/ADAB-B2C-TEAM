@@ -36,7 +36,7 @@ router.get('/dashboard', sellerController.getDashboardMetrics);
 // Shared Platform Notification Endpoints (Consumed by Seller UI)
 router.get('/notifications', notificationController.getNotifications);
 router.get('/notifications/unread-count', notificationController.getUnreadCount);
-router.get('/notifications/since', notificationController.getNotificationsSince);
+router.get(['/notifications/since', '/notifications/poll-recent'], notificationController.getNotificationsSince);
 router.post('/notifications/read-all', notificationController.markAllAsRead);
 router.post('/notifications/:id/read', notificationController.markAsRead);
 
@@ -68,14 +68,14 @@ router.get('/brand-distribution-analytics', sellerController.getBrandDistributio
 router.post('/listings/:id/toggle-b2b', sellerController.toggleListingB2B);
 router.get('/recommendations', sellerController.getRecommendations);
 router.get('/messages/threads', sellerController.getThreads);
-router.get('/messages/threads/:threadId', sellerController.getThreadMessages);
+router.get(['/messages/threads/:threadId', '/messages/threads/:threadId/messages'], sellerController.getThreadMessages);
 router.post('/messages/threads/:threadId/messages', sellerController.sendThreadMessage);
 router.post('/messages/threads/:threadId/read', sellerController.markThreadRead);
-router.get('/finance/summary', (req, res) => sellerController.getFinanceSummary(req, res));
+router.get(['/finance/summary', '/finance/financial-summary'], (req, res) => sellerController.getFinanceSummary(req, res));
 router.get('/finance/transactions', (req, res) => sellerController.getFinanceTransactions(req, res));
 router.get('/finance/settlements', (req, res) => sellerController.getFinanceSettlements(req, res));
 router.post('/finance/withdraw', idempotencyMiddleware, (req, res) => sellerController.createWithdrawalSettlement(req, res));
-router.get('/finance/khata', (req, res) => sellerController.getKhataLedger(req, res));
+router.get(['/finance/khata', '/finance/khata-ledger'], (req, res) => sellerController.getKhataLedger(req, res));
 router.post('/finance/khata/:id/pay', idempotencyMiddleware, (req, res) => sellerController.payKhataOrder(req, res));
 
 // Store Credit Rules & Limits
@@ -85,12 +85,12 @@ router.put('/credit-terms/buy', idempotencyMiddleware, (req, res) => sellerContr
 
 
 // Phase 2: POS Walk-in Sale Persistence & Stock Deduction
-router.post('/pos/sales', idempotencyMiddleware, (req, res) => sellerController.createPOSSale(req, res));
+router.post(['/pos/sales', '/pos/checkout-sale'], idempotencyMiddleware, (req, res) => sellerController.createPOSSale(req, res));
 
 // Phase 2: National FMCG Master Catalog Browser & 1-Click Store Adoption
 router.get('/catalog/master', (req, res) => sellerController.getMasterCatalog(req, res));
-router.get('/catalog/product/:id', (req, res) => sellerController.getMasterProductById(req, res));
-router.get('/catalog/:id', (req, res) => sellerController.getMasterProductById(req, res));
+router.get(['/catalog/product/:id', '/catalog/product/:id/product-details'], (req, res) => sellerController.getMasterProductById(req, res));
+router.get(['/catalog/:id', '/catalog/:id/product-details'], (req, res) => sellerController.getMasterProductById(req, res));
 router.post('/catalog/adopt', idempotencyMiddleware, (req, res) => sellerController.adoptMasterCatalogItem(req, res));
 router.post('/catalog/restock', idempotencyMiddleware, (req, res) => sellerController.orderRestockCases(req, res));
 router.post('/catalog/bulk-restock', idempotencyMiddleware, (req, res) => sellerController.bulkOrderRestockCases(req, res));

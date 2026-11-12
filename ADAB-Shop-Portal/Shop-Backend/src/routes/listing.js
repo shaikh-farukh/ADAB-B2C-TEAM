@@ -23,10 +23,10 @@ router.post('/batch-delete', ListingController.batchDeleteListings);
 
 router.post('/', ListingController.createListing);
 router.get('/', ListingController.getListings);
-router.get('/:id', ListingController.getListingById);
-router.patch('/:id', ListingController.updateListing);
-router.put('/:id', ListingController.updateListing);
-router.delete('/:id', ListingController.deleteListing);
+router.get(['/:id', '/:id/product-details'], ListingController.getListingById);
+router.patch(['/:id', '/:id/update-listing'], ListingController.updateListing);
+router.put(['/:id', '/:id/update-listing'], ListingController.updateListing);
+router.delete(['/:id', '/:id/delete-listing'], ListingController.deleteListing);
 
 // Day 2 Specific: Submit event
 router.post('/:id/submit', ListingController.submitListing);

@@ -7,7 +7,7 @@ router.use(requireSellerAuth);
 
 router.get('/', pricingController.getPricing);
 router.post('/bulk', pricingController.updateBulkPricing);
-router.patch('/:listingId', pricingController.updateListingPricing);
+router.patch(['/:listingId', '/:listingId/update-price'], pricingController.updateListingPricing);
 router.get('/history', pricingController.getPricingHistory);
 router.get('/previews', pricingController.getAllPreviews);
 router.get('/:listingId/preview', pricingController.previewPricing);

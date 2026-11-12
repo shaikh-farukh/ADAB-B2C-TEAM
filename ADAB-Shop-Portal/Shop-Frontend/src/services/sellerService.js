@@ -112,7 +112,7 @@ const sellerService = {
   },
 
   getNotificationsSince: (timestamp) => {
-    return api.get(`/seller/notifications/since?since=${encodeURIComponent(timestamp)}`, {
+    return api.get(`/seller/notifications/poll-recent?since=${encodeURIComponent(timestamp)}`, {
       headers: getUserHeaders()
     });
   },

@@ -8,7 +8,7 @@ const listingService = {
   },
   
   getListingById: (id) => {
-    return api.get(`/seller/listings/${id}`);
+    return api.get(`/seller/listings/${id}/product-details`);
   },
 
   getCategories: () => {
@@ -16,7 +16,7 @@ const listingService = {
   },
 
   getCategoryTree: () => {
-    return api.get('/shop/catalog/categories/tree');
+    return api.get('/shop/catalog/categories/category-tree');
   },
 
   getCategoryAttributes: (categoryId) => {
@@ -32,7 +32,7 @@ const listingService = {
   },
 
   lookupBarcode: (barcode) => {
-    return api.get(`/shop/catalog/barcode/${encodeURIComponent(barcode)}`);
+    return api.get(`/shop/catalog/barcode/${encodeURIComponent(barcode)}/lookup-barcode`);
   },
 
   createListing: (data) => {
@@ -40,11 +40,11 @@ const listingService = {
   },
 
   updateListing: (id, data) => {
-    return api.patch(`/seller/listings/${id}`, data);
+    return api.patch(`/seller/listings/${id}/update-listing`, data);
   },
 
   deleteListing: (id) => {
-    return api.delete(`/seller/listings/${id}`);
+    return api.delete(`/seller/listings/${id}/delete-listing`);
   },
 
   batchDeleteListings: (ids) => {

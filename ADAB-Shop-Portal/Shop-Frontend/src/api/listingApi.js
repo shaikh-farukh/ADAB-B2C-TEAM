@@ -8,7 +8,7 @@ export const listingApi = {
   },
   
   fetchListingById: (id) => {
-    return client.get(`/listings/${id}`);
+    return client.get(`/listings/${id}/product-details`);
   },
 
   fetchCategories: () => {
@@ -20,11 +20,11 @@ export const listingApi = {
   },
 
   updateListing: (id, data) => {
-    return client.patch(`/listings/${id}`, data);
+    return client.patch(`/listings/${id}/update-listing`, data);
   },
 
   deleteListing: (id) => {
-    return client.delete(`/listings/${id}`);
+    return client.delete(`/listings/${id}/delete-listing`);
   },
 
   batchDeleteListings: (ids) => {

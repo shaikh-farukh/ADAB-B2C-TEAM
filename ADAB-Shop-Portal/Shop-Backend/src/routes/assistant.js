@@ -33,10 +33,10 @@ router.get('/tools', (req, res) => {
 });
 
 /**
- * POST /api/v1/assistant/chat
+ * POST /api/v1/assistant/chat (Aliased: /ai-copilot-chat)
  * Primary conversational turn with Gemini 3.5 Flash and MCP tool execution
  */
-router.post('/chat', async (req, res) => {
+router.post(['/chat', '/ai-copilot-chat'], async (req, res) => {
   const { prompt, history = [], model } = req.body;
 
   if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
