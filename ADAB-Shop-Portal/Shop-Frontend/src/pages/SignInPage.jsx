@@ -322,12 +322,12 @@ export default function SignInPage() {
             </p>
           </div>
 
-          {/* Identifier Selector: Phone vs Email */}
-          <div className="flex p-0.5 bg-slate-100/90 rounded-xl mb-2.5 sm:mb-3 border border-slate-200/60">
+          {/* Identifier Selector: Phone vs Email (Slider 1) */}
+          <div className="flex p-1 bg-slate-100/90 rounded-xl mb-2.5 sm:mb-3 border border-slate-200/60 h-[36px]">
             <button
               type="button"
               onClick={() => selectIdMode('phone')}
-              className={`flex-1 py-1 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+              className={`flex-1 h-full text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center justify-center ${
                 idMode === 'phone'
                   ? 'bg-white text-emerald-600 shadow-sm'
                   : 'text-slate-500 hover:text-slate-800'
@@ -338,7 +338,7 @@ export default function SignInPage() {
             <button
               type="button"
               onClick={() => selectIdMode('email')}
-              className={`flex-1 py-1 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+              className={`flex-1 h-full text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center justify-center ${
                 idMode === 'email'
                   ? 'bg-white text-emerald-600 shadow-sm'
                   : 'text-slate-500 hover:text-slate-800'
@@ -383,9 +383,9 @@ export default function SignInPage() {
               </div>
             </div>
 
-            {/* Method Switcher: Password vs OTP */}
+            {/* Method Switcher: Password vs OTP (Slider 2 - synced to match Slider 1) */}
             <div>
-              <div className="flex p-0.5 bg-slate-100/90 rounded-lg mb-1.5 border border-slate-200/60">
+              <div className="flex p-1 bg-slate-100/90 rounded-xl mb-2 border border-slate-200/60 h-[36px]">
                 <button
                   type="button"
                   onClick={() => {
@@ -393,9 +393,9 @@ export default function SignInPage() {
                     setError('');
                     setInfoMsg('');
                   }}
-                  className={`flex-1 py-0.5 text-[11px] font-bold uppercase tracking-wider rounded-md transition-all cursor-pointer ${
+                  className={`flex-1 h-full text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center justify-center ${
                     authMode === 'password'
-                      ? 'bg-white text-emerald-600 shadow-xs'
+                      ? 'bg-white text-emerald-600 shadow-sm'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
@@ -408,9 +408,9 @@ export default function SignInPage() {
                     setError('');
                     setInfoMsg('');
                   }}
-                  className={`flex-1 py-0.5 text-[11px] font-bold uppercase tracking-wider rounded-md transition-all cursor-pointer ${
+                  className={`flex-1 h-full text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center justify-center ${
                     authMode === 'otp'
-                      ? 'bg-white text-emerald-600 shadow-xs'
+                      ? 'bg-white text-emerald-600 shadow-sm'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
