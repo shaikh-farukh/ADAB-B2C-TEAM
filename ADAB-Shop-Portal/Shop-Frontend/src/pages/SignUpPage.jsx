@@ -155,44 +155,44 @@ export default function SignUpPage() {
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-emerald-200/30 rounded-full blur-3xl pointer-events-none"></div>
 
       {/* Main Centered Floating Card */}
-      <div className="w-full max-w-md relative z-10 my-auto">
-        <div className="bg-white/95 backdrop-blur-md py-5 sm:py-6 px-6 sm:px-8 shadow-xl shadow-slate-200/60 border border-slate-200/80 rounded-2xl sm:rounded-3xl transition-all max-h-[calc(100dvh-1.5rem)] overflow-y-auto">
+      <div className="w-full max-w-lg relative z-10 my-auto">
+        <div className="bg-white/95 backdrop-blur-md py-6 sm:py-7 px-6 sm:px-9 shadow-xl shadow-slate-200/60 border border-slate-200/80 rounded-2xl sm:rounded-3xl transition-all max-h-[calc(100dvh-1.5rem)] overflow-y-auto">
           
           {/* Logo & Branding */}
-          <div className="flex items-center justify-center gap-2 mb-2 sm:mb-2.5">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-black text-lg sm:text-xl shadow-md shadow-emerald-500/25">
+          <div className="flex items-center justify-center gap-2.5 mb-2.5 sm:mb-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-black text-xl sm:text-2xl shadow-md shadow-emerald-500/25">
               A
             </div>
             <div className="flex flex-col text-left">
-              <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 leading-none">
+              <span className="text-2xl sm:text-[26px] font-black tracking-tight text-slate-900 leading-none">
                 ada<span className="text-emerald-500">B</span>
               </span>
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                 Seller Central
               </span>
             </div>
           </div>
 
-          <div className="text-center mb-3 sm:mb-3.5">
-            <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight leading-tight">
+          <div className="text-center mb-3.5 sm:mb-4">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight leading-tight">
               Register Your Store
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs sm:text-sm text-slate-500 mt-1">
               Join ADAB and start selling to thousands of nearby buyers
             </p>
           </div>
 
           {/* Sign Up Form */}
-          <form className="space-y-2.5 sm:space-y-3" onSubmit={handleSignUpSubmit} noValidate autoComplete="off">
+          <form className="space-y-3 sm:space-y-3.5" onSubmit={handleSignUpSubmit} noValidate autoComplete="off">
             
             {/* Full Name & Store Name Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Owner Name
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                     <i className="fa-regular fa-user text-xs"></i>
                   </div>
                   <input
@@ -200,17 +200,17 @@ export default function SignUpPage() {
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="Rajesh Sharma"
-                    className="block w-full h-[38px] sm:h-[40px] pl-9 pr-3 bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm transition-all"
+                    className="block w-full h-[42px] sm:h-[44px] pl-10 pr-3.5 bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm transition-all"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Store / Trade Name
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                     <i className="fa-solid fa-store text-xs"></i>
                   </div>
                   <input
@@ -218,60 +218,61 @@ export default function SignUpPage() {
                     value={storeName}
                     onChange={(e) => setStoreName(e.target.value)}
                     placeholder="Sharma Mart"
-                    className="block w-full h-[38px] sm:h-[40px] pl-9 pr-3 bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm transition-all"
+                    className="block w-full h-[42px] sm:h-[44px] pl-10 pr-3.5 bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm transition-all"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Mobile Number */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Mobile Number
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <i className="fa-solid fa-phone text-xs"></i>
-                  <span className="text-xs font-bold text-slate-700 ml-1.5">+91</span>
+            {/* Mobile Phone & Work Email in 2 Columns on Desktop */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Mobile Number
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <i className="fa-solid fa-phone text-xs"></i>
+                    <span className="text-xs font-bold text-slate-700 ml-1.5">+91</span>
+                  </div>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={10}
+                    value={phone}
+                    onChange={handlePhoneChange}
+                    placeholder="9876543210"
+                    className="block w-full pl-16 pr-3.5 py-2 h-[42px] sm:h-[44px] bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 font-mono font-bold text-xs sm:text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white transition-all"
+                  />
                 </div>
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  maxLength={10}
-                  value={phone}
-                  onChange={handlePhoneChange}
-                  placeholder="9876543210"
-                  className="block w-full pl-16 pr-3 py-1.5 h-[38px] sm:h-[40px] bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 font-mono font-bold text-xs sm:text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white transition-all"
-                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Work Email <span className="text-slate-400 font-normal lowercase tracking-normal">(optional)</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <i className="fa-regular fa-envelope text-xs"></i>
+                  </div>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@store.com"
+                    className="block w-full pl-10 pr-3.5 h-[42px] sm:h-[44px] bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm transition-all"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Work Email */}
+            {/* Password */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Work Email <span className="text-slate-400 font-normal lowercase tracking-normal">(optional)</span>
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <i className="fa-regular fa-envelope text-xs"></i>
-                </div>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@store.com"
-                  className="block w-full pl-9 pr-3 h-[38px] sm:h-[40px] bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm transition-all"
-                />
-              </div>
-            </div>
-
-            {/* Create Password */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Create Password
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                   <i className="fa-solid fa-lock text-xs"></i>
                 </div>
                 <input
@@ -279,13 +280,13 @@ export default function SignUpPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="At least 6 characters"
-                  className="block w-full h-[38px] sm:h-[40px] pl-9 pr-9 bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm transition-all"
+                  className="block w-full h-[42px] sm:h-[44px] pl-10 pr-10 py-2 bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm transition-all"
                 />
                 <button
                   type="button"
                   tabIndex={-1}
                   onClick={() => setShowPassword((p) => !p)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-emerald-600 cursor-pointer"
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-emerald-600 cursor-pointer"
                 >
                   <i className={showPassword ? 'fa-regular fa-eye-slash text-xs' : 'fa-regular fa-eye text-xs'}></i>
                 </button>
@@ -293,7 +294,7 @@ export default function SignUpPage() {
             </div>
 
             {/* Terms Notice */}
-            <p className="text-[10px] text-slate-500 leading-tight">
+            <p className="text-[11px] sm:text-xs text-slate-500 leading-tight">
               By creating a store, you agree to ADAB's{' '}
               <span className="text-emerald-600 font-semibold cursor-pointer">Merchant Terms</span> &{' '}
               <span className="text-emerald-600 font-semibold cursor-pointer">Privacy Policy</span>.
@@ -303,19 +304,19 @@ export default function SignUpPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full h-[38px] sm:h-[40px] flex justify-center items-center py-2 px-4 rounded-xl shadow-md shadow-emerald-500/20 text-xs sm:text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] transition cursor-pointer disabled:bg-slate-300 disabled:shadow-none disabled:cursor-not-allowed"
+              className="w-full h-[42px] sm:h-[44px] flex justify-center items-center py-2 px-4 rounded-xl shadow-md shadow-emerald-500/20 text-xs sm:text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] transition cursor-pointer disabled:bg-slate-300 disabled:shadow-none disabled:cursor-not-allowed"
             >
               {submitting ? 'Registering Store...' : 'Create Seller Account & Continue →'}
             </button>
           </form>
 
           {/* Social Divider */}
-          <div className="relative my-2 sm:my-2.5">
+          <div className="relative my-3 sm:my-3.5">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-200" />
             </div>
-            <div className="relative flex justify-center text-[11px]">
-              <span className="px-2.5 bg-white text-slate-400 font-medium">Or quick register with</span>
+            <div className="relative flex justify-center text-xs">
+              <span className="px-3 bg-white text-slate-400 font-medium">Or quick register with</span>
             </div>
           </div>
 
@@ -324,9 +325,9 @@ export default function SignUpPage() {
             type="button"
             onClick={handleGoogleSignUp}
             disabled={submitting}
-            className="w-full h-[36px] sm:h-[38px] flex justify-center items-center py-1.5 px-4 border border-slate-300/90 rounded-xl shadow-xs text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 transition cursor-pointer disabled:opacity-60"
+            className="w-full h-[40px] sm:h-[42px] flex justify-center items-center py-2 px-4 border border-slate-300/90 rounded-xl shadow-xs text-xs sm:text-sm font-bold text-slate-700 bg-white hover:bg-slate-50 transition cursor-pointer disabled:opacity-60"
           >
-            <svg className="w-4 h-4 mr-2 shrink-0" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 mr-2.5 shrink-0" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
               <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
@@ -337,15 +338,15 @@ export default function SignUpPage() {
 
           {/* Error Feedback */}
           {error && (
-            <div className="mt-2 w-full px-2.5 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700 flex items-center gap-2">
+            <div className="mt-2.5 w-full px-3 py-2 rounded-lg bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700 flex items-center gap-2">
               <i className="fa-solid fa-circle-exclamation text-rose-500 shrink-0 text-xs"></i>
               <span className="leading-tight flex-1">{error}</span>
             </div>
           )}
 
           {/* Link to Sign In */}
-          <div className="mt-2.5 pt-2 border-t border-slate-100 text-center">
-            <p className="text-xs text-slate-500">
+          <div className="mt-3.5 pt-3 border-t border-slate-100 text-center">
+            <p className="text-xs sm:text-sm text-slate-500">
               Already have a registered store?{' '}
               <Link to="/login" className="font-bold text-emerald-600 hover:text-emerald-700 ml-1">
                 Sign In to Account &rarr;
