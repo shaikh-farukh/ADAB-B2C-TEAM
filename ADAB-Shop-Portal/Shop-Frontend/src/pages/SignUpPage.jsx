@@ -156,7 +156,7 @@ export default function SignUpPage() {
 
       {/* Main Centered Floating Card */}
       <div className="w-full max-w-md relative z-10 my-auto">
-        <div className="bg-white/95 backdrop-blur-md py-4 sm:py-5 px-5 sm:px-7 shadow-xl shadow-slate-200/60 border border-slate-200/80 rounded-2xl sm:rounded-3xl transition-all max-h-[calc(100dvh-1.5rem)] overflow-y-auto">
+        <div className="bg-white/95 backdrop-blur-md py-5 sm:py-6 px-6 sm:px-8 shadow-xl shadow-slate-200/60 border border-slate-200/80 rounded-2xl sm:rounded-3xl transition-all max-h-[calc(100dvh-1.5rem)] overflow-y-auto">
           
           {/* Logo & Branding */}
           <div className="flex items-center justify-center gap-2 mb-2 sm:mb-2.5">
@@ -173,7 +173,7 @@ export default function SignUpPage() {
             </div>
           </div>
 
-          <div className="text-center mb-3">
+          <div className="text-center mb-3 sm:mb-3.5">
             <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight leading-tight">
               Register Your Store
             </h1>
@@ -183,16 +183,16 @@ export default function SignUpPage() {
           </div>
 
           {/* Sign Up Form */}
-          <form className="space-y-2 sm:space-y-2.5" onSubmit={handleSignUpSubmit} noValidate autoComplete="off">
+          <form className="space-y-2.5 sm:space-y-3" onSubmit={handleSignUpSubmit} noValidate autoComplete="off">
             
             {/* Full Name & Store Name Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-0.5">
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Owner Name
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                     <i className="fa-regular fa-user text-xs"></i>
                   </div>
                   <input
@@ -200,17 +200,17 @@ export default function SignUpPage() {
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="Rajesh Sharma"
-                    className="block w-full h-[36px] sm:h-[38px] pl-8 pr-2.5 bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm"
+                    className="block w-full h-[38px] sm:h-[40px] pl-9 pr-3 bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm transition-all"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-0.5">
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Store / Trade Name
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                     <i className="fa-solid fa-store text-xs"></i>
                   </div>
                   <input
@@ -218,60 +218,60 @@ export default function SignUpPage() {
                     value={storeName}
                     onChange={(e) => setStoreName(e.target.value)}
                     placeholder="Sharma Mart"
-                    className="block w-full h-[36px] sm:h-[38px] pl-8 pr-2.5 bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm"
+                    className="block w-full h-[38px] sm:h-[40px] pl-9 pr-3 bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm transition-all"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Mobile Phone & Work Email in 2 Columns on Desktop */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-0.5">
-                  Mobile Number
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
-                    <span className="text-[11px] font-bold text-slate-700">+91</span>
-                  </div>
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    maxLength={10}
-                    value={phone}
-                    onChange={handlePhoneChange}
-                    placeholder="9876543210"
-                    className="block w-full pl-10 pr-2.5 py-1.5 h-[36px] sm:h-[38px] bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 font-mono font-bold text-xs sm:text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-0.5">
-                  Work Email
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
-                    <i className="fa-regular fa-envelope text-xs"></i>
-                  </div>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@store.com"
-                    className="block w-full pl-8 pr-2.5 h-[36px] sm:h-[38px] bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Password */}
+            {/* Mobile Number */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-0.5">
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Mobile Number
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <i className="fa-solid fa-phone text-xs"></i>
+                  <span className="text-xs font-bold text-slate-700 ml-1.5">+91</span>
+                </div>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  value={phone}
+                  onChange={handlePhoneChange}
+                  placeholder="9876543210"
+                  className="block w-full pl-16 pr-3 py-1.5 h-[38px] sm:h-[40px] bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 font-mono font-bold text-xs sm:text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Work Email */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Work Email <span className="text-slate-400 font-normal lowercase tracking-normal">(optional)</span>
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <i className="fa-regular fa-envelope text-xs"></i>
+                </div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@store.com"
+                  className="block w-full pl-9 pr-3 h-[38px] sm:h-[40px] bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Create Password */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Create Password
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                   <i className="fa-solid fa-lock text-xs"></i>
                 </div>
                 <input
@@ -279,13 +279,13 @@ export default function SignUpPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="At least 6 characters"
-                  className="block w-full h-[36px] sm:h-[38px] pl-8 pr-9 bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm"
+                  className="block w-full h-[38px] sm:h-[40px] pl-9 pr-9 bg-slate-50/70 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white text-xs sm:text-sm transition-all"
                 />
                 <button
                   type="button"
                   tabIndex={-1}
                   onClick={() => setShowPassword((p) => !p)}
-                  className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-emerald-600 cursor-pointer"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-emerald-600 cursor-pointer"
                 >
                   <i className={showPassword ? 'fa-regular fa-eye-slash text-xs' : 'fa-regular fa-eye text-xs'}></i>
                 </button>
@@ -310,7 +310,7 @@ export default function SignUpPage() {
           </form>
 
           {/* Social Divider */}
-          <div className="relative my-2">
+          <div className="relative my-2 sm:my-2.5">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-200" />
             </div>
