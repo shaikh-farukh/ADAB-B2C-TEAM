@@ -5,7 +5,8 @@ import Marketing from './pages/Marketing';
 import Pricing from './pages/Pricing';
 import Settings from './pages/Settings';
 import HomePage from './pages/HomePage';
-import AuthPage from './pages/AuthPage';
+import SignInPage from './pages/SignInPage';
+import SignUpPage from './pages/SignUpPage';
 import NotificationBell from './components/NotificationBell';
 import PlaceholderPage from './components/common/PlaceholderPage';
 import KycGate from './components/common/KycGate';
@@ -176,7 +177,11 @@ function PortalContent() {
   if (!isAuthenticated) {
     return (
       <Routes>
-        <Route path="*" element={<AuthPage />} />
+        <Route path="/login" element={<SignInPage />} />
+        <Route path="/signin" element={<Navigate to="/login" replace />} />
+        <Route path="/signup" element={<SignUpPage />} />
+        <Route path="/register" element={<Navigate to="/signup" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
   }
@@ -217,6 +222,9 @@ function PortalContent() {
     <MainLayout profile={profile} store={store} isPortalUnlocked={true}>
       <Routes>
         <Route path="/login" element={<Navigate to="/" replace />} />
+        <Route path="/signin" element={<Navigate to="/" replace />} />
+        <Route path="/signup" element={<Navigate to="/" replace />} />
+        <Route path="/register" element={<Navigate to="/" replace />} />
         <Route path="/" element={<HomePage />} />
         <Route path="/products" element={<Products />} />
         <Route path="/pricing" element={<Pricing />} />
