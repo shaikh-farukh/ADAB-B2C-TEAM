@@ -190,7 +190,7 @@ const Products = () => {
     try {
       setPublishingId(listing.id);
       await publishListing(listing.id);
-      setSuccessBanner(`"${listing.title}" is now PUBLISHED and live on your store catalog!`);
+      setSuccessBanner(`"${listing.title}" is now APPROVED and live on your store catalog!`);
       if (typeof refresh === 'function') await refresh();
     } catch (err) {
       console.error('Failed to publish listing:', err);
@@ -536,7 +536,7 @@ const Products = () => {
     if (!target) return;
 
     if (target.approval_status === 'DRAFT' || target.approval_status === 'SUBMITTED' || target.approval_status === 'UNDER_REVIEW') {
-      alert(`This product is currently in "${target.approval_status}" status. Only approved or published products can be toggled active on your store.`);
+      alert(`This product is currently in "${target.approval_status}" status. Only approved products can be toggled active on your store.`);
       return;
     }
 
@@ -548,14 +548,14 @@ const Products = () => {
       prev.map((l) => (l.id === listingId ? { 
         ...l, 
         is_active: nextActive,
-        approval_status: nextActive && l.approval_status === 'APPROVED' ? 'PUBLISHED' : l.approval_status
+        approval_status: 'APPROVED'
       } : l))
     );
 
     try {
       await updateListing(listingId, { 
         is_active: nextActive,
-        approval_status: nextActive && target.approval_status === 'APPROVED' ? 'PUBLISHED' : target.approval_status
+        approval_status: 'APPROVED'
       });
       if (typeof refresh === 'function') refresh();
     } catch (err) {
@@ -1054,7 +1054,7 @@ const Products = () => {
               <i className="fa-solid fa-circle-check text-white text-xl"></i>
             </div>
             <div>
-              <h3 className="font-black text-sm tracking-wide">Product Successfully Published!</h3>
+              <h3 className="font-black text-sm tracking-wide">Product Approved & Live!</h3>
               <p className="text-xs text-emerald-100 font-medium">{successBanner}</p>
             </div>
           </div>
@@ -1286,13 +1286,8 @@ const Products = () => {
                                 <span className="truncate max-w-[150px] hover:text-brand-dark transition" title={l.title}>
                                   {l.title}
                                 </span>
-                                {l.approval_status === 'PUBLISHED' && (
-                                  <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-green-200 shrink-0">
-                                    {t('badgePublished', 'PUBLISHED')}
-                                  </span>
-                                )}
-                                {l.approval_status === 'APPROVED' && (
-                                  <span className="bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-teal-200 shrink-0">
+                                {(l.approval_status === 'APPROVED' || l.approval_status === 'PUBLISHED') && (
+                                  <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-emerald-200 shrink-0">
                                     {t('badgeApproved', 'APPROVED')}
                                   </span>
                                 )}

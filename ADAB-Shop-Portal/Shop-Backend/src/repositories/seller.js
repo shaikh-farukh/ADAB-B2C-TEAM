@@ -1389,7 +1389,7 @@ class SellerRepository {
               store_id, product_type, title, sku, brand_tag, mrp, sell_price, unit,
               min_order_qty, allowed_buyers, approval_status, is_active, stock_qty, rating, review_count
             ) VALUES (
-              $1, 'PACKED', $2, $3, $4, $5, $6, $7, 1, 'CUSTOMERS_AND_STORES', 'PUBLISHED', true, $8, 5.0, 0
+              $1, 'PACKED', $2, $3, $4, $5, $6, $7, 1, 'CUSTOMERS_AND_STORES', 'APPROVED', true, $8, 5.0, 0
             ) RETURNING id`,
             [
               buyerStoreId,
@@ -2327,7 +2327,7 @@ class SellerRepository {
         const addedStock = Number.isFinite(parsedStockQty) && parsedStockQty > 0 ? parsedStockQty : 10;
         const updateRes = await pool.query(
           `UPDATE seller_listings 
-           SET sell_price = $1, wholesale_price = $2, stock_qty = stock_qty + $3, approval_status = 'PUBLISHED', allowed_buyers = 'CUSTOMERS_ONLY', is_active = true, updated_at = NOW()
+           SET sell_price = $1, wholesale_price = $2, stock_qty = stock_qty + $3, approval_status = 'APPROVED', allowed_buyers = 'CUSTOMERS_ONLY', is_active = true, updated_at = NOW()
            WHERE id = $4 RETURNING *`,
           [finalSellPrice, finalWholesalePrice, addedStock, existingRes.rows[0].id]
         );
@@ -2342,7 +2342,7 @@ class SellerRepository {
         ) VALUES (
           $1, 'OWN_BRAND', $2, $2, $3, $4, $5, $6,
           $7, $8, $9, $10, $11, 'CUSTOMERS_ONLY',
-          'PUBLISHED', true, $12, $13
+          'APPROVED', true, $12, $13
         ) RETURNING *`,
         [
           buyerStoreId,
@@ -2662,7 +2662,7 @@ class SellerRepository {
                  sell_price = $2, 
                  wholesale_price = NULL,
                  allowed_buyers = 'CUSTOMERS_ONLY', 
-                 approval_status = 'PUBLISHED', 
+                 approval_status = 'APPROVED', 
                  is_active = true, 
                  updated_at = NOW() 
              WHERE id = $3 
@@ -2679,7 +2679,7 @@ class SellerRepository {
             ) VALUES (
               $1, 'OWN_BRAND', $2, $2, $3, $4, $5, $6,
               $7, $8, $9, $10, 1, 'CUSTOMERS_ONLY',
-              'PUBLISHED', true, $11, NULL, 5.0, 0
+              'APPROVED', true, $11, NULL, 5.0, 0
             ) RETURNING *`,
             [
               buyerStoreId,

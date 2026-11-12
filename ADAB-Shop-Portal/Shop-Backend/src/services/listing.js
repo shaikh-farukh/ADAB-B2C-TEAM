@@ -35,25 +35,12 @@ class ListingService {
 
     let shouldReSubmit = false;
 
-    if (existing.approval_status === 'PUBLISHED') {
+    if (existing.approval_status === 'PUBLISHED' || existing.approval_status === 'APPROVED') {
       if (isOperationalOnly) {
-        // Operational changes (active toggle, stock, allowed buyers) remain PUBLISHED
-        validatedData.approval_status = 'PUBLISHED';
+        // Operational changes (active toggle, stock, allowed buyers) remain APPROVED
+        validatedData.approval_status = 'APPROVED';
       } else {
         // Core specification change requires admin re-review
-        validatedData.approval_status = 'SUBMITTED';
-        shouldReSubmit = true;
-      }
-    } else if (existing.approval_status === 'APPROVED') {
-      if (isOperationalOnly) {
-        // If activating an APPROVED listing, it goes to PUBLISHED
-        if (data.is_active === true) {
-          validatedData.approval_status = 'PUBLISHED';
-        } else {
-          validatedData.approval_status = 'APPROVED';
-        }
-      } else {
-        // Core edits on an approved listing re-submit for review
         validatedData.approval_status = 'SUBMITTED';
         shouldReSubmit = true;
       }
@@ -158,10 +145,10 @@ class ListingService {
     if (listing.approval_status !== 'UNDER_REVIEW') {
       throw new Error(`Cannot make decision from state: ${listing.approval_status}. Must be UNDER_REVIEW.`);
     }
-    // When Admin approves, directly set status to PUBLISHED and is_active: true
-    const finalStatus = status === 'APPROVED' ? 'PUBLISHED' : status;
+    // When Admin approves, directly set status to APPROVED and is_active: true
+    const finalStatus = status;
     const data = { approval_status: finalStatus };
-    if (finalStatus === 'PUBLISHED') {
+    if (finalStatus === 'APPROVED') {
       data.is_active = true;
     }
     if (reason) data.rejection_reason = reason;
@@ -172,14 +159,13 @@ class ListingService {
     const pool = require('../../db');
     await pool.query(
       `INSERT INTO product_approval_history (listing_id, previous_status, new_status, rejection_reason, action_at) VALUES ($1, $2, $3, $4, NOW())`,
-      [id, listing.approval_status, finalStatus, reason || (finalStatus === 'PUBLISHED' ? 'Admin approved & published listing' : 'Admin review decision')]
+      [id, listing.approval_status, finalStatus, reason || (finalStatus === 'APPROVED' ? 'Admin approved listing' : 'Admin review decision')]
     );
 
     try {
       const notificationProducer = require('./notificationProducer');
-      if (finalStatus === 'PUBLISHED') {
+      if (finalStatus === 'APPROVED') {
         await notificationProducer.listingApproved(storeId, listing.title);
-        await notificationProducer.listingPublished(storeId, listing.title);
       } else if (status === 'REJECTED') {
         await notificationProducer.listingRejected(storeId, listing.title, reason);
       } else if (status === 'CHANGES_REQUIRED') {
@@ -194,20 +180,17 @@ class ListingService {
 
   async publishListing(storeId, id) {
     const listing = await this.getListingById(storeId, id);
-    if (listing.approval_status !== 'APPROVED') {
-      throw new Error(`Cannot publish listing from state: ${listing.approval_status}. Must be APPROVED.`);
-    }
 
     const pool = require('../../db');
     await pool.query(
       `INSERT INTO product_approval_history (listing_id, previous_status, new_status, rejection_reason, action_at) VALUES ($1, $2, $3, $4, NOW())`,
-      [id, listing.approval_status, 'PUBLISHED', 'Seller or System published listing']
+      [id, listing.approval_status, 'APPROVED', 'Seller activated listing']
     );
 
-    const updated = await ListingRepository.updateListing(storeId, id, { approval_status: 'PUBLISHED', is_active: true });
+    const updated = await ListingRepository.updateListing(storeId, id, { approval_status: 'APPROVED', is_active: true });
     try {
       const notificationProducer = require('./notificationProducer');
-      await notificationProducer.listingPublished(storeId, listing.title);
+      await notificationProducer.listingApproved(storeId, listing.title);
     } catch (notifErr) {
       console.warn('[ListingService] Failed to dispatch notification (non-fatal):', notifErr.message);
     }
