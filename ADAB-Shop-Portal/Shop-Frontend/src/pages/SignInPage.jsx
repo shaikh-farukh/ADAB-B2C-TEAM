@@ -510,7 +510,7 @@ export default function SignInPage() {
                         </button>
                       ) : (
                         <div className="flex items-center gap-2 h-[40px] sm:h-[42px] w-full">
-                          <div className="relative flex-1 h-full">
+                          <div className="relative flex-1 min-w-0 h-full">
                             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                               <i className="fa-solid fa-shield-halved text-xs"></i>
                             </div>
@@ -533,13 +533,13 @@ export default function SignInPage() {
                             type="button"
                             onClick={handleSendOtp}
                             disabled={submitting || countdown > 0}
-                            className={`h-[40px] sm:h-[42px] px-3.5 rounded-xl text-xs sm:text-sm font-bold shrink-0 transition cursor-pointer ${
+                            className={`h-[40px] sm:h-[42px] w-[116px] sm:w-[124px] justify-center items-center rounded-xl text-xs sm:text-xs font-bold tabular-nums shrink-0 transition cursor-pointer flex ${
                               countdown > 0
                                 ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
                                 : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
                             }`}
                           >
-                            {countdown > 0 ? `Resend (${countdown}s)` : 'Resend'}
+                            {submitting ? 'Sending...' : countdown > 0 ? `Resend (${countdown}s)` : 'Resend'}
                           </button>
                         </div>
                       )}

@@ -552,7 +552,7 @@ export default function AuthPage() {
                     ) : (
                       /* Sent State: Button resizes and shifts to right, revealing OTP input area */
                       <div className="flex items-center gap-2.5 h-[42px] w-full">
-                        <div className="relative flex-1 h-full">
+                        <div className="relative flex-1 min-w-0 h-full">
                           <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
                             <i className="fa-solid fa-shield-halved text-xs"></i>
                           </div>
@@ -578,13 +578,13 @@ export default function AuthPage() {
                           type="button"
                           onClick={handleSendOtp}
                           disabled={submitting || countdown > 0}
-                          className={`h-[42px] px-3.5 rounded-xl text-xs font-bold shrink-0 transition-colors cursor-pointer ${
+                          className={`h-[42px] w-[116px] sm:w-[124px] justify-center items-center rounded-xl text-xs font-bold tabular-nums shrink-0 transition-colors cursor-pointer flex ${
                             countdown > 0
                               ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'
                               : 'bg-emerald-50 text-[#15803D] border border-emerald-200 hover:bg-emerald-100 active:scale-95'
                           }`}
                         >
-                          {countdown > 0 ? `Resend (${countdown}s)` : 'Resend OTP'}
+                          {submitting ? 'Sending...' : countdown > 0 ? `Resend (${countdown}s)` : 'Resend OTP'}
                         </button>
                       </div>
                     )}

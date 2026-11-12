@@ -321,7 +321,7 @@ export default function ForgotPasswordModal({
                   type="button"
                   onClick={handleSendOtp}
                   disabled={loading || countdown > 0}
-                  className={`text-[11px] font-bold leading-none cursor-pointer ${
+                  className={`text-[11px] font-bold leading-none cursor-pointer tabular-nums ${
                     countdown > 0 ? 'text-gray-400 cursor-not-allowed' : 'text-[#22c55e] hover:underline'
                   }`}
                 >
