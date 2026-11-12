@@ -3,8 +3,14 @@ const router = express.Router();
 const authCtrl = require('../controllers/authController');
 const { authMiddleware } = require('../middleware/authMiddleware');
 
-// ─── Authentication Endpoints ───
-// POST /api/v1/auth/login
+// ─── Admin Email OTP Authentication Endpoints ───
+// POST /api/v1/auth/otp/request
+router.post('/otp/request', authCtrl.requestOtp);
+
+// POST /api/v1/auth/otp/verify
+router.post('/otp/verify', authCtrl.verifyOtp);
+
+// POST /api/v1/auth/login (Delegates to OTP verify if otp provided)
 router.post('/login', authCtrl.login);
 
 // POST /api/v1/auth/logout

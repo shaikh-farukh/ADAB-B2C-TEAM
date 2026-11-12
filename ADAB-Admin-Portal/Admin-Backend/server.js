@@ -86,6 +86,13 @@ if (require.main === module) {
     console.log(`Server is running on http://localhost:${PORT}`);
   });
 
+  if (Number(PORT) !== 5005) {
+    const mirrorServer = app.listen(5005, () => {
+      console.log(`Server is also listening on http://localhost:5005`);
+    });
+    mirrorServer.on('error', () => { });
+  }
+
   server.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
       console.error(`❌ Port ${PORT} is already in use by another process.`);

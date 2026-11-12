@@ -15,14 +15,14 @@ const rbacCtrl = require('../controllers/rbacController');
 const orderService = require('../services/adminOrderService');
 const returnService = require('../services/adminReturnService');
 
-// Allow /dev-login to bypass auth middleware for dev auto-login
+// Allow /dev-login and /auth/* to bypass auth middleware
 router.use((req, res, next) => {
-  if (req.path === '/dev-login') return next();
+  if (req.path === '/dev-login' || req.path.startsWith('/auth')) return next();
   authMiddleware(req, res, next);
 });
 router.use(auditMiddleware());
 router.use((req, res, next) => {
-  if (req.path === '/dev-login') return next();
+  if (req.path === '/dev-login' || req.path.startsWith('/auth')) return next();
   adminGuard()(req, res, next);
 });
 
