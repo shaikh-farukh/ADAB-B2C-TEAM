@@ -244,15 +244,8 @@ exports.getBrands = async (req, res) => {
   }
 };
 
-exports.getStoreById = async (req, res) => {
-  try {
-    const data = await catalogService.getStoreById(req.params.id);
-    if (!data) return res.status(404).json({ success: false, message: 'Store not found' });
-    res.json({ success: true, data });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
+// Deprecated alias for getSellerById (kept for backward compatibility)
+exports.getStoreById = (req, res) => exports.getSellerById(req, res);
 
 exports.getStoreProducts = async (req, res) => {
   try {
@@ -317,23 +310,23 @@ exports.getDeals = async (req, res) => {
     const { min_discount, page, limit } = req.query;
 
     if (min_discount !== undefined && (isNaN(Number(min_discount)) || Number(min_discount) < 0 || Number(min_discount) > 100)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Validation Error: min_discount must be a number between 0 and 100' 
+      return res.status(400).json({
+        success: false,
+        message: 'Validation Error: min_discount must be a number between 0 and 100'
       });
     }
 
     if (page !== undefined && (isNaN(Number(page)) || Number(page) < 1)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Validation Error: page must be a positive integer greater than or equal to 1' 
+      return res.status(400).json({
+        success: false,
+        message: 'Validation Error: page must be a positive integer greater than or equal to 1'
       });
     }
 
     if (limit !== undefined && (isNaN(Number(limit)) || Number(limit) < 1 || Number(limit) > 100)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Validation Error: limit must be a positive integer between 1 and 100' 
+      return res.status(400).json({
+        success: false,
+        message: 'Validation Error: limit must be a positive integer between 1 and 100'
       });
     }
 

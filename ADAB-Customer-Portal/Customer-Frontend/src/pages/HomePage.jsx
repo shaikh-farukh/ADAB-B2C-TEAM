@@ -1,65 +1,240 @@
-import React, { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api/api';
 import ProductCard from '../components/ProductCard';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 
-let homeDataCache = null;
+let homeDataCache = {};
 
 export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wishlist }) {
-  const [recommended, setRecommended] = useState(homeDataCache?.recommended || []);
-  const [categories, setCategories] = useState(homeDataCache?.categories || []);
-  const [stores, setStores] = useState(homeDataCache?.stores || []);
-  const [coupons, setCoupons] = useState(homeDataCache?.coupons || []);
-  const [promotions, setPromotions] = useState(homeDataCache?.promotions || []);
-  const [latestOrder, setLatestOrder] = useState(homeDataCache?.latestOrder || null);
-  const [loading, setLoading] = useState(!homeDataCache);
+  const [recommended, setRecommended] = useState(homeDataCache.recommended || []);
+  const [categories, setCategories] = useState(homeDataCache.categories || []);
+  const [stores, setStores] = useState(homeDataCache.stores || []);
+  const [coupons, setCoupons] = useState(homeDataCache.coupons || []);
+  const [promotions, setPromotions] = useState(homeDataCache.promotions || []);
+  const [latestOrder, setLatestOrder] = useState(homeDataCache.latestOrder || null);
+
+  const [storesLoading, setStoresLoading] = useState(!homeDataCache.stores);
+  const [storesLoaded, setStoresLoaded] = useState(Boolean(homeDataCache.stores));
+  const [storesError, setStoresError] = useState(null);
+
+  const [categoriesLoading, setCategoriesLoading] = useState(!homeDataCache.categories);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(Boolean(homeDataCache.categories));
+  const [categoriesError, setCategoriesError] = useState(null);
+
+  const [dealsLoading, setDealsLoading] = useState(!homeDataCache.promotions);
+  const [dealsLoaded, setDealsLoaded] = useState(Boolean(homeDataCache.promotions));
+  const [dealsError, setDealsError] = useState(null);
+
+  const [recommendedLoading, setRecommendedLoading] = useState(!homeDataCache.recommended);
+  const [recommendedLoaded, setRecommendedLoaded] = useState(Boolean(homeDataCache.recommended));
+  const [recommendedError, setRecommendedError] = useState(null);
+
+  const [ordersLoaded, setOrdersLoaded] = useState(Boolean(homeDataCache.ordersChecked));
+
+  const fetchedRefs = useRef({
+    stores: Boolean(homeDataCache.stores),
+    categories: Boolean(homeDataCache.categories),
+    deals: Boolean(homeDataCache.promotions),
+    recommended: Boolean(homeDataCache.recommended),
+    orders: Boolean(homeDataCache.ordersChecked)
+  });
+  const inFlightRefs = useRef({
+    stores: false,
+    categories: false,
+    deals: false,
+    recommended: false,
+    orders: false
+  });
+  const isMountedRef = useRef(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (homeDataCache) {
-      setLoading(false);
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const loadStores = useCallback(async (force = false) => {
+    if (inFlightRefs.current.stores) return;
+    if (!force && fetchedRefs.current.stores) return;
+    fetchedRefs.current.stores = true;
+    inFlightRefs.current.stores = true;
+    if (force) {
+      delete homeDataCache.stores;
+      setStoresLoading(true);
+      setStoresError(null);
+    }
+    try {
+      const res = await api.get('/catalog/sellers');
+      if (!isMountedRef.current) return;
+      const list = res?.data?.data ?? res?.data;
+      const sts = Array.isArray(list) ? list : [];
+      homeDataCache.stores = sts;
+      setStores(sts);
+      setStoresLoaded(true);
+      setStoresError(null);
+    } catch (err) {
+      fetchedRefs.current.stores = false;
+      if (!isMountedRef.current) return;
+      console.error('Error loading stores on Home:', err);
+      setStoresError(err.response?.data?.message || 'Unable to load local stores.');
+    } finally {
+      inFlightRefs.current.stores = false;
+      if (isMountedRef.current) setStoresLoading(false);
+    }
+  }, []);
+
+  const loadCategories = useCallback(async (force = false) => {
+    if (inFlightRefs.current.categories) return;
+    if (!force && fetchedRefs.current.categories) return;
+    fetchedRefs.current.categories = true;
+    inFlightRefs.current.categories = true;
+    if (force) {
+      delete homeDataCache.categories;
+      setCategoriesLoading(true);
+      setCategoriesError(null);
+    }
+    try {
+      const res = await api.get('/catalog/categories');
+      if (!isMountedRef.current) return;
+      const list = res?.data?.data ?? res?.data;
+      const cats = Array.isArray(list) ? list : [];
+      homeDataCache.categories = cats;
+      setCategories(cats);
+      setCategoriesLoaded(true);
+      setCategoriesError(null);
+    } catch (err) {
+      fetchedRefs.current.categories = false;
+      if (!isMountedRef.current) return;
+      console.error('Error loading categories on Home:', err);
+      setCategoriesError(err.response?.data?.message || 'Unable to load categories.');
+    } finally {
+      inFlightRefs.current.categories = false;
+      if (isMountedRef.current) setCategoriesLoading(false);
+    }
+  }, []);
+
+  const loadDeals = useCallback(async (force = false) => {
+    if (inFlightRefs.current.deals) return;
+    if (!force && fetchedRefs.current.deals) return;
+    fetchedRefs.current.deals = true;
+    inFlightRefs.current.deals = true;
+    if (force) {
+      delete homeDataCache.promotions;
+      delete homeDataCache.coupons;
+      setDealsLoading(true);
+      setDealsError(null);
+    }
+    try {
+      const [promoSettled, couponSettled] = await Promise.allSettled([
+        api.get('/catalog/deals'),
+        api.get('/cart/coupons')
+      ]);
+      if (promoSettled.status === 'rejected') {
+        throw promoSettled.reason;
+      }
+      if (!isMountedRef.current) return;
+      const pmsRaw = promoSettled.value?.data?.data ?? promoSettled.value?.data;
+      const pms = Array.isArray(pmsRaw) ? pmsRaw : [];
+      const cpsRaw =
+        couponSettled.status === 'fulfilled'
+          ? (couponSettled.value?.data?.data?.coupons ?? couponSettled.value?.data?.coupons)
+          : [];
+      const cps = Array.isArray(cpsRaw) ? cpsRaw : [];
+      homeDataCache.promotions = pms;
+      homeDataCache.coupons = cps;
+      setPromotions(pms);
+      setCoupons(cps);
+      setDealsLoaded(true);
+      setDealsError(null);
+    } catch (err) {
+      fetchedRefs.current.deals = false;
+      if (!isMountedRef.current) return;
+      console.error('Error loading deals on Home:', err);
+      setDealsError(err.response?.data?.message || 'Unable to load deals & offers.');
+    } finally {
+      inFlightRefs.current.deals = false;
+      if (isMountedRef.current) setDealsLoading(false);
+    }
+  }, []);
+
+  const loadRecommended = useCallback(async (force = false) => {
+    if (inFlightRefs.current.recommended) return;
+    if (!force && fetchedRefs.current.recommended) return;
+    fetchedRefs.current.recommended = true;
+    inFlightRefs.current.recommended = true;
+    if (force) {
+      delete homeDataCache.recommended;
+      setRecommendedLoading(true);
+      setRecommendedError(null);
+    }
+    try {
+      const res = await api.get('/catalog/recommended');
+      if (!isMountedRef.current) return;
+      const list = res?.data?.data ?? res?.data;
+      const rec = Array.isArray(list) ? list : [];
+      homeDataCache.recommended = rec;
+      setRecommended(rec);
+      setRecommendedLoaded(true);
+      setRecommendedError(null);
+    } catch (err) {
+      fetchedRefs.current.recommended = false;
+      if (!isMountedRef.current) return;
+      console.error('Error loading recommended products on Home:', err);
+      setRecommendedError(err.response?.data?.message || 'Unable to load trending products.');
+    } finally {
+      inFlightRefs.current.recommended = false;
+      if (isMountedRef.current) setRecommendedLoading(false);
+    }
+  }, []);
+
+  const loadActiveOrder = useCallback(async () => {
+    if (inFlightRefs.current.orders || fetchedRefs.current.orders) return;
+    const isAuthenticated = Boolean(
+      typeof localStorage !== 'undefined' &&
+      (localStorage.getItem('adab_user') || localStorage.getItem('adab_auth_token'))
+    );
+    if (!isAuthenticated) {
+      fetchedRefs.current.orders = true;
+      homeDataCache.ordersChecked = true;
+      setOrdersLoaded(true);
       return;
     }
-
-    Promise.all([
-      api.get('/catalog/recommended').catch(() => ({ data: { data: [] } })),
-      api.get('/catalog/categories').catch(() => ({ data: { data: [] } })),
-      api.get('/catalog/sellers').catch(() => ({ data: { data: [] } })),
-      api.get('/cart/coupons').catch(() => ({ data: { data: { coupons: [] } } })),
-      api.get('/catalog/deals').catch(() => ({ data: { data: [] } })),
-      api.get('/orders').catch(() => ({ data: { data: [] } }))
-    ])
-      .then(([recRes, catRes, storeRes, couponRes, promoRes, orderRes]) => {
-        const rec = recRes?.data?.data || recRes?.data || [];
-        const cats = catRes?.data?.data || catRes?.data || [];
-        const sts = storeRes?.data?.data || storeRes?.data || [];
-        const cps = couponRes?.data?.data?.coupons || couponRes?.data?.coupons || [];
-        const pms = promoRes?.data?.data || promoRes?.data || [];
-        const orders = orderRes?.data?.data || orderRes?.data || [];
-        // Only surface orders actively in transit (ignore DELIVERED, CANCELLED, or completed orders)
-        const activeOrder = orders.find(o => 
-          ['PLACED', 'CONFIRMED', 'ACCEPTED', 'PREPARING', 'PACKED', 'DISPATCHED', 'OUT_FOR_DELIVERY', 'IN_TRANSIT'].includes(o.order_status?.toUpperCase())
-        ) || null;
-
-        homeDataCache = {
-          recommended: rec,
-          categories: cats,
-          stores: sts,
-          coupons: cps,
-          promotions: pms,
-          latestOrder: activeOrder
-        };
-
-        setRecommended(rec);
-        setCategories(cats);
-        setStores(sts);
-        setCoupons(cps);
-        setPromotions(pms);
-        setLatestOrder(activeOrder);
-      })
-      .catch(err => console.error(err))
-      .finally(() => setLoading(false));
+    fetchedRefs.current.orders = true;
+    inFlightRefs.current.orders = true;
+    try {
+      const res = await api.get('/customers/me/orders');
+      if (!isMountedRef.current) return;
+      const orders = res?.data?.data ?? res?.data ?? [];
+      const activeOrder = Array.isArray(orders)
+        ? (orders.find(o =>
+            ['PLACED', 'CONFIRMED', 'ACCEPTED', 'PREPARING', 'PACKED', 'DISPATCHED', 'OUT_FOR_DELIVERY', 'IN_TRANSIT'].includes(o.order_status?.toUpperCase())
+          ) || null)
+        : null;
+      homeDataCache.latestOrder = activeOrder;
+      homeDataCache.ordersChecked = true;
+      setLatestOrder(activeOrder);
+      setOrdersLoaded(true);
+    } catch {
+      if (isMountedRef.current) {
+        homeDataCache.ordersChecked = true;
+        setOrdersLoaded(true);
+      }
+    } finally {
+      inFlightRefs.current.orders = false;
+    }
   }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadStores(false);
+    loadCategories(false);
+    loadDeals(false);
+    loadRecommended(false);
+    loadActiveOrder();
+  }, [loadStores, loadCategories, loadDeals, loadRecommended, loadActiveOrder]);
 
   const go = (path, extra) => {
     if (onNavigate) {
@@ -77,28 +252,53 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
           <span className="text-xs font-extrabold uppercase tracking-wider text-gray-500">Live in your zone</span>
           <span className="tag-live"><i className="fa-solid fa-circle mr-1 text-[7px]"></i> OPEN NOW</span>
         </div>
-        <div className="flex gap-3 overflow-x-auto hide-scroll pb-1">
-          {stores.map((shop, i) => {
-            const colors = ['bg-emerald-600', 'bg-blue-600', 'bg-orange-500', 'bg-cyan-600', 'bg-purple-600'];
-            const initial = (shop.name || 'Store').substring(0, 2).toUpperCase();
-            return (
-              <button key={shop.id} onClick={() => go('stores', { storeId: shop.id, store: shop, storeName: shop.name })} className="flex flex-col items-center gap-1.5 shrink-0 group">
-                <div className="story-ring"><div className={`w-14 h-14 rounded-full ${colors[i % 5]} text-white font-extrabold flex items-center justify-center text-sm shadow-md group-hover:scale-105 transition-transform`}>{initial}</div></div>
-                <span className="text-[11px] font-bold text-gray-800 truncate max-w-[64px]">{(shop.name || '').split(' ')[0]}</span>
-              </button>
-            )
-          })}
-          <button onClick={() => go('stores', { storeId: null, store: null })} className="flex flex-col items-center gap-1.5 shrink-0">
-            <div className="w-14 h-14 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 text-gray-500 font-bold flex items-center justify-center text-xs"><i className="fa-solid fa-plus text-base"></i></div>
-            <span className="text-[11px] font-bold text-gray-600">{stores.length > 0 ? `${stores.length} Shops` : 'Shops'}</span>
-          </button>
-        </div>
+        {storesLoading ? (
+          <div className="flex gap-3 overflow-x-auto hide-scroll pb-1">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="flex flex-col items-center gap-1.5 shrink-0">
+                <div className="w-14 h-14 rounded-full bg-gray-200 animate-pulse"></div>
+                <div className="w-10 h-2.5 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            ))}
+          </div>
+        ) : storesError ? (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs text-red-700">
+            <span className="flex items-center gap-2 font-medium">
+              <AlertCircle className="w-4 h-4 shrink-0" /> {storesError}
+            </span>
+            <button
+              type="button"
+              disabled={storesLoading}
+              onClick={() => loadStores(true)}
+              className="px-3 py-1.5 bg-white border border-red-200 rounded-xl font-bold text-red-800 hover:bg-red-100 transition inline-flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            >
+              <RefreshCw className={`w-3 h-3 ${storesLoading ? 'animate-spin' : ''}`} /> Retry
+            </button>
+          </div>
+        ) : storesLoaded ? (
+          <div className="flex gap-3 overflow-x-auto hide-scroll pb-1">
+            {stores.map((shop, i) => {
+              const colors = ['bg-emerald-600', 'bg-blue-600', 'bg-orange-500', 'bg-cyan-600', 'bg-purple-600'];
+              const initial = (shop.name || 'Store').substring(0, 2).toUpperCase();
+              return (
+                <button key={shop.id} onClick={() => go('stores', { storeId: shop.id, store: shop, storeName: shop.name })} className="flex flex-col items-center gap-1.5 shrink-0 group">
+                  <div className="story-ring"><div className={`w-14 h-14 rounded-full ${colors[i % 5]} text-white font-extrabold flex items-center justify-center text-sm shadow-md group-hover:scale-105 transition-transform`}>{initial}</div></div>
+                  <span className="text-[11px] font-bold text-gray-800 truncate max-w-[64px]">{(shop.name || '').split(' ')[0]}</span>
+                </button>
+              );
+            })}
+            <button onClick={() => go('stores', { storeId: null, store: null })} className="flex flex-col items-center gap-1.5 shrink-0">
+              <div className="w-14 h-14 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 text-gray-500 font-bold flex items-center justify-center text-xs"><i className="fa-solid fa-plus text-base"></i></div>
+              <span className="text-[11px] font-bold text-gray-600">{stores.length > 0 ? `${stores.length} Shops` : 'Shops'}</span>
+            </button>
+          </div>
+        ) : null}
       </div>
 
-      {/* Active Live Order Strip from DB (only active in-transit orders) */}
-      {latestOrder && ['PLACED', 'CONFIRMED', 'ACCEPTED', 'PREPARING', 'PACKED', 'DISPATCHED', 'OUT_FOR_DELIVERY', 'IN_TRANSIT'].includes(latestOrder.order_status?.toUpperCase()) ? (
-        <div 
-          onClick={() => go('track')} 
+      {/* Active Live Order Strip from DB (hidden until orders & stores checked) */}
+      {ordersLoaded && latestOrder && ['PLACED', 'CONFIRMED', 'ACCEPTED', 'PREPARING', 'PACKED', 'DISPATCHED', 'OUT_FOR_DELIVERY', 'IN_TRANSIT'].includes(latestOrder.order_status?.toUpperCase()) ? (
+        <div
+          onClick={() => go('track')}
           className="cursor-pointer text-white rounded-2xl p-4 flex items-center gap-3.5 shadow-lg shadow-emerald-700/20 hover:scale-[1.01] transition-all"
           style={{ background: 'linear-gradient(135deg, #064E3B 0%, #047857 50%, #059669 100%)', color: '#ffffff' }}
         >
@@ -118,16 +318,16 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
           </div>
           <span className="px-3 py-1.5 rounded-xl bg-white text-emerald-800 font-extrabold text-xs shrink-0 shadow-sm">Track <i className="fa-solid fa-arrow-right ml-1 text-[10px]"></i></span>
         </div>
-      ) : stores.length > 0 ? (
-        <div 
-          onClick={() => go('stores', { storeId: stores[0].id, store: stores[0] })} 
+      ) : storesLoaded && !storesError && stores.length > 0 ? (
+        <div
+          onClick={() => go('stores', { storeId: stores[0].id, store: stores[0] })}
           className="cursor-pointer text-white rounded-2xl p-4 flex items-center gap-3.5 shadow-lg shadow-emerald-700/20 hover:scale-[1.01] transition-all"
           style={{ background: 'linear-gradient(135deg, #064E3B 0%, #047857 50%, #059669 100%)', color: '#ffffff' }}
         >
           <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-xl shrink-0"><i className="fa-solid fa-shop"></i></div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span 
+              <span
                 className="text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm"
                 style={{ background: '#10B981', color: '#ffffff', border: '1px solid #34D399' }}
               >
@@ -144,17 +344,37 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
         </div>
       ) : null}
 
-      {/* Dynamic Deal Banners from DB */}
-      {(coupons.length > 0 || promotions.length > 0) && (
+      {/* Dynamic Deal Banners from DB (hidden until returned) */}
+      {dealsLoading ? (
+        <div className="flex gap-3 overflow-hidden">
+          {[...Array(2)].map((_, i) => (
+            <div key={i} className="w-64 h-32 bg-gray-200 rounded-2xl animate-pulse shrink-0"></div>
+          ))}
+        </div>
+      ) : dealsError ? (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs text-red-700">
+          <span className="flex items-center gap-2 font-medium">
+            <AlertCircle className="w-4 h-4 shrink-0" /> {dealsError}
+          </span>
+          <button
+            type="button"
+            disabled={dealsLoading}
+            onClick={() => loadDeals(true)}
+            className="px-3 py-1.5 bg-white border border-red-200 rounded-xl font-bold text-red-800 hover:bg-red-100 transition inline-flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+          >
+            <RefreshCw className={`w-3 h-3 ${dealsLoading ? 'animate-spin' : ''}`} /> Retry
+          </button>
+        </div>
+      ) : dealsLoaded && (coupons.length > 0 || promotions.length > 0) ? (
         <div>
           <div className="flex justify-between items-center mb-2.5">
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
               <span className="text-xs font-extrabold uppercase tracking-wider text-gray-500">Deals & Offers</span>
             </div>
-            <button 
+            <button
               type="button"
-              onClick={() => go('offers')} 
+              onClick={() => go('offers')}
               className="text-brand-green text-xs font-extrabold hover:underline cursor-pointer flex items-center gap-1"
             >
               <span>All offers</span>
@@ -171,14 +391,14 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
                   'from-emerald-600 via-teal-600 to-cyan-600'
                 ];
                 const grad = bannerGradients[idx % bannerGradients.length];
-                const discountText = cp.discount_type === 'PERCENTAGE' 
-                  ? `${parseInt(cp.discount_value)}% OFF` 
+                const discountText = cp.discount_type === 'PERCENTAGE'
+                  ? `${parseInt(cp.discount_value)}% OFF`
                   : `Flat ₹${parseInt(cp.discount_value)} OFF`;
 
                 return (
-                  <button 
-                    key={cp.code || idx} 
-                    onClick={() => go('offers')} 
+                  <button
+                    key={cp.code || idx}
+                    onClick={() => go('offers')}
                     className={`banner-slide shrink-0 bg-gradient-to-br ${grad} p-5 text-white text-left min-h-[125px] flex flex-col justify-between`}
                   >
                     <div className="flex items-center justify-between">
@@ -198,9 +418,9 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
               })
             ) : promotions.length > 0 ? (
               promotions.slice(0, 2).map((promo, idx) => (
-                <button 
-                  key={promo.id || idx} 
-                  onClick={() => go('offers')} 
+                <button
+                  key={promo.id || idx}
+                  onClick={() => go('offers')}
                   className="banner-slide shrink-0 bg-gradient-to-br from-amber-500 via-orange-500 to-rose-600 p-5 text-white text-left min-h-[125px] flex flex-col justify-between"
                 >
                   <div className="flex items-center justify-between">
@@ -216,105 +436,134 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
             ) : null}
           </div>
         </div>
-      )}
+      ) : null}
 
-      {/* Category Pills */}
-      <div>
-        <div className="flex justify-between items-end mb-3">
-          <div>
-            <h2 className="section-title">What are you looking for?</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Explore categories across local stores</p>
-          </div>
-          <button onClick={() => go('browse')} className="text-brand-green text-xs font-extrabold hover:underline">View All →</button>
-        </div>
+      {/* Category Pills (hidden until returned) */}
+      {categoriesLoading ? (
         <div className="grid grid-cols-4 sm:grid-cols-6 gap-2.5">
-          {categories.slice(0, 6).map((cat, i) => {
-             const icons = ['🥬', '🥛', '🌾', '🫒', '👗', '🍿'];
-             return (
-              <button key={cat.id} onClick={() => go(`browse?category=${encodeURIComponent(cat.slug || cat.name)}`)} className="cat-pill flex flex-col items-center gap-1 text-center">
-                <span className="text-2xl transform hover:scale-110 transition-transform">{icons[i % 6]}</span>
-                <span className="text-[11px] font-extrabold text-gray-800">{cat.name}</span>
-              </button>
-             )
-          })}
-        </div>
-      </div>
-
-      {/* Featured Nearby Stores */}
-      <div>
-        <div className="flex justify-between items-end mb-3">
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <h2 className="section-title">Top Verified Stores</h2>
-            </div>
-            <p className="text-xs text-gray-500 mt-0.5">Direct from your trusted local merchants</p>
-          </div>
-          <button 
-            type="button"
-            onClick={() => go('stores', { storeId: null, store: null })} 
-            className="text-brand-green text-xs font-extrabold hover:underline cursor-pointer flex items-center gap-1"
-          >
-            <span>All {stores.length} shops</span>
-            <span>→</span>
-          </button>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-          {stores.slice(0, 2).map((shop) => (
-            <div 
-              key={shop.id} 
-              className="group bg-white rounded-2xl border border-gray-100 hover:border-emerald-300 hover:shadow-lg transition-all duration-200 overflow-hidden cursor-pointer flex flex-col sm:flex-row shadow-xs" 
-              onClick={() => go(`browse?storeId=${shop.id}&storeName=${encodeURIComponent(shop.name || '')}`)}
-            >
-              <div className="sm:w-36 h-32 sm:h-auto bg-gray-100 relative shrink-0 overflow-hidden">
-                <img 
-                  src={shop.image || 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=400&q=80'} 
-                  alt={shop.name} 
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
-                />
-                <div className="absolute top-2.5 left-2.5 bg-white/95 backdrop-blur-sm px-2 py-0.5 rounded-full text-[10px] font-black text-gray-800 flex items-center gap-1 shadow-xs">
-                  <i className="fa-solid fa-star text-amber-400 text-[9px]"></i> {shop.rating || '4.8'}
-                </div>
-              </div>
-
-              <div className="p-3.5 flex flex-col justify-between flex-1">
-                <div>
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <span className="text-[9px] font-extrabold tracking-wider uppercase text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full inline-block mb-1">
-                        Verified Shop
-                      </span>
-                      <h3 className="font-black text-sm text-gray-900 group-hover:text-emerald-700 transition leading-tight">
-                        {shop.name}
-                      </h3>
-                    </div>
-                    <span className="text-[10px] font-bold text-gray-600 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-lg shrink-0">
-                      {shop.distance || '1.2 km'}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-gray-500 mt-1 line-clamp-1">
-                    {(Array.isArray(shop.tags) && shop.tags.length > 0 ? shop.tags.join(' • ') : 'Fresh Groceries & Essentials')} • {shop.area || 'Neighborhood'}
-                  </p>
-                </div>
-
-                <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1 text-[11px] font-bold text-gray-500">
-                    <i className="fa-solid fa-truck-fast text-emerald-600"></i>
-                    <span>15-30 min delivery</span>
-                  </div>
-                  <span className="text-[11px] font-extrabold text-brand-green group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
-                    Shop Products <i className="fa-solid fa-arrow-right text-[9px]"></i>
-                  </span>
-                </div>
-              </div>
-            </div>
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="h-16 bg-gray-200 rounded-2xl animate-pulse"></div>
           ))}
         </div>
-      </div>
+      ) : categoriesError ? (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs text-red-700">
+          <span className="flex items-center gap-2 font-medium">
+            <AlertCircle className="w-4 h-4 shrink-0" /> {categoriesError}
+          </span>
+          <button
+            type="button"
+            disabled={categoriesLoading}
+            onClick={() => loadCategories(true)}
+            className="px-3 py-1.5 bg-white border border-red-200 rounded-xl font-bold text-red-800 hover:bg-red-100 transition inline-flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+          >
+            <RefreshCw className={`w-3 h-3 ${categoriesLoading ? 'animate-spin' : ''}`} /> Retry
+          </button>
+        </div>
+      ) : categoriesLoaded && categories.length > 0 ? (
+        <div>
+          <div className="flex justify-between items-end mb-3">
+            <div>
+              <h2 className="section-title">What are you looking for?</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Explore categories across local stores</p>
+            </div>
+            <button onClick={() => go('browse')} className="text-brand-green text-xs font-extrabold hover:underline">View All →</button>
+          </div>
+          <div className="grid grid-cols-4 sm:grid-cols-6 gap-2.5">
+            {categories.slice(0, 6).map((cat, i) => {
+               const icons = ['🥬', '🥛', '🌾', '🫒', '👗', '🍿'];
+               return (
+                <button key={cat.id} onClick={() => go(`browse?category=${encodeURIComponent(cat.slug || cat.name)}`)} className="cat-pill flex flex-col items-center gap-1 text-center">
+                  <span className="text-2xl transform hover:scale-110 transition-transform">{icons[i % 6]}</span>
+                  <span className="text-[11px] font-extrabold text-gray-800">{cat.name}</span>
+                </button>
+               );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Featured Nearby Stores (hidden until returned) */}
+      {storesLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {[...Array(2)].map((_, i) => (
+            <div key={i} className="h-32 bg-gray-200 rounded-2xl animate-pulse"></div>
+          ))}
+        </div>
+      ) : storesLoaded && !storesError && stores.length > 0 ? (
+        <div>
+          <div className="flex justify-between items-end mb-3">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <h2 className="section-title">Top Verified Stores</h2>
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5">Direct from your trusted local merchants</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => go('stores', { storeId: null, store: null })}
+              className="text-brand-green text-xs font-extrabold hover:underline cursor-pointer flex items-center gap-1"
+            >
+              <span>All {stores.length} shops</span>
+              <span>→</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            {stores.slice(0, 2).map((shop) => (
+              <div
+                key={shop.id}
+                className="group bg-white rounded-2xl border border-gray-100 hover:border-emerald-300 hover:shadow-lg transition-all duration-200 overflow-hidden cursor-pointer flex flex-col sm:flex-row shadow-xs"
+                onClick={() => go(`browse?storeId=${shop.id}&storeName=${encodeURIComponent(shop.name || '')}`)}
+              >
+                <div className="sm:w-36 h-32 sm:h-auto bg-gray-100 relative shrink-0 overflow-hidden">
+                  <img
+                    src={shop.image || 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=400&q=80'}
+                    alt={shop.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute top-2.5 left-2.5 bg-white/95 backdrop-blur-sm px-2 py-0.5 rounded-full text-[10px] font-black text-gray-800 flex items-center gap-1 shadow-xs">
+                    <i className="fa-solid fa-star text-amber-400 text-[9px]"></i> {shop.rating || '4.8'}
+                  </div>
+                </div>
+
+                <div className="p-3.5 flex flex-col justify-between flex-1">
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="text-[9px] font-extrabold tracking-wider uppercase text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full inline-block mb-1">
+                          Verified Shop
+                        </span>
+                        <h3 className="font-black text-sm text-gray-900 group-hover:text-emerald-700 transition leading-tight">
+                          {shop.name}
+                        </h3>
+                      </div>
+                      <span className="text-[10px] font-bold text-gray-600 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-lg shrink-0">
+                        {shop.distance || '1.2 km'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-1 line-clamp-1">
+                      {(Array.isArray(shop.tags) && shop.tags.length > 0 ? shop.tags.join(' • ') : 'Fresh Groceries & Essentials')} • {shop.area || 'Neighborhood'}
+                    </p>
+                  </div>
+                  <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-gray-500">
+                      <i className="fa-solid fa-truck-fast text-emerald-600"></i>
+                      <span>15-30 min delivery</span>
+                    </div>
+                    <span className="text-[11px] font-extrabold text-brand-green group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                      Shop Products <i className="fa-solid fa-arrow-right text-[9px]"></i>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {/* Quick Catalog Discovery Banner */}
-      <div 
+      <div
         onClick={() => go('browse')}
         className="cursor-pointer bg-gradient-to-r from-emerald-50 via-teal-50 to-green-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between shadow-xs hover:border-emerald-400 hover:shadow-md transition-all"
       >
@@ -332,59 +581,75 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
         </span>
       </div>
 
-      {/* Popular Picks Grid */}
-      <div>
-        <div className="flex justify-between items-center mb-3">
-          <div>
-            <h2 className="section-title">Trending in Your Area</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Top-selling products delivered in minutes</p>
-          </div>
-          <button onClick={() => go('browse')} className="text-brand-green text-xs font-extrabold hover:underline">Browse all products →</button>
+      {/* Popular Picks Grid (hidden until returned) */}
+      {recommendedLoading ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="animate-pulse bg-gray-200 rounded-2xl aspect-[3/4]"></div>
+          ))}
         </div>
-        {loading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="animate-pulse bg-gray-200 rounded-2xl aspect-[3/4]"></div>
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
-            {recommended.slice(0, 6).map(product => (
-              <ProductCard 
-                key={product.id} 
-                product={product} 
-                onAddToCart={onAddToCart} 
-                onToggleWishlist={onToggleWishlist}
-                wishlist={wishlist}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Fresh Arrivals */}
-      {recommended.length > 6 && (
-        <div>
-          <div className="flex justify-between items-center mb-3">
-            <div>
-              <h2 className="section-title">More From Local Kiranas</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Authentic regional staples and fresh batches</p>
+      ) : recommendedError ? (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs text-red-700">
+          <span className="flex items-center gap-2 font-medium">
+            <AlertCircle className="w-4 h-4 shrink-0" /> {recommendedError}
+          </span>
+          <button
+            type="button"
+            disabled={recommendedLoading}
+            onClick={() => loadRecommended(true)}
+            className="px-3 py-1.5 bg-white border border-red-200 rounded-xl font-bold text-red-800 hover:bg-red-100 transition inline-flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+          >
+            <RefreshCw className={`w-3 h-3 ${recommendedLoading ? 'animate-spin' : ''}`} /> Retry
+          </button>
+        </div>
+      ) : recommendedLoaded ? (
+        <>
+          <div>
+            <div className="flex justify-between items-center mb-3">
+              <div>
+                <h2 className="section-title">Trending in Your Area</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Top-selling products delivered in minutes</p>
+              </div>
+              <button onClick={() => go('browse')} className="text-brand-green text-xs font-extrabold hover:underline">Browse all products →</button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
+              {recommended.slice(0, 6).map(product => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  onAddToCart={onAddToCart}
+                  onToggleWishlist={onToggleWishlist}
+                  wishlist={wishlist}
+                />
+              ))}
             </div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
-            {recommended.slice(6, 12).map(product => (
-              <ProductCard 
-                key={product.id} 
-                product={product} 
-                onAddToCart={onAddToCart} 
-                onToggleWishlist={onToggleWishlist}
-                wishlist={wishlist}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-      
+
+          {/* Fresh Arrivals */}
+          {recommended.length > 6 && (
+            <div>
+              <div className="flex justify-between items-center mb-3">
+                <div>
+                  <h2 className="section-title">More From Local Kiranas</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">Authentic regional staples and fresh batches</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
+                {recommended.slice(6, 12).map(product => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    onAddToCart={onAddToCart}
+                    onToggleWishlist={onToggleWishlist}
+                    wishlist={wishlist}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      ) : null}
+
     </div>
   );
 }

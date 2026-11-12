@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useLocation, useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import './App.css';
 import FloatingCartBar from './components/FloatingCartBar';
 import CartView from './components/CartView';
@@ -9,7 +9,6 @@ import HomePage from './pages/HomePage';
 import BrowsePage from './pages/BrowsePage';
 import SearchPage from './pages/SearchPage';
 import ProductDetailPage from './pages/ProductDetailPage';
-import ProductPage from './pages/ProductPage';
 import WishlistPage from './pages/WishlistPage';
 import AddressModal from './components/AddressModal';
 import OrderStatusView from './components/OrderStatusView';
@@ -20,12 +19,11 @@ import ReviewsView from './components/ReviewsView';
 import HelpSupportView from './components/HelpSupportView';
 import PointsView from './components/PointsView';
 import AccountPage, { clearAccountCache } from './pages/AccountPage';
-import NotificationsPage from './pages/NotificationsPage';
 import ShopsPage from './pages/ShopsPage';
 import LoginPage from './pages/LoginPage';
 import CategoriesPage from './pages/CategoriesPage';
 import OffersPage from './pages/OffersPage';
-import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI, CustomerAPI, AuthAPI, RewardAPI, getCurrentUserId } from './services/api';
+import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI, CustomerAPI, RewardAPI, getCurrentUserId } from './services/api';
 import { api } from './api/api';
 
 export default function App() {
@@ -35,7 +33,7 @@ export default function App() {
   const setActiveTab = (tab) => navigate(`/${tab === 'home' ? '' : tab}`);
   const [points, setPoints] = useState(0);
   const [walletBalance, setWalletBalance] = useState(0);
-  
+
   // Authenticated user state
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -50,16 +48,37 @@ export default function App() {
   const currentUserId = currentUser?.id || mockUserId;
 
   const [storeCount, setStoreCount] = useState(48); // default mock, replaced by API
+  const isMountedRef = useRef(true);
+  const sellersCountFetchedRef = useRef(false);
+  const sellersCountInFlightRef = useRef(false);
 
   useEffect(() => {
-    api.get('/catalog/sellers').then(res => {
-      if (res.data?.success && res.data?.data) {
-        setStoreCount(res.data.data.length || 48);
-      }
-    }).catch(err => console.error("Failed to fetch stores in App", err));
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (sellersCountFetchedRef.current || sellersCountInFlightRef.current) return;
+    sellersCountInFlightRef.current = true;
+    api.get('/catalog/sellers')
+      .then(res => {
+        sellersCountFetchedRef.current = true;
+        if (isMountedRef.current && res.data?.success && res.data?.data) {
+          setStoreCount(res.data.data.length || 48);
+        }
+      })
+      .catch(err => {
+        sellersCountFetchedRef.current = false;
+        console.error("Failed to fetch stores in App", err);
+      })
+      .finally(() => {
+        sellersCountInFlightRef.current = false;
+      });
   }, []);
   const [unreadNotifications, setUnreadNotifications] = useState(() => {
-    if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') {
+    if (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test') {
       return 3;
     }
     return 0;
@@ -74,7 +93,7 @@ export default function App() {
   const [ordersList, setOrdersList] = useState([]);
   const [returnTargetOrder, setReturnTargetOrder] = useState(null);
   const [reviewTargetItem, setReviewTargetItem] = useState(null);
-  const [supportTargetOrder, setSupportTargetOrder] = useState(null);
+  const [supportTargetOrder] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
   const [validationIssues, setValidationIssues] = useState([]);
   const [wishlist, setWishlist] = useState([]);
@@ -96,35 +115,81 @@ export default function App() {
   // Clear selected address if user is unauthenticated
   useEffect(() => {
     if (!currentUser) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedAddress(null);
       try {
         localStorage.removeItem('adab_selected_address');
-      } catch (e) {}
+      } catch {
+        // ignore
+      }
     }
   }, [currentUser]);
 
   // Search autocomplete state from Day 1
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsLoaded, setSuggestionsLoaded] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const lastSuggestionQueryRef = useRef('');
+  const inFlightSuggestionQueryRef = useRef('');
+  const suggestionReqIdRef = useRef(0);
+
+  const fetchSuggestions = async (queryText, force = false) => {
+    const trimmed = (queryText || '').trim();
+    if (trimmed.length <= 1) {
+      lastSuggestionQueryRef.current = '';
+      inFlightSuggestionQueryRef.current = '';
+      setSuggestions([]);
+      setSuggestionsLoaded(false);
+      setSuggestionsError(null);
+      setSuggestionsLoading(false);
+      setShowSuggestions(false);
+      return;
+    }
+
+    if (!force && (lastSuggestionQueryRef.current === trimmed || inFlightSuggestionQueryRef.current === trimmed)) {
+      return;
+    }
+
+    const reqId = ++suggestionReqIdRef.current;
+    inFlightSuggestionQueryRef.current = trimmed;
+    lastSuggestionQueryRef.current = trimmed;
+    setSuggestionsLoading(true);
+    setSuggestionsError(null);
+    setShowSuggestions(true);
+
+    try {
+      const res = await api.get(`/catalog/search/suggestions?q=${encodeURIComponent(trimmed)}`);
+      if (!isMountedRef.current || reqId !== suggestionReqIdRef.current) return;
+      if (res.data?.success === false) {
+        throw new Error(res.data?.message || 'Could not load suggestions');
+      }
+      setSuggestions(res.data?.data || []);
+      setSuggestionsLoaded(true);
+    } catch (err) {
+      lastSuggestionQueryRef.current = '';
+      if (!isMountedRef.current || reqId !== suggestionReqIdRef.current) return;
+      console.error("Error fetching suggestions", err);
+      setSuggestions([]);
+      setSuggestionsLoaded(false);
+      setSuggestionsError('Could not load search suggestions.');
+    } finally {
+      if (inFlightSuggestionQueryRef.current === trimmed) {
+        inFlightSuggestionQueryRef.current = '';
+      }
+      if (isMountedRef.current && reqId === suggestionReqIdRef.current) {
+        setSuggestionsLoading(false);
+      }
+    }
+  };
 
   useEffect(() => {
-    const fetchSuggestions = async () => {
-      if (searchQuery.trim().length > 1) {
-        try {
-          const res = await api.get(`/catalog/search/suggestions?q=${encodeURIComponent(searchQuery)}`);
-          setSuggestions(res.data?.data || []);
-          setShowSuggestions(true);
-        } catch (err) {
-          console.error("Error fetching suggestions", err);
-        }
-      } else {
-        setSuggestions([]);
-        setShowSuggestions(false);
-      }
-    };
-
-    const timeoutId = setTimeout(fetchSuggestions, 300);
+    const trimmed = searchQuery.trim();
+    const timeoutId = setTimeout(() => {
+      fetchSuggestions(searchQuery);
+    }, trimmed.length > 1 ? 300 : 0);
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
 
@@ -168,7 +233,9 @@ export default function App() {
       setSelectedAddress(initialAddress);
       try {
         localStorage.setItem('adab_selected_address', JSON.stringify(initialAddress));
-      } catch (e) {}
+      } catch {
+        // ignore
+      }
     } else {
       try {
         const res = await CustomerAPI.getAddresses();
@@ -281,17 +348,48 @@ export default function App() {
     }
   };
 
+  const wishlistFetchedKeyRef = useRef('');
+  const wishlistInFlightKeyRef = useRef('');
+  const wishlistPendingRef = useRef(new Set());
+
+  const refreshWishlist = async (force = false) => {
+    const userKey = String(currentUserId || 'guest');
+    if (!force && (wishlistFetchedKeyRef.current === userKey || wishlistInFlightKeyRef.current === userKey)) {
+      return;
+    }
+    wishlistInFlightKeyRef.current = userKey;
+    try {
+      const res = await WishlistAPI.getWishlist(currentUserId);
+      if (res && (res.success || Array.isArray(res))) {
+        wishlistFetchedKeyRef.current = userKey;
+        const items = Array.isArray(res) ? res : (res.wishlist || res.data || []);
+        if (isMountedRef.current) {
+          setWishlist(items.map(item => typeof item === 'object' ? (item.listing_id || item.product_id || item.id) : item));
+        }
+      }
+    } catch (err) {
+      wishlistFetchedKeyRef.current = '';
+      console.warn('Could not fetch wishlist:', err.message);
+    } finally {
+      if (wishlistInFlightKeyRef.current === userKey) {
+        wishlistInFlightKeyRef.current = '';
+      }
+    }
+  };
+
   useEffect(() => {
     if (currentUser?.id) {
       refreshOrders();
       refreshNotifications();
       refreshCustomerStats();
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setOrdersList([]);
       setPoints(0);
       setWalletBalance(0);
       setUnreadNotifications(0);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id]);
 
   // Live polling for unread notifications every 10 seconds when authenticated
@@ -301,9 +399,11 @@ export default function App() {
       refreshNotifications();
     }, 10000);
     return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshCart();
     refreshWishlist();
     refreshOrders();
@@ -315,7 +415,7 @@ export default function App() {
       const storedUser = localStorage.getItem('adab_user');
       if (!currentUser && !storedUser) {
         setSelectedAddress(null);
-        try { localStorage.removeItem('adab_selected_address'); } catch (e) {}
+        try { localStorage.removeItem('adab_selected_address'); } catch { /* ignore */ }
         return;
       }
       try {
@@ -324,7 +424,7 @@ export default function App() {
           const defaultAddr = res.data.find((a) => a.is_default) || res.data[0];
           setSelectedAddress((prev) => {
             if (!prev) {
-              try { localStorage.setItem('adab_selected_address', JSON.stringify(defaultAddr)); } catch (e) {}
+              try { localStorage.setItem('adab_selected_address', JSON.stringify(defaultAddr)); } catch { /* ignore */ }
               return defaultAddr;
             }
             return prev;
@@ -335,6 +435,7 @@ export default function App() {
       }
     };
     loadInitialAddress();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Automatically refresh orders whenever user navigates to orders, orderhistory, or track
@@ -342,6 +443,7 @@ export default function App() {
     if (activeTab === 'orders' || activeTab === 'orderhistory' || activeTab === 'track') {
       refreshOrders();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   // Fetch complete order details whenever tracking tab is active
@@ -353,6 +455,7 @@ export default function App() {
         })
         .catch((e) => console.warn('Could not fetch active order items:', e));
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, activeOrder?.id]);
 
   const handleSelectAddress = (addr) => {
@@ -365,37 +468,35 @@ export default function App() {
     showToast(`✓ Delivering to ${addr.label || addr.type || 'Home'} (${addr.address_line ? addr.address_line.split(',')[0] : (addr.address ? addr.address.split(',')[0] : (addr.city || 'Surat'))})`);
   };
 
-  const refreshWishlist = async () => {
-    try {
-      const res = await WishlistAPI.getWishlist(currentUserId);
-      if (res && (res.success || Array.isArray(res))) {
-        const items = Array.isArray(res) ? res : (res.wishlist || res.data || []);
-        setWishlist(items.map(item => typeof item === 'object' ? (item.listing_id || item.product_id || item.id) : item));
-      }
-    } catch (err) {
-      console.warn('Could not fetch wishlist:', err.message);
-    }
-  };
-
   const handleToggleWishlist = async (listingId) => {
+    if (!listingId || wishlistPendingRef.current.has(listingId)) return;
+    wishlistPendingRef.current.add(listingId);
     try {
       const isWishlisted = wishlist.includes(listingId);
       if (isWishlisted) {
         await WishlistAPI.removeItem(currentUserId, listingId);
-        setWishlist(wishlist.filter(id => id !== listingId));
-        showToast(`Removed from wishlist`);
+        if (isMountedRef.current) {
+          setWishlist(prev => prev.filter(id => id !== listingId));
+          showToast(`Removed from wishlist`);
+        }
       } else {
         await WishlistAPI.addItem(currentUserId, listingId);
-        setWishlist([...wishlist, listingId]);
-        showToast(`Added to wishlist`);
+        if (isMountedRef.current) {
+          setWishlist(prev => (prev.includes(listingId) ? prev : [...prev, listingId]));
+          showToast(`Added to wishlist`);
+        }
       }
     } catch (err) {
       console.error('Error toggling wishlist:', err);
       showToast('Error updating wishlist');
+    } finally {
+      wishlistPendingRef.current.delete(listingId);
     }
   };
 
   const handleMoveToCart = async (listingId, productName) => {
+    if (!listingId || wishlistPendingRef.current.has(listingId)) return;
+    wishlistPendingRef.current.add(listingId);
     try {
       showToast(`Moving ${productName} to cart...`);
       try {
@@ -403,12 +504,16 @@ export default function App() {
       } catch {
         await CartAPI.addItem(listingId, 1);
       }
-      setWishlist(wishlist.filter(id => id !== listingId));
+      if (isMountedRef.current) {
+        setWishlist(prev => prev.filter(id => id !== listingId));
+      }
       await refreshCart();
       showToast(`Added ${productName} to cart!`);
     } catch (err) {
       console.error('Error adding to cart:', err);
       showToast(`Error: ${err.message}`);
+    } finally {
+      wishlistPendingRef.current.delete(listingId);
     }
   };
 
@@ -548,20 +653,6 @@ export default function App() {
     } catch (err) {
       showToast(`Error: ${err.message}`);
       throw err;
-    }
-  };
-
-  // Clear cart
-  const handleClearCart = async () => {
-    try {
-      setValidationIssues([]);
-      for (const item of cartData.items) {
-        await CartAPI.removeItem(item.cart_item_id || item.id);
-      }
-      await refreshCart();
-      showToast('Cart cleared');
-    } catch (err) {
-      showToast(`Error clearing cart: ${err.message}`);
     }
   };
 
@@ -955,23 +1046,40 @@ export default function App() {
               </div>
 
               {/* Suggestions Dropdown */}
-              {showSuggestions && suggestions.length > 0 && (
+              {showSuggestions && (suggestionsLoading || suggestionsError || (suggestionsLoaded && suggestions.length > 0)) && (
                 <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-gray-200 rounded-2xl shadow-xl z-50 overflow-hidden text-gray-800">
-                  {suggestions.map((suggestion, idx) => (
-                    <div
-                      key={idx}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        setSearchQuery(suggestion);
-                        setShowSuggestions(false);
-                        navigate(`/search?q=${encodeURIComponent(suggestion)}`);
-                      }}
-                      className="px-4 py-3 hover:bg-green-50 cursor-pointer text-sm font-semibold text-gray-700 flex items-center gap-3 transition-colors border-b border-gray-50 last:border-0"
-                    >
-                      <i className="fa-solid fa-magnifying-glass text-gray-400 text-xs"></i>
-                      <span>{suggestion}</span>
+                  {suggestionsLoading ? (
+                    <div className="px-4 py-3 text-sm text-gray-500 font-medium">Searching suggestions...</div>
+                  ) : suggestionsError ? (
+                    <div className="px-4 py-3 flex items-center justify-between gap-3 text-sm">
+                      <span className="text-red-600 font-medium">{suggestionsError}</span>
+                      <button
+                        type="button"
+                        disabled={suggestionsLoading}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => fetchSuggestions(searchQuery, true)}
+                        className="px-3 py-1 rounded-lg bg-[#18753C] text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                      >
+                        Retry
+                      </button>
                     </div>
-                  ))}
+                  ) : (
+                    suggestions.map((suggestion, idx) => (
+                      <div
+                        key={idx}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setSearchQuery(suggestion);
+                          setShowSuggestions(false);
+                          navigate(`/search?q=${encodeURIComponent(suggestion)}`);
+                        }}
+                        className="px-4 py-3 hover:bg-green-50 cursor-pointer text-sm font-semibold text-gray-700 flex items-center gap-3 transition-colors border-b border-gray-50 last:border-0"
+                      >
+                        <i className="fa-solid fa-magnifying-glass text-gray-400 text-xs"></i>
+                        <span>{suggestion}</span>
+                      </div>
+                    ))
+                  )}
                 </div>
               )}
             </form>
@@ -1070,8 +1178,8 @@ export default function App() {
 
         {/* Real Search Screen */}
         {activeTab === 'search' && (
-          <SearchPage 
-            onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)} 
+          <SearchPage
+            onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
             onToggleWishlist={handleToggleWishlist}
             wishlist={wishlist}
           />
@@ -1079,7 +1187,7 @@ export default function App() {
 
         {/* Product Detail Page */}
         {activeTab.startsWith('product/') && (
-          <ProductDetailPage 
+          <ProductDetailPage
             onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
             onToggleWishlist={handleToggleWishlist}
             wishlist={wishlist}
@@ -1146,8 +1254,8 @@ export default function App() {
 
         {/* Account Page */}
         {activeTab === 'account' && (
-          <AccountPage 
-            onNavigate={setActiveTab} 
+          <AccountPage
+            onNavigate={setActiveTab}
             currentUser={currentUser}
             onLogout={handleLogout}
             onOpenLogin={() => setActiveTab('login')}

@@ -5,7 +5,7 @@
 
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5002/api/v1';
+const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) || '/api/v1';
 
 // Get or initialize persistent session token for guest/logged-in cart
 export function getSessionToken() {
@@ -21,8 +21,8 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 // Dynamically extracts the authenticated user ID from localStorage or JWT
 export function getCurrentUserId() {
-  let userId = localStorage.getItem('userId') || 
-               localStorage.getItem('user_id') || 
+  let userId = localStorage.getItem('userId') ||
+               localStorage.getItem('user_id') ||
                localStorage.getItem('adab_user_id');
 
   if (!userId) {
@@ -39,9 +39,9 @@ export function getCurrentUserId() {
 
   // Fallback: decode JWT payload if present
   if (!userId) {
-    const token = localStorage.getItem('token') || 
-                  localStorage.getItem('access_token') || 
-                  localStorage.getItem('adab_token') || 
+    const token = localStorage.getItem('token') ||
+                  localStorage.getItem('access_token') ||
+                  localStorage.getItem('adab_token') ||
                   localStorage.getItem('jwt');
     if (token && token.includes('.')) {
       try {
@@ -70,9 +70,9 @@ export function getCurrentUserId() {
 // Dynamically prepares auth headers for live requests
 export function getAuthHeaders() {
   const token = localStorage.getItem('adab_auth_token') ||
-                localStorage.getItem('token') || 
-                localStorage.getItem('access_token') || 
-                localStorage.getItem('adab_token') || 
+                localStorage.getItem('token') ||
+                localStorage.getItem('access_token') ||
+                localStorage.getItem('adab_token') ||
                 localStorage.getItem('jwt');
 
   const userId = getCurrentUserId();
@@ -115,7 +115,7 @@ export async function apiRequest(endpoint, options = {}) {
     data: options.body ? (typeof options.body === 'string' ? JSON.parse(options.body) : options.body) : undefined,
   })
     .then((response) => {
-      return response.data; 
+      return response.data;
     })
     .catch((error) => {
       const err = new Error(error.response?.data?.message || error.message || 'API request failed');
@@ -251,6 +251,7 @@ export const OrderAPI = {
     const validId = userId && UUID_REGEX.test(userId) ? userId : null;
     return apiRequest(validId ? `/customers/me/orders?customer_id=${validId}` : '/customers/me/orders');
   },
+  getCustomerOrders: (userId) => OrderAPI.getOrders(userId),
   getOrderById: (orderId) => apiRequest(`/customers/me/orders/${orderId}`),
   cancelOrder: (orderId, reason = '') =>
     apiRequest(`/customers/me/orders/${orderId}/cancel`, {
@@ -293,13 +294,13 @@ export const ReturnAPI = {
 export const ReviewAPI = {
   getPendingReviews: () => apiRequest('/customers/me/reviews/pending'),
   createReview: (productId, reviewPayload) =>
-    apiRequest(`/products/${productId}/reviews`, {
+    apiRequest(`/catalog/products/${productId}/reviews`, {
       method: 'POST',
       body: JSON.stringify(reviewPayload)
     }),
   getProductReviews: (productId, params = {}) => {
     const query = new URLSearchParams(params).toString();
-    return apiRequest(`/products/${productId}/reviews${query ? `?${query}` : ''}`);
+    return apiRequest(`/catalog/products/${productId}/reviews${query ? `?${query}` : ''}`);
   },
   updateReview: (reviewId, payload) =>
     apiRequest(`/reviews/${reviewId}`, {
@@ -353,6 +354,71 @@ export const RewardAPI = {
     })
 };
 
+// Catalog Discovery, Search, Categories, Brands, Deals & Sellers APIs (Canonical Mahi Spec)
+export const CatalogAPI = {
+  getProducts: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/catalog/products${query ? `?${query}` : ''}`);
+  },
+  getProductById: (id) => apiRequest(`/catalog/products/${id}`),
+  getProductSellers: (id) => apiRequest(`/catalog/products/${id}/sellers`),
+  getRelatedProducts: (id) => apiRequest(`/catalog/products/${id}/related`),
+  getProductAvailability: (id) => apiRequest(`/catalog/products/${id}/availability`),
+  getProductVariants: (id) => apiRequest(`/catalog/products/${id}/variants`),
+  getProductPrice: (id) => apiRequest(`/catalog/products/${id}/price`),
+  getProductMedia: (id) => apiRequest(`/catalog/products/${id}/media`),
+  getProductSpecifications: (id) => apiRequest(`/catalog/products/${id}/specifications`),
+  getFrequentlyBoughtTogether: (id) => apiRequest(`/catalog/products/${id}/frequently-bought-together`),
+  searchProducts: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/catalog/search${query ? `?${query}` : ''}`);
+  },
+  getSearchSuggestions: (q = '') =>
+    apiRequest(`/catalog/search/suggestions?q=${encodeURIComponent(q)}`),
+  getSearchFilters: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/catalog/search/filters${query ? `?${query}` : ''}`);
+  },
+  getPopularSearches: () => apiRequest('/catalog/search/popular'),
+  recordSearchFeedback: (payload) =>
+    apiRequest('/catalog/search/feedback', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+  getFilters: () => apiRequest('/catalog/filters'),
+  getHome: () => apiRequest('/catalog/home'),
+  getRecommended: () => apiRequest('/catalog/recommended'),
+  getCategories: () => apiRequest('/catalog/categories'),
+  getCategoryTree: () => apiRequest('/catalog/categories/tree'),
+  getCategoryChildren: (id) => apiRequest(`/catalog/categories/${id}/children`),
+  getProductsByCategory: (slug, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/catalog/categories/${slug}/products${query ? `?${query}` : ''}`);
+  },
+  getBrands: () => apiRequest('/catalog/brands'),
+  getBrandProducts: (slug, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/catalog/brands/${slug}/products${query ? `?${query}` : ''}`);
+  },
+  getDeals: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/catalog/deals${query ? `?${query}` : ''}`);
+  },
+  getFeaturedDeals: () => apiRequest('/catalog/deals/featured'),
+  getDealCategories: () => apiRequest('/catalog/deals/categories'),
+  getDealById: (id) => apiRequest(`/catalog/deals/${id}`),
+  getPromotions: () => apiRequest('/catalog/promotions'),
+  getSellers: () => apiRequest('/catalog/sellers'),
+  getSellerById: (id) => apiRequest(`/catalog/sellers/${id}`),
+  getSellerProducts: (id, params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/catalog/sellers/${id}/products${query ? `?${query}` : ''}`);
+  },
+  getSellerSummary: (id) => apiRequest(`/catalog/sellers/${id}/summary`),
+  getSellerRatings: (id) => apiRequest(`/catalog/sellers/${id}/ratings`),
+  getSellerReviews: (id) => apiRequest(`/catalog/sellers/${id}/reviews`)
+};
+
 // Wishlist APIs (Canonical Mahi Spec - Dynamic auth, zero hardcoded IDs)
 export const WishlistAPI = {
   getWishlist: async () => {
@@ -364,7 +430,7 @@ export const WishlistAPI = {
         wishlist: Array.isArray(items) ? items.map(item => item.productId || item.id) : [],
         items: items
       };
-    } catch (err) {
+    } catch {
       return { success: false, wishlist: [], items: [] };
     }
   },
@@ -377,6 +443,16 @@ export const WishlistAPI = {
       body: JSON.stringify({ productId: listingId, listingId })
     });
   },
+  bulkAddItems: (productIds = []) =>
+    apiRequest('/customers/me/wishlist/items/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ productIds })
+    }),
+  bulkRemoveItems: (productIds = []) =>
+    apiRequest('/customers/me/wishlist/items/bulk', {
+      method: 'DELETE',
+      body: JSON.stringify({ productIds })
+    }),
   removeItem: (arg1, arg2) => {
     const listingId = arg2 !== undefined ? arg2 : arg1;
     return apiRequest(`/customers/me/wishlist/items/${listingId}`, {
@@ -391,7 +467,7 @@ export const WishlistAPI = {
   }
 };
 
-// Customer Profile & Address APIs (Day 3 Backend Task 4)
+// Customer Profile & Address APIs (Day 3 Backend Task 4 + Canonical Mahi Spec)
 export const CustomerAPI = {
   getProfile: () => apiRequest('/customers/me'),
   updateProfile: (profile) =>
@@ -399,12 +475,48 @@ export const CustomerAPI = {
       method: 'PATCH',
       body: JSON.stringify(profile)
     }),
+  uploadAvatar: (avatarUrl) =>
+    apiRequest('/customers/me/profile/avatar', {
+      method: 'POST',
+      body: JSON.stringify(typeof avatarUrl === 'string' ? { avatarUrl } : avatarUrl)
+    }),
+  getPreferences: () => apiRequest('/customers/me/preferences'),
+  updatePreferences: (preferences) =>
+    apiRequest('/customers/me/preferences', {
+      method: 'PATCH',
+      body: JSON.stringify(preferences)
+    }),
+  getSettings: () => apiRequest('/customers/me/settings'),
+  updateSettings: (settings) =>
+    apiRequest('/customers/me/settings', {
+      method: 'PATCH',
+      body: JSON.stringify(settings)
+    }),
+  getRecentlyViewed: () => apiRequest('/customers/me/recently-viewed'),
+  recordRecentlyViewed: (payload) =>
+    apiRequest('/customers/me/recently-viewed', {
+      method: 'POST',
+      body: JSON.stringify(typeof payload === 'string' ? { productId: payload } : payload)
+    }),
+  removeRecentlyViewed: (id) =>
+    apiRequest(`/customers/me/recently-viewed/${id}`, {
+      method: 'DELETE'
+    }),
   getAddresses: () => apiRequest('/customers/me/addresses'),
   addAddress: (addressData) =>
     apiRequest('/customers/me/addresses', {
       method: 'POST',
       body: JSON.stringify(addressData)
     }),
+  validateAddress: (addressData) =>
+    apiRequest('/customers/me/addresses/validate', {
+      method: 'POST',
+      body: JSON.stringify(addressData)
+    }),
+  checkAddressServiceability: (addressId) =>
+    apiRequest(`/customers/me/addresses/${addressId}/serviceability`),
+  getAddressMapPreview: (addressId) =>
+    apiRequest(`/customers/me/addresses/${addressId}/map-preview`),
   updateAddress: (addressId, addressData) =>
     apiRequest(`/customers/me/addresses/${addressId}`, {
       method: 'PATCH',

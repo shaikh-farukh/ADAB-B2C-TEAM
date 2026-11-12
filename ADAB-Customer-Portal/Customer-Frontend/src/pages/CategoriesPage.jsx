@@ -1,16 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/api';
 import ProductCard from '../components/ProductCard';
-import { 
-  Sparkles, 
-  ChevronRight, 
-  ArrowUpRight, 
+import {
+  AlertCircle,
+  Sparkles,
+  ChevronRight,
+  ArrowUpRight,
   SlidersHorizontal,
   Layers,
   PackageSearch,
-  CheckCircle2,
-  Store
+  RefreshCw
 } from 'lucide-react';
 
 // Visual Category Icons & Color Accents
@@ -34,75 +34,128 @@ export default function CategoriesPage({ onAddToCart, onToggleWishlist, wishlist
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [products, setProducts] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
+  const [categoriesError, setCategoriesError] = useState(null);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [productsLoaded, setProductsLoaded] = useState(false);
+  const [productsError, setProductsError] = useState(null);
 
-  // 1. Load Categories via Category Tree API (Mahi's API #20)
+  const isMountedRef = useRef(true);
+  const catsFetchedRef = useRef(false);
+  const catsInFlightRef = useRef(false);
+  const lastCatKeyRef = useRef(null);
+  const inFlightCatKeyRef = useRef(null);
+  const productsReqIdRef = useRef(0);
+
   useEffect(() => {
-    let isCurrent = true;
-    api.get('/catalog/categories/tree')
-      .then(res => {
-        if (!isCurrent) return;
-        const list = res.data?.data || res.data || [];
-        setCategories(list);
-        if (list.length > 0) {
-          const requestedSlug = searchParams.get('category') || searchParams.get('slug');
-          const matched = list.find(c => c.slug === requestedSlug || String(c.id) === requestedSlug);
-          setSelectedCategory(matched || list.find(c => c.slug === 'snacks-packaged-food') || list[0]);
-        }
-      })
-      .catch(() => {
-        // Fallback to flat categories if tree fails
-        return api.get('/catalog/categories').then(flatRes => {
-          if (!isCurrent) return;
-          const flatList = flatRes.data?.data || flatRes.data || [];
-          setCategories(flatList);
-          if (flatList.length > 0) {
-            setSelectedCategory(flatList.find(c => c.slug === 'snacks-packaged-food') || flatList[0]);
-          }
-        });
-      })
-      .finally(() => {
-        if (isCurrent) setLoadingCategories(false);
-      });
-
-    return () => { isCurrent = false; };
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
-  // 2. Fetch products whenever selected category changes
+  // 1. Load Categories via Category Tree API (Mahi's API #20) - once on mount (StrictMode safe)
+  const fetchCategories = useCallback(async (force = false) => {
+    if (catsInFlightRef.current) return;
+    if (!force && catsFetchedRef.current) return;
+    catsFetchedRef.current = true;
+    catsInFlightRef.current = true;
+    if (force) {
+      setLoadingCategories(true);
+      setCategoriesError(null);
+    }
+    try {
+      let list = [];
+      try {
+        const res = await api.get('/catalog/categories/tree');
+        const raw = res.data?.data ?? res.data;
+        list = Array.isArray(raw) ? raw : [];
+      } catch {
+        const flatRes = await api.get('/catalog/categories');
+        const flatRaw = flatRes.data?.data ?? flatRes.data;
+        list = Array.isArray(flatRaw) ? flatRaw : [];
+      }
+      if (!isMountedRef.current) return;
+      setCategories(list);
+      setCategoriesLoaded(true);
+      setCategoriesError(null);
+      if (list.length > 0) {
+        const requestedSlug = searchParams.get('category') || searchParams.get('slug');
+        const matched = list.find(c => c.slug === requestedSlug || String(c.id) === requestedSlug);
+        setSelectedCategory(prev => prev || matched || list.find(c => c.slug === 'snacks-packaged-food') || list[0]);
+      }
+    } catch (err) {
+      catsFetchedRef.current = false;
+      if (!isMountedRef.current) return;
+      console.error('Error fetching categories:', err);
+      setCategoriesError(err.response?.data?.message || 'Unable to load departments. Please try again.');
+    } finally {
+      catsInFlightRef.current = false;
+      if (isMountedRef.current) setLoadingCategories(false);
+    }
+  }, [searchParams]);
+
   useEffect(() => {
-    if (!selectedCategory) return;
-    let isCurrent = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchCategories(false);
+  }, [fetchCategories]);
+
+  // 2. Fetch products whenever selected category changes (StrictMode safe)
+  const fetchCategoryProducts = useCallback(async (cat, force = false) => {
+    if (!cat) return;
+    const catKey = String(cat.slug || cat.id);
+    if (!force && inFlightCatKeyRef.current === catKey) return;
+    if (!force && lastCatKeyRef.current === catKey) return;
+
+    lastCatKeyRef.current = catKey;
+    inFlightCatKeyRef.current = catKey;
+    const reqId = ++productsReqIdRef.current;
+
     setLoadingProducts(true);
+    setProductsError(null);
 
-    // Use Mahi's canonical endpoint: /catalog/categories/:slug/products
-    api.get(`/catalog/categories/${selectedCategory.slug}/products`)
-      .then(res => {
-        if (!isCurrent) return;
-        let prods = res.data?.data || res.data || [];
-        if (!Array.isArray(prods) || prods.length === 0) {
-          // Fallback search by category id
-          return api.get(`/catalog/search?category=${selectedCategory.id}&limit=24`)
-            .then(fallbackRes => {
-              if (!isCurrent) return;
-              setProducts(fallbackRes.data?.data || []);
-            });
-        } else {
-          setProducts(prods);
-        }
-      })
-      .catch(err => {
-        if (!isCurrent) return;
-        console.error('Error fetching category products:', err);
-        setProducts([]);
-      })
-      .finally(() => {
-        if (isCurrent) setLoadingProducts(false);
-      });
+    try {
+      const res = await api.get(`/catalog/categories/${cat.slug}/products`);
+      if (!isMountedRef.current || reqId !== productsReqIdRef.current) return;
+      const prods = res.data?.data ?? res.data;
+      if (!Array.isArray(prods) || prods.length === 0) {
+        const fallbackRes = await api.get(`/catalog/search?category=${cat.id}&limit=24`);
+        if (!isMountedRef.current || reqId !== productsReqIdRef.current) return;
+        setProducts(Array.isArray(fallbackRes.data?.data) ? fallbackRes.data.data : []);
+      } else {
+        setProducts(prods);
+      }
+      setProductsLoaded(true);
+      setProductsError(null);
+    } catch (err) {
+      if (lastCatKeyRef.current === catKey) {
+        lastCatKeyRef.current = null;
+      }
+      if (!isMountedRef.current || reqId !== productsReqIdRef.current) return;
+      console.error('Error fetching category products:', err);
+      setProducts([]);
+      setProductsError(err.response?.data?.message || 'Unable to load products for this department.');
+    } finally {
+      if (inFlightCatKeyRef.current === catKey) {
+        inFlightCatKeyRef.current = null;
+      }
+      if (isMountedRef.current && reqId === productsReqIdRef.current) {
+        setLoadingProducts(false);
+      }
+    }
+  }, []);
 
-    return () => { isCurrent = false; };
-  }, [selectedCategory]);
+  useEffect(() => {
+    if (selectedCategory) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchCategoryProducts(selectedCategory, false);
+    }
+  }, [selectedCategory, fetchCategoryProducts]);
 
   const handleSelectCategory = (cat) => {
+    if (loadingProducts && selectedCategory?.id === cat.id) return;
+    if (selectedCategory?.id === cat.id) return;
+    setProductsLoaded(false);
     setSelectedCategory(cat);
     setSearchParams({ category: cat.slug });
   };
@@ -130,7 +183,9 @@ export default function CategoriesPage({ onAddToCart, onToggleWishlist, wishlist
             Shop by Category
           </h1>
           <p className="text-xs sm:text-sm text-emerald-100 mt-1 font-medium leading-relaxed">
-            Browse through {categories.length} departments across Surat stores. Pick a department to see live products with express 14–45 minute delivery.
+            {categoriesLoaded
+              ? `Browse through ${categories.length} departments across Surat stores. Pick a department to see live products with express 14–45 minute delivery.`
+              : 'Loading departments across Surat stores with express 14–45 minute delivery.'}
           </p>
         </div>
       </div>
@@ -142,7 +197,7 @@ export default function CategoriesPage({ onAddToCart, onToggleWishlist, wishlist
           <div className="px-3 py-2 flex items-center justify-between border-b border-gray-100 mb-2">
             <span className="text-xs font-black uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
               <Layers className="w-3.5 h-3.5 text-emerald-600" />
-              Departments ({categories.length})
+              Departments {categoriesLoaded ? `(${categories.length})` : ''}
             </span>
           </div>
 
@@ -153,15 +208,32 @@ export default function CategoriesPage({ onAddToCart, onToggleWishlist, wishlist
                   <div key={n} className="h-12 bg-gray-100 rounded-2xl animate-pulse"></div>
                 ))}
               </div>
-            ) : (
+            ) : categoriesError ? (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-700 space-y-2">
+                <div className="flex items-center gap-1.5 font-medium">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{categoriesError}</span>
+                </div>
+                <button
+                  type="button"
+                  disabled={loadingCategories}
+                  onClick={() => fetchCategories(true)}
+                  className="px-3 py-1.5 bg-white border border-red-200 rounded-xl font-bold text-red-800 hover:bg-red-100 inline-flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <RefreshCw className={`w-3 h-3 ${loadingCategories ? 'animate-spin' : ''}`} /> Retry
+                </button>
+              </div>
+            ) : categoriesLoaded ? (
               categories.map(cat => {
                 const isSelected = selectedCategory?.id === cat.id;
                 const meta = CATEGORY_STYLES[cat.slug] || { icon: '🏷️' };
                 return (
                   <button
                     key={cat.id}
+                    type="button"
+                    disabled={loadingProducts && isSelected}
                     onClick={() => handleSelectCategory(cat)}
-                    className={`w-full text-left px-3.5 py-3 rounded-2xl font-bold text-xs flex items-center justify-between transition-all cursor-pointer ${
+                    className={`w-full text-left px-3.5 py-3 rounded-2xl font-bold text-xs flex items-center justify-between transition-all cursor-pointer disabled:cursor-not-allowed ${
                       isSelected
                         ? 'bg-emerald-700 text-white shadow-md shadow-emerald-700/20 translate-x-1'
                         : 'text-gray-700 hover:bg-gray-100/80 hover:text-gray-900'
@@ -175,13 +247,13 @@ export default function CategoriesPage({ onAddToCart, onToggleWishlist, wishlist
                   </button>
                 );
               })
-            )}
+            ) : null}
           </div>
         </aside>
 
         {/* Right Column: Selected Department Details, Dynamic Filters & Live Products */}
         <section className="md:col-span-8 lg:col-span-9 space-y-5">
-          {selectedCategory && (
+          {categoriesLoaded && !categoriesError && selectedCategory && (
             <>
               {/* Department Header Card */}
               <div className="bg-white border border-gray-200/80 rounded-3xl p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -199,7 +271,9 @@ export default function CategoriesPage({ onAddToCart, onToggleWishlist, wishlist
                       </span>
                     </div>
                     <p className="text-xs text-gray-500 font-medium mt-0.5">
-                      Showing {products.length} live products from neighbourhood shops
+                      {productsLoaded && !productsError
+                        ? `Showing ${products.length} live products from neighbourhood shops`
+                        : 'Loading products from neighbourhood shops...'}
                     </p>
                   </div>
                 </div>
@@ -216,7 +290,7 @@ export default function CategoriesPage({ onAddToCart, onToggleWishlist, wishlist
                 </button>
               </div>
 
-              {/* Products Grid */}
+              {/* Products Grid (hidden until loaded) */}
               <div>
                 {loadingProducts ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -228,7 +302,23 @@ export default function CategoriesPage({ onAddToCart, onToggleWishlist, wishlist
                       </div>
                     ))}
                   </div>
-                ) : products.length === 0 ? (
+                ) : productsError ? (
+                  <div className="bg-white border border-red-100 rounded-3xl p-8 text-center space-y-3 shadow-xs">
+                    <div className="w-12 h-12 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto">
+                      <AlertCircle className="w-6 h-6" />
+                    </div>
+                    <h3 className="font-extrabold text-base text-gray-900">Failed to Load Department Products</h3>
+                    <p className="text-xs text-gray-500 max-w-md mx-auto">{productsError}</p>
+                    <button
+                      type="button"
+                      disabled={loadingProducts}
+                      onClick={() => fetchCategoryProducts(selectedCategory, true)}
+                      className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${loadingProducts ? 'animate-spin' : ''}`} /> Retry
+                    </button>
+                  </div>
+                ) : productsLoaded && products.length === 0 ? (
                   <div className="bg-white border border-gray-200/80 rounded-3xl p-10 text-center space-y-3 shadow-xs">
                     <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center text-2xl mx-auto">
                       <PackageSearch className="w-8 h-8" />
@@ -259,7 +349,7 @@ export default function CategoriesPage({ onAddToCart, onToggleWishlist, wishlist
                       </button>
                     </div>
                   </div>
-                ) : (
+                ) : productsLoaded ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                     {products.map(prod => (
                       <ProductCard
@@ -271,7 +361,7 @@ export default function CategoriesPage({ onAddToCart, onToggleWishlist, wishlist
                       />
                     ))}
                   </div>
-                )}
+                ) : null}
               </div>
             </>
           )}

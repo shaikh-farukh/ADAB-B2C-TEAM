@@ -3,6 +3,30 @@ const { smartGeocode } = require('./geocodingService');
 const cartService = require('./cartService');
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ELIGIBLE_LISTING_STATUS_SQL = `(sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)`;
+
+function isValidUuid(value) {
+  return typeof value === 'string' && UUID_REGEX.test(value.trim());
+}
+
+function createHttpError(statusCode, message) {
+  const err = new Error(message);
+  err.status = statusCode;
+  err.statusCode = statusCode;
+  return err;
+}
+
+async function assertValidListingId(listingId) {
+  const normalized = typeof listingId === 'string' ? listingId.trim() : '';
+  if (!isValidUuid(normalized)) {
+    throw createHttpError(400, 'Valid product listing UUID is required');
+  }
+  const res = await pool.query(`SELECT id FROM seller_listings WHERE id = $1 LIMIT 1`, [normalized]);
+  if (res.rows.length === 0) {
+    throw createHttpError(404, 'Product listing not found');
+  }
+  return normalized;
+}
 
 // In-memory store for recently viewed listings per customer
 const recentlyViewedStore = new Map();
@@ -12,21 +36,25 @@ const recentlyViewedStore = new Map();
  * to a valid, persistent user UUID in the users table
  */
 async function resolveCustomerUserId(identifier) {
+  // Unauthenticated requests with no identifier must NEVER resolve to another customer
+  if (!identifier || typeof identifier !== 'string' || !identifier.trim()) {
+    return null;
+  }
+  const cleanId = identifier.trim();
+
   // 1. If valid UUID, check if user exists
-  if (identifier && UUID_REGEX.test(identifier)) {
-    const res = await pool.query(`SELECT id FROM users WHERE id = $1 LIMIT 1`, [identifier]);
+  if (UUID_REGEX.test(cleanId)) {
+    const res = await pool.query(`SELECT id FROM users WHERE id = $1 LIMIT 1`, [cleanId]);
     if (res.rows.length > 0) return res.rows[0].id;
   }
 
   // 2. Check if a cart with this session_token has a customer_id
-  if (identifier && typeof identifier === 'string') {
-    const cartRes = await pool.query(
-      `SELECT customer_id FROM carts WHERE session_token = $1 AND customer_id IS NOT NULL LIMIT 1`,
-      [identifier]
-    );
-    if (cartRes.rows.length > 0 && cartRes.rows[0].customer_id) {
-      return cartRes.rows[0].customer_id;
-    }
+  const cartRes = await pool.query(
+    `SELECT customer_id FROM carts WHERE session_token = $1 AND customer_id IS NOT NULL LIMIT 1`,
+    [cleanId]
+  );
+  if (cartRes.rows.length > 0 && cartRes.rows[0].customer_id) {
+    return cartRes.rows[0].customer_id;
   }
 
   // 3. Fallback to active default customer in the database
@@ -57,11 +85,11 @@ exports.getProfile = async (rawUserId) => {
   if (!userId) return null;
 
   const res = await pool.query(`
-    SELECT 
-      c.id, 
+    SELECT
+      c.id,
       c.user_id as "userId",
-      u.email, 
-      u.full_name as name, 
+      u.email,
+      u.full_name as name,
       u.phone,
       c.preferred_language as "preferredLanguage",
       c.loyalty_tier as "loyaltyTier",
@@ -131,9 +159,9 @@ exports.updateProfile = async (rawUserId, body) => {
 
   if (body.name || body.phone || body.email) {
     await pool.query(`
-      UPDATE users 
-      SET full_name = COALESCE($1, full_name), 
-          phone = COALESCE($2, phone), 
+      UPDATE users
+      SET full_name = COALESCE($1, full_name),
+          phone = COALESCE($2, phone),
           email = COALESCE($3, email),
           updated_at = NOW()
       WHERE id = $4
@@ -168,7 +196,7 @@ exports.updateProfile = async (rawUserId, body) => {
 exports.uploadAvatar = async (rawUserId, body) => {
   const userId = await resolveCustomerUserId(rawUserId);
   const avatarUrl = body.avatarUrl || body.imageUrl || body.url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=80';
-  
+
   await pool.query(`
     INSERT INTO customer_profiles (id, user_id, preferred_language, loyalty_tier, profile_picture_url, created_at, updated_at)
     VALUES (gen_random_uuid(), $1, 'en', 'BRONZE', $2, NOW(), NOW())
@@ -203,8 +231,8 @@ exports.updatePreferences = async (rawUserId, body) => {
   const userId = await resolveCustomerUserId(rawUserId);
   if (body.preferredLanguage) {
     await pool.query(`
-      UPDATE customer_profiles 
-      SET preferred_language = $1, updated_at = NOW() 
+      UPDATE customer_profiles
+      SET preferred_language = $1, updated_at = NOW()
       WHERE user_id = $2
     `, [body.preferredLanguage, userId]);
   }
@@ -307,7 +335,7 @@ exports.getRecentlyViewed = async (rawUserId) => {
       LEFT JOIN LATERAL (
         SELECT image_url FROM product_images WHERE product_id = sl.id LIMIT 1
       ) pi ON true
-      WHERE sl.is_active = true AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+      WHERE sl.is_active = true AND ${ELIGIBLE_LISTING_STATUS_SQL}
       LIMIT 4
     `);
     return fallback.rows.map(r => ({
@@ -319,6 +347,9 @@ exports.getRecentlyViewed = async (rawUserId) => {
     }));
   }
 
+  const validList = list.map(String).filter(isValidUuid);
+  if (validList.length === 0) return [];
+
   const res = await pool.query(`
     SELECT sl.id, sl.title as name, sl.sell_price as price, sl.mrp, sl.stock_qty,
            COALESCE(pi.image_url, '/product_images/' || LOWER(TRIM(sl.title)) || '.jpeg', 'https://via.placeholder.com/150') as image
@@ -326,8 +357,10 @@ exports.getRecentlyViewed = async (rawUserId) => {
     LEFT JOIN LATERAL (
       SELECT image_url FROM product_images WHERE product_id = sl.id LIMIT 1
     ) pi ON true
-    WHERE sl.id = ANY($1)
-  `, [list]);
+    WHERE sl.id = ANY($1::uuid[])
+      AND sl.is_active = true
+      AND ${ELIGIBLE_LISTING_STATUS_SQL}
+  `, [validList]);
 
   return res.rows.map(r => ({
     ...r,
@@ -377,19 +410,19 @@ exports.getAddresses = async (rawUserId) => {
 
   // Query both customer_addresses and addresses tables
   const caRes = await pool.query(
-    `SELECT 
+    `SELECT
       id, customer_id AS user_id, label, recipient_name, phone, address_line, landmark, city, pincode, is_default, created_at, 'Gujarat' AS state
-     FROM customer_addresses 
-     WHERE customer_id = $1 
+     FROM customer_addresses
+     WHERE customer_id = $1
      ORDER BY is_default DESC, created_at DESC`,
     [userId]
   );
 
   const aRes = await pool.query(
-    `SELECT 
+    `SELECT
       id, user_id, label, recipient_name, phone, address_line, landmark, city, state, pincode, latitude, longitude, is_default, created_at
-     FROM addresses 
-     WHERE user_id = $1 
+     FROM addresses
+     WHERE user_id = $1
      ORDER BY is_default DESC, created_at DESC`,
     [userId]
   );
@@ -581,6 +614,7 @@ exports.addAddress = async (rawUserId, body) => {
  * Update address
  */
 exports.updateAddress = async (rawUserId, id, body) => {
+  if (!isValidUuid(String(id || ''))) throw createHttpError(400, 'Invalid address ID');
   const userId = await resolveCustomerUserId(rawUserId);
   if (!userId) throw new Error('Customer ID required');
 
@@ -669,6 +703,7 @@ exports.updateAddress = async (rawUserId, id, body) => {
  * Delete address
  */
 exports.deleteAddress = async (rawUserId, id) => {
+  if (!isValidUuid(String(id || ''))) throw createHttpError(400, 'Invalid address ID');
   const userId = await resolveCustomerUserId(rawUserId);
   await pool.query(`DELETE FROM customer_addresses WHERE id = $1 AND customer_id = $2`, [id, userId]);
   await pool.query(`DELETE FROM addresses WHERE id = $1 AND user_id = $2`, [id, userId]);
@@ -685,7 +720,7 @@ exports.checkAddressServiceability = async (userId, id) => {
     const res = await pool.query(`SELECT id, pincode, city, state FROM addresses WHERE id = $1`, [id]);
     if (res.rows.length > 0) addr = res.rows[0];
   }
-  
+
   if (!addr) {
     const fallbackRes = await pool.query(`SELECT id, pincode, city, state FROM addresses WHERE user_id = $1 ORDER BY is_default DESC LIMIT 1`, [userId]);
     if (fallbackRes.rows.length > 0) addr = fallbackRes.rows[0];
@@ -708,9 +743,19 @@ exports.checkAddressServiceability = async (userId, id) => {
  * Map preview data for address
  */
 exports.getAddressMapPreview = async (userId, id) => {
+  if (!isValidUuid(String(id || ''))) {
+    return {
+      addressId: id,
+      latitude: 21.1702,
+      longitude: 72.8311,
+      zoomLevel: 15,
+      mapTileUrl: 'https://maps.googleapis.com/maps/api/staticmap?center=21.1702,72.8311&zoom=15&size=600x300',
+      label: 'Default Area'
+    };
+  }
   const res = await pool.query(`
     SELECT id, address_line, city, state, pincode, latitude, longitude
-    FROM addresses 
+    FROM addresses
     WHERE id = $1
   `, [id]);
 
@@ -767,11 +812,13 @@ async function getOrCreateWishlistId(userId) {
   const existing = await pool.query(`SELECT id FROM wishlists WHERE user_id = $1 LIMIT 1`, [userId]);
   if (existing.rows.length > 0) return existing.rows[0].id;
 
-  const res = await pool.query(`
-    INSERT INTO wishlists (id, user_id, name, is_public, created_at, updated_at)
-    VALUES (gen_random_uuid(), $1, 'My Wishlist', false, NOW(), NOW())
-    RETURNING id
-  `, [userId]);
+  await pool.query(
+    `INSERT INTO wishlists (id, user_id, created_at)
+     VALUES (gen_random_uuid(), $1, NOW())
+     ON CONFLICT (user_id) DO NOTHING`,
+    [userId]
+  );
+  const res = await pool.query(`SELECT id FROM wishlists WHERE user_id = $1 LIMIT 1`, [userId]);
   return res.rows[0].id;
 }
 
@@ -786,7 +833,7 @@ exports.getWishlist = async (rawUserId) => {
   const wishlistId = await getOrCreateWishlistId(userId);
 
   const res = await pool.query(`
-    SELECT 
+    SELECT
       wi.id,
       wi.id as item_id,
       wi.listing_id,
@@ -832,14 +879,25 @@ exports.getWishlistCount = async (rawUserId) => {
  * 22. GET /api/v1/customers/me/wishlist/items/:id
  * Single wishlist item
  */
-exports.getWishlistItemById = async (id) => {
+exports.getWishlistItemById = async (rawUserId, maybeId) => {
+  const id = maybeId !== undefined ? maybeId : rawUserId;
+  const userId = maybeId !== undefined && rawUserId ? await resolveCustomerUserId(rawUserId) : null;
+  const params = [String(id)];
+  let wishlistClause = '';
+
+  if (userId) {
+    const wishlistId = await getOrCreateWishlistId(userId);
+    params.push(wishlistId);
+    wishlistClause = ` AND wi.wishlist_id = $${params.length}`;
+  }
+
   const res = await pool.query(`
     SELECT wi.*, sl.title, sl.sell_price as price, sl.mrp, sl.stock_qty
     FROM wishlist_items wi
     JOIN seller_listings sl ON wi.listing_id = sl.id
-    WHERE wi.id::text = $1 OR wi.listing_id::text = $1
+    WHERE (wi.id::text = $1 OR wi.listing_id::text = $1)${wishlistClause}
     LIMIT 1
-  `, [String(id)]);
+  `, params);
 
   if (res.rows.length === 0) return null;
   return {
@@ -857,9 +915,9 @@ exports.getWishlistItemById = async (id) => {
 exports.addWishlistItem = async (rawUserId, body) => {
   const userId = await resolveCustomerUserId(rawUserId);
   const wishlistId = await getOrCreateWishlistId(userId);
-  const productId = body.productId || body.listingId || body.id;
-
-  if (!productId) throw new Error('Product ID required');
+  const rawProductId = body.productId || body.listingId || body.id;
+  if (!rawProductId) throw createHttpError(400, 'Product ID required');
+  const productId = await assertValidListingId(String(rawProductId));
 
   const existing = await pool.query(`
     SELECT id FROM wishlist_items WHERE wishlist_id = $1 AND listing_id = $2
@@ -874,7 +932,7 @@ exports.addWishlistItem = async (rawUserId, body) => {
     VALUES (gen_random_uuid(), $1, $2, NOW())
     RETURNING id
   `, [wishlistId, productId]);
-  
+
   return { id: res.rows[0].id, productId };
 };
 
@@ -882,12 +940,14 @@ exports.addWishlistItem = async (rawUserId, body) => {
  * 24. POST /api/v1/customers/me/wishlist/items/bulk
  * Bulk add items to wishlist
  */
-exports.bulkAddWishlistItems = async (userId, body) => {
+exports.bulkAddWishlistItems = async (rawUserId, body) => {
+  const userId = await resolveCustomerUserId(rawUserId);
   const wishlistId = await getOrCreateWishlistId(userId);
   const productIds = (body.listingIds || body.listing_ids || body.items || body.productIds || []).filter(Boolean);
   const added = [];
 
-  for (const pid of productIds) {
+  for (const rawPid of productIds) {
+    const pid = await assertValidListingId(String(rawPid));
     const existing = await pool.query(`
       SELECT id FROM wishlist_items WHERE wishlist_id = $1 AND listing_id = $2
     `, [wishlistId, pid]);
@@ -909,8 +969,18 @@ exports.bulkAddWishlistItems = async (userId, body) => {
  * 25. DELETE /api/v1/customers/me/wishlist/items/:id
  * Remove single item from wishlist
  */
-exports.removeWishlistItem = async (id) => {
-  await pool.query(`DELETE FROM wishlist_items WHERE id::text = $1 OR listing_id::text = $1`, [String(id)]);
+exports.removeWishlistItem = async (rawUserId, maybeId) => {
+  const id = maybeId !== undefined ? maybeId : rawUserId;
+  const userId = maybeId !== undefined && rawUserId ? await resolveCustomerUserId(rawUserId) : null;
+  if (userId) {
+    const wishlistId = await getOrCreateWishlistId(userId);
+    await pool.query(
+      `DELETE FROM wishlist_items WHERE wishlist_id = $1 AND (id::text = $2 OR listing_id::text = $2)`,
+      [wishlistId, String(id)]
+    );
+  } else {
+    await pool.query(`DELETE FROM wishlist_items WHERE id::text = $1 OR listing_id::text = $1`, [String(id)]);
+  }
   return true;
 };
 
@@ -918,13 +988,14 @@ exports.removeWishlistItem = async (id) => {
  * 26. DELETE /api/v1/customers/me/wishlist/items/bulk
  * Bulk remove items from wishlist
  */
-exports.bulkRemoveWishlistItems = async (userId, body) => {
+exports.bulkRemoveWishlistItems = async (rawUserId, body) => {
+  const userId = await resolveCustomerUserId(rawUserId);
   const wishlistId = await getOrCreateWishlistId(userId);
   const ids = (body.itemIds || body.item_ids || body.listingIds || body.productIds || body.items || []).filter(Boolean);
 
   if (ids.length > 0) {
     await pool.query(`
-      DELETE FROM wishlist_items 
+      DELETE FROM wishlist_items
       WHERE wishlist_id = $1 AND (id::text = ANY($2::text[]) OR listing_id::text = ANY($2::text[]))
     `, [wishlistId, ids.map(String)]);
   }
@@ -936,14 +1007,22 @@ exports.bulkRemoveWishlistItems = async (userId, body) => {
  * 27. POST /api/v1/customers/me/wishlist/items/:id/move-to-cart
  * Move item from wishlist to active cart
  */
-exports.moveWishlistItemToCart = async (userId, id) => {
-  const res = await pool.query(`SELECT listing_id FROM wishlist_items WHERE id::text = $1 OR listing_id::text = $1`, [String(id)]);
-  const listingId = res.rows[0]?.listing_id || id;
+exports.moveWishlistItemToCart = async (rawUserId, id) => {
+  const userId = await resolveCustomerUserId(rawUserId);
+  const wishlistId = await getOrCreateWishlistId(userId);
+  const res = await pool.query(
+    `SELECT listing_id FROM wishlist_items WHERE wishlist_id = $1 AND (id::text = $2 OR listing_id::text = $2) LIMIT 1`,
+    [wishlistId, String(id)]
+  );
+  const listingId = await assertValidListingId(String(res.rows[0]?.listing_id || id));
 
   const cart = await cartService.getOrCreateCart({ customerId: userId });
   await cartService.addItemToCart(cart.id, listingId, 1);
 
-  await pool.query(`DELETE FROM wishlist_items WHERE id::text = $1 OR listing_id::text = $1`, [String(id)]);
+  await pool.query(
+    `DELETE FROM wishlist_items WHERE wishlist_id = $1 AND (id::text = $2 OR listing_id::text = $2)`,
+    [wishlistId, String(id)]
+  );
   return { success: true, message: 'Item moved to cart' };
 };
 
@@ -964,7 +1043,7 @@ exports.addPaymentMethod = async (rawUserId, body) => {
   const userId = await resolveCustomerUserId(rawUserId);
   const { method_type, provider, token_reference, last4, expiry_month, expiry_year, is_default } = body;
 
-  if (isDefault) {
+  if (is_default) {
     await pool.query(`UPDATE payment_methods SET is_default = false WHERE user_id = $1`, [userId]);
   }
 
@@ -978,6 +1057,7 @@ exports.addPaymentMethod = async (rawUserId, body) => {
 };
 
 exports.deletePaymentMethod = async (rawUserId, id) => {
+  if (!isValidUuid(String(id || ''))) throw createHttpError(400, 'Invalid payment method ID');
   const userId = await resolveCustomerUserId(rawUserId);
   await pool.query(`DELETE FROM payment_methods WHERE id = $1 AND user_id = $2`, [id, userId]);
   return true;
@@ -997,7 +1077,7 @@ exports.getWallet = async (rawUserId) => {
   }
 
   const res = await pool.query(
-    `SELECT id, customer_id, balance, currency, bnpl_limit, bnpl_available, bnpl_due_date
+    `SELECT id, customer_id, balance
      FROM customer_wallets
      WHERE customer_id = $1`,
     [userId]
@@ -1018,10 +1098,10 @@ exports.getWallet = async (rawUserId) => {
   return {
     wallet_id: row.id,
     balance: Number(row.balance || 0),
-    currency: row.currency || 'INR',
-    bnpl_limit: Number(row.bnpl_limit || 0),
-    bnpl_available: Number(row.bnpl_available || 0),
-    bnpl_due_date: row.bnpl_due_date ? new Date(row.bnpl_due_date).toLocaleDateString('en-GB') : 'N/A'
+    currency: 'INR',
+    bnpl_limit: 0,
+    bnpl_available: 0,
+    bnpl_due_date: 'N/A'
   };
 };
 
@@ -1055,6 +1135,7 @@ exports.getUnreadNotificationCount = async (rawUserId) => {
 };
 
 exports.markNotificationRead = async (rawUserId, notificationId) => {
+  if (!isValidUuid(String(notificationId || ''))) throw createHttpError(400, 'Invalid notification ID');
   const userId = await resolveCustomerUserId(rawUserId);
   const res = await pool.query(
     `UPDATE notifications

@@ -1,15 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api/api';
-import { ShoppingCart, Star, ChevronRight, ArrowLeft, ShieldCheck, Truck, RotateCcw, Award, CheckCircle2, ChevronDown, ChevronUp, Store } from 'lucide-react';
+import { ShoppingCart, Star, ChevronRight, ArrowLeft, ShieldCheck, Truck, RotateCcw, Award, CheckCircle2, ChevronDown, ChevronUp, Store, RefreshCw } from 'lucide-react';
 
 export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishlist }) {
   const location = useLocation();
   const id = location.pathname.split('/')[2];
   const navigate = useNavigate();
   const [product, setProduct] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(id));
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [errorStatus, setErrorStatus] = useState(null);
+  const [errorMessage, setErrorMessage] = useState(null);
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedVariant, setSelectedVariant] = useState(0);
   const [sellers, setSellers] = useState([]);
@@ -17,80 +19,145 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
   const [frequentlyBought, setFrequentlyBought] = useState(null);
   const [recentlyViewed, setRecentlyViewed] = useState([]);
   const [addedBundleSuccess, setAddedBundleSuccess] = useState(false);
-  
+  const [addingToCart, setAddingToCart] = useState(false);
+  const [togglingWishlist, setTogglingWishlist] = useState(false);
+  const [addingBundle, setAddingBundle] = useState(false);
+
   // Review filters & state
   const [reviewFilter, setReviewFilter] = useState('ALL'); // 'ALL' | 5 | 4 | 'VERIFIED'
   const [expandedSection, setExpandedSection] = useState({ specs: true, seller: true, returns: true });
 
+  const isMountedRef = useRef(true);
+  const lastLoadedIdRef = useRef(null);
+  const inFlightIdRef = useRef(null);
+  const requestIdRef = useRef(0);
+
   useEffect(() => {
-    let isCurrent = true;
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
-    const fetchProductDetails = async () => {
-      try {
-        setLoading(true);
+  const fetchProductDetails = useCallback(async (productId, force = false) => {
+    if (!productId) return;
+    if (!force && inFlightIdRef.current === productId) return;
+    if (!force && lastLoadedIdRef.current === productId) return;
+
+    lastLoadedIdRef.current = productId;
+    inFlightIdRef.current = productId;
+    const reqId = ++requestIdRef.current;
+
+    if (force) {
+      setLoading(true);
+      setErrorStatus(null);
+      setErrorMessage(null);
+    }
+
+    const isAuthenticated = Boolean(
+      typeof localStorage !== 'undefined' &&
+      (localStorage.getItem('adab_user') || localStorage.getItem('adab_auth_token'))
+    );
+
+    try {
+      const fetchPromise = Promise.all([
+        api.get(`/catalog/products/${productId}`),
+        api.get(`/catalog/products/${productId}/sellers`).catch(() => ({ data: { data: [] } })),
+        api.get(`/catalog/products/${productId}/related`).catch(() => ({ data: { data: [] } })),
+        api.get(`/catalog/products/${productId}/frequently-bought-together`).catch(() => ({ data: { data: null } })),
+        isAuthenticated
+          ? api.get('/customers/me/recently-viewed').catch(() => ({ data: { data: [] } }))
+          : Promise.resolve({ data: { data: [] } })
+      ]);
+
+      // Record recently viewed product once when authenticated
+      if (isAuthenticated) {
+        api.post('/customers/me/recently-viewed', { productId }).catch(() => {});
+      }
+
+      const [productRes, sellersRes, relatedRes, freqRes, recentRes] = await fetchPromise;
+      if (!isMountedRef.current || reqId !== requestIdRef.current) return;
+
+      if (productRes.data?.success && productRes.data?.data) {
+        const fetchedProduct = productRes.data.data;
+        setProduct({
+          ...fetchedProduct,
+          images: fetchedProduct.images && fetchedProduct.images.length > 0 ? fetchedProduct.images : [fetchedProduct.image],
+          deliveryEstimate: fetchedProduct.deliveryEstimate || 'Tomorrow, by 10 AM',
+          returnPolicy: fetchedProduct.returnPolicy || '7 Days Returnable',
+          variants: fetchedProduct.variants || [
+            { id: 1, name: 'Standard', price: fetchedProduct.price }
+          ],
+          reviewsList: fetchedProduct.reviewsList || [
+            { id: 'rev-1', user: 'Alex M.', rating: 5, title: 'Superb Freshness', comment: 'Excellent quality and fast delivery!', date: '2 days ago', is_verified: true },
+            { id: 'rev-2', user: 'Sarah J.', rating: 4, title: 'Worth the price', comment: 'Good product, exactly as described.', date: '1 week ago', is_verified: true }
+          ]
+        });
+        setSellers(Array.isArray(sellersRes?.data?.data) ? sellersRes.data.data : []);
+        setRelated(Array.isArray(relatedRes?.data?.data) ? relatedRes.data.data : []);
+        setFrequentlyBought(freqRes?.data?.data || null);
+        setRecentlyViewed(
+          Array.isArray(recentRes?.data?.data)
+            ? recentRes.data.data.filter(p => p.id !== productId)
+            : []
+        );
         setErrorStatus(null);
-
-        const fetchPromise = Promise.all([
-          api.get(`/catalog/products/${id}`),
-          api.get(`/catalog/products/${id}/sellers`).catch(() => ({ data: { data: [] } })),
-          api.get(`/catalog/products/${id}/related`).catch(() => ({ data: { data: [] } })),
-          api.get(`/catalog/products/${id}/frequently-bought-together`).catch(() => ({ data: { data: null } })),
-          api.get(`/customers/me/recently-viewed`).catch(() => ({ data: { data: [] } }))
-        ]);
-
-        // Record recently viewed product in background
-        api.post('/customers/me/recently-viewed', { productId: id }).catch(() => {});
-
-        const [productRes, sellersRes, relatedRes, freqRes, recentRes] = await fetchPromise;
-        if (!isCurrent) return;
-
-        if (productRes.data.success && productRes.data.data) {
-          const fetchedProduct = productRes.data.data;
-          setProduct({
-            ...fetchedProduct,
-            images: fetchedProduct.images && fetchedProduct.images.length > 0 ? fetchedProduct.images : [fetchedProduct.image],
-            deliveryEstimate: fetchedProduct.deliveryEstimate || 'Tomorrow, by 10 AM',
-            returnPolicy: fetchedProduct.returnPolicy || '7 Days Returnable',
-            variants: fetchedProduct.variants || [
-              { id: 1, name: 'Standard', price: fetchedProduct.price }
-            ],
-            reviewsList: fetchedProduct.reviewsList || [
-              { id: 'rev-1', user: "Alex M.", rating: 5, title: "Superb Freshness", comment: "Excellent quality and fast delivery!", date: "2 days ago", is_verified: true },
-              { id: 'rev-2', user: "Sarah J.", rating: 4, title: "Worth the price", comment: "Good product, exactly as described.", date: "1 week ago", is_verified: true }
-            ]
-          });
-        } else {
-          setProduct(null);
-          setErrorStatus(404);
-        }
-
-        if (sellersRes?.data?.data) {
-          setSellers(sellersRes.data.data);
-        }
-        if (relatedRes?.data?.data) {
-          setRelated(relatedRes.data.data);
-        }
-        if (freqRes?.data?.data) {
-          setFrequentlyBought(freqRes.data.data);
-        }
-        if (recentRes?.data?.data && Array.isArray(recentRes.data.data)) {
-          setRecentlyViewed(recentRes.data.data.filter(p => p.id !== id));
-        }
-      } catch (err) {
-        console.error("Error fetching product details:", err);
+        setErrorMessage(null);
+        setHasLoaded(true);
+      } else {
+        lastLoadedIdRef.current = null;
         setProduct(null);
-        setErrorStatus(err.response?.status || 500);
-      } finally {
+        setErrorStatus(404);
+        setErrorMessage('This seller listing may have been suspended, updated, or is undergoing quality verification.');
+      }
+    } catch (err) {
+      if (lastLoadedIdRef.current === productId) {
+        lastLoadedIdRef.current = null;
+      }
+      if (!isMountedRef.current || reqId !== requestIdRef.current) return;
+      console.error('Error fetching product details:', err);
+      setProduct(null);
+      setErrorStatus(err.response?.status || 500);
+      setErrorMessage(err.response?.data?.message || 'Unable to load product details right now. Please try again.');
+    } finally {
+      if (inFlightIdRef.current === productId) {
+        inFlightIdRef.current = null;
+      }
+      if (isMountedRef.current && reqId === requestIdRef.current) {
         setLoading(false);
       }
-    };
-    if (id) {
-      fetchProductDetails();
     }
-    return () => {
-      isCurrent = false;
-    };
-  }, [id]);
+  }, []);
+
+  useEffect(() => {
+    if (id) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchProductDetails(id, false);
+    }
+  }, [id, fetchProductDetails]);
+
+  const handleAddToCartAction = async (listingId, name, goCheckout = false) => {
+    if (!onAddToCart || !listingId || addingToCart) return;
+    setAddingToCart(true);
+    try {
+      await onAddToCart(listingId, name);
+      if (goCheckout) {
+        navigate('/checkout');
+      }
+    } finally {
+      if (isMountedRef.current) setAddingToCart(false);
+    }
+  };
+
+  const handleWishlistAction = async (listingId) => {
+    if (!onToggleWishlist || !listingId || togglingWishlist) return;
+    setTogglingWishlist(true);
+    try {
+      await onToggleWishlist(listingId);
+    } finally {
+      if (isMountedRef.current) setTogglingWishlist(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -110,25 +177,38 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
     );
   }
 
-  // Graceful state for Suspended, Unapproved or Not Found Product
-  if (!product || errorStatus) {
+  // Graceful error / unavailable state with Retry button
+  if (errorStatus || !hasLoaded || !product) {
     return (
       <div className="py-20 px-4 max-w-xl mx-auto text-center animate-fade-in">
         <div className="w-20 h-20 bg-amber-50 text-amber-500 rounded-3xl flex items-center justify-center mx-auto mb-4 border border-amber-200">
           <Store className="w-10 h-10" />
         </div>
-        <h2 className="text-2xl font-black text-gray-900 mb-2">Product Currently Unavailable</h2>
+        <h2 className="text-2xl font-black text-gray-900 mb-2">
+          {errorStatus === 404 ? 'Product Currently Unavailable' : 'Failed to Load Product'}
+        </h2>
         <p className="text-gray-500 text-sm mb-6 leading-relaxed">
-          This seller listing may have been suspended, updated, or is undergoing quality verification on the ADAB marketplace.
+          {errorMessage || 'This seller listing may have been suspended, updated, or is undergoing quality verification on the ADAB marketplace.'}
         </p>
-        <div className="flex justify-center gap-3">
-          <button 
+        <div className="flex justify-center gap-3 flex-wrap">
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => fetchProductDetails(id, true)}
+            className="px-5 py-2.5 bg-brand-green text-white font-bold text-sm rounded-xl hover:bg-green-700 transition inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Retry
+          </button>
+          <button
+            type="button"
             onClick={() => navigate('/browse')}
-            className="px-5 py-2.5 bg-brand-green text-white font-bold text-sm rounded-xl hover:bg-green-700 transition cursor-pointer"
+            className="px-5 py-2.5 bg-gray-100 text-gray-700 font-bold text-sm rounded-xl hover:bg-gray-200 transition cursor-pointer"
           >
             Explore Available Catalog
           </button>
-          <button 
+          <button
+            type="button"
             onClick={() => navigate('/')}
             className="px-5 py-2.5 bg-gray-100 text-gray-700 font-bold text-sm rounded-xl hover:bg-gray-200 transition cursor-pointer"
           >
@@ -183,15 +263,17 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
         {/* Left: Image Gallery (Mobile Touch Optimized + Desktop Thumbs) */}
         <div className="w-full md:w-1/2">
           <div className="bg-gray-50 rounded-3xl overflow-hidden aspect-square relative group border border-gray-100 flex items-center justify-center p-6">
-            <img 
-              src={product.images && product.images[selectedImage] ? product.images[selectedImage] : product.image} 
-              alt={product.name} 
-              className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300" 
+            <img
+              src={product.images && product.images[selectedImage] ? product.images[selectedImage] : product.image}
+              alt={product.name}
+              className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
             />
-            <button 
-              onClick={() => onToggleWishlist && onToggleWishlist(product.id)}
+            <button
+              type="button"
+              disabled={togglingWishlist}
+              onClick={() => handleWishlistAction(product.id)}
               aria-label="Wishlist"
-              className="absolute top-4 right-4 w-11 h-11 bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-md text-brand-coral hover:bg-white hover:scale-110 active:scale-95 transition-all cursor-pointer z-10"
+              className="absolute top-4 right-4 w-11 h-11 bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-md text-brand-coral hover:bg-white hover:scale-110 active:scale-95 transition-all cursor-pointer z-10 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <i className={`fa-regular fa-heart text-xl ${isWishlisted ? 'fa-solid text-red-500' : ''}`}></i>
             </button>
@@ -222,7 +304,7 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
         <div className="w-full md:w-1/2 flex flex-col pt-1">
           {/* Seller Header & Rating Badge */}
           <div className="flex items-center justify-between gap-2 mb-2">
-            <span 
+            <span
               onClick={() => product.store_id && navigate(`/stores?store_id=${product.store_id}`)}
               className={`inline-flex items-center gap-1.5 px-3 py-1 bg-green-50 text-brand-green text-xs font-bold rounded-full uppercase tracking-wider border border-green-200 ${product.store_id ? 'hover:underline cursor-pointer' : ''}`}
             >
@@ -238,7 +320,7 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
           <h1 className="text-2xl md:text-3xl font-black text-gray-900 leading-tight mb-3">
             {product.name}
           </h1>
-          
+
           {/* Rating Summary Bar */}
           <div className="flex items-center gap-3 mb-5">
             <div className="flex items-center gap-1 bg-amber-50 text-amber-900 px-2.5 py-1 rounded-lg text-xs font-extrabold border border-amber-200">
@@ -290,12 +372,12 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
                   const label = typeof v === 'object' ? v.name : v;
                   const isSelected = selectedVariant === i;
                   return (
-                    <button 
-                      key={i} 
+                    <button
+                      key={i}
                       onClick={() => setSelectedVariant(i)}
                       className={`px-4 py-2.5 border-2 font-bold text-xs rounded-xl transition-all cursor-pointer ${
-                        isSelected 
-                          ? 'border-brand-green text-brand-green bg-green-50 shadow-sm' 
+                        isSelected
+                          ? 'border-brand-green text-brand-green bg-green-50 shadow-sm'
                           : 'border-gray-200 text-gray-600 hover:border-gray-300 bg-white'
                       }`}
                     >
@@ -310,7 +392,7 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
           {/* Desktop Action Buttons */}
           <div className="hidden md:flex gap-3 mb-6">
             {product.stock_qty !== undefined && product.stock_qty <= 0 ? (
-              <button 
+              <button
                 type="button"
                 disabled
                 className="w-full bg-gray-200 text-gray-500 font-extrabold text-base rounded-2xl py-3.5 cursor-not-allowed text-center"
@@ -319,21 +401,20 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
               </button>
             ) : (
               <>
-                <button 
+                <button
                   type="button"
-                  onClick={() => onAddToCart && onAddToCart(product.id, product.name)}
-                  className="flex-1 bg-brand-green hover:bg-green-700 text-white font-extrabold text-base rounded-2xl py-3.5 shadow-lg shadow-brand-green/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  disabled={addingToCart}
+                  onClick={() => handleAddToCartAction(product.id, product.name, false)}
+                  className="flex-1 bg-brand-green hover:bg-green-700 text-white font-extrabold text-base rounded-2xl py-3.5 shadow-lg shadow-brand-green/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <ShoppingCart className="w-5 h-5" />
-                  Add to Cart
+                  {addingToCart ? 'Adding...' : 'Add to Cart'}
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (onAddToCart) onAddToCart(product.id, product.name);
-                    navigate('/checkout');
-                  }}
-                  className="flex-1 bg-gray-900 hover:bg-black text-white font-extrabold text-base rounded-2xl py-3.5 shadow-lg shadow-gray-900/10 active:scale-[0.98] transition-all cursor-pointer"
+                  disabled={addingToCart}
+                  onClick={() => handleAddToCartAction(product.id, product.name, true)}
+                  className="flex-1 bg-gray-900 hover:bg-black text-white font-extrabold text-base rounded-2xl py-3.5 shadow-lg shadow-gray-900/10 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Buy Now
                 </button>
@@ -414,7 +495,7 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
               <div key={seller.id} className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4 shadow-sm hover:border-brand-green/30 transition">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <h4 
+                    <h4
                       onClick={() => seller.store_id && navigate(`/stores?store_id=${seller.store_id}`)}
                       className={`font-extrabold text-sm text-gray-900 ${seller.store_id ? 'hover:text-brand-green hover:underline cursor-pointer' : ''}`}
                     >
@@ -440,8 +521,10 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
                 </div>
 
                 <button
-                  onClick={() => onAddToCart && onAddToCart(seller.id, product.name)}
-                  className="bg-brand-green/10 text-brand-green hover:bg-brand-green hover:text-white transition-colors px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer"
+                  type="button"
+                  disabled={addingToCart}
+                  onClick={() => handleAddToCartAction(seller.id, product.name, false)}
+                  className="bg-brand-green/10 text-brand-green hover:bg-brand-green hover:text-white transition-colors px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <ShoppingCart className="w-3.5 h-3.5" />
                   Buy from Seller
@@ -516,17 +599,28 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
 
                 <button
                   type="button"
-                  onClick={() => {
-                    if (onAddToCart && product) {
-                      onAddToCart(product.id, product.name);
+                  disabled={addingBundle}
+                  onClick={async () => {
+                    if (!onAddToCart || !product || addingBundle) return;
+                    setAddingBundle(true);
+                    try {
+                      await onAddToCart(product.id, product.name);
                       if (Array.isArray(frequentlyBought.bundleItems)) {
-                        frequentlyBought.bundleItems.forEach(b => onAddToCart(b.id, b.name));
+                        for (const b of frequentlyBought.bundleItems) {
+                          await onAddToCart(b.id, b.name);
+                        }
                       }
-                      setAddedBundleSuccess(true);
-                      setTimeout(() => setAddedBundleSuccess(false), 3000);
+                      if (isMountedRef.current) {
+                        setAddedBundleSuccess(true);
+                        setTimeout(() => {
+                          if (isMountedRef.current) setAddedBundleSuccess(false);
+                        }, 3000);
+                      }
+                    } finally {
+                      if (isMountedRef.current) setAddingBundle(false);
                     }
                   }}
-                  className={`py-3 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm ${
+                  className={`py-3 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
                     addedBundleSuccess
                       ? 'bg-emerald-600 text-white'
                       : 'bg-emerald-800 hover:bg-emerald-900 text-white'
@@ -598,7 +692,7 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
                 <div key={stars} className="flex items-center gap-3 text-xs">
                   <span className="w-8 font-bold text-gray-600">{stars} ★</span>
                   <div className="flex-1 h-2.5 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className="h-full bg-amber-400 rounded-full transition-all duration-500"
                       style={{ width: `${pct}%` }}
                     ></div>
@@ -668,8 +762,8 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
           <h2 className="text-lg font-black text-gray-900 mb-4">You might also like</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {related.slice(0, 4).map((rel) => (
-              <div 
-                key={rel.id} 
+              <div
+                key={rel.id}
                 className="group bg-white rounded-2xl border border-gray-100 p-3 hover:shadow-xl transition-all cursor-pointer"
                 onClick={() => {
                   navigate(`/product/${rel.id}`);
@@ -752,19 +846,18 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
             <>
               <button
                 type="button"
-                onClick={() => onAddToCart && onAddToCart(product.id, product.name)}
-                className="flex-1 bg-brand-green text-white font-extrabold text-xs py-3 px-3 rounded-xl flex items-center justify-center gap-1 active:scale-95 shadow-md shadow-brand-green/20"
+                disabled={addingToCart}
+                onClick={() => handleAddToCartAction(product.id, product.name, false)}
+                className="flex-1 bg-brand-green text-white font-extrabold text-xs py-3 px-3 rounded-xl flex items-center justify-center gap-1 active:scale-95 shadow-md shadow-brand-green/20 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ShoppingCart className="w-3.5 h-3.5" />
-                Add
+                {addingToCart ? 'Adding...' : 'Add'}
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (onAddToCart) onAddToCart(product.id, product.name);
-                  navigate('/checkout');
-                }}
-                className="flex-1 bg-gray-900 text-white font-extrabold text-xs py-3 px-3 rounded-xl flex items-center justify-center active:scale-95 shadow-md shadow-black/10"
+                disabled={addingToCart}
+                onClick={() => handleAddToCartAction(product.id, product.name, true)}
+                className="flex-1 bg-gray-900 text-white font-extrabold text-xs py-3 px-3 rounded-xl flex items-center justify-center active:scale-95 shadow-md shadow-black/10 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Buy Now
               </button>

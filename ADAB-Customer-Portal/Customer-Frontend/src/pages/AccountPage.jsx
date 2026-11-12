@@ -1,34 +1,69 @@
-import React, { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import { api } from '../api/api';
 import { RewardAPI } from '../services/api';
 import { lookupPincode, getOfflinePincodeHint } from '../utils/pincode';
 
 let accountDataCache = null;
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function clearAccountCache() {
   accountDataCache = null;
 }
 
-export default function AccountPage({ 
-  onNavigate, 
-  currentUser, 
-  onLogout, 
+export default function AccountPage({
+  onNavigate,
+  currentUser,
+  onLogout,
   onOpenLogin,
   ordersCount = 0,
   points = 0,
   walletBalance = 0,
   unreadNotifications = 0
 }) {
+  const isUserLoggedInInitial = Boolean(
+    currentUser ||
+    (typeof localStorage !== 'undefined' && localStorage.getItem('adab_user'))
+  );
+
   const [profile, setProfile] = useState(accountDataCache?.profile || null);
   const [addresses, setAddresses] = useState(accountDataCache?.addresses || []);
-  const [loading, setLoading] = useState(!accountDataCache);
+  const [loading, setLoading] = useState(isUserLoggedInInitial && !accountDataCache);
+  const [hasLoaded, setHasLoaded] = useState(!isUserLoggedInInitial || Boolean(accountDataCache));
+  const [error, setError] = useState(null);
   const [notificationPrefs, setNotificationPrefs] = useState(accountDataCache?.notifications || {
     order_updates_sms: true,
     order_updates_email: true,
     promotional_sms: false,
     soundbox_alerts: true
   });
-  
+
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [updatingAvatar, setUpdatingAvatar] = useState(false);
+  const [savingAddress, setSavingAddress] = useState(false);
+  const [deletingAddressId, setDeletingAddressId] = useState(null);
+  const [settingDefaultId, setSettingDefaultId] = useState(null);
+  const [checkingServiceabilityId, setCheckingServiceabilityId] = useState(null);
+  const [serviceabilityErrors, setServiceabilityErrors] = useState({});
+
+  const isMountedRef = useRef(true);
+  const hasFetchedRef = useRef(Boolean(accountDataCache) || !isUserLoggedInInitial);
+  const inFlightRef = useRef(false);
+  const actionInFlightRef = useRef({
+    profile: false,
+    avatar: false,
+    saveAddress: false,
+    deleteAddress: null,
+    setDefault: null,
+    serviceability: null
+  });
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const displayOrders = ordersCount ?? 0;
   const displayPoints = (typeof points === 'number' && points > 0)
     ? points
@@ -58,18 +93,16 @@ export default function AccountPage({
   };
 
   // Edit forms
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({ name: accountDataCache?.profile?.name || '', phone: accountDataCache?.profile?.phone || '', email: accountDataCache?.profile?.email || '' });
 
   const [isAddingAddress, setIsAddingAddress] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState(null);
-  const [isDetectingPin, setIsDetectingPin] = useState(false);
+  const [, setIsDetectingPin] = useState(false);
   const [pinHint, setPinHint] = useState('');
   const [addressForm, setAddressForm] = useState({
     type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false
   });
   const [serviceabilityResults, setServiceabilityResults] = useState({});
-  const [mapPreviews, setMapPreviews] = useState({});
 
   const handleAddressPincodeChange = async (rawVal) => {
     const val = rawVal.replace(/\D/g, '').slice(0, 6);
@@ -109,13 +142,115 @@ export default function AccountPage({
     }
   };
 
+  const fetchData = useCallback(async (force = false) => {
+    const isUserStored = Boolean(currentUser || localStorage.getItem('adab_user'));
+    if (!isUserStored) {
+      hasFetchedRef.current = true;
+      setProfile(null);
+      setAddresses([]);
+      setHasLoaded(true);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    if (inFlightRef.current) return;
+    if (accountDataCache && !force) {
+      hasFetchedRef.current = true;
+      setProfile(accountDataCache.profile);
+      setAddresses(accountDataCache.addresses);
+      setNotificationPrefs(accountDataCache.notifications);
+      setHasLoaded(true);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    if (!force && hasFetchedRef.current) return;
+
+    hasFetchedRef.current = true;
+    inFlightRef.current = true;
+    if (force) {
+      accountDataCache = null;
+      setLoading(true);
+      setError(null);
+    }
+
+    try {
+      const [profSettled, addrSettled, notifSettled, rewardsSettled] = await Promise.allSettled([
+        api.get('/customers/me'),
+        api.get('/customers/me/addresses'),
+        api.get('/customers/me/notification-preferences'),
+        RewardAPI.getRewardsSummary()
+      ]);
+
+      if (profSettled.status === 'rejected') {
+        throw profSettled.reason;
+      }
+
+      if (!isMountedRef.current) return;
+
+      const profRes = profSettled.value;
+      const addrRes = addrSettled.status === 'fulfilled' ? addrSettled.value : { data: { success: false } };
+      const notifRes = notifSettled.status === 'fulfilled' ? notifSettled.value : { data: { success: false } };
+      const rewardsRes = rewardsSettled.status === 'fulfilled' ? rewardsSettled.value : null;
+
+      if (!profRes.data?.success || !profRes.data?.data) {
+        throw new Error(profRes.data?.message || 'Unable to load customer profile.');
+      }
+
+      const rewardsData = rewardsRes?.data;
+      const resolvedPoints = typeof rewardsData?.points_balance === 'number'
+        ? rewardsData.points_balance
+        : (typeof profRes.data.data.points === 'number' ? profRes.data.data.points : points || 0);
+      const resolvedTier = rewardsData?.tier || profRes.data.data.loyalty_tier || 'BRONZE';
+
+      const mergedProfile = {
+        ...profRes.data.data,
+        points: resolvedPoints,
+        loyalty_tier: resolvedTier
+      };
+
+      const newCache = {
+        profile: mergedProfile,
+        addresses: addrRes.data?.success && Array.isArray(addrRes.data?.data) ? addrRes.data.data : [],
+        notifications: notifRes.data?.success && notifRes.data?.data ? notifRes.data.data : notificationPrefs
+      };
+
+      setProfile(newCache.profile);
+      setProfileForm({
+        name: newCache.profile.name || '',
+        phone: newCache.profile.phone || '',
+        email: newCache.profile.email || ''
+      });
+      setAddresses(newCache.addresses);
+      setNotificationPrefs(newCache.notifications);
+      accountDataCache = newCache;
+      setHasLoaded(true);
+      setError(null);
+    } catch (err) {
+      hasFetchedRef.current = false;
+      accountDataCache = null;
+      if (!isMountedRef.current) return;
+      console.error('Error loading account data:', err);
+      setError(err.response?.data?.message || 'Unable to load your account details. Please try again.');
+    } finally {
+      inFlightRef.current = false;
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+    }
+  }, [currentUser, notificationPrefs, points]);
+
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(false);
+  }, [fetchData]);
 
   const handleUpdateAvatar = async (avatarUrl) => {
+    if (actionInFlightRef.current.avatar) return;
+    actionInFlightRef.current.avatar = true;
+    setUpdatingAvatar(true);
     try {
       const res = await api.post('/customers/me/profile/avatar', { avatarUrl });
+      if (!isMountedRef.current) return;
       if (res.data?.success) {
         setProfile(prev => ({ ...prev, profile_picture_url: avatarUrl }));
         if (accountDataCache?.profile) {
@@ -123,97 +258,23 @@ export default function AccountPage({
         }
         showToast('Profile avatar updated successfully!');
       }
-    } catch (e) {
-      showToast('Failed to update avatar', 'error');
-    }
-  };
-
-  const checkMapPreview = async (addressId) => {
-    try {
-      const res = await api.get(`/customers/me/addresses/${addressId}/map-preview`);
-      if (res.data?.success && res.data.data) {
-        setMapPreviews(prev => ({ ...prev, [addressId]: res.data.data }));
-      }
-    } catch (err) {
-      console.warn('Map preview check error:', err);
-    }
-  };
-
-  const fetchData = async (force = false) => {
-    const isUserStored = Boolean(currentUser || localStorage.getItem('adab_user'));
-    if (!isUserStored) {
-      setProfile(null);
-      setAddresses([]);
-      setLoading(false);
-      return;
-    }
-    if (accountDataCache && !force) {
-      setProfile(accountDataCache.profile);
-      setAddresses(accountDataCache.addresses);
-      setNotificationPrefs(accountDataCache.notifications);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    try {
-      const [profRes, addrRes, notifRes, rewardsRes] = await Promise.all([
-        api.get('/customers/me').catch(err => ({ data: { success: false, error: err.message } })),
-        api.get('/customers/me/addresses').catch(err => ({ data: { success: false, error: err.message } })),
-        api.get('/customers/me/notification-preferences').catch(() => api.get('/customers/me/notifications').catch(err => ({ data: { success: false, error: err.message } }))),
-        RewardAPI.getRewardsSummary().catch(() => null)
-      ]);
-      
-      const guestFallbackProfile = {
-        name: 'Guest Customer',
-        phone: '+91 98250 12345',
-        email: 'customer@adab.shop',
-        profile_picture_url: null
-      };
-
-      const newCache = { 
-        profile: profRes.data?.success && profRes.data?.data ? profRes.data.data : guestFallbackProfile, 
-        addresses: addrRes.data?.success && Array.isArray(addrRes.data?.data) ? addrRes.data.data : [], 
-        notifications: notifRes.data?.success && notifRes.data?.data ? notifRes.data.data : notificationPrefs 
-      };
-
-      if (profRes.data?.success && profRes.data?.data) {
-        const rewardsData = rewardsRes?.data;
-        const resolvedPoints = typeof rewardsData?.points_balance === 'number'
-          ? rewardsData.points_balance
-          : (typeof profRes.data.data.points === 'number' ? profRes.data.data.points : points || 0);
-        const resolvedTier = rewardsData?.tier || profRes.data.data.loyalty_tier || 'BRONZE';
-
-        const mergedProfile = {
-          ...profRes.data.data,
-          points: resolvedPoints,
-          loyalty_tier: resolvedTier
-        };
-
-        newCache.profile = mergedProfile;
-      }
-
-      setProfile(newCache.profile);
-      setProfileForm({ 
-        name: newCache.profile.name || '', 
-        phone: newCache.profile.phone || '', 
-        email: newCache.profile.email || '' 
-      });
-      setAddresses(newCache.addresses);
-      setNotificationPrefs(newCache.notifications);
-      
-      accountDataCache = newCache;
-    } catch (error) {
-      console.warn("Notice: Fetching account data used guest profile fallback", error);
+    } catch {
+      if (isMountedRef.current) showToast('Failed to update avatar', 'error');
     } finally {
-      setLoading(false);
+      actionInFlightRef.current.avatar = false;
+      if (isMountedRef.current) setUpdatingAvatar(false);
     }
   };
 
   const handleUpdateProfile = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    if (actionInFlightRef.current.profile) return false;
+    actionInFlightRef.current.profile = true;
+    setSavingProfile(true);
     try {
       const res = await api.patch('/customers/me', profileForm);
       const notifRes = await api.patch('/customers/me/notification-preferences', notificationPrefs);
+      if (!isMountedRef.current) return false;
       if (res.data?.success && notifRes.data?.success) {
         setProfile(res.data.data);
         try {
@@ -225,24 +286,36 @@ export default function AccountPage({
             phone: res.data.data.phone || existing.phone,
             email: res.data.data.email || existing.email
           }));
-        } catch {}
+        } catch {
+          // Ignore state sync errors if unmounted
+        }
         if (accountDataCache) {
           accountDataCache.profile = res.data.data;
           accountDataCache.notifications = notificationPrefs;
         }
-        setIsEditingProfile(false);
         showToast('Profile and preferences updated successfully!', 'success');
+        return true;
       } else {
         showToast('Failed to update profile or preferences', 'error');
+        return false;
       }
     } catch (err) {
       console.error(err);
-      showToast(err.response?.data?.message || 'An error occurred while updating profile', 'error');
+      if (isMountedRef.current) {
+        showToast(err.response?.data?.message || 'An error occurred while updating profile', 'error');
+      }
+      return false;
+    } finally {
+      actionInFlightRef.current.profile = false;
+      if (isMountedRef.current) setSavingProfile(false);
     }
   };
 
   const handleSaveAddress = async (e) => {
     e.preventDefault();
+    if (actionInFlightRef.current.saveAddress) return;
+    actionInFlightRef.current.saveAddress = true;
+    setSavingAddress(true);
     try {
       let res;
       if (editingAddressId) {
@@ -250,32 +323,70 @@ export default function AccountPage({
       } else {
         res = await api.post('/customers/me/addresses', addressForm);
       }
-      
+      if (!isMountedRef.current) return;
       if (res.data?.success || res.status === 200 || res.status === 201) {
         setIsAddingAddress(false);
         setEditingAddressId(null);
         setPinHint('');
         setAddressForm({ type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false });
-        fetchData(true);
+        await fetchData(true);
         showToast('Address saved successfully!', 'success');
       } else {
         showToast(res.data?.message || 'Failed to save address', 'error');
       }
     } catch (err) {
       console.error(err);
-      showToast(err.response?.data?.message || 'An error occurred while saving address', 'error');
+      if (isMountedRef.current) {
+        showToast(err.response?.data?.message || 'An error occurred while saving address', 'error');
+      }
+    } finally {
+      actionInFlightRef.current.saveAddress = false;
+      if (isMountedRef.current) setSavingAddress(false);
     }
   };
 
   const handleDeleteAddress = async (id) => {
+    if (actionInFlightRef.current.deleteAddress === id) return;
     if (!window.confirm('Are you sure you want to delete this address?')) return;
+    actionInFlightRef.current.deleteAddress = id;
+    setDeletingAddressId(id);
     try {
       await api.delete(`/customers/me/addresses/${id}`);
-      fetchData(true);
+      if (!isMountedRef.current) return;
+      await fetchData(true);
       showToast('Address deleted successfully!', 'success');
     } catch (err) {
       console.error(err);
-      showToast(err.response?.data?.message || 'Failed to delete address', 'error');
+      if (isMountedRef.current) {
+        showToast(err.response?.data?.message || 'Failed to delete address', 'error');
+      }
+    } finally {
+      if (actionInFlightRef.current.deleteAddress === id) {
+        actionInFlightRef.current.deleteAddress = null;
+      }
+      if (isMountedRef.current) setDeletingAddressId(null);
+    }
+  };
+
+  const handleSetDefaultAddress = async (addr) => {
+    if (!addr?.id || actionInFlightRef.current.setDefault === addr.id) return;
+    actionInFlightRef.current.setDefault = addr.id;
+    setSettingDefaultId(addr.id);
+    try {
+      await api.patch(`/customers/me/addresses/${addr.id}`, { ...addr, isDefault: true });
+      if (!isMountedRef.current) return;
+      await fetchData(true);
+      showToast('Set as default address!');
+    } catch (err) {
+      console.error(err);
+      if (isMountedRef.current) {
+        showToast(err.response?.data?.message || 'Failed to update default address', 'error');
+      }
+    } finally {
+      if (actionInFlightRef.current.setDefault === addr.id) {
+        actionInFlightRef.current.setDefault = null;
+      }
+      if (isMountedRef.current) setSettingDefaultId(null);
     }
   };
 
@@ -284,7 +395,39 @@ export default function AccountPage({
     setActiveView('placeholder');
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Loading Account...</div>;
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 space-y-4 animate-pulse">
+        <div className="h-44 bg-gray-200 rounded-2xl"></div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="h-20 bg-gray-200 rounded-2xl"></div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !hasLoaded) {
+    return (
+      <div className="max-w-md mx-auto my-12 bg-white rounded-3xl border border-red-100 p-8 text-center shadow-sm">
+        <div className="w-12 h-12 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-3">
+          <i className="fa-solid fa-triangle-exclamation text-xl"></i>
+        </div>
+        <h3 className="font-extrabold text-gray-900 text-base mb-1">Failed to Load Account</h3>
+        <p className="text-xs text-gray-500 mb-4">{error || 'Unable to load account details.'}</p>
+        <button
+          type="button"
+          disabled={loading}
+          onClick={() => fetchData(true)}
+          className="px-5 py-2.5 bg-[#18753C] text-white rounded-xl text-xs font-bold hover:bg-[#156030] transition inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <i className={`fa-solid fa-rotate-right ${loading ? 'animate-spin' : ''}`}></i>
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   const isLoggedIn = Boolean(currentUser || localStorage.getItem('adab_user'));
   const effectiveUser = profile || currentUser || (() => {
@@ -350,15 +493,15 @@ export default function AccountPage({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button 
+            <button
               type="button"
-              onClick={() => { setIsEditingProfile(true); setActiveView('profile'); }} 
+              onClick={() => { setActiveView('profile'); }}
               className="bg-[#3D8856] hover:bg-[#4E9765] transition-colors text-white text-xs font-bold py-2 px-4 rounded-full border border-[#5CA072] cursor-pointer"
             >
               Edit Profile
             </button>
             {isLoggedIn && onLogout && (
-              <button 
+              <button
                 type="button"
                 onClick={onLogout}
                 className="bg-white/20 hover:bg-white/30 transition-colors text-white text-xs font-bold py-2 px-3.5 rounded-full border border-white/30 cursor-pointer flex items-center gap-1.5"
@@ -376,8 +519,8 @@ export default function AccountPage({
             <div className="text-xl font-extrabold">{displayOrders}</div>
             <div className="text-[10px] text-green-100 font-semibold uppercase tracking-wider mt-1">Orders</div>
           </div>
-          <div 
-            onClick={() => onNavigate && onNavigate('points')} 
+          <div
+            onClick={() => onNavigate && onNavigate('points')}
             className="bg-[#2D804D] rounded-xl p-4 text-center cursor-pointer hover:bg-[#256f42] transition"
           >
             <div className="text-xl font-extrabold">{Number(displayPoints).toLocaleString('en-IN')}</div>
@@ -408,7 +551,7 @@ export default function AccountPage({
           </div>
           <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
         </div>
-        
+
         {/* 2. Wishlist */}
         <div onClick={() => onNavigate('wishlist')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
           <div className="w-12 h-12 bg-pink-50 text-pink-500 rounded-xl flex items-center justify-center text-xl shrink-0">
@@ -553,8 +696,8 @@ export default function AccountPage({
 
         {/* 12. Sign Out / Sign In */}
         {isLoggedIn ? (
-          <div 
-            onClick={onLogout} 
+          <div
+            onClick={onLogout}
             className="bg-white border border-red-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-red-300 hover:bg-red-50/20 transition-colors"
           >
             <div className="w-12 h-12 bg-red-50 text-red-600 rounded-xl flex items-center justify-center text-xl shrink-0">
@@ -567,8 +710,8 @@ export default function AccountPage({
             <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
           </div>
         ) : (
-          <div 
-            onClick={() => onOpenLogin ? onOpenLogin() : (onNavigate && onNavigate('login'))} 
+          <div
+            onClick={() => onOpenLogin ? onOpenLogin() : (onNavigate && onNavigate('login'))}
             className="bg-white border border-emerald-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-[#18753C] hover:bg-emerald-50/20 transition-colors"
           >
             <div className="w-12 h-12 bg-emerald-50 text-[#18753C] rounded-xl flex items-center justify-center text-xl shrink-0">
@@ -584,7 +727,7 @@ export default function AccountPage({
       </div>
 
       {/* 12. Sell on ADAB Section (Added from sidebar) */}
-      <div 
+      <div
         onClick={() => showToast('Redirecting to ADAB Seller Portal...')}
         className="bg-gradient-to-r from-emerald-50 via-green-50 to-emerald-50/70 border border-emerald-200 p-5 rounded-2xl shadow-xs flex items-center justify-between cursor-pointer hover:border-emerald-400 transition-all group pb-4 mb-8"
       >
@@ -613,13 +756,34 @@ export default function AccountPage({
   );
 
   const checkServiceability = async (addressId) => {
+    if (actionInFlightRef.current.serviceability.has(addressId)) return;
+    actionInFlightRef.current.serviceability.add(addressId);
+    setCheckingServiceabilityId(addressId);
+    setServiceabilityErrors(prev => {
+      const next = { ...prev };
+      delete next[addressId];
+      return next;
+    });
     try {
       const res = await api.get(`/customers/me/addresses/${addressId}/serviceability`);
+      if (!isMountedRef.current) return;
       if (res.data?.success) {
         setServiceabilityResults(prev => ({ ...prev, [addressId]: res.data.data }));
+      } else {
+        setServiceabilityErrors(prev => ({ ...prev, [addressId]: res.data?.message || 'Serviceability check failed.' }));
       }
     } catch (err) {
+      if (!isMountedRef.current) return;
       console.warn('Serviceability check error:', err);
+      setServiceabilityErrors(prev => ({
+        ...prev,
+        [addressId]: err.response?.data?.message || 'Unable to check serviceability.'
+      }));
+    } finally {
+      actionInFlightRef.current.serviceability.delete(addressId);
+      if (isMountedRef.current) {
+        setCheckingServiceabilityId(prev => (prev === addressId ? null : prev));
+      }
     }
   };
 
@@ -627,9 +791,9 @@ export default function AccountPage({
     if (!isLoggedIn) {
       return (
         <div className="max-w-4xl mx-auto w-full text-center py-12 px-4">
-          <button 
+          <button
             type="button"
-            onClick={() => setActiveView('dashboard')} 
+            onClick={() => setActiveView('dashboard')}
             className="mb-4 text-sm font-bold text-gray-600 hover:text-black flex items-center gap-2 cursor-pointer transition-colors"
           >
             <i className="fa-solid fa-arrow-left"></i> Back to Account
@@ -690,14 +854,12 @@ export default function AccountPage({
                         </span>
                       ) : (
                         <button
-                          onClick={async () => {
-                            await api.patch(`/customers/me/addresses/${addr.id}`, { ...addr, isDefault: true });
-                            fetchData(true);
-                            showToast('Set as default address!');
-                          }}
-                          className="text-[10px] text-gray-500 hover:text-brand-green font-bold underline cursor-pointer"
+                          type="button"
+                          disabled={settingDefaultId === addr.id || deletingAddressId === addr.id}
+                          onClick={() => handleSetDefaultAddress(addr)}
+                          className="text-[10px] text-gray-500 hover:text-brand-green font-bold underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Set as Default
+                          {settingDefaultId === addr.id ? 'Updating...' : 'Set as Default'}
                         </button>
                       )}
                     </div>
@@ -711,33 +873,52 @@ export default function AccountPage({
                           <i className="fa-solid fa-bolt text-emerald-600"></i>
                           <span>{serviceInfo.deliverySpeed} (Pincode {serviceInfo.pincode})</span>
                         </div>
+                      ) : serviceabilityErrors[addr.id] ? (
+                        <div className="inline-flex items-center gap-2 text-[11px] text-red-600 font-semibold">
+                          <span>{serviceabilityErrors[addr.id]}</span>
+                          <button
+                            type="button"
+                            disabled={checkingServiceabilityId === addr.id}
+                            onClick={() => checkServiceability(addr.id)}
+                            className="font-bold underline text-brand-green cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {checkingServiceabilityId === addr.id ? 'Checking...' : 'Retry'}
+                          </button>
+                        </div>
                       ) : (
                         <button
+                          type="button"
+                          disabled={checkingServiceabilityId === addr.id}
                           onClick={() => checkServiceability(addr.id)}
-                          className="text-[11px] font-bold text-brand-green hover:underline flex items-center gap-1 cursor-pointer"
+                          className="text-[11px] font-bold text-brand-green hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <i className="fa-solid fa-location-crosshairs"></i> Check Delivery Serviceability
+                          <i className="fa-solid fa-location-crosshairs"></i>
+                          {checkingServiceabilityId === addr.id ? 'Checking...' : 'Check Delivery Serviceability'}
                         </button>
                       )}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 self-end sm:self-start">
-                    <button 
-                      onClick={() => { 
-                        setEditingAddressId(addr.id); 
-                        setAddressForm({ type: addr.type, recipientName: addr.recipientName || '', phone: addr.phone || '', address: addr.address, city: addr.city, state: addr.state, zip: addr.zip, isDefault: addr.isDefault }); 
-                        setIsAddingAddress(true); 
-                      }} 
-                      className="text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-xl transition cursor-pointer"
+                    <button
+                      type="button"
+                      disabled={deletingAddressId === addr.id}
+                      onClick={() => {
+                        setEditingAddressId(addr.id);
+                        setAddressForm({ type: addr.type, recipientName: addr.recipientName || '', phone: addr.phone || '', address: addr.address, city: addr.city, state: addr.state, zip: addr.zip, isDefault: addr.isDefault });
+                        setIsAddingAddress(true);
+                      }}
+                      className="text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-xl transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Edit
                     </button>
                     <button
+                      type="button"
+                      disabled={deletingAddressId === addr.id}
                       onClick={() => handleDeleteAddress(addr.id)}
-                      className="text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-xl transition cursor-pointer"
+                      className="text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-xl transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Delete
+                      {deletingAddressId === addr.id ? 'Deleting...' : 'Delete'}
                     </button>
                   </div>
                 </div>
@@ -748,13 +929,13 @@ export default function AccountPage({
 
         {/* ADD NEW ADDRESS BUTTON */}
         {!isAddingAddress && (
-          <button 
-            onClick={() => { 
-              setIsAddingAddress(true); 
-              setEditingAddressId(null); 
+          <button
+            onClick={() => {
+              setIsAddingAddress(true);
+              setEditingAddressId(null);
               setPinHint('');
-              setAddressForm({ type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false }); 
-            }} 
+              setAddressForm({ type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false });
+            }}
             className="w-full border-2 border-dashed border-[#18753C]/40 bg-white text-[#18753C] font-extrabold py-5 rounded-2xl flex items-center justify-center gap-2 hover:bg-green-50 transition text-base cursor-pointer"
           >
             <i className="fa-solid fa-plus"></i> Add New Delivery Address
@@ -765,8 +946,8 @@ export default function AccountPage({
           <form onSubmit={handleSaveAddress} className="flex flex-col gap-4 bg-white p-6 rounded-3xl border border-[#18753C] shadow-lg mt-2 animate-fade-in">
             <div className="flex justify-between items-center mb-1">
               <h3 className="font-black text-lg text-gray-900">{editingAddressId ? 'Edit Address' : 'Add New Address'}</h3>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => { setIsAddingAddress(false); setEditingAddressId(null); }}
                 className="text-gray-400 hover:text-gray-700 text-sm font-bold"
               >
@@ -827,7 +1008,7 @@ export default function AccountPage({
 
             <div className="flex gap-3 justify-end mt-4 pt-3 border-t border-gray-100">
               <button type="button" onClick={() => { setIsAddingAddress(false); setEditingAddressId(null); }} className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-xs text-gray-700 transition cursor-pointer">Cancel</button>
-              <button type="submit" className="px-6 py-2.5 bg-[#18753C] hover:bg-[#156030] text-white rounded-xl font-extrabold text-xs shadow-md transition cursor-pointer">Save Address</button>
+              <button type="submit" disabled={savingAddress} className="px-6 py-2.5 bg-[#18753C] hover:bg-[#156030] text-white rounded-xl font-extrabold text-xs shadow-md transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">{savingAddress ? 'Saving...' : 'Save Address'}</button>
             </div>
           </form>
         )}
@@ -837,9 +1018,9 @@ export default function AccountPage({
 
   const renderProfile = () => (
     <div className="max-w-4xl mx-auto w-full">
-      <button 
+      <button
         type="button"
-        onClick={() => setActiveView('dashboard')} 
+        onClick={() => setActiveView('dashboard')}
         className="mb-4 text-sm font-bold text-gray-600 hover:text-black flex items-center gap-2 cursor-pointer transition-colors"
       >
         <i className="fa-solid fa-arrow-left"></i> Back to Account
@@ -870,8 +1051,9 @@ export default function AccountPage({
               <button
                 key={idx}
                 type="button"
+                disabled={updatingAvatar}
                 onClick={() => handleUpdateAvatar(url)}
-                className={`w-10 h-10 rounded-full overflow-hidden border-2 transition hover:scale-105 cursor-pointer ${
+                className={`w-10 h-10 rounded-full overflow-hidden border-2 transition hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                   profile?.profile_picture_url === url ? 'border-brand-green ring-2 ring-brand-green/30' : 'border-gray-200'
                 }`}
                 title={`Select Avatar ${idx + 1}`}
@@ -954,8 +1136,16 @@ export default function AccountPage({
         <button type="button" onClick={() => setActiveView('dashboard')} className="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-sm text-gray-700 transition-colors cursor-pointer">
           Cancel
         </button>
-        <button onClick={(e) => { handleUpdateProfile(e); setActiveView('dashboard'); }} className="bg-[#18753C] hover:bg-[#156030] text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-colors cursor-pointer">
-          Save Changes
+        <button
+          type="button"
+          disabled={savingProfile}
+          onClick={async (e) => {
+            const ok = await handleUpdateProfile(e);
+            if (ok) setActiveView('dashboard');
+          }}
+          className="bg-[#18753C] hover:bg-[#156030] text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {savingProfile ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
     </div>
@@ -972,7 +1162,7 @@ export default function AccountPage({
         </div>
         <h2 className="text-lg font-bold text-gray-900 mb-2">Under Construction</h2>
         <p className="text-gray-500 text-sm">{placeholderText}</p>
-        <button 
+        <button
           onClick={() => setActiveView('dashboard')}
           className="mt-6 px-6 py-2.5 bg-[#18753C] text-white text-xs font-bold rounded-xl hover:bg-[#156030] transition-colors cursor-pointer"
         >
@@ -983,11 +1173,11 @@ export default function AccountPage({
   );
 
   const SidebarItem = ({ icon, label, badge, active, onClick }) => (
-    <div 
+    <div
       onClick={() => { onClick(); setIsSidebarOpen(false); }}
       className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
-        active 
-          ? 'bg-[#E8F5E9] text-brand-green font-bold rounded-xl relative' 
+        active
+          ? 'bg-[#E8F5E9] text-brand-green font-bold rounded-xl relative'
           : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-xl font-medium'
       }`}
     >
@@ -1011,7 +1201,7 @@ export default function AccountPage({
             <h1 className="text-2xl font-black text-gray-900">My Account</h1>
             <p className="text-xs text-gray-500">Manage your profile, orders, addresses & preferences</p>
           </div>
-          <button 
+          <button
             type="button"
             onClick={() => setIsSidebarOpen(true)}
             className="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center text-gray-700 shadow-sm hover:bg-gray-50 transition-colors cursor-pointer"
@@ -1028,7 +1218,7 @@ export default function AccountPage({
         <div className="fixed inset-0 z-50 flex">
           {/* Backdrop */}
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>
-          
+
           {/* Drawer */}
           <div className="relative w-64 h-full bg-white shadow-2xl flex flex-col pt-4 pb-6 overflow-y-auto transform transition-transform duration-300">
             <div className="flex items-center justify-between px-4 mb-4">
@@ -1037,7 +1227,7 @@ export default function AccountPage({
                 <i className="fa-solid fa-times"></i>
               </button>
             </div>
-            
+
             <div className="px-2 flex flex-col gap-1">
               <SidebarItem icon="fa-user" label="Profile" active={activeView === 'dashboard' || activeView === 'profile'} onClick={() => setActiveView('dashboard')} />
               <SidebarItem icon="fa-box" label="Orders" badge="2" active={false} onClick={() => { if (onNavigate) onNavigate('orders'); }} />
@@ -1050,10 +1240,10 @@ export default function AccountPage({
               <SidebarItem icon="fa-bell" label="Notifications" active={activeView === 'profile'} onClick={() => { if (onNavigate) onNavigate('notifications'); else setActiveView('profile'); }} />
               <SidebarItem icon="fa-headset" label="Help" active={placeholderText.includes('Help')} onClick={() => showPlaceholder('Help & Support: Customer service portal coming soon.')} />
               <SidebarItem icon="fa-gear" label="Settings" active={activeView === 'profile'} onClick={() => setActiveView('profile')} />
-              
+
               <div className="h-px bg-gray-100 my-2 mx-2"></div>
-              
-              <div 
+
+              <div
                 onClick={() => {
                   showToast('Redirecting to ADAB Seller Portal...');
                   setIsSidebarOpen(false);
@@ -1065,7 +1255,7 @@ export default function AccountPage({
               </div>
 
               {isLoggedIn ? (
-                <div 
+                <div
                   onClick={() => {
                     setIsSidebarOpen(false);
                     if (onLogout) onLogout();
@@ -1076,7 +1266,7 @@ export default function AccountPage({
                   <span className="text-sm">Sign Out</span>
                 </div>
               ) : (
-                <div 
+                <div
                   onClick={() => {
                     setIsSidebarOpen(false);
                     if (onOpenLogin) onOpenLogin();

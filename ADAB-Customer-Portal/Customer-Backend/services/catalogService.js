@@ -1,7 +1,21 @@
 const pool = require('../db');
 
-// In-memory store for search feedback (safe, non-invasive)
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ELIGIBLE_LISTING_STATUS_SQL = `(sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)`;
+const ELIGIBLE_BARE_LISTING_STATUS_SQL = `(approval_status = 'APPROVED' OR approval_status IS NULL)`;
+
+function isValidUuid(value) {
+  return typeof value === 'string' && UUID_REGEX.test(value.trim());
+}
+
+function isApprovedListingStatus(status) {
+  return status === 'APPROVED' || status === null;
+}
+
+// In-memory store for search feedback (bounded FIFO log + monotonic counter)
+const MAX_FEEDBACK_LOG = 200;
 const searchFeedbackLog = [];
+let totalFeedbackCount = 0;
 
 /**
  * 1. GET /api/v1/catalog/products
@@ -16,22 +30,23 @@ exports.getProducts = async (filters = {}) => {
  * Complete PDP dataset
  */
 exports.getProductById = async (id) => {
+  if (!isValidUuid(id)) return null;
   const res = await pool.query(`
-    SELECT 
-      sl.id, 
-      sl.title as name, 
-      sl.sell_price as price, 
-      sl.mrp, 
+    SELECT
+      sl.id,
+      sl.title as name,
+      sl.sell_price as price,
+      sl.mrp,
       sl.stock_qty,
       sl.sku,
       sl.unit,
       sl.brand_tag,
-      sl.rating, 
-      sl.review_count as reviews, 
+      sl.rating,
+      sl.review_count as reviews,
       sl.store_id,
       st.id as "storeId",
-      COALESCE(st.store_name, 'AgroFoods') as "sellerName", 
-      COALESCE(st.store_name, 'AgroFoods') as "storeName", 
+      COALESCE(st.store_name, 'AgroFoods') as "sellerName",
+      COALESCE(st.store_name, 'AgroFoods') as "storeName",
       COALESCE(st.rating, 5.0) as "sellerRating",
       st.address_line as "sellerArea",
       st.delivery_radius_km as "deliveryRadius",
@@ -44,15 +59,15 @@ exports.getProductById = async (id) => {
     LEFT JOIN stores st ON sl.store_id = st.id
     LEFT JOIN categories c ON sl.category_id = c.id
     LEFT JOIN LATERAL (
-      SELECT image_url FROM product_images 
-      WHERE product_id = sl.id 
+      SELECT image_url FROM product_images
+      WHERE product_id = sl.id
          OR image_url ILIKE '%' || LOWER(TRIM(sl.title)) || '%'
       ORDER BY is_primary DESC, display_order ASC
       LIMIT 1
     ) pi ON true
-    WHERE sl.id = $1 
-      AND sl.is_active = true 
-      AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+    WHERE sl.id = $1
+      AND sl.is_active = true
+      AND ${ELIGIBLE_LISTING_STATUS_SQL}
   `, [id]);
 
   if (res.rows.length === 0) return null;
@@ -62,12 +77,12 @@ exports.getProductById = async (id) => {
   let reviewsList = [];
   try {
     const revRes = await pool.query(`
-      SELECT 
-        r.id, 
-        COALESCE(u.full_name, 'Verified Customer') as user, 
-        r.rating, 
+      SELECT
+        r.id,
+        COALESCE(u.full_name, 'Verified Customer') as user,
+        r.rating,
         r.title,
-        r.comment, 
+        r.comment,
         TO_CHAR(r.created_at, 'DD Mon YYYY') as date,
         true as is_verified
       FROM reviews r
@@ -120,29 +135,30 @@ exports.getProductById = async (id) => {
  * Return seller offers for a product
  */
 exports.getProductSellers = async (id) => {
+  if (!isValidUuid(id)) return [];
   const res = await pool.query(`
-    SELECT 
-      sl.id, 
-      sl.sell_price as price, 
-      sl.mrp, 
-      sl.stock_qty, 
-      '14-45 mins Express Delivery' as delivery_estimate, 
-      COALESCE(st.store_name, 'Shabbir Kirana Store') as store_name, 
-      COALESCE(st.rating, 5.0) as rating, 
+    SELECT
+      sl.id,
+      sl.sell_price as price,
+      sl.mrp,
+      sl.stock_qty,
+      '14-45 mins Express Delivery' as delivery_estimate,
+      COALESCE(st.store_name, 'Shabbir Kirana Store') as store_name,
+      COALESCE(st.rating, 5.0) as rating,
       st.id as store_id,
       '7 Days Returnable' as return_policy
     FROM seller_listings sl
     LEFT JOIN stores st ON sl.store_id = st.id
     WHERE (
-      sl.id = $1 
+      sl.id = $1
       OR (sl.master_catalog_id IS NOT NULL AND sl.master_catalog_id = (SELECT master_catalog_id FROM seller_listings WHERE id = $1 LIMIT 1))
       OR (sl.category_id = (SELECT category_id FROM seller_listings WHERE id = $1 LIMIT 1) AND sl.id != $1)
     )
     AND sl.is_active = true
-    AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+    AND ${ELIGIBLE_LISTING_STATUS_SQL}
     LIMIT 5
   `, [id]);
-  
+
   return res.rows.map(row => ({
     ...row,
     price: parseFloat(row.price),
@@ -158,37 +174,38 @@ exports.getProductSellers = async (id) => {
  * Return related products
  */
 exports.getRelatedProducts = async (id) => {
+  if (!isValidUuid(id)) return [];
   const current = await pool.query('SELECT category_id FROM seller_listings WHERE id = $1', [id]);
   const catId = current.rows[0]?.category_id;
 
   const res = await pool.query(`
-    SELECT 
-      sl.id, 
-      sl.title as name, 
-      sl.sell_price as price, 
-      sl.mrp, 
+    SELECT
+      sl.id,
+      sl.title as name,
+      sl.sell_price as price,
+      sl.mrp,
       sl.stock_qty,
-      sl.rating, 
-      sl.review_count as reviews, 
+      sl.rating,
+      sl.review_count as reviews,
       st.id as "storeId",
-      COALESCE(st.store_name, 'Shabbir Kirana Store') as "sellerName", 
-      COALESCE(st.store_name, 'Shabbir Kirana Store') as "storeName", 
+      COALESCE(st.store_name, 'Shabbir Kirana Store') as "sellerName",
+      COALESCE(st.store_name, 'Shabbir Kirana Store') as "storeName",
       COALESCE(st.rating, 5.0) as "sellerRating",
-      COALESCE(pi.image_url, '/product_images/' || LOWER(TRIM(sl.title)) || '.jpeg', 'https://via.placeholder.com/150') as image, 
+      COALESCE(pi.image_url, '/product_images/' || LOWER(TRIM(sl.title)) || '.jpeg', 'https://via.placeholder.com/150') as image,
       sl.is_active as status
     FROM seller_listings sl
     LEFT JOIN stores st ON sl.store_id = st.id
     LEFT JOIN LATERAL (
-      SELECT image_url FROM product_images 
-      WHERE product_id = sl.id 
+      SELECT image_url FROM product_images
+      WHERE product_id = sl.id
          OR image_url ILIKE '%' || LOWER(TRIM(sl.title)) || '%'
       ORDER BY is_primary DESC, display_order ASC
       LIMIT 1
     ) pi ON true
     WHERE sl.id != $1
       AND ($2::int IS NULL OR sl.category_id = $2)
-      AND sl.is_active = true 
-      AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+      AND sl.is_active = true
+      AND ${ELIGIBLE_LISTING_STATUS_SQL}
     LIMIT 6
   `, [id, catId || null]);
 
@@ -215,16 +232,17 @@ exports.getRelatedProducts = async (id) => {
  * Real-time sellability and stock messaging
  */
 exports.getProductAvailability = async (id) => {
+  if (!isValidUuid(id)) return null;
   const res = await pool.query(`
     SELECT id, title, sell_price, stock_qty, is_active, approval_status, min_order_qty
-    FROM seller_listings 
+    FROM seller_listings
     WHERE id = $1
   `, [id]);
 
   if (res.rows.length === 0) return null;
   const row = res.rows[0];
   const stock = parseInt(row.stock_qty || 0, 10);
-  const isApproved = row.approval_status === 'APPROVED' || row.approval_status === null;
+  const isApproved = isApprovedListingStatus(row.approval_status);
   const isAvailable = row.is_active && isApproved && stock > 0;
 
   let message = "Out of Stock";
@@ -250,9 +268,10 @@ exports.getProductAvailability = async (id) => {
  * Variant matrix for a product
  */
 exports.getProductVariants = async (id) => {
+  if (!isValidUuid(id)) return [];
   // Query product_variants table if linked through products or listing
   const res = await pool.query(`
-    SELECT 
+    SELECT
       pv.id,
       pv.variant_name as name,
       pv.sku,
@@ -276,9 +295,9 @@ exports.getProductVariants = async (id) => {
 
   // Fallback to primary listing variant
   const listingRes = await pool.query(`
-    SELECT id, unit, sell_price, mrp, stock_qty, sku 
-    FROM seller_listings 
-    WHERE id = $1 AND is_active = true AND (approval_status = 'APPROVED' OR approval_status IS NULL)
+    SELECT id, unit, sell_price, mrp, stock_qty, sku
+    FROM seller_listings
+    WHERE id = $1 AND is_active = true AND ${ELIGIBLE_BARE_LISTING_STATUS_SQL}
   `, [id]);
 
   if (listingRes.rows.length === 0) return [];
@@ -301,10 +320,11 @@ exports.getProductVariants = async (id) => {
  * Price and discount breakdown
  */
 exports.getProductPrice = async (id) => {
+  if (!isValidUuid(id)) return null;
   const res = await pool.query(`
-    SELECT id, sell_price, mrp 
-    FROM seller_listings 
-    WHERE id = $1 AND is_active = true AND (approval_status = 'APPROVED' OR approval_status IS NULL)
+    SELECT id, sell_price, mrp
+    FROM seller_listings
+    WHERE id = $1 AND is_active = true AND ${ELIGIBLE_BARE_LISTING_STATUS_SQL}
   `, [id]);
 
   if (res.rows.length === 0) return null;
@@ -329,8 +349,9 @@ exports.getProductPrice = async (id) => {
  * Product media and gallery
  */
 exports.getProductMedia = async (id) => {
+  if (!isValidUuid(id)) return [];
   const res = await pool.query(`
-    SELECT 
+    SELECT
       pi.id,
       pi.image_url as url,
       pi.thumbnail_url,
@@ -373,11 +394,12 @@ exports.getProductMedia = async (id) => {
  * Normalized specifications
  */
 exports.getProductSpecifications = async (id) => {
+  if (!isValidUuid(id)) return null;
   const res = await pool.query(`
     SELECT sl.brand_tag, sl.unit, sl.sku, sl.barcode, c.name as category_name
     FROM seller_listings sl
     LEFT JOIN categories c ON sl.category_id = c.id
-    WHERE sl.id = $1 AND sl.is_active = true AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+    WHERE sl.id = $1 AND sl.is_active = true AND ${ELIGIBLE_LISTING_STATUS_SQL}
   `, [id]);
 
   if (res.rows.length === 0) return null;
@@ -402,16 +424,17 @@ exports.getProductSpecifications = async (id) => {
  * Bundle recommendations
  */
 exports.getFrequentlyBoughtTogether = async (id) => {
+  if (!isValidUuid(id)) return { mainProduct: null, bundleItems: [], comboPrice: 0 };
   const current = await pool.query('SELECT category_id, sell_price, title FROM seller_listings WHERE id = $1', [id]);
   if (current.rows.length === 0) return { mainProduct: null, bundleItems: [], comboPrice: 0 };
-  
+
   const main = current.rows[0];
   const relatedRes = await pool.query(`
     SELECT sl.id, sl.title as name, sl.sell_price as price, sl.mrp
     FROM seller_listings sl
-    WHERE sl.id != $1 
-      AND sl.is_active = true 
-      AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+    WHERE sl.id != $1
+      AND sl.is_active = true
+      AND ${ELIGIBLE_LISTING_STATUS_SQL}
     LIMIT 2
   `, [id]);
 
@@ -448,7 +471,7 @@ exports.searchProducts = async (qOrFilters = {}, pageArg = 1, limitArg = 20, fil
     limit = parseInt(qOrFilters.limit) || 20;
     category = qOrFilters.category || null;
     categories = Array.isArray(qOrFilters.categories) ? qOrFilters.categories : [];
-    storeId = qOrFilters.storeId || qOrFilters.store || null;
+    storeId = qOrFilters.storeId || qOrFilters.store_id || qOrFilters.store || null;
     storeName = qOrFilters.storeName || null;
     minPrice = qOrFilters.minPrice !== undefined && qOrFilters.minPrice !== null && qOrFilters.minPrice !== '' ? parseFloat(qOrFilters.minPrice) : null;
     maxPrice = qOrFilters.maxPrice !== undefined && qOrFilters.maxPrice !== null && qOrFilters.maxPrice !== '' ? parseFloat(qOrFilters.maxPrice) : null;
@@ -457,14 +480,13 @@ exports.searchProducts = async (qOrFilters = {}, pageArg = 1, limitArg = 20, fil
     inStockOnly = qOrFilters.inStockOnly === true || qOrFilters.inStockOnly === 'true';
     sortBy = qOrFilters.sortBy || null;
     sortOrder = qOrFilters.sortOrder || null;
-    storeId = qOrFilters.store_id || qOrFilters.storeId || null;
   } else {
     q = qOrFilters || '';
     page = parseInt(pageArg) || 1;
     limit = parseInt(limitArg) || 20;
     category = filtersArg.category || null;
     categories = Array.isArray(filtersArg.categories) ? filtersArg.categories : [];
-    storeId = filtersArg.storeId || filtersArg.store || null;
+    storeId = filtersArg.storeId || filtersArg.store_id || filtersArg.store || null;
     storeName = filtersArg.storeName || null;
     minPrice = filtersArg.minPrice !== undefined && filtersArg.minPrice !== null && filtersArg.minPrice !== '' ? parseFloat(filtersArg.minPrice) : null;
     maxPrice = filtersArg.maxPrice !== undefined && filtersArg.maxPrice !== null && filtersArg.maxPrice !== '' ? parseFloat(filtersArg.maxPrice) : null;
@@ -473,16 +495,16 @@ exports.searchProducts = async (qOrFilters = {}, pageArg = 1, limitArg = 20, fil
     inStockOnly = filtersArg.inStockOnly === true || filtersArg.inStockOnly === 'true';
     sortBy = sortByArg || 'relevance';
     sortOrder = filtersArg.sortOrder || null;
-    storeId = filtersArg.store_id || filtersArg.storeId || null;
   }
 
   const offset = (page - 1) * limit;
-  let whereClause = ` WHERE sl.is_active = true AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)`;
+  let whereClause = ` WHERE sl.is_active = true AND ${ELIGIBLE_LISTING_STATUS_SQL}`;
   const params = [];
   let paramIdx = 1;
 
   if (storeId) {
-    whereClause += ` AND sl.store_id::text = $${paramIdx++}`;
+    whereClause += ` AND (sl.store_id::text = $${paramIdx} OR st.id::text = $${paramIdx})`;
+    paramIdx++;
     params.push(String(storeId));
   }
 
@@ -490,12 +512,6 @@ exports.searchProducts = async (qOrFilters = {}, pageArg = 1, limitArg = 20, fil
     whereClause += ` AND (sl.title ILIKE $${paramIdx} OR c.name ILIKE $${paramIdx} OR c.slug ILIKE $${paramIdx} OR st.store_name ILIKE $${paramIdx} OR sl.brand_tag ILIKE $${paramIdx})`;
     paramIdx++;
     params.push(`%${q}%`);
-  }
-
-  if (storeId) {
-    whereClause += ` AND (sl.store_id::text = $${paramIdx} OR st.id::text = $${paramIdx})`;
-    paramIdx++;
-    params.push(String(storeId));
   }
 
   if (storeName) {
@@ -550,20 +566,20 @@ exports.searchProducts = async (qOrFilters = {}, pageArg = 1, limitArg = 20, fil
   const total = parseInt(countRes.rows[0]?.total || 0, 10);
 
   let query = `
-    SELECT 
-      sl.id, 
-      sl.title as name, 
-      sl.sell_price as price, 
-      sl.mrp, 
-      sl.rating, 
-      sl.review_count as reviews, 
+    SELECT
+      sl.id,
+      sl.title as name,
+      sl.sell_price as price,
+      sl.mrp,
+      sl.rating,
+      sl.review_count as reviews,
       sl.store_id,
       sl.stock_qty,
       st.id as "storeId",
-      COALESCE(st.store_name, 'AgroFoods') as "sellerName", 
-      COALESCE(st.store_name, 'AgroFoods') as "storeName", 
+      COALESCE(st.store_name, 'AgroFoods') as "sellerName",
+      COALESCE(st.store_name, 'AgroFoods') as "storeName",
       COALESCE(st.rating, 5.0) as "sellerRating",
-      COALESCE(pi.image_url, '/product_images/' || LOWER(TRIM(sl.title)) || '.jpeg', 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80') as image, 
+      COALESCE(pi.image_url, '/product_images/' || LOWER(TRIM(sl.title)) || '.jpeg', 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80') as image,
       sl.is_active as status,
       c.slug as category_slug,
       c.name as category_name
@@ -571,8 +587,8 @@ exports.searchProducts = async (qOrFilters = {}, pageArg = 1, limitArg = 20, fil
     LEFT JOIN stores st ON sl.store_id = st.id
     LEFT JOIN categories c ON sl.category_id = c.id
     LEFT JOIN LATERAL (
-      SELECT image_url FROM product_images 
-      WHERE product_id = sl.id 
+      SELECT image_url FROM product_images
+      WHERE product_id = sl.id
          OR image_url ILIKE '%' || LOWER(TRIM(sl.title)) || '%'
       ORDER BY is_primary DESC, display_order ASC
       LIMIT 1
@@ -634,11 +650,11 @@ exports.getSearchSuggestions = async (q = '') => {
   if (!queryText) return [];
 
   const res = await pool.query(`
-    SELECT DISTINCT title as suggestion 
-    FROM seller_listings 
-    WHERE is_active = true 
-      AND (approval_status = 'APPROVED' OR approval_status IS NULL)
-      AND title ILIKE $1 
+    SELECT DISTINCT title as suggestion
+    FROM seller_listings
+    WHERE is_active = true
+      AND ${ELIGIBLE_BARE_LISTING_STATUS_SQL}
+      AND title ILIKE $1
     UNION
     SELECT DISTINCT name as suggestion
     FROM categories
@@ -691,12 +707,17 @@ exports.getPopularSearches = async () => {
 exports.recordSearchFeedback = async (body = {}) => {
   const feedback = {
     query: body.query || '',
-    clickedId: body.clickedId || null,
-    rating: body.rating || 5,
+    clickedId: body.clickedId || body.clickedProductId || null,
+    rating: body.rating ?? 5,
+    helpful: body.helpful !== undefined ? body.helpful : null,
     timestamp: new Date().toISOString()
   };
+  totalFeedbackCount += 1;
   searchFeedbackLog.push(feedback);
-  return { recorded: true, count: searchFeedbackLog.length };
+  if (searchFeedbackLog.length > MAX_FEEDBACK_LOG) {
+    searchFeedbackLog.shift();
+  }
+  return { recorded: true, count: totalFeedbackCount };
 };
 
 /**
@@ -714,7 +735,7 @@ exports.getFilters = async () => {
 exports.getCategories = async () => {
   const res = await pool.query(`
     SELECT id, name, slug, icon_class, image_url, parent_id
-    FROM categories 
+    FROM categories
     WHERE is_active = true
     ORDER BY display_order ASC, id ASC
   `);
@@ -747,12 +768,13 @@ exports.getCategoryTree = async () => {
  * Get child categories
  */
 exports.getCategoryChildren = async (parentId) => {
+  if (!/^\d+$/.test(String(parentId || '').trim())) return [];
   const res = await pool.query(`
     SELECT id, name, slug, icon_class, image_url, parent_id
-    FROM categories 
+    FROM categories
     WHERE parent_id = $1 AND is_active = true
     ORDER BY display_order ASC, id ASC
-  `, [parentId]);
+  `, [Number(parentId)]);
   return res.rows;
 };
 
@@ -762,35 +784,35 @@ exports.getCategoryChildren = async (parentId) => {
  */
 exports.getProductsByCategory = async (slug) => {
   const res = await pool.query(`
-    SELECT 
-      sl.id, 
-      sl.title as name, 
-      sl.sell_price as price, 
-      sl.mrp, 
-      sl.rating, 
-      sl.review_count as reviews, 
+    SELECT
+      sl.id,
+      sl.title as name,
+      sl.sell_price as price,
+      sl.mrp,
+      sl.rating,
+      sl.review_count as reviews,
       sl.stock_qty,
       sl.store_id,
       st.id as "storeId",
-      COALESCE(st.store_name, 'AgroFoods') as "sellerName", 
-      COALESCE(pi.image_url, '/product_images/' || LOWER(TRIM(sl.title)) || '.jpeg', 'https://via.placeholder.com/150') as image, 
-      sl.is_active as status 
+      COALESCE(st.store_name, 'AgroFoods') as "sellerName",
+      COALESCE(pi.image_url, '/product_images/' || LOWER(TRIM(sl.title)) || '.jpeg', 'https://via.placeholder.com/150') as image,
+      sl.is_active as status
     FROM seller_listings sl
     JOIN categories c ON sl.category_id = c.id
     LEFT JOIN stores st ON sl.store_id = st.id
     LEFT JOIN LATERAL (
-      SELECT image_url FROM product_images 
-      WHERE product_id = sl.id 
+      SELECT image_url FROM product_images
+      WHERE product_id = sl.id
          OR image_url ILIKE '%' || LOWER(TRIM(sl.title)) || '%'
       ORDER BY is_primary DESC, display_order ASC
       LIMIT 1
     ) pi ON true
-    WHERE sl.is_active = true 
-      AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+    WHERE sl.is_active = true
+      AND ${ELIGIBLE_LISTING_STATUS_SQL}
       AND c.slug = $1
     LIMIT 20
   `, [slug]);
-  
+
   return res.rows.map(row => {
     const price = parseFloat(row.price);
     const mrp = parseFloat(row.mrp || row.price);
@@ -830,7 +852,7 @@ exports.getBrands = async () => {
     FROM seller_listings
     WHERE brand_tag IS NOT NULL AND is_active = true
   `);
-  
+
   return distinctRes.rows.map((b, i) => ({
     id: `brand-${i + 1}`,
     name: b.name,
@@ -845,27 +867,27 @@ exports.getBrands = async () => {
  */
 exports.getBrandProducts = async (slug) => {
   const res = await pool.query(`
-    SELECT 
-      sl.id, 
-      sl.title as name, 
-      sl.sell_price as price, 
-      sl.mrp, 
-      sl.rating, 
+    SELECT
+      sl.id,
+      sl.title as name,
+      sl.sell_price as price,
+      sl.mrp,
+      sl.rating,
       sl.stock_qty,
-      st.store_name as "sellerName", 
-      COALESCE(pi.image_url, '/product_images/' || LOWER(TRIM(sl.title)) || '.jpeg', 'https://via.placeholder.com/150') as image 
+      st.store_name as "sellerName",
+      COALESCE(pi.image_url, '/product_images/' || LOWER(TRIM(sl.title)) || '.jpeg', 'https://via.placeholder.com/150') as image
     FROM seller_listings sl
     LEFT JOIN stores st ON sl.store_id = st.id
     LEFT JOIN LATERAL (
-      SELECT image_url FROM product_images 
-      WHERE product_id = sl.id 
+      SELECT image_url FROM product_images
+      WHERE product_id = sl.id
          OR image_url ILIKE '%' || LOWER(TRIM(sl.title)) || '%'
       ORDER BY is_primary DESC, display_order ASC
       LIMIT 1
     ) pi ON true
     WHERE LOWER(sl.brand_tag) = LOWER($1)
-      AND sl.is_active = true 
-      AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+      AND sl.is_active = true
+      AND ${ELIGIBLE_LISTING_STATUS_SQL}
     LIMIT 20
   `, [slug]);
 
@@ -922,19 +944,19 @@ exports.getHome = async () => {
  */
 exports.getRecommendedProducts = async () => {
   const res = await pool.query(`
-    SELECT 
-      sl.id, 
-      sl.title as name, 
-      sl.sell_price as price, 
-      sl.mrp, 
+    SELECT
+      sl.id,
+      sl.title as name,
+      sl.sell_price as price,
+      sl.mrp,
       sl.stock_qty,
-      sl.rating, 
-      sl.review_count as reviews, 
+      sl.rating,
+      sl.review_count as reviews,
       st.id as "storeId",
-      COALESCE(st.store_name, 'Shabbir Kirana Store') as "sellerName", 
-      COALESCE(st.store_name, 'Shabbir Kirana Store') as "storeName", 
+      COALESCE(st.store_name, 'Shabbir Kirana Store') as "sellerName",
+      COALESCE(st.store_name, 'Shabbir Kirana Store') as "storeName",
       COALESCE(st.rating, 5.0) as "sellerRating",
-      COALESCE(pi.image_url, '/product_images/' || LOWER(TRIM(sl.title)) || '.jpeg', 'https://via.placeholder.com/150') as image, 
+      COALESCE(pi.image_url, '/product_images/' || LOWER(TRIM(sl.title)) || '.jpeg', 'https://via.placeholder.com/150') as image,
       sl.is_active as status,
       c.slug as category_slug,
       c.name as category_name
@@ -942,14 +964,14 @@ exports.getRecommendedProducts = async () => {
     LEFT JOIN stores st ON sl.store_id = st.id
     LEFT JOIN categories c ON sl.category_id = c.id
     LEFT JOIN LATERAL (
-      SELECT image_url FROM product_images 
-      WHERE product_id = sl.id 
+      SELECT image_url FROM product_images
+      WHERE product_id = sl.id
          OR image_url ILIKE '%' || LOWER(TRIM(sl.title)) || '%'
       ORDER BY is_primary DESC, display_order ASC
       LIMIT 1
     ) pi ON true
-    WHERE sl.is_active = true 
-      AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+    WHERE sl.is_active = true
+      AND ${ELIGIBLE_LISTING_STATUS_SQL}
     LIMIT 10
   `);
 
@@ -988,7 +1010,7 @@ exports.getDeals = async (filters = {}) => {
 
   const conditions = [
     `sl.is_active = true`,
-    `(sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)`
+    ELIGIBLE_LISTING_STATUS_SQL
   ];
   const params = [];
   let paramIndex = 1;
@@ -1001,8 +1023,8 @@ exports.getDeals = async (filters = {}) => {
 
   if (search && search.trim()) {
     conditions.push(`(
-      sl.title ILIKE $${paramIndex} 
-      OR c.name ILIKE $${paramIndex} 
+      sl.title ILIKE $${paramIndex}
+      OR c.name ILIKE $${paramIndex}
       OR COALESCE(b.name, sl.brand_tag, '') ILIKE $${paramIndex}
       OR COALESCE(st.store_name, '') ILIKE $${paramIndex}
     )`);
@@ -1049,7 +1071,7 @@ exports.getDeals = async (filters = {}) => {
   }
 
   const query = `
-    SELECT 
+    SELECT
       sl.id,
       sl.id as listing_id,
       sl.title,
@@ -1083,8 +1105,8 @@ exports.getDeals = async (filters = {}) => {
     LEFT JOIN brands b ON p.brand_id = b.id
     LEFT JOIN stores st ON sl.store_id = st.id
     LEFT JOIN LATERAL (
-      SELECT image_url FROM product_images 
-      WHERE product_id = sl.id 
+      SELECT image_url FROM product_images
+      WHERE product_id = sl.id
          OR image_url ILIKE '%' || LOWER(TRIM(sl.title)) || '%'
       ORDER BY is_primary DESC, display_order ASC
       LIMIT 1
@@ -1168,8 +1190,8 @@ exports.getDealCategories = async () => {
     SELECT DISTINCT c.id, c.name, c.slug, COUNT(sl.id) as deal_count
     FROM categories c
     JOIN seller_listings sl ON sl.category_id = c.id
-    WHERE sl.is_active = true 
-      AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+    WHERE sl.is_active = true
+      AND ${ELIGIBLE_LISTING_STATUS_SQL}
     GROUP BY c.id, c.name, c.slug
     ORDER BY deal_count DESC
   `);
@@ -1186,10 +1208,10 @@ exports.getDealCategories = async () => {
  * Single deal detail with strict approval gate
  */
 exports.getDealById = async (id) => {
-  if (!id) return null;
+  if (!isValidUuid(id)) return null;
 
   const query = `
-    SELECT 
+    SELECT
       sl.id,
       sl.id as listing_id,
       sl.title,
@@ -1224,15 +1246,15 @@ exports.getDealById = async (id) => {
     LEFT JOIN brands b ON p.brand_id = b.id
     LEFT JOIN stores st ON sl.store_id = st.id
     LEFT JOIN LATERAL (
-      SELECT image_url FROM product_images 
-      WHERE product_id = sl.id 
+      SELECT image_url FROM product_images
+      WHERE product_id = sl.id
          OR image_url ILIKE '%' || LOWER(TRIM(sl.title)) || '%'
       ORDER BY is_primary DESC, display_order ASC
       LIMIT 1
     ) pi ON true
-    WHERE sl.id = $1 
-      AND sl.is_active = true 
-      AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+    WHERE sl.id = $1
+      AND sl.is_active = true
+      AND ${ELIGIBLE_LISTING_STATUS_SQL}
   `;
 
   const res = await pool.query(query, [id]);
@@ -1294,11 +1316,11 @@ exports.getDealById = async (id) => {
  */
 exports.getSellers = async () => {
   const res = await pool.query(`
-    SELECT 
-      id, 
-      store_name as name, 
-      category as tags, 
-      rating, 
+    SELECT
+      id,
+      store_name as name,
+      category as tags,
+      rating,
       rating_count as "ratingCount",
       phone,
       address_line as area,
@@ -1309,10 +1331,10 @@ exports.getSellers = async () => {
       is_online as "isOnline",
       'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80' as image,
       COALESCE(delivery_radius_km || ' km', '1.2 km') as distance
-    FROM stores 
+    FROM stores
     LIMIT 50
   `);
-  
+
   return res.rows.map(row => ({
     ...row,
     tags: row.tags ? [row.tags] : ["Grocery", "Daily Needs"],
@@ -1322,31 +1344,7 @@ exports.getSellers = async () => {
 };
 
 exports.getStoreById = async (id) => {
-  const res = await pool.query(`
-    SELECT 
-      id, 
-      store_name as name, 
-      category as tags, 
-      rating, 
-      phone,
-      address_line as area,
-      city,
-      state,
-      pincode,
-      is_online,
-      'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80' as image,
-      COALESCE(delivery_radius_km || ' km', '1.2 km') as distance
-    FROM stores 
-    WHERE id::text = $1
-  `, [String(id)]);
-
-  if (res.rows.length === 0) return null;
-  const row = res.rows[0];
-  return {
-    ...row,
-    tags: row.tags ? [row.tags] : [],
-    rating: parseFloat(row.rating || 4.5)
-  };
+  return exports.getSellerById(id);
 };
 
 exports.getStoreProducts = async (storeId, page = 1, limit = 20) => {
@@ -1355,9 +1353,9 @@ exports.getStoreProducts = async (storeId, page = 1, limit = 20) => {
 
 exports.getPromotions = async () => {
   const res = await pool.query(`
-    SELECT 
-      p.*, 
-      s.store_name 
+    SELECT
+      p.*,
+      s.store_name
     FROM promotions p
     LEFT JOIN stores s ON p.store_id = s.id
     WHERE p.is_active = true
@@ -1372,32 +1370,40 @@ exports.getPromotions = async () => {
  */
 exports.getSellerById = async (id) => {
   const res = await pool.query(`
-    SELECT 
-      id, 
+    SELECT
+      id,
       seller_id as "sellerId",
-      store_name as name, 
-      category, 
+      store_name as name,
+      category,
+      category as tags,
       phone,
       email,
       address_line as address,
-      city, 
-      state, 
+      address_line as area,
+      city,
+      state,
       pincode,
-      rating, 
+      rating,
       rating_count as "ratingCount",
       delivery_radius_km as "deliveryRadius",
       is_online as "isOnline",
+      is_online,
       open_time as "openTime",
-      close_time as "closeTime"
-    FROM stores 
-    WHERE id::text = $1
+      close_time as "closeTime",
+      'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80' as image,
+      COALESCE(delivery_radius_km || ' km', '1.2 km') as distance
+    FROM stores
+    WHERE id::text = $1 OR seller_id::text = $1
+    LIMIT 1
   `, [String(id)]);
 
-  if (res.rows.length === 0) {
-    const all = await exports.getSellers();
-    return all[0] || null;
-  }
-  return res.rows[0];
+  if (res.rows.length === 0) return null;
+  const row = res.rows[0];
+  return {
+    ...row,
+    tags: row.tags ? [row.tags] : [],
+    rating: parseFloat(row.rating || 4.5)
+  };
 };
 
 /**
@@ -1474,3 +1480,5 @@ exports.getSellerReviews = async (sellerId) => {
     }
   ];
 };
+
+exports.getRecommended = exports.getRecommendedProducts;

@@ -1,40 +1,78 @@
-const { Pool } = require('pg');
+const path = require('path');
 const dotenv = require('dotenv');
-const dns = require('dns');
-// Patch dns.lookup to ONLY return IPv4. 
-// Render DB is in Oregon (350ms ping), which is higher than Node's 250ms IPv6 fallback timeout.
-const originalLookup = dns.lookup;
-dns.lookup = (hostname, options, callback) => {
-  if (typeof options === 'function') { callback = options; options = { family: 4 }; }
-  else if (typeof options === 'object') { options.family = 4; }
-  else { options = { family: 4 }; }
-  return originalLookup(hostname, options, callback);
-};
+
+// Load environment variables reliably from backend directory, falling back to root
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 dotenv.config();
 
-const pool = new Pool({
-  host: process.env.DB_HOST || 'dpg-davljkid0e5s738fkddg-a.oregon-postgres.render.com',
-  user: process.env.DB_USER || 'adab_b2c_team_user',
-  password: process.env.DB_PASSWORD || 'XBl5rzgqY22fI75kE1zjHUNdMhrzLyen',
-  database: process.env.DB_NAME || 'adab_b2c_team',
-  port: Number(process.env.DB_PORT) || 5432,
-  ssl: process.env.DB_SSL_MODE === 'disable' ? false : {
-    rejectUnauthorized: false
-  },
-  family: 4, // Force IPv4 to bypass internalConnectMultiple Node.js bugs
-  max: 2,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 30000
-});
+const { Pool } = require('pg');
+const net = require('net');
 
-pool.connect((err, client, release) => {
-  if (err) {
-    console.error('❌ Error connecting to Customer Portal database:', err.message || err);
-  } else {
-    console.log('✅ Customer Portal database connected successfully');
-    release();
+// Fixes the slow IPv6 fallback when connecting to a far-away database
+if (net.setDefaultAutoSelectFamilyAttemptTimeout) {
+  net.setDefaultAutoSelectFamilyAttemptTimeout(1000);
+}
+
+// Determine production-safe SSL settings with certificate verification
+function getSslConfiguration() {
+  const mode = (process.env.DB_SSL_MODE || '').toLowerCase().trim();
+  const dbSsl = (process.env.DB_SSL || '').toLowerCase().trim();
+  const rejectUnauthorizedEnv = process.env.DB_SSL_REJECT_UNAUTHORIZED;
+
+  // Explicitly disabled
+  if (mode === 'disable' || mode === 'false' || dbSsl === 'false' || dbSsl === 'disable') {
+    return false;
   }
-});
+
+  // Insecure mode override (local testing / self-signed proxy only)
+  if (mode === 'no-verify' || rejectUnauthorizedEnv === 'false') {
+    return { rejectUnauthorized: false };
+  }
+
+  // Production-safe default: enable SSL with certificate verification
+  const sslConfig = {
+    rejectUnauthorized: true,
+  };
+
+  if (process.env.DB_CA_CERT) {
+    sslConfig.ca = process.env.DB_CA_CERT;
+  }
+
+  return sslConfig;
+}
+
+const ssl = getSslConfiguration();
+
+// Settings shared by both setups
+const baseConfig = {
+  max: Number(process.env.DB_MAX_CONNECTIONS) || 5,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 30000,
+  keepAlive: true,
+};
+
+const poolConfig = process.env.DATABASE_URL
+  ? {
+      ...baseConfig,
+      connectionString: process.env.DATABASE_URL,
+      ...(ssl !== undefined ? { ssl } : {})
+    }
+  : {
+      ...baseConfig,
+      host: process.env.DB_HOST,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
+      port: Number(process.env.DB_PORT) || 5432,
+      ssl,
+    };
+
+const pool = new Pool(poolConfig);
+
+// Test the connection at startup
+pool.query('SELECT 1')
+  .then(() => console.log('✅ Customer Portal database connected successfully'))
+  .catch((err) => console.error('❌ Error connecting to Customer Portal database:', err.message || err));
 
 pool.on('error', (err) => {
   console.error('❌ Unexpected database error on Customer Portal client:', err);

@@ -12,15 +12,15 @@ export const api = axios.create({
 api.interceptors.request.use((config) => {
   // 1. Bearer Token (from signup/login)
   const token = localStorage.getItem('adab_auth_token') ||
-                localStorage.getItem('token') || 
-                localStorage.getItem('access_token') || 
-                localStorage.getItem('adab_token') || 
-                localStorage.getItem('jwt');
+    localStorage.getItem('token') ||
+    localStorage.getItem('access_token') ||
+    localStorage.getItem('adab_token') ||
+    localStorage.getItem('jwt');
 
   // 2. User ID (from localStorage user profile or direct id)
-  let userId = localStorage.getItem('userId') || 
-               localStorage.getItem('user_id') || 
-               localStorage.getItem('adab_user_id');
+  let userId = localStorage.getItem('userId') ||
+    localStorage.getItem('user_id') ||
+    localStorage.getItem('adab_user_id');
 
   if (!userId) {
     try {
@@ -29,7 +29,7 @@ api.interceptors.request.use((config) => {
         const parsed = JSON.parse(rawUser);
         userId = parsed.id || parsed.userId || parsed._id;
       }
-    } catch (e) {
+    } catch {
       // Ignore JSON parse errors
     }
   }
@@ -40,7 +40,7 @@ api.interceptors.request.use((config) => {
       const payloadBase64 = token.split('.')[1];
       const decoded = JSON.parse(atob(payloadBase64));
       userId = decoded.id || decoded.userId || decoded.customerId || decoded.sub;
-    } catch (e) {
+    } catch {
       // Ignore JWT decode errors
     }
   }
@@ -53,10 +53,6 @@ api.interceptors.request.use((config) => {
       localStorage.removeItem('adab_user_id');
     }
     userId = null;
-  }
-
-  if (!userId) {
-    userId = '11111111-1111-1111-1111-111111111111';
   }
 
   if (token) {

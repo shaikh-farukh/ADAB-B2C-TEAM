@@ -1,20 +1,17 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/api';
-import { 
-  Tag, 
-  Sparkles, 
-  Percent, 
-  Clock, 
-  Copy, 
-  Check, 
-  ShoppingBag, 
-  ArrowRight, 
-  ShieldCheck, 
-  Flame, 
-  Gift, 
-  RefreshCw, 
-  X, 
+import {
+  Tag,
+  Sparkles,
+  Clock,
+  Copy,
+  Check,
+  ShoppingBag,
+  ArrowRight,
+  Flame,
+  RefreshCw,
+  X,
   Search,
   AlertCircle,
   Info,
@@ -35,11 +32,11 @@ function mapDealFromApi(deal) {
   const price = Number(deal.price ?? deal.sell_price ?? 0);
   const mrp = Number(deal.mrp ?? price);
   const discountPercent = Number(
-    deal.discountPercent ?? 
+    deal.discountPercent ??
     (mrp > price ? Math.round(((mrp - price) / mrp) * 100) : 0)
   );
   const discountAmount = Number(
-    deal.discountAmount ?? 
+    deal.discountAmount ??
     (mrp > price ? parseFloat((mrp - price).toFixed(2)) : 0)
   );
   const stockQty = Number(deal.stock_qty ?? 0);
@@ -73,8 +70,8 @@ function mapDealFromApi(deal) {
     deliveryEstimate: deal.deliveryEstimate || '14-45 mins Express Delivery available',
     returnPolicy: deal.returnPolicy || '7 Days Returnable',
     image: deal.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80',
-    images: Array.isArray(deal.images) && deal.images.length > 0 
-      ? deal.images 
+    images: Array.isArray(deal.images) && deal.images.length > 0
+      ? deal.images
       : [deal.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80'],
     rating: Number(deal.rating || 4.8),
     reviews: Number(deal.reviews || deal.review_count || 12),
@@ -95,6 +92,7 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
   const [dealCategories, setDealCategories] = useState([]);
   const [coupons, setCoupons] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState(null);
 
   // Filters & Search
@@ -109,8 +107,23 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
   const [loadingDealDetail, setLoadingDealDetail] = useState(false);
   const [dealDetailError, setDealDetailError] = useState(null);
 
-  // Copy Code Feedback
+  // Copy Code Feedback & Pending Action Guards
   const [copiedCode, setCopiedCode] = useState(null);
+  const [pendingCartIds, setPendingCartIds] = useState({});
+  const [pendingWishlistIds, setPendingWishlistIds] = useState({});
+
+  const hasFetchedRef = useRef(false);
+  const inFlightRef = useRef(false);
+  const isMountedRef = useRef(true);
+  const dealDetailInFlightRef = useRef(null);
+  const lastDealDetailIdRef = useRef(null);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Toast Feedback State
   const [toastMessage, setToastMessage] = useState(null);
@@ -122,61 +135,103 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
     }, 2800);
   };
 
-  // 1. Fetch Deals, Deal Categories, and Live Coupons from API Contract
-  const fetchOffersData = async () => {
-    setLoading(true);
-    setError(null);
+  // 1. Fetch Deals, Deal Categories, and Live Coupons from API Contract (once on mount, Retry on failure)
+  const fetchOffersData = useCallback(async (force = false) => {
+    if (inFlightRef.current) return;
+    if (!force && hasFetchedRef.current) return;
+
+    hasFetchedRef.current = true;
+    inFlightRef.current = true;
+    if (force) {
+      setLoading(true);
+      setError(null);
+    }
+
     try {
-      const [dealsRes, categoriesRes, couponsRes] = await Promise.all([
-        api.get('/catalog/deals').catch(() => ({ data: { data: [] } })),
-        api.get('/catalog/deals/categories').catch(() => ({ data: { data: [] } })),
-        api.get('/cart/coupons').catch(() => ({ data: { data: { coupons: [] } } }))
+      const [dealsSettled, categoriesSettled, couponsSettled] = await Promise.allSettled([
+        api.get('/catalog/deals'),
+        api.get('/catalog/deals/categories'),
+        api.get('/cart/coupons')
       ]);
 
-      const rawDeals = dealsRes.data?.data || dealsRes.data || [];
+      if (dealsSettled.status === 'rejected') {
+        throw dealsSettled.reason;
+      }
+
+      if (!isMountedRef.current) return;
+
+      const dealsRes = dealsSettled.value;
+      const rawDeals = dealsRes.data?.data ?? dealsRes.data ?? [];
       const mappedDeals = Array.isArray(rawDeals) ? rawDeals.map(mapDealFromApi) : [];
-      const rawCategories = categoriesRes.data?.data || categoriesRes.data || [];
-      const rawCoupons = couponsRes.data?.data?.coupons || couponsRes.data?.coupons || [];
+
+      const rawCategories =
+        categoriesSettled.status === 'fulfilled'
+          ? (categoriesSettled.value.data?.data ?? categoriesSettled.value.data ?? [])
+          : [];
+      const rawCoupons =
+        couponsSettled.status === 'fulfilled'
+          ? (couponsSettled.value.data?.data?.coupons ?? couponsSettled.value.data?.coupons ?? [])
+          : [];
 
       setDeals(mappedDeals);
-      setDealCategories(rawCategories);
-      setCoupons(rawCoupons);
+      setDealCategories(Array.isArray(rawCategories) ? rawCategories : []);
+      setCoupons(Array.isArray(rawCoupons) ? rawCoupons : []);
+      setHasLoaded(true);
+      setError(null);
     } catch (err) {
+      hasFetchedRef.current = false;
+      if (!isMountedRef.current) return;
       console.error('Failed to load deals & offers:', err);
       setError('Unable to load current offers. Please verify your connection and try again.');
     } finally {
-      setLoading(false);
+      inFlightRef.current = false;
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
-  };
-
-  useEffect(() => {
-    fetchOffersData();
   }, []);
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchOffersData(false);
+  }, [fetchOffersData]);
+
   // 2. Fetch Single Deal Details (API #2: GET /api/v1/catalog/deals/:id)
-  const handleOpenDealDetails = async (dealId) => {
+  const handleOpenDealDetails = async (dealId, force = false) => {
     if (!dealId) return;
+    if (dealDetailInFlightRef.current === dealId) return;
+    if (!force && lastDealDetailIdRef.current === dealId && selectedDealDetail && !dealDetailError) {
+      setActiveDealId(dealId);
+      return;
+    }
+
+    lastDealDetailIdRef.current = dealId;
+    dealDetailInFlightRef.current = dealId;
     setActiveDealId(dealId);
     setLoadingDealDetail(true);
     setDealDetailError(null);
+
     try {
       const res = await api.get(`/catalog/deals/${dealId}`);
+      if (!isMountedRef.current) return;
       if (res.data?.success && res.data?.data) {
         setSelectedDealDetail(mapDealFromApi(res.data.data));
       } else {
-        const fallback = deals.find(d => d.id === dealId) || null;
-        setSelectedDealDetail(fallback);
+        throw new Error(res.data?.message || 'Deal details unavailable');
       }
     } catch (err) {
+      lastDealDetailIdRef.current = null;
+      if (!isMountedRef.current) return;
       console.error('Error fetching deal details:', err);
-      const fallback = deals.find(d => d.id === dealId) || null;
-      if (fallback) {
-        setSelectedDealDetail(fallback);
-      } else {
-        setDealDetailError(err.response?.data?.message || 'Failed to load details for this deal.');
-      }
+      setSelectedDealDetail(null);
+      setDealDetailError(err.response?.data?.message || 'Failed to load details for this deal.');
     } finally {
-      setLoadingDealDetail(false);
+      if (dealDetailInFlightRef.current === dealId) {
+        dealDetailInFlightRef.current = null;
+      }
+      if (isMountedRef.current) {
+        setLoadingDealDetail(false);
+      }
     }
   };
 
@@ -198,23 +253,36 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
     }, 2500);
   };
 
-  // 4. Add to Cart Handler
-  const handleAddToCartClick = (deal, e) => {
+  // 4. Add to Cart Handler (guarded against double click while in flight)
+  const handleAddToCartClick = async (deal, e) => {
     if (e) e.stopPropagation();
-    if (onAddToCart) {
-      onAddToCart(deal.listing_id || deal.id, deal.title);
+    const targetId = deal.listing_id || deal.id;
+    if (!onAddToCart || !targetId || pendingCartIds[targetId]) return;
+    setPendingCartIds(prev => ({ ...prev, [targetId]: true }));
+    try {
+      await onAddToCart(targetId, deal.title);
       showToast(`Added "${deal.title}" to cart at ₹${deal.price}!`);
+    } finally {
+      if (isMountedRef.current) {
+        setPendingCartIds(prev => ({ ...prev, [targetId]: false }));
+      }
     }
   };
 
-  // 5. Wishlist Toggle Handler
-  const handleWishlistClick = (deal, e) => {
+  // 5. Wishlist Toggle Handler (guarded against double click while in flight)
+  const handleWishlistClick = async (deal, e) => {
     if (e) e.stopPropagation();
-    if (onToggleWishlist) {
-      const targetId = deal.listing_id || deal.id;
-      onToggleWishlist(targetId);
+    const targetId = deal.listing_id || deal.id;
+    if (!onToggleWishlist || !targetId || pendingWishlistIds[targetId]) return;
+    setPendingWishlistIds(prev => ({ ...prev, [targetId]: true }));
+    try {
       const isCurrentlyWishlisted = wishlist.some(w => (w.listing_id || w.id || w) === targetId);
+      await onToggleWishlist(targetId);
       showToast(isCurrentlyWishlisted ? `Removed "${deal.title}" from wishlist` : `Saved "${deal.title}" to wishlist ❤️`);
+    } finally {
+      if (isMountedRef.current) {
+        setPendingWishlistIds(prev => ({ ...prev, [targetId]: false }));
+      }
     }
   };
 
@@ -232,7 +300,7 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
     let result = deals.filter(deal => {
       // Search matching title, code, category, brand, store
       const q = searchQuery.toLowerCase().trim();
-      const matchesSearch = !q || 
+      const matchesSearch = !q ||
         (deal.title || '').toLowerCase().includes(q) ||
         (deal.code || '').toLowerCase().includes(q) ||
         (deal.categoryName || '').toLowerCase().includes(q) ||
@@ -240,7 +308,7 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
         (deal.sellerName || '').toLowerCase().includes(q);
 
       // Category matching
-      const matchesCategory = selectedCategory === 'ALL' || 
+      const matchesCategory = selectedCategory === 'ALL' ||
         deal.categorySlug === selectedCategory ||
         deal.categoryName?.toLowerCase() === selectedCategory.toLowerCase();
 
@@ -311,7 +379,7 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
           {/* Search bar inside header */}
           <div className="mt-5 relative max-w-md">
             <Search className="w-4 h-4 text-emerald-700 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input 
+            <input
               type="text"
               placeholder="Search deals by product, code, brand or store..."
               value={searchQuery}
@@ -319,7 +387,7 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
               className="w-full bg-white text-gray-900 border-0 rounded-2xl pl-10 pr-9 py-2.5 text-xs font-semibold placeholder-gray-400 shadow-md outline-none focus:ring-2 focus:ring-emerald-300 transition-all"
             />
             {searchQuery && (
-              <button 
+              <button
                 onClick={() => setSearchQuery('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 cursor-pointer"
                 title="Clear Search"
@@ -358,14 +426,16 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
           </div>
           <h3 className="font-extrabold text-gray-900 text-base mb-1">Failed to Load Deals</h3>
           <p className="text-xs text-gray-500 mb-4">{error}</p>
-          <button 
-            onClick={fetchOffersData}
-            className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition flex items-center gap-1.5 mx-auto shadow-sm cursor-pointer"
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => fetchOffersData(true)}
+            className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition flex items-center gap-1.5 mx-auto shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <RefreshCw className="w-3.5 h-3.5" /> Try Again
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Retry
           </button>
         </div>
-      ) : (
+      ) : hasLoaded ? (
         <div className="space-y-8">
           {/* Filters & Sorting Toolbar */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -488,8 +558,8 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
 
                       {deal.image && (
                         <div className="w-20 h-20 rounded-2xl overflow-hidden bg-white/10 shrink-0 shadow-inner p-1">
-                          <img 
-                            src={deal.image} 
+                          <img
+                            src={deal.image}
                             alt={deal.title}
                             onError={(e) => {
                               e.currentTarget.onerror = null;
@@ -524,8 +594,9 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
+                          disabled={Boolean(pendingCartIds[deal.listing_id || deal.id])}
                           onClick={(e) => handleAddToCartClick(deal, e)}
-                          className="bg-amber-400 hover:bg-amber-300 text-gray-950 px-3 py-1.5 rounded-xl font-black text-xs transition flex items-center gap-1 shadow-sm cursor-pointer"
+                          className="bg-amber-400 hover:bg-amber-300 text-gray-950 px-3 py-1.5 rounded-xl font-black text-xs transition flex items-center gap-1 shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <ShoppingBag className="w-3 h-3" /> Quick Add
                         </button>
@@ -562,18 +633,18 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
                 </div>
                 <h3 className="font-extrabold text-gray-900 text-base mb-1">No Matching Deals Found</h3>
                 <p className="text-xs text-gray-500 max-w-sm mx-auto mb-5 leading-relaxed">
-                  {searchQuery 
-                    ? `No active promotions match "${searchQuery}". Check your spelling or try searching for another product.` 
-                    : minDiscountFilter > 0 
-                    ? `No deals currently meet the ${minDiscountFilter}% minimum discount filter.` 
+                  {searchQuery
+                    ? `No active promotions match "${searchQuery}". Check your spelling or try searching for another product.`
+                    : minDiscountFilter > 0
+                    ? `No deals currently meet the ${minDiscountFilter}% minimum discount filter.`
                     : 'There are no active deals matching the selected criteria.'}
                 </p>
                 <button
-                  onClick={() => { 
-                    setSelectedCategory('ALL'); 
-                    setSearchQuery(''); 
-                    setMinDiscountFilter(0); 
-                    setSortBy('discount_desc'); 
+                  onClick={() => {
+                    setSelectedCategory('ALL');
+                    setSearchQuery('');
+                    setMinDiscountFilter(0);
+                    setSortBy('discount_desc');
                   }}
                   className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition shadow-sm cursor-pointer"
                 >
@@ -594,8 +665,8 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
                       <div>
                         {/* Image & Discount Badge */}
                         <div className="relative h-44 bg-gray-50 overflow-hidden flex items-center justify-center">
-                          <img 
-                            src={deal.image} 
+                          <img
+                            src={deal.image}
                             alt={deal.title}
                             onError={(e) => {
                               e.currentTarget.onerror = null;
@@ -613,8 +684,9 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
                           {/* Wishlist Heart Toggle */}
                           <button
                             type="button"
+                            disabled={Boolean(pendingWishlistIds[deal.listing_id || deal.id])}
                             onClick={(e) => handleWishlistClick(deal, e)}
-                            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 backdrop-blur text-gray-500 hover:text-red-500 hover:bg-white flex items-center justify-center transition shadow-sm cursor-pointer z-10"
+                            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 backdrop-blur text-gray-500 hover:text-red-500 hover:bg-white flex items-center justify-center transition shadow-sm cursor-pointer z-10 disabled:opacity-50 disabled:cursor-not-allowed"
                             title={wishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
                           >
                             <Heart className={`w-4 h-4 ${wishlisted ? 'text-red-500 fill-red-500' : ''}`} />
@@ -709,8 +781,8 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
                         <button
                           type="button"
                           onClick={(e) => handleAddToCartClick(deal, e)}
-                          disabled={deal.stock_qty <= 0}
-                          className={`flex-1 py-2.5 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer ${
+                          disabled={deal.stock_qty <= 0 || Boolean(pendingCartIds[deal.listing_id || deal.id])}
+                          className={`flex-1 py-2.5 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                             deal.stock_qty > 0
                               ? 'bg-emerald-600 text-white hover:bg-emerald-700'
                               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
@@ -721,11 +793,12 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
 
                         <button
                           type="button"
+                          disabled={loadingDealDetail}
                           onClick={(e) => {
                             e.stopPropagation();
                             handleOpenDealDetails(deal.id);
                           }}
-                          className="px-3.5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-200 transition cursor-pointer"
+                          className="px-3.5 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           title="View Deal Details"
                         >
                           <Info className="w-3.5 h-3.5" />
@@ -764,12 +837,12 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                 {coupons.map((cp, idx) => {
-                  const discountDisplay = cp.discount_type === 'PERCENTAGE' 
-                    ? `${parseInt(cp.discount_value)}% OFF` 
+                  const discountDisplay = cp.discount_type === 'PERCENTAGE'
+                    ? `${parseInt(cp.discount_value)}% OFF`
                     : `Flat ₹${parseInt(cp.discount_value)} OFF`;
 
                   return (
-                    <div 
+                    <div
                       key={cp.code || idx}
                       className="bg-white rounded-2xl border border-dashed border-gray-300 p-4 shadow-2xs hover:border-emerald-500 transition-all flex flex-col justify-between"
                     >
@@ -813,15 +886,15 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
             </div>
           )}
         </div>
-      )}
+      ) : null}
 
       {/* Deal Details Modal (API #2: GET /api/v1/catalog/deals/:id) */}
       {activeDealId && (
-        <div 
+        <div
           className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
           onClick={handleCloseDealDetails}
         >
-          <div 
+          <div
             className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-gray-100 animate-scale-up max-h-[90vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -834,8 +907,8 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
               <div className="overflow-y-auto">
                 {/* Modal Header Cover */}
                 <div className="relative h-48 bg-emerald-800">
-                  <img 
-                    src={selectedDealDetail.image} 
+                  <img
+                    src={selectedDealDetail.image}
                     alt={selectedDealDetail.title}
                     onError={(e) => {
                       e.currentTarget.onerror = null;
@@ -959,18 +1032,18 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
                   <div className="pt-2 flex gap-2">
                     <button
                       type="button"
-                      onClick={(e) => {
-                        handleAddToCartClick(selectedDealDetail, e);
+                      onClick={async (e) => {
+                        await handleAddToCartClick(selectedDealDetail, e);
                         handleCloseDealDetails();
                       }}
-                      disabled={selectedDealDetail.stock_qty <= 0}
-                      className={`flex-1 py-3 rounded-2xl text-xs font-black transition flex items-center justify-center gap-1.5 shadow-md cursor-pointer ${
-                        selectedDealDetail.stock_qty > 0 
-                          ? 'bg-emerald-600 text-white hover:bg-emerald-700' 
+                      disabled={selectedDealDetail.stock_qty <= 0 || Boolean(pendingCartIds[selectedDealDetail.listing_id || selectedDealDetail.id])}
+                      className={`flex-1 py-3 rounded-2xl text-xs font-black transition flex items-center justify-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                        selectedDealDetail.stock_qty > 0
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-700'
                           : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                       }`}
                     >
-                      <ShoppingBag className="w-4 h-4" /> 
+                      <ShoppingBag className="w-4 h-4" />
                       {selectedDealDetail.stock_qty > 0 ? `Add to Cart (₹${selectedDealDetail.price})` : 'Out of Stock'}
                     </button>
                     <button
@@ -992,13 +1065,24 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
               </div>
             ) : (
               <div className="p-8 text-center">
-                <p className="text-xs text-red-500">{dealDetailError || 'Deal not found or inactive.'}</p>
-                <button
-                  onClick={handleCloseDealDetails}
-                  className="mt-3 px-4 py-2 bg-gray-100 rounded-xl text-xs font-bold text-gray-700 cursor-pointer"
-                >
-                  Close
-                </button>
+                <p className="text-xs text-red-500 font-semibold">{dealDetailError || 'Deal not found or inactive.'}</p>
+                <div className="mt-4 flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    disabled={loadingDealDetail}
+                    onClick={() => handleOpenDealDetails(activeDealId, true)}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingDealDetail ? 'animate-spin' : ''}`} /> Retry
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCloseDealDetails}
+                    className="px-4 py-2 bg-gray-100 rounded-xl text-xs font-bold text-gray-700 cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             )}
           </div>

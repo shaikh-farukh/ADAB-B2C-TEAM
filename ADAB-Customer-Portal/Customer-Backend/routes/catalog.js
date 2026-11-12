@@ -4,8 +4,13 @@
 const express = require('express');
 const catalogController = require('../controllers/catalogController');
 const reviewController = require('../controllers/reviewController');
-const catalogService = require('../services/catalogService');
 const router = express.Router();
+
+const deprecatedAlias = (canonicalEndpoint) => (req, res, next) => {
+  res.set('Deprecation', 'true');
+  res.set('X-Canonical-Endpoint', canonicalEndpoint);
+  next();
+};
 
 // --- 1. Top-Level Discovery & Search ---
 router.get('/products', catalogController.getProducts);
@@ -38,9 +43,10 @@ router.get('/deals/:id', catalogController.getDealById);
 router.get('/promotions', catalogController.getPromotions);
 
 // --- 6. Sellers & Storefronts ---
-router.get('/stores', catalogController.getStores);
-router.get('/stores/:id', catalogController.getStoreById);
-router.get('/stores/:id/products', catalogController.getStoreProducts);
+// Deprecated store routes kept for backward compatibility; canonical routes are /sellers*
+router.get('/stores', deprecatedAlias('/api/v1/catalog/sellers'), catalogController.getSellers);
+router.get('/stores/:id/products', deprecatedAlias('/api/v1/catalog/sellers/:id/products'), catalogController.getStoreProducts);
+router.get('/stores/:id', deprecatedAlias('/api/v1/catalog/sellers/:id'), catalogController.getSellerById);
 router.get('/sellers', catalogController.getSellers);
 router.get('/sellers/:id/products', catalogController.getSellerProducts);
 router.get('/sellers/:id/summary', catalogController.getSellerSummary);

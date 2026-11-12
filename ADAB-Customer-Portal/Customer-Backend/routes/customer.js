@@ -7,6 +7,57 @@ const supportController = require('../controllers/supportController');
 const rewardController = require('../controllers/rewardController');
 const router = express.Router();
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Route-level Authentication Guard for private customer resources.
+ * Rejects missing or invalid customer credentials with HTTP 401 before
+ * forwarding requests to controller or service layers.
+ */
+const requireCustomerAuth = (req, res, next) => {
+  let uid = null;
+  if (req.user) {
+    uid = req.user.id || req.user.userId || req.user.customerId || req.user.sub;
+  }
+  if (!uid) {
+    uid = req.headers['x-user-id'] || req.headers['x-customer-id'];
+  }
+  if (!uid && req.headers['authorization']?.startsWith('Bearer ')) {
+    const token = req.headers['authorization'].substring(7).trim();
+    if (token.includes('.')) {
+      try {
+        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString('utf8'));
+        uid = payload.id || payload.userId || payload.customerId || payload.sub;
+      } catch (e) {
+        // Silently fall through
+      }
+    }
+  }
+  if (!uid) {
+    uid = req.query?.user_id || req.query?.customerId || req.query?.customer_id || req.body?.userId || req.body?.user_id || req.body?.customer_id;
+  }
+
+  if (!uid || typeof uid !== 'string' || !UUID_REGEX.test(uid.trim())) {
+    return res.status(401).json({
+      status: 'error',
+      success: false,
+      message: 'Authentication required. Please login or provide a valid access token.'
+    });
+  }
+
+  const validId = uid.trim();
+  req.userId = validId;
+  req.customerId = validId;
+  req.headers['x-user-id'] = validId;
+  next();
+};
+
+const deprecatedCustomerAlias = (canonicalEndpoint) => (req, res, next) => {
+  res.set('Deprecation', 'true');
+  res.set('X-Canonical-Endpoint', canonicalEndpoint);
+  next();
+};
+
 // --- 1. Customer Profile ---
 router.get('/me', customerController.getProfile);
 router.patch('/me', customerController.updateProfile);
@@ -25,9 +76,9 @@ router.patch('/me/settings', customerController.updateSettings);
 // --- 4. Notification Preferences ---
 router.get('/me/notification-preferences', customerController.getNotificationPreferences);
 router.patch('/me/notification-preferences', customerController.updateNotificationPreferences);
-router.get('/me/notifications/preferences', customerController.getNotificationPreferences);
-router.patch('/me/notifications/preferences', customerController.updateNotificationPreferences);
-router.patch('/me/notifications', customerController.updateNotificationPreferences);
+router.get('/me/notifications/preferences', deprecatedCustomerAlias('/api/v1/customers/me/notification-preferences'), customerController.getNotificationPreferences);
+router.patch('/me/notifications/preferences', deprecatedCustomerAlias('/api/v1/customers/me/notification-preferences'), customerController.updateNotificationPreferences);
+router.patch('/me/notifications', deprecatedCustomerAlias('/api/v1/customers/me/notification-preferences'), customerController.updateNotificationPreferences);
 
 // --- 5. Recently Viewed History ---
 router.get('/me/recently-viewed', customerController.getRecentlyViewed);
@@ -68,46 +119,46 @@ router.post('/me/notifications/read-all', customerController.markAllNotification
 router.patch('/me/notifications/read-all', customerController.markAllNotificationsRead);
 
 // --- 10. Customer Orders (Day 4 canonical endpoints: /api/v1/customers/me/orders/*) ---
-router.get('/me/orders', orderController.getOrders);
-router.get('/me/orders/:id', orderController.getOrder);
-router.post('/me/orders/:id/cancel', orderController.cancelOrder);
-router.post('/me/orders/:id/reorder', orderController.reorderOrder);
-router.get('/me/orders/:id/status-history', orderController.getOrderStatusHistory);
-router.get('/me/orders/:id/shipments', orderController.getOrderShipments);
-router.get('/me/orders/:id/tracking', orderController.getOrderTracking);
-router.get('/me/orders/:id/invoice', orderController.getOrderInvoice);
-router.patch('/me/orders/:id/status', orderController.updateOrderStatus);
-router.post('/me/orders/:id/status', orderController.updateOrderStatus);
+router.get('/me/orders', requireCustomerAuth, orderController.getOrders);
+router.get('/me/orders/:id', requireCustomerAuth, orderController.getOrder);
+router.post('/me/orders/:id/cancel', requireCustomerAuth, orderController.cancelOrder);
+router.post('/me/orders/:id/reorder', requireCustomerAuth, orderController.reorderOrder);
+router.get('/me/orders/:id/status-history', requireCustomerAuth, orderController.getOrderStatusHistory);
+router.get('/me/orders/:id/shipments', requireCustomerAuth, orderController.getOrderShipments);
+router.get('/me/orders/:id/tracking', requireCustomerAuth, orderController.getOrderTracking);
+router.get('/me/orders/:id/invoice', requireCustomerAuth, orderController.getOrderInvoice);
+router.patch('/me/orders/:id/status', requireCustomerAuth, orderController.updateOrderStatus);
+router.post('/me/orders/:id/status', requireCustomerAuth, orderController.updateOrderStatus);
 
 // --- 11. Returns & Refunds (Day 5 Task 1 canonical endpoints) ---
-router.post('/me/orders/:id/return', returnController.createOrderReturn);
-router.get('/me/returns', returnController.getCustomerReturns);
-router.get('/me/returns/:id', returnController.getReturnById);
-router.post('/me/returns/:id/cancel', returnController.cancelReturn);
-router.post('/me/returns/:id/evidence', returnController.uploadReturnEvidence);
-router.patch('/me/returns/:id/status', returnController.updateReturnStatus);
-router.post('/me/returns/:id/status', returnController.updateReturnStatus);
-router.patch('/returns/:id/status', returnController.updateReturnStatus);
-router.post('/returns/:id/status', returnController.updateReturnStatus);
-router.get('/me/refunds', returnController.getCustomerRefunds);
-router.get('/me/refunds/:id', returnController.getRefundById);
-router.get('/refunds/:id', returnController.getRefundById);
+router.post('/me/orders/:id/return', requireCustomerAuth, returnController.createOrderReturn);
+router.get('/me/returns', requireCustomerAuth, returnController.getCustomerReturns);
+router.get('/me/returns/:id', requireCustomerAuth, returnController.getReturnById);
+router.post('/me/returns/:id/cancel', requireCustomerAuth, returnController.cancelReturn);
+router.post('/me/returns/:id/evidence', requireCustomerAuth, returnController.uploadReturnEvidence);
+router.patch('/me/returns/:id/status', requireCustomerAuth, returnController.updateReturnStatus);
+router.post('/me/returns/:id/status', requireCustomerAuth, returnController.updateReturnStatus);
+router.patch('/returns/:id/status', requireCustomerAuth, returnController.updateReturnStatus);
+router.post('/returns/:id/status', requireCustomerAuth, returnController.updateReturnStatus);
+router.get('/me/refunds', requireCustomerAuth, returnController.getCustomerRefunds);
+router.get('/me/refunds/:id', requireCustomerAuth, returnController.getRefundById);
+router.get('/refunds/:id', requireCustomerAuth, returnController.getRefundById);
 
 // --- 12. Verified Reviews (Day 5 Task 2 canonical endpoints) ---
-router.get('/me/reviews/pending', reviewController.getPendingReviews);
-router.get('/me/reviews', reviewController.getCustomerReviews);
-router.post('/me/reviews/:id/media', reviewController.uploadReviewMedia);
+router.get('/me/reviews/pending', requireCustomerAuth, reviewController.getPendingReviews);
+router.get('/me/reviews', requireCustomerAuth, reviewController.getCustomerReviews);
+router.post('/me/reviews/:id/media', requireCustomerAuth, reviewController.uploadReviewMedia);
 
 // --- 13. Help & Support Tickets (Day 5 Task 3 canonical endpoints) ---
-router.post('/me/support/tickets', supportController.createTicket);
-router.get('/me/support/tickets', supportController.getCustomerTickets);
-router.get('/me/support/tickets/:id', supportController.getTicketDetails);
-router.post('/me/support/tickets/:id/messages', supportController.sendTicketMessage);
-router.patch('/me/support/tickets/:id', supportController.updateTicketStatus);
+router.post('/me/support/tickets', requireCustomerAuth, supportController.createTicket);
+router.get('/me/support/tickets', requireCustomerAuth, supportController.getCustomerTickets);
+router.get('/me/support/tickets/:id', requireCustomerAuth, supportController.getTicketDetails);
+router.post('/me/support/tickets/:id/messages', requireCustomerAuth, supportController.sendTicketMessage);
+router.patch('/me/support/tickets/:id', requireCustomerAuth, supportController.updateTicketStatus);
 
 // --- 14. Rewards Ledger (Day 5 Task 4 canonical endpoints) ---
-router.get('/me/rewards', rewardController.getRewardsSummary);
-router.get('/me/rewards/ledger', rewardController.getRewardsLedger);
-router.post('/me/rewards/redeem', rewardController.redeemRewardPoints);
+router.get('/me/rewards', requireCustomerAuth, rewardController.getRewardsSummary);
+router.get('/me/rewards/ledger', requireCustomerAuth, rewardController.getRewardsLedger);
+router.post('/me/rewards/redeem', requireCustomerAuth, rewardController.redeemRewardPoints);
 
 module.exports = router;

@@ -3,12 +3,18 @@ const router = express.Router();
 const reviewController = require('../controllers/reviewController');
 const catalogController = require('../controllers/catalogController');
 
-router.get('/:id/reviews', reviewController.getProductReviews);
-router.post('/:id/reviews', reviewController.createVerifiedReview);
+const deprecatedProductAlias = (canonicalSuffix = '') => (req, res, next) => {
+  res.set('Deprecation', 'true');
+  res.set('X-Canonical-Endpoint', `/api/v1/catalog/products/:id${canonicalSuffix}`);
+  next();
+};
 
-// Also expose catalog product lookups if accessed via /api/v1/products/:id directly
-router.get('/:id', catalogController.getProductById);
-router.get('/:id/sellers', catalogController.getProductSellers);
-router.get('/:id/related', catalogController.getRelatedProducts);
+router.get('/:id/reviews', deprecatedProductAlias('/reviews'), reviewController.getProductReviews);
+router.post('/:id/reviews', deprecatedProductAlias('/reviews'), reviewController.createVerifiedReview);
+
+// Legacy aliases forwarding to canonical /api/v1/catalog/products/:id* handlers
+router.get('/:id/sellers', deprecatedProductAlias('/sellers'), catalogController.getProductSellers);
+router.get('/:id/related', deprecatedProductAlias('/related'), catalogController.getRelatedProducts);
+router.get('/:id', deprecatedProductAlias(''), catalogController.getProductById);
 
 module.exports = router;

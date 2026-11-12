@@ -66,10 +66,8 @@ const requireAuth = (req, res) => {
 // 1. GET /api/v1/customers/me & GET /api/v1/customers/me/profile
 exports.getProfile = async (req, res) => {
   try {
-    const userId = getUserId(req);
-    if (!userId) {
-      return res.json({ status: 'success', success: true, data: null });
-    }
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const data = await customerService.getProfile(userId);
     res.json({ status: 'success', success: true, data });
   } catch (error) {
@@ -81,10 +79,8 @@ exports.getProfile = async (req, res) => {
 // 2. PATCH /api/v1/customers/me & PATCH /api/v1/customers/me/profile
 exports.updateProfile = async (req, res) => {
   try {
-    const userId = getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ status: 'error', success: false, message: 'Please log in to update your profile.' });
-    }
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const data = await customerService.updateProfile(userId, req.body);
     res.json({ status: 'success', success: true, data });
   } catch (error) {
@@ -159,10 +155,8 @@ exports.updateSettings = async (req, res) => {
 // 8. GET /api/v1/customers/me/notification-preferences
 exports.getNotificationPreferences = async (req, res) => {
   try {
-    const userId = getUserId(req);
-    if (!userId) {
-      return res.json({ success: true, data: null });
-    }
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const data = await customerService.getNotificationPreferences(userId);
     res.json({ success: true, data });
   } catch (error) {
@@ -173,10 +167,8 @@ exports.getNotificationPreferences = async (req, res) => {
 // 9. PATCH /api/v1/customers/me/notification-preferences
 exports.updateNotificationPreferences = async (req, res) => {
   try {
-    const userId = getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Please log in.' });
-    }
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const data = await customerService.updateNotificationPreferences(userId, req.body);
     res.json({ success: true, data });
   } catch (error) {
@@ -187,10 +179,8 @@ exports.updateNotificationPreferences = async (req, res) => {
 // 10. GET /api/v1/customers/me/recently-viewed
 exports.getRecentlyViewed = async (req, res) => {
   try {
-    const userId = getUserId(req);
-    if (!userId) {
-      return res.json({ success: true, data: [] });
-    }
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const data = await customerService.getRecentlyViewed(userId);
     res.json({ success: true, data });
   } catch (error) {
@@ -201,10 +191,8 @@ exports.getRecentlyViewed = async (req, res) => {
 // 11. POST /api/v1/customers/me/recently-viewed
 exports.recordRecentlyViewed = async (req, res) => {
   try {
-    const userId = getUserId(req);
-    if (!userId) {
-      return res.json({ success: true, recorded: false });
-    }
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const data = await customerService.recordRecentlyViewed(userId, req.body);
     res.json({ success: true, data });
   } catch (error) {
@@ -215,10 +203,8 @@ exports.recordRecentlyViewed = async (req, res) => {
 // 12. DELETE /api/v1/customers/me/recently-viewed/:id
 exports.removeRecentlyViewed = async (req, res) => {
   try {
-    const userId = getUserId(req);
-    if (!userId) {
-      return res.json({ success: true, remaining: 0 });
-    }
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const data = await customerService.removeRecentlyViewed(userId, req.params.id);
     res.json({ success: true, data });
   } catch (error) {
@@ -229,11 +215,8 @@ exports.removeRecentlyViewed = async (req, res) => {
 // 13. GET /api/v1/customers/me/addresses
 exports.getAddresses = async (req, res) => {
   try {
-    const userId = getUserId(req);
-    if (!userId) {
-      // If user is not logged in or registered, return empty array (no address)
-      return res.json({ status: 'success', success: true, data: [] });
-    }
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const data = await customerService.getAddresses(userId);
     res.json({ status: 'success', success: true, data: data || [] });
   } catch (error) {
@@ -284,7 +267,8 @@ exports.deleteAddress = async (req, res) => {
 // 17. GET /api/v1/customers/me/addresses/:id/serviceability
 exports.checkAddressServiceability = async (req, res) => {
   try {
-    const userId = getUserId(req);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const data = await customerService.checkAddressServiceability(userId, req.params.id);
     res.json({ success: true, data });
   } catch (error) {
@@ -295,7 +279,8 @@ exports.checkAddressServiceability = async (req, res) => {
 // 18. GET /api/v1/customers/me/addresses/:id/map-preview
 exports.getAddressMapPreview = async (req, res) => {
   try {
-    const userId = getUserId(req);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const data = await customerService.getAddressMapPreview(userId, req.params.id);
     res.json({ success: true, data });
   } catch (error) {
@@ -316,10 +301,8 @@ exports.validateAddress = async (req, res) => {
 // 20. GET /api/v1/customers/me/wishlist
 exports.getWishlist = async (req, res) => {
   try {
-    const userId = getUserId(req);
-    if (!userId) {
-      return res.json({ success: true, data: [] });
-    }
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const data = await customerService.getWishlist(userId);
     res.json({ success: true, data });
   } catch (error) {
@@ -330,11 +313,10 @@ exports.getWishlist = async (req, res) => {
 // 21. GET /api/v1/customers/me/wishlist/count
 exports.getWishlistCount = async (req, res) => {
   try {
-    const userId = getUserId(req);
-    if (!userId) {
-      return res.json({ success: true, count: 0 });
-    }
-    const count = await customerService.getWishlistCount(userId);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const result = await customerService.getWishlistCount(userId);
+    const count = typeof result === 'number' ? result : (result?.count ?? 0);
     res.json({ success: true, count });
   } catch (error) {
     res.status(error.status || 500).json({ success: false, message: error.message });
@@ -381,7 +363,9 @@ exports.bulkAddWishlistItems = async (req, res) => {
 // 25. DELETE /api/v1/customers/me/wishlist/items/:id
 exports.removeWishlistItem = async (req, res) => {
   try {
-    await customerService.removeWishlistItem(req.params.id);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    await customerService.removeWishlistItem(userId, req.params.id);
     res.json({ success: true, message: 'Item removed from wishlist' });
   } catch (error) {
     res.status(error.status || 500).json({ success: false, message: error.message });
@@ -390,75 +374,70 @@ exports.removeWishlistItem = async (req, res) => {
 
 exports.getPaymentMethods = async (req, res) => {
   try {
-    const data = await customerService.getPaymentMethods(getUserId(req));
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const data = await customerService.getPaymentMethods(userId);
     res.json({ status: 'success', success: true, data });
   } catch (error) {
     const { statusCode, response } = formatError(error);
-    res.status(statusCode).json(response);
+    res.status(statusCode || 500).json(response || { success: false, message: error.message });
   }
 };
 
 exports.addPaymentMethod = async (req, res) => {
   try {
-    const data = await customerService.addPaymentMethod(getUserId(req), req.body);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const data = await customerService.addPaymentMethod(userId, req.body);
     res.status(201).json({ status: 'success', success: true, message: 'Payment method saved successfully', data });
   } catch (error) {
     const { statusCode, response } = formatError(error);
-    res.status(statusCode).json(response);
+    res.status(statusCode || 500).json(response || { success: false, message: error.message });
   }
 };
 
 exports.deletePaymentMethod = async (req, res) => {
   try {
-    await customerService.deletePaymentMethod(getUserId(req), req.params.id);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    await customerService.deletePaymentMethod(userId, req.params.id);
     res.json({ status: 'success', success: true, message: 'Payment method removed' });
   } catch (error) {
     const { statusCode, response } = formatError(error);
-    res.status(statusCode).json(response);
+    res.status(statusCode || 500).json(response || { success: false, message: error.message });
   }
 };
 
 exports.getWallet = async (req, res) => {
   try {
-    const userId = getUserId(req);
-    if (!userId) {
-      return res.json({
-        status: 'success',
-        success: true,
-        data: {
-          wallet_id: null,
-          balance: 0,
-          currency: 'INR',
-          bnpl_limit: 0,
-          bnpl_available: 0,
-          bnpl_due_date: 'N/A'
-        }
-      });
-    }
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const data = await customerService.getWallet(userId);
     res.json({ status: 'success', success: true, data });
   } catch (error) {
     const { statusCode, response } = formatError(error);
-    res.status(statusCode).json(response);
+    res.status(statusCode || 500).json(response || { success: false, message: error.message });
   }
 };
 
 exports.getNotifications = async (req, res) => {
   try {
-    const userId = getUserId(req);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const limit = parseInt(req.query.limit, 10) || 50;
     const offset = parseInt(req.query.offset, 10) || 0;
     const data = await customerService.getNotifications(userId, { limit, offset });
     res.json({ status: 'success', success: true, data });
   } catch (error) {
     const { statusCode, response } = formatError(error);
-    res.status(statusCode).json(response);
+    res.status(statusCode || 500).json(response || { success: false, message: error.message });
   }
 };
 
 exports.getUnreadNotificationCount = async (req, res) => {
   try {
-    const userId = getUserId(req);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     const count = await customerService.getUnreadNotificationCount(userId);
     res.json({
       status: 'success',
@@ -469,38 +448,35 @@ exports.getUnreadNotificationCount = async (req, res) => {
     });
   } catch (error) {
     const { statusCode, response } = formatError(error);
-    res.status(statusCode).json(response);
+    res.status(statusCode || 500).json(response || { success: false, message: error.message });
   }
 };
 
 exports.markNotificationRead = async (req, res) => {
   try {
-    const data = await customerService.markNotificationRead(getUserId(req), req.params.id);
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const data = await customerService.markNotificationRead(userId, req.params.id);
     res.json({ status: 'success', success: true, message: 'Notification marked as read', data });
   } catch (error) {
     const { statusCode, response } = formatError(error);
-    res.status(statusCode).json(response);
+    res.status(statusCode || 500).json(response || { success: false, message: error.message });
   }
 };
 
 exports.markAllNotificationsRead = async (req, res) => {
   try {
-    const data = await customerService.markAllNotificationsRead(getUserId(req));
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const data = await customerService.markAllNotificationsRead(userId);
     res.json({ status: 'success', success: true, message: 'All notifications marked as read', data });
   } catch (error) {
     const { statusCode, response } = formatError(error);
-    res.status(statusCode).json(response);
+    res.status(statusCode || 500).json(response || { success: false, message: error.message });
   }
 };
 
-exports.getWishlistCount = async (req, res) => {
-  try {
-    const data = await customerService.getWishlist(getUserId(req));
-    res.json({ success: true, count: Array.isArray(data) ? data.length : 0 });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
+// Note: canonical getWishlistCount is defined above alongside wishlist actions.
 
 // 26. DELETE /api/v1/customers/me/wishlist/items/bulk
 exports.bulkRemoveWishlistItems = async (req, res) => {
