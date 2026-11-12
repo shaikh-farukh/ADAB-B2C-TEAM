@@ -228,7 +228,7 @@ export default function SignUpPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-0.5">
-                  Mobile Phone Number
+                  Mobile Number
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">

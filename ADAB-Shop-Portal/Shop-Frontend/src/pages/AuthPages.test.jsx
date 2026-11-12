@@ -37,7 +37,7 @@ describe('Authentication Overhaul - SignInPage', () => {
     );
 
     // Initial is Phone Number
-    expect(screen.getByText(/Mobile Phone Number/i)).toBeInTheDocument();
+    expect(screen.getByText(/Mobile Number/i)).toBeInTheDocument();
 
     // Click Work Email tab
     fireEvent.click(screen.getByRole('button', { name: /Work Email/i }));
@@ -45,7 +45,7 @@ describe('Authentication Overhaul - SignInPage', () => {
 
     // Click Phone tab back
     fireEvent.click(screen.getByRole('button', { name: /Phone Number/i }));
-    expect(screen.getByText(/Mobile Phone Number/i)).toBeInTheDocument();
+    expect(screen.getByText(/Mobile Number/i)).toBeInTheDocument();
   });
 
   it('switches between Password and OTP Code mode', () => {
@@ -75,7 +75,7 @@ describe('Authentication Overhaul - SignUpPage', () => {
     expect(screen.getByText(/Register Your Store/i)).toBeInTheDocument();
     expect(screen.getByText(/Owner Name/i)).toBeInTheDocument();
     expect(screen.getByText(/Store \/ Trade Name/i)).toBeInTheDocument();
-    expect(screen.getByText(/Mobile Phone Number/i)).toBeInTheDocument();
+    expect(screen.getByText(/Mobile Number/i)).toBeInTheDocument();
     expect(screen.getByText(/Create Password/i)).toBeInTheDocument();
     expect(screen.getByText(/Create Seller Account & Continue/i)).toBeInTheDocument();
     expect(screen.getByText(/Sign In to Account/i)).toBeInTheDocument();

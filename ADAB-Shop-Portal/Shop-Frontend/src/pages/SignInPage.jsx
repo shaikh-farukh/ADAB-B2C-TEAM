@@ -354,7 +354,7 @@ export default function SignInPage() {
             {/* Identifier Input */}
             <div>
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                {idMode === 'phone' ? 'Mobile Phone Number' : 'Work Email Address'}
+                {idMode === 'phone' ? 'Mobile Number' : 'Work Email Address'}
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
