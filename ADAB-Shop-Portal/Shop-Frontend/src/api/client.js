@@ -70,10 +70,10 @@ export const clearApiClientCache = (pattern) => {
 
 const resolveDefaultTtl = (url) => {
   if (isTestEnv) return 0; // Ensure test isolation
-  if (url.includes('/categories')) return 300000; // 5 mins
+  if (url.includes('/categories') || url.includes('/bank-partners')) return 300000; // 5 mins
   if (url.includes('/nearby-stores')) return 120000; // 2 mins
   if (url.includes('/credit-balance') || url.includes('/credit-terms')) return 60000; // 1 min
-  if (url.includes('/finance')) return 30000; // 30s
+  if (url.includes('/finance') || url.includes('/points') || url.includes('/settings') || url.includes('/profile') || url.includes('/store')) return 30000; // 30s
   // Operational endpoints: 15s cache allows instant cross-page sidebar navigation without duplicate queries
   if (
     url.includes('/orders') ||
@@ -82,7 +82,11 @@ const resolveDefaultTtl = (url) => {
     url.includes('/listings') ||
     url.includes('/catalog') ||
     url.includes('/nearby-catalog') ||
-    url.includes('/other-store-brands')
+    url.includes('/other-store-brands') ||
+    url.includes('/pricing') ||
+    url.includes('/promotions') ||
+    url.includes('/coupons') ||
+    url.includes('/recommendations')
   ) {
     return 15000;
   }
@@ -96,9 +100,18 @@ const invalidateMatchingCache = (url) => {
     clearApiClientCache(/(b2b-orders|purchase-orders|credit-balance|nearby-catalog|other-store-brands)/);
   }
   if (url.includes('/returns')) clearApiClientCache(/returns/);
-  if (url.includes('/listings') || url.includes('/catalog')) clearApiClientCache(/(listings|catalog)/);
+  if (url.includes('/listings') || url.includes('/catalog') || url.includes('/pos')) {
+    clearApiClientCache(/(listings|catalog)/);
+  }
+  if (url.includes('/pricing')) clearApiClientCache(/(pricing|listings)/);
+  if (url.includes('/promotions') || url.includes('/coupons')) clearApiClientCache(/(promotions|coupons)/);
+  if (url.includes('/credit-terms')) clearApiClientCache(/credit-terms/);
+  if (url.includes('/credit-apply')) clearApiClientCache(/(credit-balance|credit-applications)/);
   if (url.includes('/finance') || url.includes('/withdraw') || url.includes('/khata')) {
     clearApiClientCache(/(finance|credit-balance)/);
+  }
+  if (url.includes('/profile') || url.includes('/store') || url.includes('/settings')) {
+    clearApiClientCache(/(profile|store|settings|onboarding)/);
   }
 };
 
