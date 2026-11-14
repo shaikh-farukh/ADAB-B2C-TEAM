@@ -576,7 +576,7 @@ const mockPool = {
         });
         return { rows: [] };
       }
-      return { rows: [] };
+      return mockPool.query(sql, params);
     }),
     release: jest.fn()
   })),

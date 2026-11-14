@@ -535,22 +535,35 @@ class SellerRepository {
 
     const targetRows = existingRes.rows.filter(r => String(r.store_id) === String(storeId));
 
-    await pool.query(`
-      UPDATE seller_orders
-      SET status = $1
-      WHERE (
-        id::text = $2 
-        OR parent_order_id IN (SELECT id FROM orders WHERE id::text = $2 OR order_number = $2 OR order_number = ('ORD-' || $2))
-      )
-      AND store_id = $3::uuid
-    `, [sStatus, cleanId, storeId]);
+    const client = await pool.connect();
+    let res;
+    try {
+      await client.query('BEGIN');
 
-    const res = await pool.query(`
-      UPDATE orders
-      SET order_status = $1, updated_at = NOW()
-      WHERE id::text = $2 OR order_number = $2 OR order_number = ('ORD-' || $2) OR id IN (SELECT parent_order_id FROM seller_orders WHERE id::text = $2)
-      RETURNING *
-    `, [oStatus, cleanId]);
+      await client.query(`
+        UPDATE seller_orders
+        SET status = $1
+        WHERE (
+          id::text = $2 
+          OR parent_order_id IN (SELECT id FROM orders WHERE id::text = $2 OR order_number = $2 OR order_number = ('ORD-' || $2))
+        )
+        AND store_id = $3::uuid
+      `, [sStatus, cleanId, storeId]);
+
+      res = await client.query(`
+        UPDATE orders
+        SET order_status = $1, updated_at = NOW()
+        WHERE id::text = $2 OR order_number = $2 OR order_number = ('ORD-' || $2) OR id IN (SELECT parent_order_id FROM seller_orders WHERE id::text = $2)
+        RETURNING *
+      `, [oStatus, cleanId]);
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
 
     const notificationProducer = require('../services/notificationProducer');
     const stockSummary = [];
@@ -2108,13 +2121,28 @@ class SellerRepository {
             }
           }
 
-          // Deduct stock safely if listing exists
-          await client.query(
-            `UPDATE seller_listings 
-             SET stock_qty = GREATEST(0, stock_qty - $1)
-             WHERE id = $2`,
-            [qty, it.id]
-          );
+          // Deduct stock safely if listing exists with concurrency row locking
+          if (it.id) {
+            const stockLock = await client.query(
+              `SELECT id, title, stock_qty FROM seller_listings WHERE id = $1 FOR UPDATE`,
+              [it.id]
+            );
+            if (stockLock.rows.length > 0) {
+              const currentStock = Number(stockLock.rows[0].stock_qty || 0);
+              if (currentStock < qty) {
+                const err = new Error(`INSUFFICIENT_STOCK: Supplier listing "${stockLock.rows[0].title || it.name || it.id}" only has ${currentStock} units remaining (requested ${qty}).`);
+                err.statusCode = 409;
+                throw err;
+              }
+            }
+
+            await client.query(
+              `UPDATE seller_listings 
+               SET stock_qty = GREATEST(0, stock_qty - $1)
+               WHERE id = $2`,
+              [qty, it.id]
+            );
+          }
         }
 
         // If credit payment, update credit_ledgers if row exists

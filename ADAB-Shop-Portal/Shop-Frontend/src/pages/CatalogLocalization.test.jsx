@@ -14,6 +14,7 @@ vi.mock('../services/listingService', () => ({
   default: {
     getListings: vi.fn(),
     getCategories: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getCategoryTree: vi.fn().mockResolvedValue({ success: true, data: [] }),
     getListingIssues: vi.fn().mockResolvedValue({ success: true, data: [] })
   }
 }));

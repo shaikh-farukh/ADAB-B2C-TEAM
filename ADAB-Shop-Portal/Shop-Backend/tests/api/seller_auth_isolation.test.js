@@ -160,9 +160,12 @@ const mockDb = {
 };
 
 // Mock PostgreSQL pool
-jest.mock('../../db', () => ({
-  query: jest.fn(async (sql, params = []) => {
-    const normalized = sql.replace(/\s+/g, ' ').trim();
+jest.mock('../../db', () => {
+  const queryFn = jest.fn(async (sql, params = []) => {
+    const normalized = (sql || '').replace(/\s+/g, ' ').trim();
+    if (normalized === 'BEGIN' || normalized === 'COMMIT' || normalized === 'ROLLBACK') {
+      return { rows: [] };
+    }
 
     // 1. User & seller profile lookup
     if (normalized.includes('FROM users u')) {
@@ -323,12 +326,16 @@ jest.mock('../../db', () => ({
     }
 
     return { rows: [] };
-  }),
-  connect: jest.fn(async () => ({
-    query: jest.fn(async () => ({ rows: [] })),
-    release: jest.fn()
-  }))
-}));
+  });
+
+  return {
+    query: queryFn,
+    connect: jest.fn(async () => ({
+      query: queryFn,
+      release: jest.fn()
+    }))
+  };
+});
 
 // Build Express app with real seller routes and real auth middleware
 const sellerRoutes = require('../../src/routes/seller');

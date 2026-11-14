@@ -306,24 +306,46 @@ const Products = () => {
   }, []);
   
   useEffect(() => {
-    // Fetch issues for currently visible listings
+    // Fetch issues for currently visible listings concurrently
+    let isMounted = true;
     const fetchIssues = async () => {
-      const issuesMap = { ...listingIssues };
-      let updated = false;
-      for (const l of listings) {
-        if (!issuesMap[l.id]) {
-          try {
-            const res = await listingService.getListingIssues(l.id);
-            if (res.success) {
-              issuesMap[l.id] = res.data;
-              updated = true;
+      const missingListings = listings.filter(l => l && l.id && !listingIssues[l.id]);
+      if (missingListings.length === 0) return;
+
+      try {
+        const results = await Promise.allSettled(
+          missingListings.map(async (l) => {
+            try {
+              const res = await listingService.getListingIssues(l.id);
+              if (res && res.success) {
+                return { id: l.id, data: res.data };
+              }
+            } catch (_) {}
+            return null;
+          })
+        );
+
+        if (!isMounted) return;
+
+        setListingIssues(prev => {
+          const next = { ...prev };
+          let changed = false;
+          for (const item of results) {
+            if (item.status === 'fulfilled' && item.value) {
+              next[item.value.id] = item.value.data;
+              changed = true;
             }
-          } catch (e) {}
-        }
-      }
-      if (updated) setListingIssues(issuesMap);
+          }
+          return changed ? next : prev;
+        });
+      } catch (_) {}
     };
+
     if (listings.length > 0) fetchIssues();
+
+    return () => {
+      isMounted = false;
+    };
   }, [listings]);
 
   // The polling for active background jobs is now handled globally in GlobalBulkUploadWidget.jsx
