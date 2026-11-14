@@ -8,17 +8,49 @@ export const useListings = () => {
 
   // Filters state
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [stockFilter, setStockFilter] = useState('All stock');
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [buyerFilter, setBuyerFilter] = useState('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   
+  // Debounce search input by 300ms to eliminate per-keystroke API flooding
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
 
   const [globalStats, setGlobalStats] = useState({ total: 0, ownBrand: 0, loose: 0, packed: 0, food: 0, lowStock: 0, outOfStock: 0 });
+
+  // Decoupled global stats query: runs once on mount and on mutations (NOT on every search keystroke)
+  const fetchGlobalStats = useCallback(async () => {
+    try {
+      const statsRes = await listingApi.fetchListings({ limit: 10000 });
+      const all = statsRes.data || [];
+      setGlobalStats({
+        total: all.length,
+        ownBrand: all.filter(l => l.product_type === 'OWN_BRAND').length,
+        loose: all.filter(l => l.product_type === 'LOOSE_WEIGHT').length,
+        packed: all.filter(l => l.product_type === 'PACKED_ITEM').length,
+        food: all.filter(l => l.product_type === 'FOOD').length,
+        lowStock: all.filter(l => (parseFloat(l.stock_qty) || 0) > 0 && (parseFloat(l.stock_qty) || 0) <= 10).length,
+        outOfStock: all.filter(l => (parseFloat(l.stock_qty) || 0) <= 0).length
+      });
+    } catch (e) {
+      console.error("Global stats fetch failed", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchGlobalStats();
+  }, [fetchGlobalStats]);
 
   const fetchListings = useCallback(async () => {
     try {
@@ -27,7 +59,7 @@ export const useListings = () => {
       
       const stock = stockFilter === 'In stock' ? 'in_stock' : stockFilter === 'Out of stock' ? 'out_of_stock' : 'all';
       const queryFilters = {
-        search: searchQuery,
+        search: debouncedSearch,
         stock: stock,
         type: typeFilter,
         buyer: buyerFilter,
@@ -41,47 +73,44 @@ export const useListings = () => {
       // The API returns { data, total }
       setListings(res.data || []);
       setTotalItems(res.total || 0);
-
-      // Background fetch for global accurate stats (unfiltered)
-      listingApi.fetchListings({ limit: 10000 }).then(statsRes => {
-        const all = statsRes.data || [];
-        setGlobalStats({
-          total: all.length,
-          ownBrand: all.filter(l => l.product_type === 'OWN_BRAND').length,
-          loose: all.filter(l => l.product_type === 'LOOSE_WEIGHT').length,
-          packed: all.filter(l => l.product_type === 'PACKED_ITEM').length,
-          food: all.filter(l => l.product_type === 'FOOD').length,
-          lowStock: all.filter(l => (parseFloat(l.stock_qty) || 0) > 0 && (parseFloat(l.stock_qty) || 0) <= 10).length,
-          outOfStock: all.filter(l => (parseFloat(l.stock_qty) || 0) <= 0).length
-        });
-      }).catch(e => console.error("Stats fetch failed", e));
-
     } catch (err) {
       console.error(err);
       setError(err);
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, stockFilter, typeFilter, buyerFilter, categoryFilter, currentPage, itemsPerPage]);
+  }, [debouncedSearch, stockFilter, typeFilter, buyerFilter, categoryFilter, currentPage, itemsPerPage]);
 
   useEffect(() => {
     fetchListings();
   }, [fetchListings]);
 
   const createListing = async (data) => {
-    return await listingApi.createListing(data);
+    const res = await listingApi.createListing(data);
+    fetchGlobalStats();
+    fetchListings();
+    return res;
   };
 
   const updateListing = async (id, data) => {
-    return await listingApi.updateListing(id, data);
+    const res = await listingApi.updateListing(id, data);
+    fetchGlobalStats();
+    fetchListings();
+    return res;
   };
 
   const deleteListing = async (id) => {
-    return await listingApi.deleteListing(id);
+    const res = await listingApi.deleteListing(id);
+    fetchGlobalStats();
+    fetchListings();
+    return res;
   };
 
   const batchDeleteListings = async (ids) => {
-    return await listingApi.batchDeleteListings(ids);
+    const res = await listingApi.batchDeleteListings(ids);
+    fetchGlobalStats();
+    fetchListings();
+    return res;
   };
 
   const submitListing = async (id) => {
@@ -137,6 +166,6 @@ export const useListings = () => {
     bulkExport,
     checkExportStatus,
     uploadImage: listingApi.uploadImage,
-    refresh: fetchListings
+    refresh: () => { fetchListings(); fetchGlobalStats(); }
   };
 };

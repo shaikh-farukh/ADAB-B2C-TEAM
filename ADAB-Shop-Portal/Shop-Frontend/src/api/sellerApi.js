@@ -44,9 +44,9 @@ export const sellerApi = {
   processReturn: (orderId, items, reason, refundType) =>
     apiClient.post('/returns', { orderId, items, reason, refundType }),
 
-  // Fulfillment / Store
-  getProducts: () => apiClient.get('/inventory'),
-  addProduct: (productData) => apiClient.post('/inventory', productData),
+  // Fulfillment / Store (Pointing to /listings with /inventory backwards-compatible alias)
+  getProducts: (params) => apiClient.get('/listings', { params }),
+  addProduct: (productData) => apiClient.post('/listings', productData),
 
   // B2B Orders (Checkout Order to Wholesaler & Store-to-Store)
   getB2BOrders: () => apiClient.get('/b2b-orders'),
@@ -56,7 +56,7 @@ export const sellerApi = {
       { status, ...metadata },
       buildIdempotencyHeaders(`b2b-order-${orderId}-${status}`)
     ),
-  placeB2BOrder: (orderData) => apiClient.post('/buystock/purchase-orders', orderData),
+  placeB2BOrder: (orderData) => apiClient.post('/purchase-orders', orderData),
 
   // Coupons & Offers
   getCoupons: () => apiClient.get('/coupons'),

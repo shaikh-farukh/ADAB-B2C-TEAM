@@ -54,7 +54,7 @@ app.get('/api/health', async (req, res) => {
 // Domain Routes
 app.use('/api/v1/shop/catalog', catalogRoutes);
 app.use('/api/v1/seller/catalog', catalogRoutes);
-app.use('/api/v1/seller/listings', listingRoutes);
+app.use(['/api/v1/seller/listings', '/api/v1/seller/inventory'], listingRoutes);
 app.use('/api/v1/seller/pricing', pricingRoutes);
 app.use('/api/v1/seller', sellerRoutes);
 app.use('/api/v1/seller', marketingRoutes);

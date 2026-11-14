@@ -10,6 +10,7 @@ const NotificationBell = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const lastSeenRef = useRef(new Date().toISOString());
+  const lastUnreadFetchRef = useRef(0);
   
   const { isConnected, subscribe } = useSocket();
 
@@ -70,7 +71,12 @@ const NotificationBell = () => {
     }
   };
 
-  const fetchUnreadCount = async () => {
+  const fetchUnreadCount = async (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastUnreadFetchRef.current < 2500) {
+      return;
+    }
+    lastUnreadFetchRef.current = now;
     try {
       const res = await sellerService.getUnreadNotificationsCount();
       if (res.success) {

@@ -100,8 +100,8 @@ Base URL: `/api/v1/seller/listings` (mounted in `ADAB-Shop-Portal/Shop-Backend/s
 | `POST` | `/api/v1/seller/listings/upload-image` | `upload-image` | `ListingController.uploadImage` | 🟢 | Uploads product image buffer to MinIO / S3 or local disk storage. |
 | `DELETE` | `/api/v1/seller/listings/:id/images/:imageId` | `:imageId` | `ListingController.deleteImage` | 🟢 | Removes product image from `product_images`. |
 | `POST` | `/api/v1/seller/listings/:id/documents` | `documents` | `ListingController.addDocument` | 🟢 | Attaches compliance certs (FSSAI, lab reports, invoices) to listing. |
-| `GET` | `/api/v1/seller/inventory` | `inventory` | `—` | 🟡 | `sellerApi.getProducts()` calls `/inventory`. The real backend endpoint is `GET /api/v1/seller/listings`. |
-| `POST` | `/api/v1/seller/inventory` | `inventory` | `—` | 🟡 | `sellerApi.addProduct()` calls `/inventory`. The real backend endpoint is `POST /api/v1/seller/listings`. |
+| `GET` | `/api/v1/seller/inventory` (alias: `/listings`) | `inventory` | `ListingController.getListings` | 🟢 | Fully aliased to `GET /api/v1/seller/listings` in `server.js`. Supports pagination & search. |
+| `POST` | `/api/v1/seller/inventory` (alias: `/listings`) | `inventory` | `ListingController.createListing` | 🟢 | Fully aliased to `POST /api/v1/seller/listings` in `server.js`. Creates store listings. |
 
 ---
 
@@ -133,7 +133,7 @@ Base URL: `/api/v1/seller` (requires `requireSellerAuth`)
 | `PATCH` | `/api/v1/seller/b2b-orders/:id/status` | `status` | `sellerController.updateB2BOrderStatus` | 🟢 | Updates B2B order status (`ACCEPTED`, `DISPATCHED`, `COMPLETED`, `CANCELLED`). |
 | `GET` | `/api/v1/seller/purchase-orders` | `purchase-orders` | `sellerController.getPurchaseOrders` | 🟢 | Lists wholesaler & manufacturer purchase orders raised by this store. |
 | `POST` | `/api/v1/seller/purchase-orders` | `purchase-orders` | `sellerController.createPurchaseOrder` | 🟢 | Drafts/places formal B2B purchase order to supplier. |
-| `POST` | `/api/v1/seller/buystock/purchase-orders` | `purchase-orders` | `—` | 🟡 | `sellerApi.placeB2BOrder` calls `/buystock/purchase-orders`. Real backend endpoint is `POST /purchase-orders`. |
+| `POST` | `/api/v1/seller/buystock/purchase-orders` (alias: `/purchase-orders`) | `purchase-orders` | `sellerController.createPurchaseOrder` | 🟢 | Fully aliased to `POST /api/v1/seller/purchase-orders` in `routes/seller.js`. Idempotent B2B order checkout. |
 | `GET` | `/api/v1/seller/other-store-brands` | `other-store-brands` | `sellerController.getOtherStoreBrands` | 🟢 | Discovers other nearby merchants' exclusive local brands available for resale. |
 | `POST` | `/api/v1/seller/other-store-brands/add-to-store` | `add-to-store` | `sellerController.addOtherStoreBrandToMyStore` | 🟢 | Adds another store's approved brand into current store's showcase. |
 | `GET` | `/api/v1/seller/other-store-brands/my-added` | `my-added` | `sellerController.getMyAddedOtherStoreBrands` | 🟢 | Lists partner brands currently published in this store. |
@@ -303,14 +303,14 @@ Base URL: `http://localhost:5000/api`
 
 ## 3. Actionable Discrepancy & Optimization Matrix
 
-Below are the 3 frontend service discrepancies identified in `Shop-Frontend` that should be unified with the backend:
+Below is the discrepancy resolution status across `Shop-Frontend` and `Shop-Backend`:
 
-| Frontend Call in `Shop-Frontend` | Called Path | Actual Backend Path | Recommendation |
-| :--- | :--- | :--- | :--- |
-| `sellerApi.getProducts()` | `GET /api/v1/seller/inventory` | `GET /api/v1/seller/listings` | Alias route in backend or update `sellerApi.js` to call `/listings`. |
-| `sellerApi.addProduct()` | `POST /api/v1/seller/inventory` | `POST /api/v1/seller/listings` | Alias route in backend or update `sellerApi.js` to call `/listings`. |
-| `sellerApi.placeB2BOrder()` | `POST /api/v1/seller/buystock/purchase-orders` | `POST /api/v1/seller/purchase-orders` | Alias `/buystock/purchase-orders` in `seller.js` to point to `createPurchaseOrder`. |
-| `sellerApi.processReturn()` | `POST /api/v1/seller/returns` | `PATCH /api/v1/seller/returns/:id/status` | Expose `POST /returns` for manual store-initiated returns, or update frontend to status flow. |
+| Frontend Call in `Shop-Frontend` | Called Path | Backend Path & Aliasing Status | Status & Resolution |
+| :--- | :--- | :--- | :---: |
+| `sellerApi.getProducts()` | `GET /api/v1/seller/inventory` | Aliased in `server.js` to `ListingController.getListings`. | 🟢 Resolved (Active Alias) |
+| `sellerApi.addProduct()` | `POST /api/v1/seller/inventory` | Aliased in `server.js` to `ListingController.createListing`. | 🟢 Resolved (Active Alias) |
+| `sellerApi.placeB2BOrder()` | `POST /api/v1/seller/buystock/purchase-orders` | Aliased in `routes/seller.js` to `createPurchaseOrder`. | 🟢 Resolved (Active Alias) |
+| `sellerApi.processReturn()` | `POST /api/v1/seller/returns` | `PATCH /api/v1/seller/returns/:id/status` | 🟡 Customer-initiated flow in place; manual seller return pending approval spec. |
 
 ---
 

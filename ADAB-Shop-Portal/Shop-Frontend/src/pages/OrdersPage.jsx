@@ -787,8 +787,10 @@ export default function OrdersPage() {
             document.body.appendChild(link);
             link.click();
             setTimeout(() => {
-              document.body.removeChild(link);
-              if (window.URL && typeof window.URL.revokeObjectURL === 'function') {
+              if (typeof document !== 'undefined' && document.body && link.parentNode === document.body) {
+                document.body.removeChild(link);
+              }
+              if (typeof window !== 'undefined' && window.URL && typeof window.URL.revokeObjectURL === 'function') {
                 window.URL.revokeObjectURL(url);
               }
             }, 100);
