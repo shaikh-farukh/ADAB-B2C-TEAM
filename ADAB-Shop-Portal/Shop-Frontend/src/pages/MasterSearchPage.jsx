@@ -54,8 +54,8 @@ export default function MasterSearchPage() {
         setLoading(true);
         // Query live catalog from registered stores across the marketplace & store inventory
         const [nearbyRes, storeListingsRes] = await Promise.allSettled([
-          sellerApi.getNearbyCatalog({ q: searchInput.trim() || undefined }),
-          listingService.getListings({ search: searchInput.trim() || undefined, limit: 30 })
+          sellerApi.getNearbyCatalog({ q: debouncedSearch.trim() || undefined }),
+          listingService.getListings({ search: debouncedSearch.trim() || undefined, limit: 30 })
         ]);
 
         const nearbyList = nearbyRes.status === 'fulfilled' && nearbyRes.value?.data
@@ -115,7 +115,7 @@ export default function MasterSearchPage() {
       }
     }
     fetchSearchItems();
-  }, [searchInput]);
+  }, [debouncedSearch]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();

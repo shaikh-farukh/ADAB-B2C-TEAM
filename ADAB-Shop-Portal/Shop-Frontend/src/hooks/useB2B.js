@@ -44,14 +44,23 @@ export function useB2B() {
   const updateStatus = useCallback(async (orderId, status, metadata = {}) => {
     try {
       const res = await sellerApi.updateB2BOrderStatus(orderId, status, metadata);
-      // Optimistically or after fetch update list
-      await fetchOrders();
+      // In-place local update eliminates full-collection re-fetch over the network
+      setOrders(prev => {
+        const next = prev.map(o => {
+          const matches = o.id === orderId || o.po_number === orderId || String(o.id) === String(orderId);
+          return matches ? { ...o, status, ...metadata } : o;
+        });
+        try {
+          localStorage.setItem('seller_b2b_cache', JSON.stringify(next));
+        } catch (_) {}
+        return next;
+      });
       return res?.data?.data || res?.data || res;
     } catch (err) {
       console.error('Failed to update B2B order status:', err);
       throw err;
     }
-  }, [fetchOrders]);
+  }, []);
 
   return { orders, loading, error, refreshOrders: fetchOrders, updateStatus };
 }

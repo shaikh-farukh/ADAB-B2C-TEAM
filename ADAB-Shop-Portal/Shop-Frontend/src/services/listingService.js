@@ -1,5 +1,8 @@
 import api from './api';
 
+// In-memory cache for static catalog metadata (categories & tree)
+const staticCache = new Map();
+
 const listingService = {
   getListings: (filters) => {
     return api.get('/seller/listings', {
@@ -11,12 +14,24 @@ const listingService = {
     return api.get(`/seller/listings/${id}/product-details`);
   },
 
-  getCategories: () => {
-    return api.get('/seller/listings/categories');
+  getCategories: async () => {
+    const cached = staticCache.get('categories');
+    if (cached && Date.now() - cached.time < 300000) {
+      return cached.data;
+    }
+    const data = await api.get('/seller/listings/categories');
+    staticCache.set('categories', { data, time: Date.now() });
+    return data;
   },
 
-  getCategoryTree: () => {
-    return api.get('/shop/catalog/categories/category-tree');
+  getCategoryTree: async () => {
+    const cached = staticCache.get('categoryTree');
+    if (cached && Date.now() - cached.time < 300000) {
+      return cached.data;
+    }
+    const data = await api.get('/shop/catalog/categories/category-tree');
+    staticCache.set('categoryTree', { data, time: Date.now() });
+    return data;
   },
 
   getCategoryAttributes: (categoryId) => {

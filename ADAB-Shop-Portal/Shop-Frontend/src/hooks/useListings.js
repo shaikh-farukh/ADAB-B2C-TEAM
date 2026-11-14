@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { listingApi } from '../api/listingApi';
 
+// Module-level stats cache to prevent re-fetching 10k rows on frequent tab navigation
+let cachedGlobalStats = null;
+let lastStatsFetchTime = 0;
+
 export const useListings = () => {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -30,11 +34,16 @@ export const useListings = () => {
   const [globalStats, setGlobalStats] = useState({ total: 0, ownBrand: 0, loose: 0, packed: 0, food: 0, lowStock: 0, outOfStock: 0 });
 
   // Decoupled global stats query: runs once on mount and on mutations (NOT on every search keystroke)
-  const fetchGlobalStats = useCallback(async () => {
+  const fetchGlobalStats = useCallback(async (force = false) => {
     try {
+      const now = Date.now();
+      if (!force && cachedGlobalStats && now - lastStatsFetchTime < 120000) {
+        setGlobalStats(cachedGlobalStats);
+        return;
+      }
       const statsRes = await listingApi.fetchListings({ limit: 10000 });
       const all = statsRes.data || [];
-      setGlobalStats({
+      const computed = {
         total: all.length,
         ownBrand: all.filter(l => l.product_type === 'OWN_BRAND').length,
         loose: all.filter(l => l.product_type === 'LOOSE_WEIGHT').length,
@@ -42,7 +51,10 @@ export const useListings = () => {
         food: all.filter(l => l.product_type === 'FOOD').length,
         lowStock: all.filter(l => (parseFloat(l.stock_qty) || 0) > 0 && (parseFloat(l.stock_qty) || 0) <= 10).length,
         outOfStock: all.filter(l => (parseFloat(l.stock_qty) || 0) <= 0).length
-      });
+      };
+      cachedGlobalStats = computed;
+      lastStatsFetchTime = now;
+      setGlobalStats(computed);
     } catch (e) {
       console.error("Global stats fetch failed", e);
     }
@@ -87,28 +99,28 @@ export const useListings = () => {
 
   const createListing = async (data) => {
     const res = await listingApi.createListing(data);
-    fetchGlobalStats();
+    fetchGlobalStats(true);
     fetchListings();
     return res;
   };
 
   const updateListing = async (id, data) => {
     const res = await listingApi.updateListing(id, data);
-    fetchGlobalStats();
+    fetchGlobalStats(true);
     fetchListings();
     return res;
   };
 
   const deleteListing = async (id) => {
     const res = await listingApi.deleteListing(id);
-    fetchGlobalStats();
+    fetchGlobalStats(true);
     fetchListings();
     return res;
   };
 
   const batchDeleteListings = async (ids) => {
     const res = await listingApi.batchDeleteListings(ids);
-    fetchGlobalStats();
+    fetchGlobalStats(true);
     fetchListings();
     return res;
   };

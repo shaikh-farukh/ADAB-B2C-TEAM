@@ -49,4 +49,21 @@ api.interceptors.response.use(
   }
 );
 
+
+// In-flight GET request deduplication: prevents simultaneous duplicate requests across components
+const inFlightRequests = new Map();
+const originalGet = api.get.bind(api);
+api.get = (url, config = {}) => {
+  const paramsKey = config.params ? JSON.stringify(config.params) : '';
+  const key = `get:${url}:${paramsKey}`;
+  if (inFlightRequests.has(key)) {
+    return inFlightRequests.get(key);
+  }
+  const promise = originalGet(url, config).finally(() => {
+    inFlightRequests.delete(key);
+  });
+  inFlightRequests.set(key, promise);
+  return promise;
+};
+
 export default api;
