@@ -73,7 +73,7 @@ const NotificationBell = () => {
 
   const fetchUnreadCount = async (force = false) => {
     const now = Date.now();
-    if (!force && now - lastUnreadFetchRef.current < 2500) {
+    if (!force && now - lastUnreadFetchRef.current < 10000) {
       return;
     }
     lastUnreadFetchRef.current = now;

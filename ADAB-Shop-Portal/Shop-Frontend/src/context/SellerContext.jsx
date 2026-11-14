@@ -118,7 +118,7 @@ export function SellerProvider({ children }) {
     if (inFlightRef.current) {
       return inFlightRef.current;
     }
-    if (backgroundOnly && now - lastFetchTimeRef.current < 2000) {
+    if (backgroundOnly && now - lastFetchTimeRef.current < 30000) {
       return;
     }
 

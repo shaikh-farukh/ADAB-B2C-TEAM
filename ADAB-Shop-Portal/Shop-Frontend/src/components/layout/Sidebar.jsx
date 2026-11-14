@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useSeller } from '../../context/SellerContext';
@@ -24,6 +24,7 @@ export default function Sidebar() {
   const [showFaqModal, setShowFaqModal] = useState(false);
   const storeName = store?.store_name || 'My Store';
   const initial = (storeName || 'S').substring(0, 2).toUpperCase();
+  const lastFetchRef = useRef(0);
 
   const [buyCartCount, setBuyCartCount] = useState(() => {
     try {
@@ -113,10 +114,53 @@ export default function Sidebar() {
     return () => window.removeEventListener('adab-cart-updated', handleCartUpdate);
   }, []);
 
+  // Real-time socket event listeners for live badges
+  useEffect(() => {
+    const handleOrdersUpdate = (e) => {
+      const count = e.detail?.count !== undefined ? e.detail.count : (Array.isArray(e.detail?.orders) ? e.detail.orders.length : null);
+      if (typeof count === 'number') setOrdersCount(count);
+    };
+    const handleB2bUpdate = (e) => {
+      const count = e.detail?.count !== undefined ? e.detail.count : (Array.isArray(e.detail?.orders) ? e.detail.orders.length : null);
+      if (typeof count === 'number') setB2bCount(count);
+    };
+    const handleReturnsUpdate = (e) => {
+      const count = e.detail?.count !== undefined ? e.detail.count : (Array.isArray(e.detail?.returns) ? e.detail.returns.length : null);
+      if (typeof count === 'number') setReturnsCount(count);
+    };
+    const handleMessagesUpdate = (e) => {
+      if (typeof e.detail?.count === 'number') setMessagesCount(e.detail.count);
+    };
+
+    window.addEventListener('adab-orders-updated', handleOrdersUpdate);
+    window.addEventListener('adab-b2b-updated', handleB2bUpdate);
+    window.addEventListener('adab-returns-updated', handleReturnsUpdate);
+    window.addEventListener('adab-messages-updated', handleMessagesUpdate);
+
+    return () => {
+      window.removeEventListener('adab-orders-updated', handleOrdersUpdate);
+      window.removeEventListener('adab-b2b-updated', handleB2bUpdate);
+      window.removeEventListener('adab-returns-updated', handleReturnsUpdate);
+      window.removeEventListener('adab-messages-updated', handleMessagesUpdate);
+    };
+  }, []);
+
+  // Fallback initial counts fetch: only when dashboardMetrics has not supplied them
   useEffect(() => {
     let isMounted = true;
+    const hasMetrics = dashboardMetrics && (
+      dashboardMetrics.total_orders !== undefined ||
+      dashboardMetrics.total_b2b_orders !== undefined ||
+      dashboardMetrics.total_returns !== undefined ||
+      dashboardMetrics.unread_messages !== undefined
+    );
 
-    // Fetch live counts from respective endpoints
+    const now = Date.now();
+    if (hasMetrics || now - lastFetchRef.current < 60000) {
+      return;
+    }
+    lastFetchRef.current = now;
+
     sellerApi.getOrders()
       .then((res) => {
         if (!isMounted) return;
@@ -155,46 +199,10 @@ export default function Sidebar() {
       })
       .catch(() => {});
 
-    const handleOrdersUpdate = (e) => {
-      const count = e.detail?.count !== undefined ? e.detail.count : (Array.isArray(e.detail?.orders) ? e.detail.orders.length : null);
-      if (typeof count === 'number') {
-        setOrdersCount(count);
-      }
-    };
-
-    const handleB2bUpdate = (e) => {
-      const count = e.detail?.count !== undefined ? e.detail.count : (Array.isArray(e.detail?.orders) ? e.detail.orders.length : null);
-      if (typeof count === 'number') {
-        setB2bCount(count);
-      }
-    };
-
-    const handleReturnsUpdate = (e) => {
-      const count = e.detail?.count !== undefined ? e.detail.count : (Array.isArray(e.detail?.returns) ? e.detail.returns.length : null);
-      if (typeof count === 'number') {
-        setReturnsCount(count);
-      }
-    };
-
-    const handleMessagesUpdate = (e) => {
-      if (typeof e.detail?.count === 'number') {
-        setMessagesCount(e.detail.count);
-      }
-    };
-
-    window.addEventListener('adab-orders-updated', handleOrdersUpdate);
-    window.addEventListener('adab-b2b-updated', handleB2bUpdate);
-    window.addEventListener('adab-returns-updated', handleReturnsUpdate);
-    window.addEventListener('adab-messages-updated', handleMessagesUpdate);
-
     return () => {
       isMounted = false;
-      window.removeEventListener('adab-orders-updated', handleOrdersUpdate);
-      window.removeEventListener('adab-b2b-updated', handleB2bUpdate);
-      window.removeEventListener('adab-returns-updated', handleReturnsUpdate);
-      window.removeEventListener('adab-messages-updated', handleMessagesUpdate);
     };
-  }, []);
+  }, [dashboardMetrics]);
 
   const completedCount = [1, 2, 3, 4, 5].filter((s) => Boolean(kycSteps?.[`step${s}`])).length;
   const rawKycStatus = String(profile?.kyc_status || 'DRAFT').trim().toUpperCase();
