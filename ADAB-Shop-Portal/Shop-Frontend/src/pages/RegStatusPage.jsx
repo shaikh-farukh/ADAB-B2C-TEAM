@@ -15,7 +15,8 @@ export default function RegStatusPage() {
     isKycApproved = false,
     isKycRejected = false,
     refreshSellerData,
-    saveOnboardingStep
+    saveOnboardingStep,
+    submitOnboarding
   } = useSeller();
   const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -124,7 +125,11 @@ export default function RegStatusPage() {
     setErrorMsg('');
     setSubmitting(true);
     try {
-      await saveOnboardingStep(7, {});
+      if (typeof submitOnboarding === 'function') {
+        await submitOnboarding({});
+      } else {
+        await saveOnboardingStep(7, {});
+      }
       if (refreshSellerData) {
         await refreshSellerData(true);
       }

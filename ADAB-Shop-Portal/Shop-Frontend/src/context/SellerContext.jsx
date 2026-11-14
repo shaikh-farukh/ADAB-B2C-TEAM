@@ -358,6 +358,10 @@ export function SellerProvider({ children }) {
     return { ...(updatedOb || {}), kycSteps: mergedSteps };
   };
 
+  const submitOnboarding = async (data = {}) => {
+    return await saveOnboardingStep(7, data);
+  };
+
   const isCriticalSetupDone = Boolean(
     (kycSteps?.step1 && kycSteps?.step2) || isKycApproved || isKycRejected
   );
@@ -435,6 +439,7 @@ export function SellerProvider({ children }) {
         signup,
         logout,
         saveOnboardingStep,
+        submitOnboarding,
         uploadJobs,
         setUploadJobs
       }}
@@ -482,6 +487,7 @@ export function useSeller() {
       signup: async () => {},
       logout: () => {},
       saveOnboardingStep: async () => {},
+      submitOnboarding: async () => {},
       uploadJobs: [],
       setUploadJobs: () => {}
     };

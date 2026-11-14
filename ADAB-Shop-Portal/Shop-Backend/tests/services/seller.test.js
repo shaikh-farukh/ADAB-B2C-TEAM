@@ -120,4 +120,21 @@ describe('Seller Service', () => {
     }));
     expect(res.store.email).toBe('merchant@adab.com');
   });
+
+  it('should forward submitOnboarding to repository', async () => {
+    const mockSubmitResult = {
+      profile: { id: 'user-1', kyc_status: 'SUBMITTED', submitted_at: '2026-11-14T09:30:00Z' },
+      store: { id: 'store-1' },
+      kycSteps: { step1: true, step2: true, step7: true }
+    };
+    sellerRepository.submitOnboarding = jest.fn().mockResolvedValue(mockSubmitResult);
+
+    const res = await sellerService.submitOnboarding('user-1', {});
+    expect(sellerRepository.submitOnboarding).toHaveBeenCalledWith('user-1', {});
+    expect(res.profile.kyc_status).toBe('SUBMITTED');
+  });
+
+  it('should throw an error when submitOnboarding is called without userId', async () => {
+    await expect(sellerService.submitOnboarding(null, {})).rejects.toThrow('Seller ID is required');
+  });
 });

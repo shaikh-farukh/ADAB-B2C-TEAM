@@ -11,8 +11,8 @@ const ONBOARDING_STAGE_SLUGS = {
   3: 'stage-3-bank-settlement',
   4: 'stage-4-store-operations',
   5: 'stage-5-b2b-credit-terms',
-  6: 'stage-6-starter-catalog',
-  7: 'stage-7-final-submission',
+  6: 'stage-6-starter-catalog', // deprecated: superseded by FMCG master catalog
+  7: 'stage-7-final-submission', // backward compatible alias for /seller/onboarding/submit
 };
 
 const sellerService = {
@@ -51,8 +51,19 @@ const sellerService = {
   },
 
   saveOnboardingStep: (stepNum, data) => {
+    if (Number(stepNum) === 7 || stepNum === 'stage-7-final-submission') {
+      return api.post('/seller/onboarding/submit', data, {
+        headers: getUserHeaders()
+      });
+    }
     const slug = ONBOARDING_STAGE_SLUGS[stepNum] || ONBOARDING_STAGE_SLUGS[Number(stepNum)] || stepNum;
     return api.post(`/seller/onboarding/step/${slug}`, data, {
+      headers: getUserHeaders()
+    });
+  },
+
+  submitOnboarding: (data = {}) => {
+    return api.post('/seller/onboarding/submit', data, {
       headers: getUserHeaders()
     });
   },

@@ -20,8 +20,9 @@ router.post('/webhooks/callback', idempotencyMiddleware, (req, res) => sellerCon
 // Apply Seller Auth Middleware
 router.use(requireSellerAuth);
 
-// 7-Step Incremental KYC Onboarding APIs
+// 5-Step Incremental KYC Onboarding & Dedicated Submission APIs
 router.get('/onboarding', sellerController.getOnboarding);
+router.post(['/onboarding/submit', '/onboarding/submit-application'], sellerController.submitOnboarding);
 router.post('/onboarding/step/:stepNum', sellerController.saveOnboardingStep);
 
 // Core Read APIs for Day 1

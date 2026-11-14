@@ -52,7 +52,11 @@ jest.mock('../../src/services/seller', () => ({
   adoptMasterCatalogItem: jest.fn().mockResolvedValue({ adopted: true, listing: { id: 'l1' } }),
   getBankPartners: jest.fn().mockResolvedValue([{ id: 'b1', name: 'HDFC Bank' }]),
   submitCreditApplication: jest.fn().mockResolvedValue({ success: true, application: { id: 'app1' } }),
-  getCreditApplications: jest.fn().mockResolvedValue([])
+  getCreditApplications: jest.fn().mockResolvedValue([]),
+  submitOnboarding: jest.fn().mockResolvedValue({
+    profile: { id: '1', kyc_status: 'SUBMITTED', submitted_at: '2026-11-14T09:30:00Z' },
+    kycSteps: { step1: true, step2: true, step7: true }
+  })
 
 }));
 
@@ -192,5 +196,14 @@ describe('Seller API Routes (Supertest)', () => {
     const res = await request(app).get('/api/v1/seller/finance/credit-applications');
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+  });
+
+  it('POST /api/v1/seller/onboarding/submit should submit application for verification', async () => {
+    const res = await request(app)
+      .post('/api/v1/seller/onboarding/submit')
+      .send({});
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.profile.kyc_status).toBe('SUBMITTED');
   });
 });

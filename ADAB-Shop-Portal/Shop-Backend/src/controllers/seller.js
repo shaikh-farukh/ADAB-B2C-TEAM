@@ -731,6 +731,16 @@ class SellerController {
     }
   }
 
+  async submitOnboarding(req, res) {
+    try {
+      const { userId } = getAuthenticatedSellerContext(req);
+      const data = await sellerService.submitOnboarding(userId, req.body);
+      res.json({ success: true, data });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
   async sendOtp(req, res) {
     try {
       const { email, phone, idMode, name, store_name } = req.body;

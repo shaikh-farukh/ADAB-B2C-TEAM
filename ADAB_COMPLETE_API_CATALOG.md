@@ -40,8 +40,9 @@ Base URL: `/api/v1/seller` (requires `requireSellerAuth` JWT middleware)
 
 | Method | Active Endpoint Path (with Aliases) | DevTools "Name" | Controller Handler | Status | Purpose & Details |
 | :--- | :--- | :--- | :--- | :---: | :--- |
-| `GET` | `/api/v1/seller/onboarding` | `onboarding` | `sellerController.getOnboarding` | 🟢 | Retrieves current 7-step KYC state, completion flags, and verification status from `seller_kyc`. |
-| `POST` | `/api/v1/seller/onboarding/step/:stepNum` (or `/stage-X-...`) | `stage-1-store-profile` to `stage-7-final-submission` | `sellerController.saveOnboardingStep` | 🟢 | Saves progress for step 1-7. Supports numbers (`1`-`7`) or semantic slugs (`stage-1-store-profile` to `stage-7-final-submission`) for clear DevTools visibility. |
+| `GET` | `/api/v1/seller/onboarding` | `onboarding` | `sellerController.getOnboarding` | 🟢 | Retrieves current 5-step KYC state, completion flags, and verification status from `seller_kyc`. |
+| `POST` | `/api/v1/seller/onboarding/step/:stepNum` (or `/stage-X-...`) | `stage-1-store-profile` to `stage-5-b2b-credit-terms` | `sellerController.saveOnboardingStep` | 🟢 | Saves incremental progress for Setup Steps 1-5 (`stage-1-store-profile` through `stage-5-b2b-credit-terms`). Note: `stage-6-starter-catalog` is deprecated/retired (safely preserved as backward-compatible no-op), while `/stage-7-final-submission` remains active as a backward-compatible alias. |
+| `POST` | `/api/v1/seller/onboarding/submit` (alias: `/onboarding/submit-application`) | `submit` | `sellerController.submitOnboarding` | 🟢 | Dedicated final submission endpoint for merchant KYC. Validates critical Steps 1 & 2, transitions `kyc_status` to `SUBMITTED`, sets `submitted_at = NOW()`, and dispatches to Admin review queue. |
 | `GET` | `/api/v1/seller/profile` | `profile` | `sellerController.getProfile` | 🟢 | Retrieves merchant personal profile (`full_name`, `email`, `phone`, `role`, `language`). |
 | `PATCH` | `/api/v1/seller/profile` | `profile` | `sellerController.updateProfile` | 🟢 | Updates merchant name, avatar, contact details. |
 | `GET` | `/api/v1/seller/store` | `store` | `sellerController.getStore` | 🟢 | Retrieves store details, coordinates (`latitude`, `longitude`), operational radius, and opening hours. |

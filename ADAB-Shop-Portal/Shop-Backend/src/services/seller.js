@@ -260,6 +260,11 @@ class SellerService {
     return await sellerRepository.saveOnboardingStep(userId, stepNum, data);
   }
 
+  async submitOnboarding(userId, data = {}) {
+    if (!userId) throw new Error('Seller ID is required');
+    return await sellerRepository.submitOnboarding(userId, data);
+  }
+
   async sendOtp(identifier, meta = {}) {
     const emailOtpService = require('./emailOtpService');
     const otp = emailOtpService.generateOTP();

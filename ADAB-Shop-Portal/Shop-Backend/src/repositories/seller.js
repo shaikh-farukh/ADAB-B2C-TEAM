@@ -4944,7 +4944,8 @@ class SellerRepository {
         WHERE user_id = $2
       `, [JSON.stringify(creditConfig), userId, isAlreadyApproved]);
     } else if (step === 6) {
-      // Step 6: Starter Products (Non-compliance catalog setting)
+      // Step 6: Deprecated/Superseded by FMCG Master Catalog (/catalog & /listings).
+      // Maintained for backward compatibility as safe no-op.
       const starterProducts = Array.isArray(data.starterProducts) ? data.starterProducts : [];
       await pool.query(`
         UPDATE seller_onboarding_steps
@@ -4952,40 +4953,60 @@ class SellerRepository {
         WHERE user_id = $2
       `, [JSON.stringify(starterProducts), userId]);
     } else if (step === 7) {
-      // Step 7: Review & Final Submission / Resubmission for Admin Verification
-      const latest = await this.getOnboardingData(userId);
-      if (!latest.kycSteps.step1 || !latest.kycSteps.step2) {
-        throw new Error('Please complete critical steps — Step 1 (Store Profile) and Step 2 (KYC & GST) — before submitting for Admin Verification.');
-      }
-
-      await pool.query(`
-        UPDATE users
-        SET status = CASE
-              WHEN UPPER(COALESCE(status, '')) IN ('REJECTED', 'DENIED', 'DECLINED', 'SUBMITTED', 'UNDER_REVIEW', 'PENDING') THEN 'ACTIVE'
-              ELSE status
-            END,
-            updated_at = NOW()
-        WHERE id = $1
-      `, [userId]);
-
-      await pool.query(`
-        UPDATE seller_profiles
-        SET kyc_status = $2,
-            rejection_reason = NULL,
-            onboarding_step = 7,
-            submitted_at = NOW(),
-            updated_at = NOW()
-        WHERE user_id = $1
-      `, [userId, isAlreadyApproved ? 'APPROVED' : 'SUBMITTED']);
-
-      await pool.query(`
-        UPDATE seller_onboarding_steps
-        SET step7 = true, updated_at = NOW()
-        WHERE user_id = $1
-      `, [userId]);
+      // Step 7: Backward-compatible alias for submitOnboarding
+      return await this.submitOnboarding(userId, data);
     } else {
       throw new Error('Invalid onboarding step number');
     }
+
+    return await this.getOnboardingData(userId);
+  }
+
+  /**
+   * Submit / Resubmit merchant KYC application for Admin Verification.
+   * Dedicated endpoint replacing overloaded Step 7.
+   */
+  async submitOnboarding(userId, data = {}) {
+    await this.ensureOnboardingTable();
+    const current = await this.getOnboardingData(userId);
+    const profile = current.profile;
+    const store = current.store;
+    if (!profile || !store) {
+      throw new Error('Seller profile or store not found');
+    }
+
+    const isAlreadyApproved = profile.kyc_status === 'APPROVED';
+
+    const latest = current;
+    if (!latest.kycSteps.step1 || !latest.kycSteps.step2) {
+      throw new Error('Please complete critical steps — Step 1 (Store Profile) and Step 2 (KYC & GST) — before submitting for Admin Verification.');
+    }
+
+    await pool.query(`
+      UPDATE users
+      SET status = CASE
+            WHEN UPPER(COALESCE(status, '')) IN ('REJECTED', 'DENIED', 'DECLINED', 'SUBMITTED', 'UNDER_REVIEW', 'PENDING') THEN 'ACTIVE'
+            ELSE status
+          END,
+          updated_at = NOW()
+      WHERE id = $1
+    `, [userId]);
+
+    await pool.query(`
+      UPDATE seller_profiles
+      SET kyc_status = $2,
+          rejection_reason = NULL,
+          onboarding_step = 7,
+          submitted_at = NOW(),
+          updated_at = NOW()
+      WHERE user_id = $1
+    `, [userId, isAlreadyApproved ? 'APPROVED' : 'SUBMITTED']);
+
+    await pool.query(`
+      UPDATE seller_onboarding_steps
+      SET step7 = true, updated_at = NOW()
+      WHERE user_id = $1
+    `, [userId]);
 
     return await this.getOnboardingData(userId);
   }
