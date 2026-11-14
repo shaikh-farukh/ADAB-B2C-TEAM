@@ -123,6 +123,7 @@ export function SellerProvider({ children }) {
     }
 
     const runFetch = async () => {
+      lastFetchTimeRef.current = Date.now();
       try {
         if (!backgroundOnly && !localStorage.getItem('seller_profile_cache')) {
           setLoading(true);

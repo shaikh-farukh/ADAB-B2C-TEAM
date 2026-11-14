@@ -16,7 +16,7 @@ export const sellerApi = {
   verifyOtp: (payload) => apiClient.post('/auth/verify-otp', payload),
 
   // Orders Domain
-  getOrders: () => apiClient.get('/orders'),
+  getOrders: (config) => apiClient.get('/orders', config),
   updateOrderStatus: (orderId, status, driverId = null) =>
     apiClient.patch(
       `/orders/${orderId}/status`,
@@ -29,7 +29,7 @@ export const sellerApi = {
     apiClient.post('/pos/checkout-sale', { cart, paymentMethod, customerPhone }),
 
   // Returns Domain
-  getReturns: () => apiClient.get('/returns'),
+  getReturns: (config) => apiClient.get('/returns', config),
   updateReturnStatus: (returnId, status, rejectionReason = null, ...rest) => {
     const body = { status, rejectionReason };
     if (rest.length > 0 && rest[0] !== null && rest[0] !== undefined) {
@@ -49,7 +49,7 @@ export const sellerApi = {
   addProduct: (productData) => apiClient.post('/listings', productData),
 
   // B2B Orders (Checkout Order to Wholesaler & Store-to-Store)
-  getB2BOrders: () => apiClient.get('/b2b-orders'),
+  getB2BOrders: (config) => apiClient.get('/b2b-orders', config),
   updateB2BOrderStatus: (orderId, status, metadata = {}) =>
     apiClient.patch(
       `/b2b-orders/${encodeURIComponent(orderId)}/status`,
@@ -70,7 +70,7 @@ export const sellerApi = {
   // Dynamic Catalog, Recommendations, Messages
   getNearbyCatalog: (params) => apiClient.get('/nearby-catalog', { params }),
   getNearbyStores: (params) => apiClient.get('/nearby-stores', { params }),
-  getBuyerCreditBalance: () => apiClient.get('/credit-balance'),
+  getBuyerCreditBalance: (config) => apiClient.get('/credit-balance', config),
   getPurchaseOrders: (params) => apiClient.get('/purchase-orders', { params }),
   createPurchaseOrder: (orderData) =>
     apiClient.post(
@@ -80,10 +80,10 @@ export const sellerApi = {
     ),
   getOtherStoreBrands: (params) => apiClient.get('/other-store-brands', { params }),
   addOtherStoreBrandToMyStore: (data) => apiClient.post('/other-store-brands/add-to-store', data),
-  getMyAddedOtherStoreBrands: () => apiClient.get('/other-store-brands/my-added'),
+  getMyAddedOtherStoreBrands: (config) => apiClient.get('/other-store-brands/my-added', config),
   getPurchasedBrandsReadyToPublish: () => apiClient.get('/other-store-brands/purchased-ready'),
   requestResaleStock: (data) => apiClient.post('/other-store-brands/request-stock', data),
-  getIncomingResaleRequests: () => apiClient.get('/other-store-brands/incoming-requests'),
+  getIncomingResaleRequests: (config) => apiClient.get('/other-store-brands/incoming-requests', config),
   approveResaleRequest: (orderId) => apiClient.post(`/other-store-brands/requests/${orderId}/approve`),
   declineResaleRequest: (orderId, reason) => apiClient.post(`/other-store-brands/requests/${orderId}/decline`, { reason }),
   confirmAndPayResaleOrder: (orderId, paymentData) =>
@@ -94,7 +94,7 @@ export const sellerApi = {
     ),
   toggleBlockResellerStore: (buyerStoreId, block) =>
     apiClient.post(`/other-store-brands/resellers/${buyerStoreId}/toggle-block`, { block }),
-  getBrandDistributionAnalytics: () => apiClient.get('/brand-distribution-analytics'),
+  getBrandDistributionAnalytics: (config) => apiClient.get('/brand-distribution-analytics', config),
   toggleListingB2B: (listingId) => apiClient.post(`/listings/${listingId}/toggle-b2b`),
   getRecommendations: () => apiClient.get('/recommendations'),
   getThreads: () => apiClient.get('/messages/threads'),
@@ -104,12 +104,12 @@ export const sellerApi = {
   markThreadRead: (threadId) => apiClient.post(`/messages/threads/${threadId}/read`, {}),
 
   // Finance (Summary, Transactions, Settlements, Withdrawal, Khata, Credit Apply)
-  getFinanceSummary: () => apiClient.get('/finance/financial-summary'),
-  getFinanceTransactions: () => apiClient.get('/finance/transactions'),
-  getFinanceSettlements: () => apiClient.get('/finance/settlements'),
+  getFinanceSummary: (config) => apiClient.get('/finance/financial-summary', config),
+  getFinanceTransactions: (config) => apiClient.get('/finance/transactions', config),
+  getFinanceSettlements: (config) => apiClient.get('/finance/settlements', config),
   withdrawToBank: () =>
     apiClient.post('/finance/withdraw', {}, buildIdempotencyHeaders('finance-withdraw')),
-  getKhata: () => apiClient.get('/finance/khata-ledger'),
+  getKhata: (config) => apiClient.get('/finance/khata-ledger', config),
   payKhataOrder: (poId) =>
     apiClient.post(
       `/finance/khata/${encodeURIComponent(poId)}/pay`,

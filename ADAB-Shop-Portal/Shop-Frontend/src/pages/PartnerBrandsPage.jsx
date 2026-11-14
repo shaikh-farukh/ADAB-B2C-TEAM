@@ -65,14 +65,22 @@ export default function PartnerBrandsPage() {
     setTimeout(() => setToastMessage(''), 3500);
   };
 
+  const fetchAnalytics = async () => {
+    try {
+      const res = await sellerApi.getBrandDistributionAnalytics();
+      const raw = res?.data !== undefined ? res.data : res;
+      setAnalyticsData(raw || null);
+    } catch (err) {
+      console.error('Failed to load brand distribution analytics:', err);
+    }
+  };
+
   const loadData = async () => {
     try {
       setLoading(true);
-      const [brandsRes, myAddedRes, readyRes, analyticsRes, incomingRes, poRes] = await Promise.allSettled([
+      const [brandsRes, myAddedRes, incomingRes, poRes] = await Promise.allSettled([
         sellerApi.getOtherStoreBrands(),
         sellerApi.getMyAddedOtherStoreBrands(),
-        sellerApi.getPurchasedBrandsReadyToPublish(),
-        sellerApi.getBrandDistributionAnalytics(),
         sellerApi.getIncomingResaleRequests(),
         sellerApi.getPurchaseOrders({ type: 'resale' })
       ]);
@@ -92,13 +100,6 @@ export default function PartnerBrandsPage() {
         setMyAdded([]);
       }
 
-      if (readyRes.status === 'fulfilled') {
-        const raw = readyRes.value?.data !== undefined ? readyRes.value.data : readyRes.value;
-        setReadyToPublish(Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []));
-      } else {
-        setReadyToPublish([]);
-      }
-
       if (incomingRes.status === 'fulfilled') {
         const raw = incomingRes.value?.data !== undefined ? incomingRes.value.data : incomingRes.value;
         setIncomingRequests(Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []));
@@ -113,11 +114,6 @@ export default function PartnerBrandsPage() {
         setMyPurchaseOrders(allOrders.filter((po) => po.po_number && po.po_number.startsWith('REQ-B2B-')));
       } else {
         setMyPurchaseOrders([]);
-      }
-
-      if (analyticsRes.status === 'fulfilled') {
-        const raw = analyticsRes.value?.data !== undefined ? analyticsRes.value.data : analyticsRes.value;
-        setAnalyticsData(raw || null);
       }
     } catch (err) {
       console.error('Failed to load other store brands:', err);
@@ -763,7 +759,10 @@ export default function PartnerBrandsPage() {
         {/* Brand Creator Analytics Button with Incoming Requests Alert */}
         <button
           type="button"
-          onClick={() => setShowAnalyticsModal(true)}
+          onClick={() => {
+            setShowAnalyticsModal(true);
+            if (!analyticsData) fetchAnalytics();
+          }}
           className="ml-auto text-xs text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 font-extrabold px-3 py-2 rounded-xl flex items-center gap-2 shrink-0 transition shadow-sm"
           title="View your Own Brand B2B distribution analytics & incoming requests"
         >
