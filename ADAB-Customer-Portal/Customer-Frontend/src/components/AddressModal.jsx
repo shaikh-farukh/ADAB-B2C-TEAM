@@ -62,6 +62,9 @@ export default function AddressModal({
     id: null,
     label: 'Home',
     recipient_name: '',
+    house_number: '',
+    building_name: '',
+    area_name: '',
     address_line: '',
     landmark: '',
     city: 'Surat',
@@ -163,6 +166,9 @@ export default function AddressModal({
       id: null,
       label: 'Home',
       recipient_name: defaultRecipient,
+      house_number: '',
+      building_name: '',
+      area_name: '',
       address_line: '',
       landmark: '',
       city: 'Surat',
@@ -183,6 +189,9 @@ export default function AddressModal({
       id: addrToEdit.id,
       label: addrToEdit.label || addrToEdit.type || 'Home',
       recipient_name: addrToEdit.recipient_name || addrToEdit.full_name || '',
+      house_number: addrToEdit.house_number || '',
+      building_name: addrToEdit.building_name || '',
+      area_name: addrToEdit.area_name || '',
       address_line: addrToEdit.address_line || addrToEdit.address || '',
       landmark: addrToEdit.landmark || '',
       city: addrToEdit.city || 'Surat',
@@ -197,8 +206,14 @@ export default function AddressModal({
 
   const handleSaveSubmit = async (e) => {
     if (e) e.preventDefault();
-    if (!addressForm.recipient_name.trim() || !phoneDigits.trim() || !addressForm.address_line.trim()) {
-      setAddressModalError('Please provide contact name, mobile number, and street address.');
+    const compositeAddress = [
+      addressForm.house_number ? `House/Flat ${addressForm.house_number}` : null,
+      addressForm.building_name,
+      addressForm.area_name
+    ].filter(Boolean).join(', ') || addressForm.address_line || 'Delivery Address';
+
+    if (!addressForm.recipient_name.trim() || !phoneDigits.trim() || (!compositeAddress.trim() && !addressForm.building_name.trim())) {
+      setAddressModalError('Please provide contact name, mobile number, house number, building name, and area.');
       return;
     }
 
@@ -212,6 +227,8 @@ export default function AddressModal({
     const fullPhone = `${countryCode} ${phoneDigits}`;
     const payload = {
       ...addressForm,
+      address_line: compositeAddress,
+      address: compositeAddress,
       phone: fullPhone
     };
 
@@ -560,21 +577,70 @@ export default function AddressModal({
                 </div>
               </div>
 
-              {/* Complete Street Address */}
+              {/* House / Flat / Block No */}
               <div>
                 <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                  Flat / House No. / Building / Street *
+                  House / Flat / Block No *
                 </label>
-                <textarea
-                  required
-                  rows={2}
-                  value={addressForm.address_line}
-                  onChange={(e) =>
-                    setAddressForm({ ...addressForm, address_line: e.target.value })
-                  }
-                  placeholder="e.g. Flat 402, Green Valley Apt, Ring Road"
-                  className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:border-emerald-600 focus:outline-none resize-none"
-                />
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                    <i className="fa-solid fa-house-chimney text-xs"></i>
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={addressForm.house_number || ''}
+                    onChange={(e) =>
+                      setAddressForm({ ...addressForm, house_number: e.target.value })
+                    }
+                    placeholder="e.g. Flat 502, 5th Floor / House 12"
+                    className="w-full pl-8 pr-3 py-2 text-xs border border-gray-200 rounded-xl focus:border-emerald-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Building / Society / Apartment Name */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                  Building / Society / Apartment Name *
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                    <i className="fa-solid fa-building text-xs"></i>
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={addressForm.building_name || ''}
+                    onChange={(e) =>
+                      setAddressForm({ ...addressForm, building_name: e.target.value })
+                    }
+                    placeholder="e.g. Orchid Heights / Shivalik Residency"
+                    className="w-full pl-8 pr-3 py-2 text-xs border border-gray-200 rounded-xl focus:border-emerald-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Area / Street / Locality Name */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                  Area / Street / Locality Name *
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                    <i className="fa-solid fa-road text-xs"></i>
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={addressForm.area_name || ''}
+                    onChange={(e) =>
+                      setAddressForm({ ...addressForm, area_name: e.target.value })
+                    }
+                    placeholder="e.g. VIP Road, Vesu / Adajan Gam"
+                    className="w-full pl-8 pr-3 py-2 text-xs border border-gray-200 rounded-xl focus:border-emerald-600 focus:outline-none"
+                  />
+                </div>
               </div>
 
               {/* Landmark */}

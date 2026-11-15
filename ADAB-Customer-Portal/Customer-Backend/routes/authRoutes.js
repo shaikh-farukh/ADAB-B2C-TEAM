@@ -4,6 +4,9 @@ const authController = require('../controllers/authController');
 
 // Customer Auth Endpoints
 router.post('/login', authController.login);
+router.post('/send-login-otp', authController.sendLoginOtp);
+router.post('/verify-login-otp', authController.verifyLoginOtp);
+router.post('/login-otp', authController.verifyLoginOtp); // alias
 router.post('/register', authController.register);
 router.post('/signup', authController.register); // alias for signup
 router.post('/send-registration-otp', authController.sendRegistrationOtp);

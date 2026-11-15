@@ -235,6 +235,28 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
             </span>
           </div>
 
+          {/* Original Seller / Manufacturer Attribution Banner */}
+          {product.originalSellerName && (
+            <div className="mb-3.5 p-3.5 bg-gradient-to-r from-amber-50/90 to-orange-50/60 border border-amber-200/90 rounded-2xl flex items-start gap-3 shadow-2xs">
+              <div className="w-8 h-8 rounded-xl bg-amber-100/90 border border-amber-200 flex items-center justify-center text-amber-800 shrink-0 mt-0.5">
+                <i className="fa-solid fa-industry text-sm"></i>
+              </div>
+              <div className="text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-amber-950 uppercase tracking-wide text-[11px]">Original Manufacturer & Source</span>
+                  <span className="bg-amber-200/80 text-amber-900 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider">Verified Origin</span>
+                </div>
+                <p className="text-amber-900/90 mt-1 leading-relaxed">
+                  Manufactured / Sourced by: <strong 
+                    onClick={() => product.originalStoreId && navigate(`/stores?store_id=${product.originalStoreId}`)}
+                    className={`font-black underline ${product.originalStoreId ? 'hover:text-amber-700 cursor-pointer' : ''}`}
+                  >{product.originalSellerName}</strong>
+                  {product.originalSellerCity ? ` (${product.originalSellerCity})` : ''} • Retailing & Delivered by: <strong className="font-black">{product.sellerName}</strong>
+                </p>
+              </div>
+            </div>
+          )}
+
           <h1 className="text-2xl md:text-3xl font-black text-gray-900 leading-tight mb-3">
             {product.name}
           </h1>

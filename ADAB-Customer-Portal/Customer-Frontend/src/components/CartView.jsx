@@ -18,7 +18,9 @@ export default function CartView({
   onSelectAddress,
   validationIssues = [],
   onClearValidationIssues,
-  loading = false
+  loading = false,
+  currentUser = null,
+  onOpenLogin
 }) {
   const [couponInput, setCouponInput] = useState('');
   const [couponError, setCouponError] = useState(null);
@@ -27,15 +29,25 @@ export default function CartView({
   const [updatingItemId, setUpdatingItemId] = useState(null);
   const [showCouponsList, setShowCouponsList] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
+  const [checkoutAuthError, setCheckoutAuthError] = useState(null);
+
+  // Authenticated state check
+  const loggedInUser = currentUser || (() => {
+    try {
+      const saved = localStorage.getItem('adab_user') || localStorage.getItem('user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  })();
+  const isLoggedIn = Boolean(loggedInUser && (loggedInUser.id || loggedInUser.email || loggedInUser.phone));
 
   // Available coupons fetched live from backend
   const [availableCoupons, setAvailableCoupons] = useState([]);
 
-  // Address selection state - loaded live from database with reliable default
-  const [addressList, setAddressList] = useState([
-    { id: 'addr_default', type: 'Home', full_address: 'Flat 402, Green Valley Apt, Ring Road, Surat', is_verified: true }
-  ]);
-  const [selectedAddressId, setSelectedAddressId] = useState(selectedDeliveryAddress?.id || 'addr_default');
+  // Address selection state - loaded live from database for logged in user (no random default)
+  const [addressList, setAddressList] = useState([]);
+  const [selectedAddressId, setSelectedAddressId] = useState(selectedDeliveryAddress?.id || null);
   const [showAddressPicker, setShowAddressPicker] = useState(false);
 
   // Keep selected ID in sync if parent passes or updates selectedDeliveryAddress
@@ -45,9 +57,14 @@ export default function CartView({
     }
   }, [selectedDeliveryAddress?.id]);
 
-  // Load real customer addresses from database
+  // Load real customer addresses from database if authenticated
   useEffect(() => {
     let isMounted = true;
+    if (!isLoggedIn) {
+      setAddressList([]);
+      return;
+    }
+
     CustomerAPI.getAddresses()
       .then((res) => {
         if (isMounted && res?.data && Array.isArray(res.data) && res.data.length > 0) {
@@ -70,15 +87,18 @@ export default function CartView({
           if (!selectedDeliveryAddress && formatted.length > 0) {
             setSelectedAddressId(formatted[0].id);
           }
+        } else if (isMounted) {
+          setAddressList([]);
         }
       })
       .catch((err) => {
-        console.debug('Using fallback addresses list in CartView:', err.message);
+        console.debug('Failed to load customer addresses:', err.message);
+        if (isMounted) setAddressList([]);
       });
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isLoggedIn, selectedDeliveryAddress?.id]);
 
   const items = cartData.items || [];
   const summary = cartData.summary || {};
@@ -274,6 +294,26 @@ export default function CartView({
   // Handle proceed to checkout with active validating spinner
   const handleCheckoutClick = async () => {
     if (isValidating || loading) return;
+
+    if (!isLoggedIn) {
+      setCheckoutAuthError('Please log in to your account to proceed to checkout.');
+      if (onOpenLogin) {
+        onOpenLogin();
+      } else if (onProceedToCheckout) {
+        await onProceedToCheckout();
+      }
+      return;
+    }
+
+    if (!selectedAddress) {
+      setCheckoutAuthError('Please add or select a delivery address to proceed.');
+      if (onChangeAddress) {
+        onChangeAddress();
+      }
+      return;
+    }
+
+    setCheckoutAuthError(null);
     setIsValidating(true);
     try {
       if (onProceedToCheckout) {
@@ -308,17 +348,11 @@ export default function CartView({
         raw: selectedDeliveryAddress
       };
     }
+    if (!isLoggedIn) return null;
     const found = addressList.find((a) => a.id === selectedAddressId);
     if (found) return found;
     if (addressList.length > 0) return addressList[0];
-    return {
-      id: 'addr_default',
-      type: 'Home',
-      full_address: 'Flat 402, Green Valley Apt, Ring Road, Surat',
-      city: 'Surat',
-      pincode: '395002',
-      is_verified: true
-    };
+    return null;
   })();
 
   // 1. EMPTY CART STATE
@@ -994,41 +1028,100 @@ export default function CartView({
       </div>
 
       {/* 2.6 Delivery Address Preview Strip */}
-      <div className="bg-white rounded-2xl p-4 border border-gray-100 flex gap-3 items-center shadow-sm relative">
-        <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0 text-lg shadow-2xs">
-          <i className="fa-solid fa-location-dot"></i>
-        </div>
+      {!selectedAddress && !isLoggedIn ? (
+        <div id="cartAddressLoginPrompt" className="bg-amber-50/70 rounded-2xl p-4 border border-amber-200 flex gap-3.5 items-center shadow-xs">
+          <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 text-base shadow-2xs">
+            <i className="fa-solid fa-lock"></i>
+          </div>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="font-extrabold text-xs text-gray-900">
-              {`Delivering to ${selectedAddress.type}`}
-            </span>
-            {selectedAddress.is_verified && (
-              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.2 rounded-full border border-emerald-200">
-                <i className="fa-solid fa-check text-[8px] mr-0.5"></i> Verified
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-xs text-amber-950">
+                Delivery Address
               </span>
-            )}
+              <span className="text-[9px] font-bold text-amber-800 bg-amber-100/90 px-2 py-0.5 rounded-full border border-amber-300">
+                Login Required
+              </span>
+            </div>
+            <div className="text-[11px] text-amber-900/80 mt-0.5">
+              Please log in to choose or add your delivery address.
+            </div>
           </div>
-          <div className="text-[11px] text-gray-500 truncate mt-0.5">
-            {selectedAddress.full_address}
-          </div>
-        </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            if (onChangeAddress) onChangeAddress();
-            else setShowAddressPicker(!showAddressPicker);
-          }}
-          className="text-emerald-700 text-xs font-bold hover:underline shrink-0 p-1 cursor-pointer"
-        >
-          Change
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenLogin) onOpenLogin();
+              else if (onProceedToCheckout) onProceedToCheckout();
+            }}
+            className="text-white bg-emerald-700 hover:bg-emerald-800 px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 cursor-pointer shadow-xs transition"
+          >
+            Log In
+          </button>
+        </div>
+      ) : !selectedAddress ? (
+        <div id="cartNoAddressPrompt" className="bg-white rounded-2xl p-4 border border-dashed border-gray-300 flex gap-3.5 items-center shadow-xs">
+          <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center shrink-0 text-base">
+            <i className="fa-solid fa-location-dot"></i>
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="font-extrabold text-xs text-gray-800">
+              No Delivery Address Found
+            </div>
+            <div className="text-[11px] text-gray-500 mt-0.5">
+              Please add a delivery address to complete your order.
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (onChangeAddress) onChangeAddress();
+              else setShowAddressPicker(true);
+            }}
+            className="text-emerald-700 hover:text-emerald-800 text-xs font-bold border border-emerald-300 bg-emerald-50/50 hover:bg-emerald-50 px-3 py-1.5 rounded-xl shrink-0 cursor-pointer transition"
+          >
+            + Add Address
+          </button>
+        </div>
+      ) : (
+        <div id="cartAddressPreview" className="bg-white rounded-2xl p-4 border border-gray-100 flex gap-3 items-center shadow-sm relative">
+          <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0 text-lg shadow-2xs">
+            <i className="fa-solid fa-location-dot"></i>
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-xs text-gray-900">
+                {`Delivering to ${selectedAddress.type}`}
+              </span>
+              {selectedAddress.is_verified && (
+                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.2 rounded-full border border-emerald-200">
+                  <i className="fa-solid fa-check text-[8px] mr-0.5"></i> Verified
+                </span>
+              )}
+            </div>
+            <div className="text-[11px] text-gray-500 truncate mt-0.5">
+              {selectedAddress.full_address}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (onChangeAddress) onChangeAddress();
+              else setShowAddressPicker(!showAddressPicker);
+            }}
+            className="text-emerald-700 text-xs font-bold hover:underline shrink-0 p-1 cursor-pointer"
+          >
+            Change
+          </button>
+        </div>
+      )}
 
       {/* Inline Address Switcher Dropdown (when Change is clicked) */}
-      {showAddressPicker && (
+      {showAddressPicker && selectedAddress && (
         <div className="bg-white rounded-2xl p-3 border border-emerald-200 shadow-md space-y-2 -mt-2">
           <div className="flex items-center justify-between px-1">
             <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
@@ -1080,6 +1173,25 @@ export default function CartView({
         </div>
       )}
 
+      {/* Checkout Authentication / Address Alert Notice */}
+      {checkoutAuthError && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl px-4 py-2.5 text-xs font-semibold flex items-center justify-between animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <i className="fa-solid fa-circle-exclamation text-rose-500 text-sm"></i>
+            <span>{checkoutAuthError}</span>
+          </div>
+          {!isLoggedIn && (
+            <button
+              type="button"
+              onClick={() => (onOpenLogin ? onOpenLogin() : onProceedToCheckout && onProceedToCheckout())}
+              className="text-white bg-rose-600 hover:bg-rose-700 px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 ml-2 cursor-pointer transition"
+            >
+              Login Now
+            </button>
+          )}
+        </div>
+      )}
+
       {/* 2.7 Proceed to Checkout Action CTA (with Pre-Checkout Validation) */}
       <button
         type="button"
@@ -1099,6 +1211,12 @@ export default function CartView({
           <>
             <i className="fa-solid fa-triangle-exclamation"></i>
             <span>Remove Out-of-Stock Items to Checkout</span>
+          </>
+        ) : !isLoggedIn && !selectedDeliveryAddress ? (
+          <>
+            <i className="fa-solid fa-lock text-emerald-200"></i>
+            <span>Log In to Proceed to Checkout</span>
+            <i className="fa-solid fa-arrow-right"></i>
           </>
         ) : (
           <>

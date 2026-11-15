@@ -236,7 +236,16 @@ async function createOrderFromCart({
 
     // Ensure delivery address has exact physical coordinates before saving
     let finalDeliveryAddress = { ...(deliveryAddress || {}) };
-    if (!finalDeliveryAddress.latitude || !finalDeliveryAddress.longitude || isNaN(Number(finalDeliveryAddress.latitude)) || isNaN(Number(finalDeliveryAddress.longitude))) {
+    const cityLower = String(finalDeliveryAddress.city || '').toLowerCase();
+    const pinStr = String(finalDeliveryAddress.pincode || '').trim();
+    const isAhm = cityLower.includes('ahmedabad') || pinStr.startsWith('380') || pinStr.startsWith('382');
+    const isSurat = cityLower.includes('surat') || pinStr.startsWith('394') || pinStr.startsWith('395');
+
+    const latNum = Number(finalDeliveryAddress.latitude);
+    const lngNum = Number(finalDeliveryAddress.longitude);
+    const isLatMismatch = (isAhm && (latNum < 22.8 || latNum > 23.5)) || (isSurat && (latNum < 20.8 || latNum > 21.6));
+
+    if (!latNum || !lngNum || isNaN(latNum) || isNaN(lngNum) || isLatMismatch) {
       try {
         const resolvedGeo = await smartGeocode(finalDeliveryAddress);
         finalDeliveryAddress.latitude = resolvedGeo.latitude;
@@ -1085,7 +1094,25 @@ async function getOrderTracking(orderId) {
   };
 
   // Delivery destination coordinates
-  const addr = order.delivery_address || {};
+  const addr = { ...(order.delivery_address || {}) };
+
+  // If building_name is missing, extract it from composite address_line
+  if (!addr.building_name && (addr.address_line || addr.address)) {
+    const rawLine = addr.address_line || addr.address;
+    const parts = rawLine.split(',').map((s) => s.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      if (/house|flat|block|unit|apt|room|no\.?/i.test(parts[0])) {
+        addr.house_number = addr.house_number || parts[0].replace(/^house\/flat\s*/i, '');
+        addr.building_name = parts[1];
+        if (parts[2]) addr.area_name = addr.area_name || parts[2];
+      } else {
+        addr.building_name = parts[0];
+        if (parts[1]) addr.area_name = addr.area_name || parts[1];
+      }
+    } else {
+      addr.building_name = rawLine;
+    }
+  }
 
   // Resolve realistic geographic coordinates with high-precision smart geocoding
   const storeCoords = await smartGeocode(store);
@@ -1096,8 +1123,15 @@ async function getOrderTracking(orderId) {
   let destLat = destCoords.latitude;
   let destLng = destCoords.longitude;
 
-  // If order delivery address lacks coordinates in DB, backfill so it stays permanently accurate
-  if (!addr.latitude || !addr.longitude) {
+  // If order delivery address lacks coordinates in DB or had cross-city fallback, backfill so it stays permanently accurate
+  const addrCityLower = String(addr.city || '').toLowerCase();
+  const addrPinStr = String(addr.pincode || '').trim();
+  const isAhmOrder = addrCityLower.includes('ahmedabad') || addrPinStr.startsWith('380') || addrPinStr.startsWith('382');
+  const isSuratOrder = addrCityLower.includes('surat') || addrPinStr.startsWith('394') || addrPinStr.startsWith('395');
+  const existingLat = Number(addr.latitude);
+  const isMismatchInDb = (isAhmOrder && (existingLat < 22.8 || existingLat > 23.5)) || (isSuratOrder && (existingLat < 20.8 || existingLat > 21.6));
+
+  if (!addr.latitude || !addr.longitude || isMismatchInDb) {
     addr.latitude = destLat;
     addr.longitude = destLng;
     pool.query(`UPDATE orders SET delivery_address = $1 WHERE id = $2`, [JSON.stringify(addr), orderId]).catch(() => {});
@@ -1204,6 +1238,10 @@ async function getOrderTracking(orderId) {
     },
     destination: {
       address: addr.address_line || addr.address || 'Ring Road, Surat',
+      building_name: addr.building_name || '',
+      house_number: addr.house_number || addr.flat_no || '',
+      area_name: addr.area_name || addr.area || '',
+      landmark: addr.landmark || '',
       city: addr.city || store.city,
       pincode: addr.pincode,
       latitude: destLat,

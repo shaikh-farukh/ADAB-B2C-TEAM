@@ -39,6 +39,7 @@ const OFFLINE_PINCODES = {
   '380060': { latitude: 23.0821, longitude: 72.5312, name: 'Gota / Vandematram, Ahmedabad' },
   '380061': { latitude: 23.0612, longitude: 72.5451, name: 'Ghatlodia / Chanakyapuri, Ahmedabad' },
   '382424': { latitude: 23.1101, longitude: 72.5811, name: 'Chandkheda / IOC Road / Tragad, Ahmedabad' },
+  '382470': { latitude: 23.1330, longitude: 72.5697, name: 'Vaishnodevi Circle / Khoraj / Pacifica, Ahmedabad' },
   '380024': { latitude: 23.0412, longitude: 72.6312, name: 'Bapunagar / India Colony, Ahmedabad' },
   '380026': { latitude: 23.0012, longitude: 72.6351, name: 'Amraiwadi / CTM, Ahmedabad' },
   '380028': { latitude: 22.9812, longitude: 72.6012, name: 'Isanpur / Ghodasar, Ahmedabad' },
@@ -99,18 +100,19 @@ const OFFLINE_PINCODES = {
 // Locality keyword mapping for Gujarat cities
 const LOCALITY_KEYWORDS = [
   // Ahmedabad
-  { keywords: ['chandkheda', 'ioc road', 'tragad', 'saral parivesh'], coords: { latitude: 23.1101, longitude: 72.5811 } },
+  { keywords: ['vaishnodevi', 'vaishno devi', 'pacifica', 'reflection', 'khoraj', 'zundal', 'godrej garden city', 'nirma'], coords: { latitude: 23.1330, longitude: 72.5697 } },
+  { keywords: ['chandkheda', 'ioc road', 'tragad', 'saral parivesh', 'new cg road'], coords: { latitude: 23.1101, longitude: 72.5811 } },
   { keywords: ['motera', 'narendra modi stadium', 'koteshwar'], coords: { latitude: 23.0912, longitude: 72.6012 } },
   { keywords: ['sabarmati', 'dharmanagar', 'ramnagar'], coords: { latitude: 23.0645, longitude: 72.5812 } },
   { keywords: ['ranip', 'kali'], coords: { latitude: 23.0782, longitude: 72.5651 } },
-  { keywords: ['gota', 'vandematram', 'silver star'], coords: { latitude: 23.0821, longitude: 72.5312 } },
-  { keywords: ['science city', 'sola'], coords: { latitude: 23.0682, longitude: 72.5112 } },
+  { keywords: ['gota', 'vandematram', 'silver star', 'ognaj'], coords: { latitude: 23.0821, longitude: 72.5312 } },
+  { keywords: ['science city', 'sola', 'bhagwat'], coords: { latitude: 23.0682, longitude: 72.5112 } },
   { keywords: ['thaltej', 'acropolis', 'hebatpur'], coords: { latitude: 23.0504, longitude: 72.5085 } },
-  { keywords: ['bodakdev', 'judges bungalow', 'pakwan'], coords: { latitude: 23.0398, longitude: 72.5112 } },
+  { keywords: ['bodakdev', 'judges bungalow', 'pakwan', 'sindhu bhavan', 'sbr', 'taj skyline'], coords: { latitude: 23.0398, longitude: 72.5112 } },
   { keywords: ['vastrapur', 'alpha one', 'iim', 'vastrapur lake'], coords: { latitude: 23.0351, longitude: 72.5298 } },
-  { keywords: ['satellite', 'shivranjani', 'iscon mall', 'ramdev nagar'], coords: { latitude: 23.0276, longitude: 72.5186 } },
+  { keywords: ['satellite', 'shivranjani', 'iscon mall', 'iscon cross road', 'ramdev nagar'], coords: { latitude: 23.0276, longitude: 72.5186 } },
   { keywords: ['prahlad nagar', 'prahladnagar', 'makarba', 'vejalpur road'], coords: { latitude: 23.0112, longitude: 72.5102 } },
-  { keywords: ['vejalpur', 'bakeri city', 'venus parkland', 'venus pardland', 'jodhpur'], coords: { latitude: 23.0025, longitude: 72.5207 } },
+  { keywords: ['vejalpur', 'bakeri city', 'venus parkland', 'venus pardland', 'jodhpur', 'shrinand nagar'], coords: { latitude: 23.0025, longitude: 72.5207 } },
   { keywords: ['bopal', 'south bopal', 'ghuma', 'sobo center', 'sun city'], coords: { latitude: 23.0358, longitude: 72.4645 } },
   { keywords: ['shela', 'club o7', 'vipul dudhiya'], coords: { latitude: 23.0151, longitude: 72.4412 } },
   { keywords: ['navrangpura', 'cg road', 'c.g. road', 'law garden', 'st xavier'], coords: { latitude: 23.0366, longitude: 72.5611 } },
@@ -129,10 +131,10 @@ const LOCALITY_KEYWORDS = [
   { keywords: ['astodia', 'khadia', 'kalupur', 'raikhad', 'relief road'], coords: { latitude: 23.0181, longitude: 72.5901 } },
 
   // Surat
-  { keywords: ['adajan', 'lp savani', 'l.p. savani', 'anand mahal', 'prime arcade'], coords: { latitude: 21.1960, longitude: 72.7930 } },
+  { keywords: ['adajan', 'lp savani', 'l.p. savani', 'anand mahal', 'prime arcade', 'shivalik', 'savani'], coords: { latitude: 21.1960, longitude: 72.7930 } },
   { keywords: ['pal', 'palanpur', 'palanpur canal', 'gourmet'], coords: { latitude: 21.2051, longitude: 72.7751 } },
-  { keywords: ['vesu', 'vip road', 'v.i.p. road', 'someshwara', 'university road'], coords: { latitude: 21.1445, longitude: 72.7712 } },
-  { keywords: ['althan', 'city light', 'citylight', 'bharthana'], coords: { latitude: 21.1610, longitude: 72.7850 } },
+  { keywords: ['vesu', 'vip road', 'v.i.p. road', 'someshwara', 'university road', 'orchid'], coords: { latitude: 21.1445, longitude: 72.7712 } },
+  { keywords: ['althan', 'city light', 'citylight', 'bharthana', 'green valley'], coords: { latitude: 21.1610, longitude: 72.7850 } },
   { keywords: ['piplod', 'vr mall', 'dumas road', 'big bazaar'], coords: { latitude: 21.1551, longitude: 72.7651 } },
   { keywords: ['varachha', 'hirabaug', 'mini bazar', 'baroda prestige', 'matawadi'], coords: { latitude: 21.2150, longitude: 72.8580 } },
   { keywords: ['katargam', 'gotalawadi', 'gajera'], coords: { latitude: 21.2312, longitude: 72.8312 } },
@@ -180,14 +182,18 @@ function fetchNominatim(query, timeoutMs = 2000) {
             try {
               const json = JSON.parse(data);
               if (Array.isArray(json) && json.length > 0) {
-                const lat = parseFloat(json[0].lat);
-                const lon = parseFloat(json[0].lon);
+                const item = json[0];
+                const lat = parseFloat(item.lat);
+                const lon = parseFloat(item.lon);
+                // Check if this is a broad county/taluka boundary rather than a specific locality/building
+                const isBroadCounty = item.addresstype === 'county' || (item.class === 'boundary' && item.type === 'administrative' && Number(item.place_rank || 0) < 15);
                 // Verify within Indian subcontinent bounds
                 if (lat >= 8.0 && lat <= 37.0 && lon >= 68.0 && lon <= 97.5) {
                   return resolve({
                     latitude: Math.round(lat * 10000000) / 10000000,
                     longitude: Math.round(lon * 10000000) / 10000000,
                     source: 'nominatim',
+                    is_broad_county: isBroadCounty,
                     query
                   });
                 }
@@ -222,7 +228,9 @@ function matchOfflineDictionary(addressObj = {}) {
   const city = String(addressObj.city || '').trim().toLowerCase();
   const addressLine = String(addressObj.address_line || addressObj.address || '').toLowerCase();
   const landmark = String(addressObj.landmark || '').toLowerCase();
-  const combinedText = `${addressLine} ${landmark} ${city} ${pincode}`.toLowerCase();
+  const buildingName = String(addressObj.building_name || addressObj.building || '').toLowerCase();
+  const areaName = String(addressObj.area_name || addressObj.area || '').toLowerCase();
+  const combinedText = `${buildingName} ${areaName} ${addressLine} ${landmark} ${city} ${pincode}`.toLowerCase();
 
   // 1. Try exact pincode match first
   if (pincode && OFFLINE_PINCODES[pincode]) {
@@ -233,7 +241,7 @@ function matchOfflineDictionary(addressObj = {}) {
     };
   }
 
-  // 2. Try locality keywords in address text
+  // 2. Try locality / building keywords in address text
   for (const entry of LOCALITY_KEYWORDS) {
     for (const kw of entry.keywords) {
       if (combinedText.includes(kw)) {
@@ -267,7 +275,7 @@ function matchOfflineDictionary(addressObj = {}) {
 /**
  * Universal Asynchronous Smart Geocoding Function
  * 
- * Takes an address object (with address_line, landmark, city, state, pincode)
+ * Takes an address object (with address_line, building_name, area_name, landmark, city, state, pincode)
  * and resolves exact physical coordinates.
  */
 async function smartGeocode(addressObj = {}) {
@@ -275,24 +283,52 @@ async function smartGeocode(addressObj = {}) {
     return { latitude: 21.1702, longitude: 72.8311 };
   }
 
-  // 1. If address already has valid coordinates, immediately return them
-  const rawLat = parseFloat(addressObj.latitude);
-  const rawLng = parseFloat(addressObj.longitude);
-  if (!isNaN(rawLat) && !isNaN(rawLng) && rawLat !== 0 && rawLng !== 0) {
-    return {
-      latitude: rawLat,
-      longitude: rawLng
-    };
-  }
-
   const pincode = String(addressObj.pincode || addressObj.zip || '').trim().replace(/\D/g, '');
   const city = String(addressObj.city || '').trim();
   const state = String(addressObj.state || 'Gujarat').trim();
   const addressLine = String(addressObj.address_line || addressObj.address || '').trim();
   const landmark = String(addressObj.landmark || '').trim();
+  let buildingName = String(addressObj.building_name || addressObj.building || '').trim();
+  let areaName = String(addressObj.area_name || addressObj.area || '').trim();
+  let houseNumber = String(addressObj.house_number || addressObj.flat_no || '').trim();
+
+  // Auto-extract building name and area from composite address_line if not separately passed
+  if (!buildingName && addressLine) {
+    const parts = addressLine.split(',').map((s) => s.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      if (/house|flat|block|unit|apt|room|no\.?/i.test(parts[0])) {
+        if (!houseNumber) houseNumber = parts[0].replace(/^house\/flat\s*/i, '');
+        buildingName = parts[1];
+        if (!areaName && parts[2]) areaName = parts[2];
+      } else {
+        buildingName = parts[0];
+        if (!areaName && parts[1]) areaName = parts[1];
+      }
+    } else {
+      buildingName = addressLine;
+    }
+  }
+
+  const isAhmCity = city.toLowerCase().includes('ahmedabad') || pincode.startsWith('380') || pincode.startsWith('382');
+  const isSuratCity = city.toLowerCase().includes('surat') || pincode.startsWith('394') || pincode.startsWith('395');
+
+  // 1. If address already has valid coordinates matching the city geographic bounds, return them
+  const rawLat = parseFloat(addressObj.latitude);
+  const rawLng = parseFloat(addressObj.longitude);
+  if (!isNaN(rawLat) && !isNaN(rawLng) && rawLat !== 0 && rawLng !== 0) {
+    const isValidAhm = isAhmCity && rawLat >= 22.8 && rawLat <= 23.5;
+    const isValidSurat = isSuratCity && rawLat >= 20.8 && rawLat <= 21.6;
+    const isOtherValid = !isAhmCity && !isSuratCity && rawLat >= 8.0 && rawLat <= 37.0;
+    if (isValidAhm || isValidSurat || isOtherValid) {
+      return {
+        latitude: rawLat,
+        longitude: rawLng
+      };
+    }
+  }
 
   // Cache key
-  const cacheKey = `${addressLine}_${landmark}_${city}_${pincode}`.toLowerCase().replace(/\s+/g, ' ');
+  const cacheKey = `${buildingName}_${areaName}_${addressLine}_${landmark}_${city}_${pincode}`.toLowerCase().replace(/\s+/g, ' ');
   if (geocodeCache.has(cacheKey)) {
     return geocodeCache.get(cacheKey);
   }
@@ -300,18 +336,34 @@ async function smartGeocode(addressObj = {}) {
   // 2. Build Search Ladder for OpenStreetMap Nominatim
   const ladder = [];
 
-  // Stage 1: Full specific address
+  // Stage 1: Building name prioritized (Accurate building-level OpenStreetMap search)
+  if (buildingName) {
+    // 1a. Building + Area + City + Pincode
+    ladder.push([buildingName, areaName, city, pincode, state, 'India'].filter(Boolean).join(', '));
+    // 1b. Building + City + Pincode
+    ladder.push([buildingName, city, pincode, state, 'India'].filter(Boolean).join(', '));
+    // 1c. Building + City
+    ladder.push([buildingName, city, state, 'India'].filter(Boolean).join(', '));
+  }
+
+  // Stage 2: Area / Street + City + Pincode
+  if (areaName) {
+    ladder.push([areaName, city, pincode, state, 'India'].filter(Boolean).join(', '));
+    ladder.push([areaName, city, state, 'India'].filter(Boolean).join(', '));
+  }
+
+  // Stage 3: Landmark + City + Pincode
+  if (landmark) {
+    ladder.push([landmark, city, pincode, state, 'India'].filter(Boolean).join(', '));
+  }
+
+  // Stage 4: Full specific address line (if building was not separately passed or failed)
   const fullParts = [addressLine, landmark, city, pincode, state, 'India'].filter(Boolean);
   if (fullParts.length > 2) {
     ladder.push(fullParts.join(', '));
   }
 
-  // Stage 2: Landmark + Locality + City + Pincode
-  if (landmark) {
-    ladder.push([landmark, city, pincode, state, 'India'].filter(Boolean).join(', '));
-  }
-
-  // Stage 3: Extract locality / road name from address line (e.g. after comma)
+  // Stage 5: Extract locality / road name from address line (e.g. after comma)
   if (addressLine.includes(',')) {
     const segments = addressLine.split(',').map((s) => s.trim()).filter(Boolean);
     const lastSegment = segments[segments.length - 1];
@@ -320,8 +372,8 @@ async function smartGeocode(addressObj = {}) {
     }
   }
 
-  // Stage 4: Check if locality keywords appear in address line
-  const combinedLower = `${addressLine} ${landmark}`.toLowerCase();
+  // Stage 6: Check if locality keywords appear in address line or building
+  const combinedLower = `${buildingName} ${areaName} ${addressLine} ${landmark}`.toLowerCase();
   for (const entry of LOCALITY_KEYWORDS) {
     for (const kw of entry.keywords) {
       if (combinedLower.includes(kw)) {
@@ -329,21 +381,44 @@ async function smartGeocode(addressObj = {}) {
         break;
       }
     }
-    if (ladder.length >= 4) break;
+    if (ladder.length >= 7) break;
   }
 
-  // Stage 5: Pincode + City
+  // Stage 7: Pincode + City
   if (pincode) {
     ladder.push([pincode, city, state, 'India'].filter(Boolean).join(', '));
   }
+
+  // Check offline dictionary first for exact urban locality
+  const offlineMatch = matchOfflineDictionary({
+    pincode,
+    city,
+    state,
+    address_line: addressLine,
+    building_name: buildingName,
+    area_name: areaName,
+    landmark
+  });
 
   // Run ladder queries sequentially until high-accuracy match is found
   for (const query of ladder) {
     const result = await fetchNominatim(query, 1200);
     if (result && result.latitude && result.longitude) {
+      // If Nominatim matched a broad county/taluka boundary but we have an exact urban locality keyword match, prefer the locality keyword!
+      if (result.is_broad_county && offlineMatch && offlineMatch.source === 'offline_locality') {
+        const resolved = {
+          latitude: offlineMatch.latitude,
+          longitude: offlineMatch.longitude,
+          building_matched: false
+        };
+        geocodeCache.set(cacheKey, resolved);
+        return resolved;
+      }
+
       const resolved = {
         latitude: result.latitude,
-        longitude: result.longitude
+        longitude: result.longitude,
+        building_matched: Boolean(buildingName && query.includes(buildingName))
       };
       geocodeCache.set(cacheKey, resolved);
       return resolved;
@@ -351,11 +426,13 @@ async function smartGeocode(addressObj = {}) {
   }
 
   // 3. Fallback: Use comprehensive offline dictionary
-  const fallbackCoords = matchOfflineDictionary({
+  const fallbackCoords = offlineMatch || matchOfflineDictionary({
     pincode,
     city,
     state,
     address_line: addressLine,
+    building_name: buildingName,
+    area_name: areaName,
     landmark
   });
 
@@ -372,20 +449,30 @@ async function smartGeocode(addressObj = {}) {
  * Synchronous Fallback Resolver (when async is strictly not possible)
  */
 function resolveCoordinatesSync(addressObj = {}, fallbackCity = 'Surat') {
-  if (addressObj?.latitude && addressObj?.longitude) {
-    const lat = parseFloat(addressObj.latitude);
-    const lng = parseFloat(addressObj.longitude);
-    if (!isNaN(lat) && !isNaN(lng)) {
-      return { latitude: lat, longitude: lng };
-    }
-  }
-
   const pincode = String(addressObj.pincode || addressObj.zip || '').trim().replace(/\D/g, '');
   const city = String(addressObj.city || fallbackCity || '').trim();
   const addressLine = String(addressObj.address_line || addressObj.address || '').trim();
   const landmark = String(addressObj.landmark || '').trim();
+  const buildingName = String(addressObj.building_name || addressObj.building || '').trim();
+  const areaName = String(addressObj.area_name || addressObj.area || '').trim();
 
-  const cacheKey = `${addressLine}_${landmark}_${city}_${pincode}`.toLowerCase().replace(/\s+/g, ' ');
+  const isAhmCity = city.toLowerCase().includes('ahmedabad') || pincode.startsWith('380') || pincode.startsWith('382');
+  const isSuratCity = city.toLowerCase().includes('surat') || pincode.startsWith('394') || pincode.startsWith('395');
+
+  if (addressObj?.latitude && addressObj?.longitude) {
+    const lat = parseFloat(addressObj.latitude);
+    const lng = parseFloat(addressObj.longitude);
+    if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+      const isValidAhm = isAhmCity && lat >= 22.8 && lat <= 23.5;
+      const isValidSurat = isSuratCity && lat >= 20.8 && lat <= 21.6;
+      const isOtherValid = !isAhmCity && !isSuratCity && lat >= 8.0 && lat <= 37.0;
+      if (isValidAhm || isValidSurat || isOtherValid) {
+        return { latitude: lat, longitude: lng };
+      }
+    }
+  }
+
+  const cacheKey = `${buildingName}_${areaName}_${addressLine}_${landmark}_${city}_${pincode}`.toLowerCase().replace(/\s+/g, ' ');
   if (geocodeCache.has(cacheKey)) {
     return geocodeCache.get(cacheKey);
   }
@@ -393,6 +480,8 @@ function resolveCoordinatesSync(addressObj = {}, fallbackCity = 'Surat') {
   return matchOfflineDictionary({
     pincode,
     city,
+    building_name: buildingName,
+    area_name: areaName,
     address_line: addressLine,
     landmark
   });

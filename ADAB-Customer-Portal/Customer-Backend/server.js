@@ -129,9 +129,12 @@ app.use((err, req, res, next) => {
 
 // Start Server if run directly
 if (require.main === module) {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
   });
+  // Keep event loop active on Windows daemon tasks
+  const keepAlive = setInterval(() => {}, 60000);
+  keepAlive.unref = () => {}; // Prevent unref
 }
 
 module.exports = app;

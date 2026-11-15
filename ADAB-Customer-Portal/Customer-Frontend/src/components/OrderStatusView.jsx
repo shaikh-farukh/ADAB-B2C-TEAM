@@ -108,25 +108,104 @@ export default function OrderStatusView({
     const addrCity = (addrObj.city || '').toLowerCase();
     const addrPin = String(addrObj.pincode || addrObj.zip || '').trim();
     const addrText = (addrObj.address_line || addrObj.address || '').toLowerCase();
+    let buildingNameRaw = addrObj.building_name || trackingData?.destination?.building_name || '';
+    let houseNoRaw = addrObj.house_number || trackingData?.destination?.house_number || '';
+    let areaNameRaw = addrObj.area_name || trackingData?.destination?.area_name || '';
+
+    // Auto-extract building name and area from composite address_line if not separately stored
+    if (!buildingNameRaw && (addrObj.address_line || addrObj.address)) {
+      const rawLine = addrObj.address_line || addrObj.address || '';
+      const parts = rawLine.split(',').map((s) => s.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        if (/house|flat|block|unit|apt|room|no\.?/i.test(parts[0])) {
+          if (!houseNoRaw) houseNoRaw = parts[0].replace(/^house\/flat\s*/i, '');
+          buildingNameRaw = parts[1];
+          if (!areaNameRaw && parts[2]) areaNameRaw = parts[2];
+        } else {
+          buildingNameRaw = parts[0];
+          if (!areaNameRaw && parts[1]) areaNameRaw = parts[1];
+        }
+      } else {
+        buildingNameRaw = rawLine;
+      }
+    }
+
+    const combinedSearchText = `${buildingNameRaw} ${areaNameRaw} ${addrText} ${addrCity} ${addrPin} ${addrObj.landmark || ''}`.toLowerCase();
 
     const isAhm =
       addrCity.includes('ahmedabad') ||
       addrPin.startsWith('380') ||
       addrPin.startsWith('382') ||
-      addrText.includes('ahmedabad') ||
-      addrText.includes('vejalpur');
+      combinedSearchText.includes('ahmedabad') ||
+      combinedSearchText.includes('vaishnodevi') ||
+      combinedSearchText.includes('pacifica') ||
+      combinedSearchText.includes('vejalpur');
+
+    // Smart default coordinates based on comprehensive neighborhood / building keywords
+    let defDestLat = isAhm ? 23.0025 : 21.1950;
+    let defDestLng = isAhm ? 72.5207 : 72.8190;
+
+    if (combinedSearchText.includes('vaishnodevi') || combinedSearchText.includes('pacifica') || combinedSearchText.includes('reflection') || combinedSearchText.includes('khoraj') || combinedSearchText.includes('zundal') || combinedSearchText.includes('godrej garden')) {
+      defDestLat = 23.1330; defDestLng = 72.5697;
+    } else if (combinedSearchText.includes('chandkheda') || combinedSearchText.includes('tragad') || combinedSearchText.includes('ioc road')) {
+      defDestLat = 23.1101; defDestLng = 72.5811;
+    } else if (combinedSearchText.includes('motera') || combinedSearchText.includes('stadium') || combinedSearchText.includes('koteshwar')) {
+      defDestLat = 23.0912; defDestLng = 72.6012;
+    } else if (combinedSearchText.includes('gota') || combinedSearchText.includes('vandematram') || combinedSearchText.includes('silver star')) {
+      defDestLat = 23.0821; defDestLng = 72.5312;
+    } else if (combinedSearchText.includes('science city') || combinedSearchText.includes('sola')) {
+      defDestLat = 23.0682; defDestLng = 72.5112;
+    } else if (combinedSearchText.includes('thaltej') || combinedSearchText.includes('acropolis') || combinedSearchText.includes('hebatpur')) {
+      defDestLat = 23.0504; defDestLng = 72.5085;
+    } else if (combinedSearchText.includes('bodakdev') || combinedSearchText.includes('sindhu bhavan') || combinedSearchText.includes('sbr')) {
+      defDestLat = 23.0398; defDestLng = 72.5112;
+    } else if (combinedSearchText.includes('bopal') || combinedSearchText.includes('ghuma') || combinedSearchText.includes('sobo')) {
+      defDestLat = 23.0358; defDestLng = 72.4645;
+    } else if (combinedSearchText.includes('prahlad nagar') || combinedSearchText.includes('prahladnagar') || combinedSearchText.includes('makarba')) {
+      defDestLat = 23.0112; defDestLng = 72.5102;
+    } else if (combinedSearchText.includes('satellite') || combinedSearchText.includes('vastrapur') || combinedSearchText.includes('shivranjani')) {
+      defDestLat = 23.0276; defDestLng = 72.5186;
+    } else if (combinedSearchText.includes('navrangpura') || combinedSearchText.includes('cg road') || combinedSearchText.includes('c.g. road')) {
+      defDestLat = 23.0366; defDestLng = 72.5611;
+    } else if (combinedSearchText.includes('bakeri') || combinedSearchText.includes('venus parkland') || combinedSearchText.includes('vejalpur')) {
+      defDestLat = 23.0025; defDestLng = 72.5207;
+    } else if (combinedSearchText.includes('vesu') || combinedSearchText.includes('vip road') || combinedSearchText.includes('orchid') || combinedSearchText.includes('someshwara')) {
+      defDestLat = 21.1445; defDestLng = 72.7712;
+    } else if (combinedSearchText.includes('adajan') || combinedSearchText.includes('pal') || combinedSearchText.includes('shivalik') || combinedSearchText.includes('savani') || combinedSearchText.includes('anand mahal')) {
+      defDestLat = 21.1960; defDestLng = 72.7930;
+    } else if (combinedSearchText.includes('althan') || combinedSearchText.includes('city light') || combinedSearchText.includes('green valley')) {
+      defDestLat = 21.1610; defDestLng = 72.7850;
+    } else if (combinedSearchText.includes('piplod') || combinedSearchText.includes('dumas') || combinedSearchText.includes('vr mall')) {
+      defDestLat = 21.1551; defDestLng = 72.7651;
+    } else if (combinedSearchText.includes('katargam') || combinedSearchText.includes('gotalawadi')) {
+      defDestLat = 21.2312; defDestLng = 72.8312;
+    } else if (combinedSearchText.includes('varachha') || combinedSearchText.includes('hirabaug') || combinedSearchText.includes('mini bazar')) {
+      defDestLat = 21.2150; defDestLng = 72.8580;
+    }
 
     const defStoreLat = isAhm ? 23.0181 : 21.1702;
     const defStoreLng = isAhm ? 72.5901 : 72.8311;
-    const defDestLat = isAhm ? 23.0025 : 21.1950;
-    const defDestLng = isAhm ? 72.5207 : 72.8190;
     const defRiderLat = isAhm ? 23.0110 : 21.1820;
     const defRiderLng = isAhm ? 72.5600 : 72.8250;
 
     let storeLat = Number(trackingData?.store?.latitude) || defStoreLat;
     let storeLng = Number(trackingData?.store?.longitude) || defStoreLng;
-    let destLat = Number(trackingData?.destination?.latitude) || defDestLat;
-    let destLng = Number(trackingData?.destination?.longitude) || defDestLng;
+
+    // Prioritize trackingData coords -> addressObj saved coords -> smart default coords
+    let rawDestLat = Number(trackingData?.destination?.latitude) || Number(addrObj.latitude) || Number(addrObj.lat) || 0;
+    let rawDestLng = Number(trackingData?.destination?.longitude) || Number(addrObj.longitude) || Number(addrObj.lng) || 0;
+
+    // Validate that destination coordinates match the destination city (prevent cross-city fallback bugs)
+    let destLat = rawDestLat;
+    let destLng = rawDestLng;
+    if (isAhm && (destLat < 22.5 || destLat > 23.5 || !destLat)) {
+      destLat = defDestLat;
+      destLng = defDestLng;
+    } else if (!isAhm && (destLat > 22.0 || destLat < 20.8 || !destLat)) {
+      destLat = defDestLat;
+      destLng = defDestLng;
+    }
+
     let riderLat = Number(trackingData?.rider_telemetry?.latitude || trackingData?.current_location?.latitude) || defRiderLat;
     let riderLng = Number(trackingData?.rider_telemetry?.longitude || trackingData?.current_location?.longitude) || defRiderLng;
 
@@ -146,15 +225,38 @@ export default function OrderStatusView({
     const curRiderName = trackingData?.rider?.name || 'Ramesh';
     const curStoreName = order.seller_orders?.[0]?.store_name || order.items?.[0]?.store_name || trackingData?.store?.name || 'Store';
     const curFullAddr = addrObj.address_line || addrObj.address || order.shipping_address_line || 'Delivery Address';
+    const destLabel = buildingNameRaw ? buildingNameRaw.slice(0, 24) : 'My Location';
 
-    // Fast-path: If Leaflet map already exists, smoothly update rider position without rebuilding canvas
+    // Fast-path: If Leaflet map already exists, smoothly update rider position AND destination marker without rebuilding canvas
     if (mapRef.current && riderMarkerRef.current) {
       try {
+        // 1. Update Rider Marker
         riderMarkerRef.current.setLatLng([riderLat, riderLng]);
         riderMarkerRef.current.setPopupContent(
           `<b>Rider: ${curRiderName}</b><br>${currentStatus === 'DELIVERED' ? 'Delivery Completed' : 'En Route'}`
         );
 
+        // 2. Update Destination Marker with live geocoded building location
+        if (destMarkerRef.current) {
+          destMarkerRef.current.setLatLng([destLat, destLng]);
+          const dynamicDestIcon = L.divIcon({
+            className: 'custom-map-pin',
+            html: `<div style="background:#0F172A;color:white;padding:5px 10px;border-radius:14px;font-size:11px;font-weight:800;box-shadow:0 3px 8px rgba(0,0,0,0.4);display:flex;align-items:center;gap:5px;border:2px solid white;white-space:nowrap;z-index:300;"><i class="fa-solid ${buildingNameRaw ? 'fa-building' : 'fa-location-dot'}" style="color:#F87171"></i><span>${destLabel}</span></div>`,
+            iconSize: [Math.max(130, destLabel.length * 8 + 40), 30],
+            iconAnchor: [Math.max(65, Math.round((destLabel.length * 8 + 40) / 2)), 15]
+          });
+          destMarkerRef.current.setIcon(dynamicDestIcon);
+          destMarkerRef.current.setPopupContent(
+            `<b>${buildingNameRaw || 'My Delivery Address'}</b>${houseNoRaw ? `<br>Unit/House: ${houseNoRaw}` : ''}${areaNameRaw ? `<br>Area: ${areaNameRaw}` : ''}<br><span style="color:#64748B;font-size:10px;">${curFullAddr}</span>`
+          );
+        }
+
+        // 3. Update Store Marker
+        if (storeMarkerRef.current) {
+          storeMarkerRef.current.setLatLng([storeLat, storeLng]);
+        }
+
+        // 4. Update Polyline
         if (polylineRef.current) {
           polylineRef.current.setLatLngs([
             [storeLat, storeLng],
@@ -162,6 +264,15 @@ export default function OrderStatusView({
             [destLat, destLng]
           ]);
         }
+
+        // 5. Fit bounds to all updated markers
+        const updatedBounds = L.latLngBounds([
+          [storeLat, storeLng],
+          [destLat, destLng],
+          [riderLat, riderLng]
+        ]);
+        mapRef.current.fitBounds(updatedBounds, { padding: [55, 55], maxZoom: 15 });
+
         return;
       } catch (updateErr) {
         console.warn('Marker update skipped, re-initializing map:', updateErr);
@@ -219,16 +330,17 @@ export default function OrderStatusView({
           .addTo(mapInstance)
           .bindPopup(`<b>Rider: ${curRiderName}</b><br>${currentStatus === 'DELIVERED' ? 'Delivery Completed' : 'En Route'}`);
 
-        // 3. Customer Delivery Address Pin (Dark Slate)
+        // 3. Customer Delivery Address Pin (Dark Slate with Building Name)
+        const destLabel = buildingNameRaw ? buildingNameRaw.slice(0, 24) : 'My Location';
         const destIcon = L.divIcon({
           className: 'custom-map-pin',
-          html: '<div style="background:#0F172A;color:white;padding:5px 10px;border-radius:14px;font-size:11px;font-weight:800;box-shadow:0 3px 8px rgba(0,0,0,0.4);display:flex;align-items:center;gap:5px;border:2px solid white;white-space:nowrap;z-index:300;"><i class="fa-solid fa-location-dot" style="color:#F87171"></i><span>My Location</span></div>',
-          iconSize: [130, 30],
-          iconAnchor: [65, 15]
+          html: `<div style="background:#0F172A;color:white;padding:5px 10px;border-radius:14px;font-size:11px;font-weight:800;box-shadow:0 3px 8px rgba(0,0,0,0.4);display:flex;align-items:center;gap:5px;border:2px solid white;white-space:nowrap;z-index:300;"><i class="fa-solid ${buildingNameRaw ? 'fa-building' : 'fa-location-dot'}" style="color:#F87171"></i><span>${destLabel}</span></div>`,
+          iconSize: [Math.max(130, destLabel.length * 8 + 40), 30],
+          iconAnchor: [Math.max(65, Math.round((destLabel.length * 8 + 40) / 2)), 15]
         });
         destMarkerRef.current = L.marker([destLat, destLng], { icon: destIcon, zIndexOffset: 300 })
           .addTo(mapInstance)
-          .bindPopup(`<b>My Delivery Address</b><br>${curFullAddr}`);
+          .bindPopup(`<b>${buildingNameRaw || 'My Delivery Address'}</b>${houseNoRaw ? `<br>Unit/House: ${houseNoRaw}` : ''}${areaNameRaw ? `<br>Area: ${areaNameRaw}` : ''}<br><span style="color:#64748B;font-size:10px;">${curFullAddr}</span>`);
 
         // Route Trajectory Polyline connecting Shop -> Rider -> My Location
         const routePoints = [
@@ -849,9 +961,17 @@ export default function OrderStatusView({
 
       {/* Delivery Destination & Recipient Card */}
       <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs space-y-2">
-        <div className="font-extrabold text-sm text-gray-900 flex items-center gap-2 pb-2 border-b border-gray-100">
-          <i className="fa-solid fa-location-dot text-brand-coral"></i>
-          <span>Delivery Destination</span>
+        <div className="font-extrabold text-sm text-gray-900 flex items-center justify-between pb-2 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <i className="fa-solid fa-location-dot text-brand-coral"></i>
+            <span>Delivery Destination</span>
+          </div>
+          {(addrObj.building_name || trackingData?.destination?.building_name) && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
+              <i className="fa-solid fa-building text-[9px]"></i>
+              <span>{addrObj.building_name || trackingData?.destination?.building_name}</span>
+            </span>
+          )}
         </div>
 
         <div className="text-xs space-y-1">
@@ -862,6 +982,12 @@ export default function OrderStatusView({
             </span>
           </div>
           <div className="text-gray-500 text-[11px] font-semibold">{recipientPhone}</div>
+          {(addrObj.house_number || trackingData?.destination?.house_number) && (
+            <div className="text-gray-800 text-[11px] font-bold">
+              Flat / House: <span className="font-semibold text-gray-600">{addrObj.house_number || trackingData?.destination?.house_number}</span>
+              {(addrObj.building_name || trackingData?.destination?.building_name) ? ` · ${addrObj.building_name || trackingData?.destination?.building_name}` : ''}
+            </div>
+          )}
           <div className="text-gray-700 font-medium pt-0.5">
             {fullAddressLine}
           </div>

@@ -64,7 +64,7 @@ export function getCurrentUserId() {
     return null;
   }
 
-  return userId || '11111111-1111-1111-1111-111111111111';
+  return userId || null;
 }
 
 // Dynamically prepares auth headers for live requests
@@ -453,6 +453,16 @@ export const AuthAPI = {
     apiRequest('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password, session_token: sessionToken || getSessionToken() })
+    }),
+  sendLoginOtp: (email) =>
+    apiRequest('/auth/send-login-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    }),
+  verifyLoginOtp: (email, otp, sessionToken = null) =>
+    apiRequest('/auth/verify-login-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp, session_token: sessionToken || getSessionToken() })
     }),
   register: (userData, sessionToken = null) =>
     apiRequest('/auth/register', {

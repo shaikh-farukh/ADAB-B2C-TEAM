@@ -49,7 +49,6 @@ export default function AccountPage({
   // Views: 'dashboard' | 'addresses' | 'profile' | 'placeholder'
   const [activeView, setActiveView] = useState('dashboard');
   const [placeholderText, setPlaceholderText] = useState('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
   const showToast = (message, type = 'success') => {
@@ -66,7 +65,7 @@ export default function AccountPage({
   const [isDetectingPin, setIsDetectingPin] = useState(false);
   const [pinHint, setPinHint] = useState('');
   const [addressForm, setAddressForm] = useState({
-    type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false
+    type: 'Home', recipientName: '', phone: '', house_number: '', building_name: '', area_name: '', address: '', landmark: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false
   });
   const [serviceabilityResults, setServiceabilityResults] = useState({});
   const [mapPreviews, setMapPreviews] = useState({});
@@ -244,18 +243,30 @@ export default function AccountPage({
   const handleSaveAddress = async (e) => {
     e.preventDefault();
     try {
+      const compositeAddress = [
+        addressForm.house_number ? `House/Flat ${addressForm.house_number}` : null,
+        addressForm.building_name,
+        addressForm.area_name
+      ].filter(Boolean).join(', ') || addressForm.address || 'Delivery Address';
+
+      const payload = {
+        ...addressForm,
+        address: compositeAddress,
+        address_line: compositeAddress
+      };
+
       let res;
       if (editingAddressId) {
-        res = await api.patch(`/customers/me/addresses/${editingAddressId}`, addressForm);
+        res = await api.patch(`/customers/me/addresses/${editingAddressId}`, payload);
       } else {
-        res = await api.post('/customers/me/addresses', addressForm);
+        res = await api.post('/customers/me/addresses', payload);
       }
       
       if (res.data?.success || res.status === 200 || res.status === 201) {
         setIsAddingAddress(false);
         setEditingAddressId(null);
         setPinHint('');
-        setAddressForm({ type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false });
+        setAddressForm({ type: 'Home', recipientName: '', phone: '', house_number: '', building_name: '', area_name: '', address: '', landmark: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false });
         fetchData(true);
         showToast('Address saved successfully!', 'success');
       } else {
@@ -441,21 +452,6 @@ export default function AccountPage({
           <div className="flex-1">
             <div className="font-bold text-gray-900 text-sm">Payment Methods</div>
             <div className="text-xs text-gray-500 mt-0.5">Saved cards & UPI</div>
-          </div>
-          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
-        </div>
-
-        {/* 5. Pay Later & Credit Line */}
-        <div onClick={() => showPlaceholder('Pay Later & Credit Line coming soon.')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
-          <div className="w-12 h-12 bg-[#E8F5E9] text-[#18753C] rounded-xl flex items-center justify-center text-xl shrink-0">
-            <i className="fa-solid fa-hand-holding-dollar"></i>
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="font-bold text-gray-900 text-sm">Pay Later & Credit Line</span>
-              <span className="bg-[#E8F5E9] border border-[#23B65D] text-[#18753C] text-[8px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">0% Interest</span>
-            </div>
-            <div className="text-xs text-gray-500">Apply via HDFC, ICICI, SBI Mudra</div>
           </div>
           <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
         </div>
@@ -726,7 +722,20 @@ export default function AccountPage({
                     <button 
                       onClick={() => { 
                         setEditingAddressId(addr.id); 
-                        setAddressForm({ type: addr.type, recipientName: addr.recipientName || '', phone: addr.phone || '', address: addr.address, city: addr.city, state: addr.state, zip: addr.zip, isDefault: addr.isDefault }); 
+                        setAddressForm({
+                          type: addr.type || addr.label || 'Home',
+                          recipientName: addr.recipientName || addr.recipient_name || '',
+                          phone: addr.phone || '',
+                          house_number: addr.house_number || '',
+                          building_name: addr.building_name || '',
+                          area_name: addr.area_name || '',
+                          address: addr.address || addr.address_line || '',
+                          landmark: addr.landmark || '',
+                          city: addr.city || 'Surat',
+                          state: addr.state || 'Gujarat',
+                          zip: addr.zip || addr.pincode || '',
+                          isDefault: Boolean(addr.isDefault || addr.is_default)
+                        }); 
                         setIsAddingAddress(true); 
                       }} 
                       className="text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-xl transition cursor-pointer"
@@ -753,7 +762,7 @@ export default function AccountPage({
               setIsAddingAddress(true); 
               setEditingAddressId(null); 
               setPinHint('');
-              setAddressForm({ type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false }); 
+              setAddressForm({ type: 'Home', recipientName: '', phone: '', house_number: '', building_name: '', area_name: '', address: '', landmark: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false }); 
             }} 
             className="w-full border-2 border-dashed border-[#18753C]/40 bg-white text-[#18753C] font-extrabold py-5 rounded-2xl flex items-center justify-center gap-2 hover:bg-green-50 transition text-base cursor-pointer"
           >
@@ -804,9 +813,83 @@ export default function AccountPage({
               </div>
             </div>
 
+            {/* House / Flat / Block No */}
             <div>
-              <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Flat, House no., Building, Street</label>
-              <textarea value={addressForm.address} onChange={e => setAddressForm({...addressForm, address: e.target.value})} className="w-full border border-gray-200 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium" placeholder="House / Flat / Street address" required rows="2" />
+              <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
+                House / Flat / Block No <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                  <i className="fa-solid fa-house-chimney text-xs"></i>
+                </span>
+                <input
+                  type="text"
+                  required
+                  value={addressForm.house_number || ''}
+                  onChange={e => setAddressForm({...addressForm, house_number: e.target.value})}
+                  className="w-full border border-gray-200 pl-9 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium"
+                  placeholder="e.g. Flat 502, 5th Floor / House 12"
+                />
+              </div>
+            </div>
+
+            {/* Building / Society / Apartment Name */}
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
+                Building / Society / Apartment Name <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                  <i className="fa-solid fa-building text-xs"></i>
+                </span>
+                <input
+                  type="text"
+                  required
+                  value={addressForm.building_name || ''}
+                  onChange={e => setAddressForm({...addressForm, building_name: e.target.value})}
+                  className="w-full border border-gray-200 pl-9 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium"
+                  placeholder="e.g. Orchid Heights / Shivalik Residency"
+                />
+              </div>
+            </div>
+
+            {/* Area / Street / Locality Name */}
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
+                Area / Street / Locality Name <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                  <i className="fa-solid fa-road text-xs"></i>
+                </span>
+                <input
+                  type="text"
+                  required
+                  value={addressForm.area_name || ''}
+                  onChange={e => setAddressForm({...addressForm, area_name: e.target.value})}
+                  className="w-full border border-gray-200 pl-9 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium"
+                  placeholder="e.g. VIP Road, Vesu / Adajan Gam"
+                />
+              </div>
+            </div>
+
+            {/* Landmark (Optional) */}
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
+                Landmark <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                  <i className="fa-solid fa-location-crosshairs text-xs"></i>
+                </span>
+                <input
+                  type="text"
+                  value={addressForm.landmark || ''}
+                  onChange={e => setAddressForm({...addressForm, landmark: e.target.value})}
+                  className="w-full border border-gray-200 pl-9 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium"
+                  placeholder="e.g. Near Textile Market / Opposite Central Mall"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -982,114 +1065,13 @@ export default function AccountPage({
     </div>
   );
 
-  const SidebarItem = ({ icon, label, badge, active, onClick }) => (
-    <div 
-      onClick={() => { onClick(); setIsSidebarOpen(false); }}
-      className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
-        active 
-          ? 'bg-[#E8F5E9] text-brand-green font-bold rounded-xl relative' 
-          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-xl font-medium'
-      }`}
-    >
-      {active && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-green rounded-r-md"></div>}
-      <i className={`fa-solid ${icon} w-5 text-center`}></i>
-      <span className="text-sm flex-1">{label}</span>
-      {badge && (
-        <span className="bg-red-100 text-red-600 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">
-          {badge}
-        </span>
-      )}
-    </div>
-  );
-
   return (
     <div className="p-4 bg-[#F8F9FA] min-h-screen relative">
-      {/* Account Page Title & Drawer Menu Toggle */}
+      {/* Account Page Title */}
       {activeView === 'dashboard' && (
-        <div className="max-w-4xl mx-auto w-full mb-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-black text-gray-900">My Account</h1>
-            <p className="text-xs text-gray-500">Manage your profile, orders, addresses & preferences</p>
-          </div>
-          <button 
-            type="button"
-            onClick={() => setIsSidebarOpen(true)}
-            className="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center text-gray-700 shadow-sm hover:bg-gray-50 transition-colors cursor-pointer"
-            title="Menu"
-            aria-label="Account Menu"
-          >
-            <i className="fa-solid fa-bars"></i>
-          </button>
-        </div>
-      )}
-
-      {/* SIDEBAR OVERLAY */}
-      {isSidebarOpen && (
-        <div className="fixed inset-0 z-50 flex">
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>
-          
-          {/* Drawer */}
-          <div className="relative w-64 h-full bg-white shadow-2xl flex flex-col pt-4 pb-6 overflow-y-auto transform transition-transform duration-300">
-            <div className="flex items-center justify-between px-4 mb-4">
-              <div className="text-xs font-bold text-gray-400 tracking-wider uppercase">My Account</div>
-              <button onClick={() => setIsSidebarOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors">
-                <i className="fa-solid fa-times"></i>
-              </button>
-            </div>
-            
-            <div className="px-2 flex flex-col gap-1">
-              <SidebarItem icon="fa-user" label="Profile" active={activeView === 'dashboard' || activeView === 'profile'} onClick={() => setActiveView('dashboard')} />
-              <SidebarItem icon="fa-box" label="Orders" badge="2" active={false} onClick={() => { if (onNavigate) onNavigate('orders'); }} />
-              <SidebarItem icon="fa-heart" label="Wishlist" active={false} onClick={() => { if (onNavigate) onNavigate('wishlist'); }} />
-              <SidebarItem icon="fa-location-dot" label="Addresses" active={activeView === 'addresses'} onClick={() => setActiveView('addresses')} />
-              <SidebarItem icon="fa-credit-card" label="Payments" active={placeholderText.includes('Payment')} onClick={() => showPlaceholder('Payment Methods: Saved cards & UPI management coming soon.')} />
-              <SidebarItem icon="fa-tag" label="Coupons" active={placeholderText.includes('Coupons')} onClick={() => showPlaceholder('Coupons: View available offers and discounts coming soon.')} />
-              <SidebarItem icon="fa-star" label="Rewards" active={placeholderText.includes('Rewards')} onClick={() => showPlaceholder('ADAB Rewards: Loyalty program details coming soon.')} />
-              <SidebarItem icon="fa-star-half-stroke" label="Reviews" active={placeholderText.includes('Reviews')} onClick={() => showPlaceholder('My Reviews: Rate past purchases coming soon.')} />
-              <SidebarItem icon="fa-bell" label="Notifications" active={activeView === 'profile'} onClick={() => { if (onNavigate) onNavigate('notifications'); else setActiveView('profile'); }} />
-              <SidebarItem icon="fa-headset" label="Help" active={placeholderText.includes('Help')} onClick={() => showPlaceholder('Help & Support: Customer service portal coming soon.')} />
-              <SidebarItem icon="fa-gear" label="Settings" active={activeView === 'profile'} onClick={() => setActiveView('profile')} />
-              
-              <div className="h-px bg-gray-100 my-2 mx-2"></div>
-              
-              <div 
-                onClick={() => {
-                  showToast('Redirecting to ADAB Seller Portal...');
-                  setIsSidebarOpen(false);
-                }}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors text-brand-green hover:bg-green-50 font-bold mx-2"
-              >
-                <i className="fa-solid fa-store w-5 text-center"></i>
-                <span className="text-sm">Sell on ADAB</span>
-              </div>
-
-              {isLoggedIn ? (
-                <div 
-                  onClick={() => {
-                    setIsSidebarOpen(false);
-                    if (onLogout) onLogout();
-                  }}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors text-red-600 hover:bg-red-50 font-bold mx-2 mt-1"
-                >
-                  <i className="fa-solid fa-arrow-right-from-bracket w-5 text-center"></i>
-                  <span className="text-sm">Sign Out</span>
-                </div>
-              ) : (
-                <div 
-                  onClick={() => {
-                    setIsSidebarOpen(false);
-                    if (onOpenLogin) onOpenLogin();
-                    else if (onNavigate) onNavigate('login');
-                  }}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors text-[#18753C] hover:bg-emerald-50 font-bold mx-2 mt-1"
-                >
-                  <i className="fa-solid fa-arrow-right-to-bracket w-5 text-center"></i>
-                  <span className="text-sm">Login / Register</span>
-                </div>
-              )}
-            </div>
-          </div>
+        <div className="max-w-4xl mx-auto w-full mb-4">
+          <h1 className="text-2xl font-black text-gray-900">My Account</h1>
+          <p className="text-xs text-gray-500">Manage your profile, orders, addresses & preferences</p>
         </div>
       )}
 

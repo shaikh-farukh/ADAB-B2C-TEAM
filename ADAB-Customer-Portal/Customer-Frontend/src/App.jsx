@@ -566,6 +566,20 @@ export default function App() {
 
   // Proceed to Checkout with live cart validation (Day 2 Frontend Task 3)
   const handleProceedToCheckout = async () => {
+    // 1. Enforce authentication guard
+    if (!currentUser) {
+      showToast('⚠️ Please log in to your account to proceed to checkout.');
+      setActiveTab('login');
+      return false;
+    }
+
+    // 2. Enforce address presence guard
+    if (!selectedAddress) {
+      showToast('⚠️ Please add or select a delivery address before checkout.');
+      setIsAddressModalOpen(true);
+      return false;
+    }
+
     try {
       const appliedCouponCode =
         cartData.cart?.coupon_code ||
@@ -646,6 +660,7 @@ export default function App() {
       )}
 
       {/* Website Top Navigation (shown on tablets/desktops >= 900px matching unified-customer-portal-demo.html) */}
+      {activeTab !== 'login' && (
       <header className="site-nav" id="siteNav">
         <div className="site-nav-inner">
           <button type="button" className="site-logo" onClick={() => setActiveTab('home')}>
@@ -791,6 +806,7 @@ export default function App() {
           </div>
         </div>
       </header>
+      )}
 
       {/* Main App Header (Shown on Home) */}
       {activeTab === 'home' && (
@@ -990,7 +1006,7 @@ export default function App() {
       )}
 
       {/* Subpage Header (Shown on Cart/Checkout/Orders/Track/Other screens) */}
-      {activeTab !== 'home' && activeTab !== 'search' && (
+      {activeTab !== 'home' && activeTab !== 'search' && activeTab !== 'login' && (
         <div id="subHeader" className="subpage-header">
           <button
             type="button"
@@ -1159,6 +1175,8 @@ export default function App() {
             validationIssues={validationIssues}
             onClearValidationIssues={() => setValidationIssues([])}
             loading={loadingCart}
+            currentUser={currentUser}
+            onOpenLogin={() => setActiveTab('login')}
           />
         )}
 
@@ -1387,6 +1405,7 @@ export default function App() {
       </main>
 
       {/* Website Footer (Desktop >= 900px matching unified-customer-portal-demo.html) */}
+      {activeTab !== 'login' && (
       <footer className="site-footer">
         <div className="site-footer-inner">
           <div>
@@ -1422,9 +1441,10 @@ export default function App() {
           </div>
         </div>
       </footer>
+      )}
 
       {/* Floating Cart Bar (Task 2) */}
-      {activeTab !== 'cart' && activeTab !== 'checkout' && activeTab !== 'order-success' && activeTab !== 'ordersuccess' && (
+      {activeTab !== 'cart' && activeTab !== 'checkout' && activeTab !== 'order-success' && activeTab !== 'ordersuccess' && activeTab !== 'login' && (
         <FloatingCartBar
           itemCount={totalItemCount}
           totalPrice={grandTotal}
@@ -1434,6 +1454,7 @@ export default function App() {
       )}
 
       {/* Bottom Navigation matching unified-customer-portal-demo.html */}
+      {activeTab !== 'login' && (
       <nav className="bottom-nav">
         <div className="page flex justify-around py-1.5">
           <button
@@ -1507,6 +1528,7 @@ export default function App() {
           </button>
         </div>
       </nav>
+      )}
 
       {/* Global Delivery Address Selector Modal */}
       <AddressModal

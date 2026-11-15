@@ -1,5 +1,5 @@
 const pool = require('../db');
-const { smartGeocode } = require('./geocodingService');
+const { smartGeocode, resolveCoordinatesSync } = require('./geocodingService');
 const cartService = require('./cartService');
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -307,7 +307,7 @@ exports.getRecentlyViewed = async (rawUserId) => {
       LEFT JOIN LATERAL (
         SELECT image_url FROM product_images WHERE product_id = sl.id LIMIT 1
       ) pi ON true
-      WHERE sl.is_active = true AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+      WHERE sl.is_active = true AND (sl.approval_status IN ('APPROVED', 'PUBLISHED') OR sl.approval_status IS NULL)
       LIMIT 4
     `);
     return fallback.rows.map(r => ({
@@ -418,26 +418,69 @@ exports.getAddresses = async (rawUserId) => {
     seenIds.add(row.id);
     seenAddressKeys.add(addressKey);
 
+    const rowCity = (row.city || 'Surat').toLowerCase();
+    const rowPin = String(row.pincode || '').trim();
+    const isAhm = rowCity.includes('ahmedabad') || rowPin.startsWith('380') || rowPin.startsWith('382');
+    const isSurat = rowCity.includes('surat') || rowPin.startsWith('394') || rowPin.startsWith('395');
+
     let lat = isFromA && row.latitude ? Number(row.latitude) : null;
     let lng = isFromA && row.longitude ? Number(row.longitude) : null;
 
-    if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
-      const match = coordMap.get(row.id) || coordMap.get(addressKey);
-      if (match) {
-        lat = match.latitude;
-        lng = match.longitude;
+    // Verify coordinates belong to the correct city
+    if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+      if (isAhm && (lat < 22.8 || lat > 23.5)) {
+        lat = null; lng = null;
+      } else if (isSurat && (lat < 20.8 || lat > 21.6)) {
+        lat = null; lng = null;
       }
     }
 
     if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
-      const geo = smartGeocode({
+      const match = coordMap.get(row.id) || coordMap.get(addressKey);
+      if (match && match.latitude && match.longitude) {
+        const mLat = Number(match.latitude);
+        const mLng = Number(match.longitude);
+        if (isAhm && mLat >= 22.8 && mLat <= 23.5) {
+          lat = mLat; lng = mLng;
+        } else if (isSurat && mLat >= 20.8 && mLat <= 21.6) {
+          lat = mLat; lng = mLng;
+        } else if (!isAhm && !isSurat) {
+          lat = mLat; lng = mLng;
+        }
+      }
+    }
+
+    if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+      const geo = resolveCoordinatesSync({
+        address_line: row.address_line,
         address: row.address_line,
+        landmark: row.landmark,
         city: row.city,
         state: row.state,
         pincode: row.pincode
-      });
+      }, row.city);
       lat = geo.latitude;
       lng = geo.longitude;
+    }
+
+    // Auto-parse building, house, and area if stored as composite address_line
+    let buildingName = row.building_name || '';
+    let houseNumber = row.house_number || '';
+    let areaName = row.area_name || '';
+    if (!buildingName && row.address_line) {
+      const parts = row.address_line.split(',').map((s) => s.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        if (/house|flat|block|unit|apt|room|no\.?/i.test(parts[0])) {
+          if (!houseNumber) houseNumber = parts[0].replace(/^house\/flat\s*/i, '');
+          buildingName = parts[1];
+          if (!areaName && parts[2]) areaName = parts[2];
+        } else {
+          buildingName = parts[0];
+          if (!areaName && parts[1]) areaName = parts[1];
+        }
+      } else {
+        buildingName = row.address_line;
+      }
     }
 
     unified.push({
@@ -448,6 +491,9 @@ exports.getAddresses = async (rawUserId) => {
       recipientName: row.recipient_name || '',
       recipient_name: row.recipient_name || '',
       phone: row.phone || '',
+      house_number: houseNumber,
+      building_name: buildingName,
+      area_name: areaName,
       address: row.address_line || '',
       address_line: row.address_line || '',
       landmark: row.landmark || '',
@@ -485,6 +531,12 @@ exports.addAddress = async (rawUserId, body) => {
     phone,
     address,
     address_line,
+    house_number,
+    flat_no,
+    building_name,
+    building,
+    area_name,
+    area,
     landmark,
     city,
     state,
@@ -493,7 +545,16 @@ exports.addAddress = async (rawUserId, body) => {
     isDefault
   } = body;
 
-  const addrLine = address || address_line || 'Default Address Line';
+  const houseNumber = house_number || flat_no || '';
+  const buildingName = building_name || building || '';
+  const areaName = area_name || area || '';
+
+  const addrLine = address || address_line || [
+    houseNumber ? `House/Flat ${houseNumber}` : null,
+    buildingName,
+    areaName
+  ].filter(Boolean).join(', ') || 'Default Address Line';
+
   const label = type || bodyLabel || 'Home';
   const recName = recipientName || recipient_name || 'Customer';
   const userPhone = phone || '';
@@ -508,6 +569,9 @@ exports.addAddress = async (rawUserId, body) => {
     const geo = await smartGeocode({
       address: addrLine,
       address_line: addrLine,
+      building_name: buildingName,
+      area_name: areaName,
+      house_number: houseNumber,
       landmark,
       city: cityName,
       state: stateName,
@@ -561,6 +625,9 @@ exports.addAddress = async (rawUserId, body) => {
     id: caRes.rows[0].id,
     address: addrLine,
     address_line: addrLine,
+    house_number: houseNumber,
+    building_name: buildingName,
+    area_name: areaName,
     city: cityName,
     state: stateName,
     zip: pin,
@@ -726,8 +793,27 @@ exports.getAddressMapPreview = async (userId, id) => {
   }
 
   const addr = res.rows[0];
-  const lat = addr.latitude ? parseFloat(addr.latitude) : 21.1702;
-  const lng = addr.longitude ? parseFloat(addr.longitude) : 72.8311;
+  let lat = addr.latitude ? parseFloat(addr.latitude) : null;
+  let lng = addr.longitude ? parseFloat(addr.longitude) : null;
+
+  const addrCity = (addr.city || 'Surat').toLowerCase();
+  const addrPin = String(addr.pincode || '').trim();
+  const isAhm = addrCity.includes('ahmedabad') || addrPin.startsWith('380') || addrPin.startsWith('382');
+  const isSurat = addrCity.includes('surat') || addrPin.startsWith('394') || addrPin.startsWith('395');
+
+  if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+    if (isAhm && (lat < 22.8 || lat > 23.5)) {
+      lat = null; lng = null;
+    } else if (isSurat && (lat < 20.8 || lat > 21.6)) {
+      lat = null; lng = null;
+    }
+  }
+
+  if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+    const geo = resolveCoordinatesSync(addr, addr.city);
+    lat = geo.latitude;
+    lng = geo.longitude;
+  }
 
   return {
     addressId: addr.id,

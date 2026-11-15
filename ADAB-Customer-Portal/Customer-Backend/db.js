@@ -1,8 +1,9 @@
 const { Pool } = require('pg');
 const dotenv = require('dotenv');
 const dns = require('dns');
+
 // Patch dns.lookup to ONLY return IPv4. 
-// Render DB is in Oregon (350ms ping), which is higher than Node's 250ms IPv6 fallback timeout.
+// Avoids Node dual-stack IPv6 fallback timeout issues on Windows.
 const originalLookup = dns.lookup;
 dns.lookup = (hostname, options, callback) => {
   if (typeof options === 'function') { callback = options; options = { family: 4 }; }
@@ -12,20 +13,33 @@ dns.lookup = (hostname, options, callback) => {
 };
 dotenv.config();
 
-const pool = new Pool({
-  host: process.env.DB_HOST || 'dpg-davljkid0e5s738fkddg-a.oregon-postgres.render.com',
-  user: process.env.DB_USER || 'adab_b2c_team_user',
-  password: process.env.DB_PASSWORD || 'XBl5rzgqY22fI75kE1zjHUNdMhrzLyen',
-  database: process.env.DB_NAME || 'adab_b2c_team',
-  port: Number(process.env.DB_PORT) || 5432,
-  ssl: process.env.DB_SSL_MODE === 'disable' ? false : {
-    rejectUnauthorized: false
-  },
-  family: 4, // Force IPv4 to bypass internalConnectMultiple Node.js bugs
-  max: 2,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 30000
-});
+const poolConfig = process.env.DATABASE_URL
+  ? {
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.DB_SSL_MODE === 'disable' ? false : {
+        rejectUnauthorized: false
+      },
+      family: 4,
+      max: Number(process.env.DB_MAX_CONNECTIONS) || 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 30000
+    }
+  : {
+      host: process.env.DB_HOST || 'ep-restless-hat-azawryc7-pooler.c-3.ap-southeast-1.aws.neon.tech',
+      user: process.env.DB_USER || 'neondb_owner',
+      password: process.env.DB_PASSWORD || 'npg_YHgOFwUDz54R',
+      database: process.env.DB_NAME || 'neondb',
+      port: Number(process.env.DB_PORT) || 5432,
+      ssl: process.env.DB_SSL_MODE === 'disable' ? false : {
+        rejectUnauthorized: false
+      },
+      family: 4,
+      max: Number(process.env.DB_MAX_CONNECTIONS) || 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 30000
+    };
+
+const pool = new Pool(poolConfig);
 
 pool.connect((err, client, release) => {
   if (err) {

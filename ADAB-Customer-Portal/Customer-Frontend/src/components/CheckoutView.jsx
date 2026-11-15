@@ -320,22 +320,59 @@ export default function CheckoutView({
   const selectAddress = (addr) => {
     if (!addr) return;
     setSelectedAddressId(addr.id);
+
+    // Auto-parse building, house, and area if not separated
+    let building = addr.building_name || addr.building || '';
+    let house = addr.house_number || addr.flat_no || '';
+    let area = addr.area_name || addr.area || '';
+    const line = addr.address_line || addr.address || '';
+    if (!building && line) {
+      const parts = line.split(',').map((s) => s.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        if (/house|flat|block|unit|apt|room|no\.?/i.test(parts[0])) {
+          if (!house) house = parts[0].replace(/^house\/flat\s*/i, '');
+          building = parts[1];
+          if (!area && parts[2]) area = parts[2];
+        } else {
+          building = parts[0];
+          if (!area && parts[1]) area = parts[1];
+        }
+      } else {
+        building = line;
+      }
+    }
+
+    const city = addr.city || 'Surat';
+    const isAhmCity = city.toLowerCase().includes('ahmedabad') || (addr.pincode && String(addr.pincode).startsWith('38'));
+
+    // Validate that coordinates actually match the destination city (prevent cross-city fallback bugs)
+    let validLat = null;
+    let validLng = null;
+    const rawLat = addr.latitude !== undefined && addr.latitude !== null ? Number(addr.latitude) : (addr.lat !== undefined ? Number(addr.lat) : null);
+    const rawLng = addr.longitude !== undefined && addr.longitude !== null ? Number(addr.longitude) : (addr.lng !== undefined ? Number(addr.lng) : null);
+    if (rawLat && rawLng && !isNaN(rawLat) && !isNaN(rawLng)) {
+      if (isAhmCity && rawLat >= 22.8 && rawLat <= 23.5) {
+        validLat = rawLat; validLng = rawLng;
+      } else if (!isAhmCity && rawLat >= 20.8 && rawLat <= 21.6) {
+        validLat = rawLat; validLng = rawLng;
+      }
+    }
+
     const chosen = {
       id: addr.id,
       label: addr.label || 'Home',
       full_name: addr.recipient_name || addr.full_name || 'Customer',
       phone: addr.phone || '',
-      address_line: addr.address_line || addr.address || '',
+      house_number: house,
+      building_name: building,
+      area_name: area,
+      address_line: line,
       landmark: addr.landmark || '',
-      city: addr.city || 'Surat',
+      city: city,
       state: addr.state || 'Gujarat',
-      pincode: addr.pincode || addr.zip || '395002',
-      latitude: addr.latitude !== undefined && addr.latitude !== null && !isNaN(Number(addr.latitude))
-        ? Number(addr.latitude)
-        : (addr.lat !== undefined && !isNaN(Number(addr.lat)) ? Number(addr.lat) : 21.170240),
-      longitude: addr.longitude !== undefined && addr.longitude !== null && !isNaN(Number(addr.longitude))
-        ? Number(addr.longitude)
-        : (addr.lng !== undefined && !isNaN(Number(addr.lng)) ? Number(addr.lng) : 72.831062),
+      pincode: addr.pincode || addr.zip || (isAhmCity ? '380001' : '395002'),
+      latitude: validLat,
+      longitude: validLng,
       is_default: !!addr.is_default
     };
     setAddress(chosen);
@@ -348,8 +385,11 @@ export default function CheckoutView({
     setAddressForm({
       id: null,
       label: 'Home',
-      recipient_name: address.full_name || 'Pooja Sharma',
-      phone: address.phone || '+91 98765 12340',
+      recipient_name: address.full_name || 'Customer',
+      phone: address.phone || '',
+      house_number: '',
+      building_name: '',
+      area_name: '',
       address_line: '',
       landmark: '',
       city: 'Surat',
@@ -363,12 +403,33 @@ export default function CheckoutView({
   };
 
   const handleOpenEditAddress = (addrToEdit) => {
+    let building = addrToEdit.building_name || addrToEdit.building || '';
+    let house = addrToEdit.house_number || addrToEdit.flat_no || '';
+    let area = addrToEdit.area_name || addrToEdit.area || '';
+    const line = addrToEdit.address_line || addrToEdit.address || '';
+    if (!building && line) {
+      const parts = line.split(',').map((s) => s.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        if (/house|flat|block|unit|apt|room|no\.?/i.test(parts[0])) {
+          if (!house) house = parts[0].replace(/^house\/flat\s*/i, '');
+          building = parts[1];
+          if (!area && parts[2]) area = parts[2];
+        } else {
+          building = parts[0];
+          if (!area && parts[1]) area = parts[1];
+        }
+      }
+    }
+
     setAddressForm({
       id: addrToEdit.id,
       label: addrToEdit.label || 'Home',
       recipient_name: addrToEdit.recipient_name || addrToEdit.full_name || '',
       phone: addrToEdit.phone || '',
-      address_line: addrToEdit.address_line || addrToEdit.address || '',
+      house_number: house,
+      building_name: building,
+      area_name: area,
+      address_line: line,
       landmark: addrToEdit.landmark || '',
       city: addrToEdit.city || 'Surat',
       state: addrToEdit.state || 'Gujarat',
@@ -382,20 +443,32 @@ export default function CheckoutView({
 
   const handleSaveAddressSubmit = async (e) => {
     if (e) e.preventDefault();
-    if (!addressForm.recipient_name.trim() || !addressForm.phone.trim() || !addressForm.address_line.trim()) {
-      setAddressModalError('Please provide recipient name, phone number, and street address.');
+    const compositeAddress = [
+      addressForm.house_number ? `House/Flat ${addressForm.house_number}` : null,
+      addressForm.building_name,
+      addressForm.area_name
+    ].filter(Boolean).join(', ') || addressForm.address_line || '';
+
+    if (!addressForm.recipient_name.trim() || !addressForm.phone.trim() || (!compositeAddress.trim() && !addressForm.building_name.trim())) {
+      setAddressModalError('Please provide recipient name, phone number, and address.');
       return;
     }
 
     setSavingAddress(true);
     setAddressModalError(null);
+    const payload = {
+      ...addressForm,
+      address_line: compositeAddress,
+      address: compositeAddress
+    };
+
     try {
       let savedRecord = null;
       if (modalView === 'edit' && addressForm.id) {
-        const res = await CustomerAPI.updateAddress(addressForm.id, addressForm);
+        const res = await CustomerAPI.updateAddress(addressForm.id, payload);
         savedRecord = res.data;
       } else {
-        const res = await CustomerAPI.addAddress(addressForm);
+        const res = await CustomerAPI.addAddress(payload);
         savedRecord = res.data;
       }
 

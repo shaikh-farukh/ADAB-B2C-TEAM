@@ -162,6 +162,16 @@ async function getCartItems(cartId) {
       s.category AS store_category,
       s.rating AS store_rating,
       s.address_line AS store_address,
+      sl.original_listing_id,
+      sl.manufacturer_product_id,
+      CASE 
+        WHEN sl.original_listing_id IS NOT NULL OR sl.manufacturer_product_id IS NOT NULL OR pp.id IS NOT NULL THEN true
+        ELSE false
+      END as is_reseller_product,
+      COALESCE(orig_st.store_name, pp_st.store_name, mfg_u.company_name, mfg_u.owner_name) as original_seller_name,
+      COALESCE(orig_st.id, pp_st.id) as original_store_id,
+      COALESCE(orig_st.city, pp_st.city, mfg_u.city) as original_seller_city,
+      COALESCE(orig_sl.brand_tag, mfg_p.product_name) as original_brand,
       inv.available_quantity,
       inv.stock_quantity,
       COALESCE(
@@ -174,6 +184,12 @@ async function getCartItems(cartId) {
     FROM cart_items ci
     JOIN seller_listings sl ON ci.listing_id = sl.id
     LEFT JOIN stores s ON sl.store_id = s.id
+    LEFT JOIN seller_listings orig_sl ON sl.original_listing_id = orig_sl.id
+    LEFT JOIN stores orig_st ON orig_sl.store_id = orig_st.id
+    LEFT JOIN partner_packs pp ON (pp.store_id = sl.store_id AND (pp.source_listing_id = sl.original_listing_id OR pp.source_listing_id = sl.id))
+    LEFT JOIN stores pp_st ON pp.source_brand_store_id = pp_st.id
+    LEFT JOIN manage_manufacturer_products mfg_p ON sl.manufacturer_product_id = mfg_p.id
+    LEFT JOIN manage_b_to_b_userdetail mfg_u ON mfg_p.manufacturer_id = mfg_u.id
     LEFT JOIN inventory inv ON inv.listing_id = sl.id
     WHERE ci.cart_id = $1
     ORDER BY ci.added_at ASC
@@ -202,7 +218,7 @@ async function addItemToCart(cartId, listingId, quantity = 1) {
   if (listing.is_active === false) {
     throw new Error(`Product "${listing.title}" is currently unavailable`);
   }
-  if (listing.approval_status && listing.approval_status !== 'APPROVED') {
+  if (listing.approval_status && !['APPROVED', 'PUBLISHED'].includes(listing.approval_status)) {
     throw new Error(`Product "${listing.title}" is not available for purchase`);
   }
 

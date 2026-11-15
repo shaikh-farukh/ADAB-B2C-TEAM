@@ -39,10 +39,26 @@ exports.getProductById = async (id) => {
       sl.is_active as status,
       sl.approval_status,
       c.slug as category_slug,
-      c.name as category_name
+      c.name as category_name,
+      sl.original_listing_id,
+      sl.manufacturer_product_id,
+      CASE 
+        WHEN sl.original_listing_id IS NOT NULL OR sl.manufacturer_product_id IS NOT NULL OR pp.id IS NOT NULL THEN true
+        ELSE false
+      END as "isResellerProduct",
+      COALESCE(orig_st.store_name, pp_st.store_name, mfg_u.company_name, mfg_u.owner_name) as "originalSellerName",
+      COALESCE(orig_st.id, pp_st.id) as "originalStoreId",
+      COALESCE(orig_st.city, pp_st.city, mfg_u.city) as "originalSellerCity",
+      COALESCE(orig_sl.brand_tag, mfg_p.product_name) as "originalBrand"
     FROM seller_listings sl
     LEFT JOIN stores st ON sl.store_id = st.id
     LEFT JOIN categories c ON sl.category_id = c.id
+    LEFT JOIN seller_listings orig_sl ON sl.original_listing_id = orig_sl.id
+    LEFT JOIN stores orig_st ON orig_sl.store_id = orig_st.id
+    LEFT JOIN partner_packs pp ON (pp.store_id = sl.store_id AND (pp.source_listing_id = sl.original_listing_id OR pp.source_listing_id = sl.id))
+    LEFT JOIN stores pp_st ON pp.source_brand_store_id = pp_st.id
+    LEFT JOIN manage_manufacturer_products mfg_p ON sl.manufacturer_product_id = mfg_p.id
+    LEFT JOIN manage_b_to_b_userdetail mfg_u ON mfg_p.manufacturer_id = mfg_u.id
     LEFT JOIN LATERAL (
       SELECT image_url FROM product_images 
       WHERE product_id = sl.id 
@@ -52,7 +68,7 @@ exports.getProductById = async (id) => {
     ) pi ON true
     WHERE sl.id = $1 
       AND sl.is_active = true 
-      AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+      AND (sl.approval_status IN ('APPROVED', 'PUBLISHED') OR sl.approval_status IS NULL)
   `, [id]);
 
   if (res.rows.length === 0) return null;
@@ -88,8 +104,26 @@ exports.getProductById = async (id) => {
   const mrp = parseFloat(row.mrp);
   const stockQty = parseInt(row.stock_qty || 0, 10);
 
+  const specs = {
+    brand: row.originalBrand || row.brand_tag || "Fresh Farms",
+    unit: row.unit || "Pack",
+    sku: row.sku || "SKU-LIVE",
+    availability: stockQty > 0 ? `${stockQty} units available` : "Out of Stock"
+  };
+  if (row.originalSellerName) {
+    specs["originalManufacturerOrSeller"] = row.originalSellerName;
+    if (row.originalSellerCity) {
+      specs["sourceLocation"] = row.originalSellerCity;
+    }
+  }
+
   return {
     ...row,
+    isResellerProduct: Boolean(row.isResellerProduct),
+    originalSellerName: row.originalSellerName || null,
+    originalStoreId: row.originalStoreId || null,
+    originalSellerCity: row.originalSellerCity || null,
+    originalBrand: row.originalBrand || null,
     status: row.status ? 'PUBLISHED' : 'HIDDEN',
     price,
     mrp,
@@ -100,12 +134,7 @@ exports.getProductById = async (id) => {
     discount: mrp > price ? Math.round(((mrp - price) / mrp) * 100) : 0,
     description: "Detailed product description sourced directly from verified merchant listings on ADAB Marketplace.",
     images: [row.image, 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80'],
-    specs: {
-      brand: row.brand_tag || "Fresh Farms",
-      unit: row.unit || "Pack",
-      sku: row.sku || "SKU-LIVE",
-      availability: stockQty > 0 ? `${stockQty} units available` : "Out of Stock"
-    },
+    specs,
     variants: [
       { id: 1, name: row.unit || "Standard Pack", price }
     ],
@@ -139,7 +168,7 @@ exports.getProductSellers = async (id) => {
       OR (sl.category_id = (SELECT category_id FROM seller_listings WHERE id = $1 LIMIT 1) AND sl.id != $1)
     )
     AND sl.is_active = true
-    AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+    AND (sl.approval_status IN ('APPROVED', 'PUBLISHED') OR sl.approval_status IS NULL)
     LIMIT 5
   `, [id]);
   
@@ -175,9 +204,25 @@ exports.getRelatedProducts = async (id) => {
       COALESCE(st.store_name, 'Shabbir Kirana Store') as "storeName", 
       COALESCE(st.rating, 5.0) as "sellerRating",
       COALESCE(pi.image_url, '/product_images/' || LOWER(TRIM(sl.title)) || '.jpeg', 'https://via.placeholder.com/150') as image, 
-      sl.is_active as status
+      sl.is_active as status,
+      sl.original_listing_id,
+      sl.manufacturer_product_id,
+      CASE 
+        WHEN sl.original_listing_id IS NOT NULL OR sl.manufacturer_product_id IS NOT NULL OR pp.id IS NOT NULL THEN true
+        ELSE false
+      END as "isResellerProduct",
+      COALESCE(orig_st.store_name, pp_st.store_name, mfg_u.company_name, mfg_u.owner_name) as "originalSellerName",
+      COALESCE(orig_st.id, pp_st.id) as "originalStoreId",
+      COALESCE(orig_st.city, pp_st.city, mfg_u.city) as "originalSellerCity",
+      COALESCE(orig_sl.brand_tag, mfg_p.product_name) as "originalBrand"
     FROM seller_listings sl
     LEFT JOIN stores st ON sl.store_id = st.id
+    LEFT JOIN seller_listings orig_sl ON sl.original_listing_id = orig_sl.id
+    LEFT JOIN stores orig_st ON orig_sl.store_id = orig_st.id
+    LEFT JOIN partner_packs pp ON (pp.store_id = sl.store_id AND (pp.source_listing_id = sl.original_listing_id OR pp.source_listing_id = sl.id))
+    LEFT JOIN stores pp_st ON pp.source_brand_store_id = pp_st.id
+    LEFT JOIN manage_manufacturer_products mfg_p ON sl.manufacturer_product_id = mfg_p.id
+    LEFT JOIN manage_b_to_b_userdetail mfg_u ON mfg_p.manufacturer_id = mfg_u.id
     LEFT JOIN LATERAL (
       SELECT image_url FROM product_images 
       WHERE product_id = sl.id 
@@ -188,7 +233,7 @@ exports.getRelatedProducts = async (id) => {
     WHERE sl.id != $1
       AND ($2::int IS NULL OR sl.category_id = $2)
       AND sl.is_active = true 
-      AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+      AND (sl.approval_status IN ('APPROVED', 'PUBLISHED') OR sl.approval_status IS NULL)
     LIMIT 6
   `, [id, catId || null]);
 
@@ -198,6 +243,11 @@ exports.getRelatedProducts = async (id) => {
     const stockQty = parseInt(row.stock_qty || 0, 10);
     return {
       ...row,
+      isResellerProduct: Boolean(row.isResellerProduct),
+      originalSellerName: row.originalSellerName || null,
+      originalStoreId: row.originalStoreId || null,
+      originalSellerCity: row.originalSellerCity || null,
+      originalBrand: row.originalBrand || null,
       status: row.status ? 'PUBLISHED' : 'HIDDEN',
       price,
       mrp,
@@ -224,7 +274,7 @@ exports.getProductAvailability = async (id) => {
   if (res.rows.length === 0) return null;
   const row = res.rows[0];
   const stock = parseInt(row.stock_qty || 0, 10);
-  const isApproved = row.approval_status === 'APPROVED' || row.approval_status === null;
+  const isApproved = row.approval_status === 'APPROVED' || row.approval_status === 'PUBLISHED' || row.approval_status === null;
   const isAvailable = row.is_active && isApproved && stock > 0;
 
   let message = "Out of Stock";
@@ -278,7 +328,7 @@ exports.getProductVariants = async (id) => {
   const listingRes = await pool.query(`
     SELECT id, unit, sell_price, mrp, stock_qty, sku 
     FROM seller_listings 
-    WHERE id = $1 AND is_active = true AND (approval_status = 'APPROVED' OR approval_status IS NULL)
+    WHERE id = $1 AND is_active = true AND (approval_status IN ('APPROVED', 'PUBLISHED') OR approval_status IS NULL)
   `, [id]);
 
   if (listingRes.rows.length === 0) return [];
@@ -304,7 +354,7 @@ exports.getProductPrice = async (id) => {
   const res = await pool.query(`
     SELECT id, sell_price, mrp 
     FROM seller_listings 
-    WHERE id = $1 AND is_active = true AND (approval_status = 'APPROVED' OR approval_status IS NULL)
+    WHERE id = $1 AND is_active = true AND (approval_status IN ('APPROVED', 'PUBLISHED') OR approval_status IS NULL)
   `, [id]);
 
   if (res.rows.length === 0) return null;
@@ -374,26 +424,44 @@ exports.getProductMedia = async (id) => {
  */
 exports.getProductSpecifications = async (id) => {
   const res = await pool.query(`
-    SELECT sl.brand_tag, sl.unit, sl.sku, sl.barcode, c.name as category_name
+    SELECT 
+      sl.brand_tag, 
+      sl.unit, 
+      sl.sku, 
+      sl.barcode, 
+      c.name as category_name,
+      COALESCE(orig_st.store_name, pp_st.store_name, mfg_u.company_name, mfg_u.owner_name) as original_seller_name
     FROM seller_listings sl
     LEFT JOIN categories c ON sl.category_id = c.id
-    WHERE sl.id = $1 AND sl.is_active = true AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+    LEFT JOIN seller_listings orig_sl ON sl.original_listing_id = orig_sl.id
+    LEFT JOIN stores orig_st ON orig_sl.store_id = orig_st.id
+    LEFT JOIN partner_packs pp ON (pp.store_id = sl.store_id AND (pp.source_listing_id = sl.original_listing_id OR pp.source_listing_id = sl.id))
+    LEFT JOIN stores pp_st ON pp.source_brand_store_id = pp_st.id
+    LEFT JOIN manage_manufacturer_products mfg_p ON sl.manufacturer_product_id = mfg_p.id
+    LEFT JOIN manage_b_to_b_userdetail mfg_u ON mfg_p.manufacturer_id = mfg_u.id
+    WHERE sl.id = $1 AND sl.is_active = true AND (sl.approval_status IN ('APPROVED', 'PUBLISHED') OR sl.approval_status IS NULL)
   `, [id]);
 
   if (res.rows.length === 0) return null;
   const row = res.rows[0];
 
+  const specsList = [
+    { key: "Brand", value: row.brand_tag || "Verified Brand" },
+    { key: "Unit / Pack Size", value: row.unit || "Pack" },
+    { key: "SKU", value: row.sku || "N/A" },
+    { key: "Category", value: row.category_name || "General" },
+    { key: "Country of Origin", value: "India" },
+    { key: "Quality Guarantee", value: "100% Quality Inspected" },
+    { key: "Storage Condition", value: "Store in a cool, dry place" }
+  ];
+
+  if (row.original_seller_name) {
+    specsList.push({ key: "Original Manufacturer / Source", value: row.original_seller_name });
+  }
+
   return {
     productId: id,
-    specifications: [
-      { key: "Brand", value: row.brand_tag || "Verified Brand" },
-      { key: "Unit / Pack Size", value: row.unit || "Pack" },
-      { key: "SKU", value: row.sku || "N/A" },
-      { key: "Category", value: row.category_name || "General" },
-      { key: "Country of Origin", value: "India" },
-      { key: "Quality Guarantee", value: "100% Quality Inspected" },
-      { key: "Storage Condition", value: "Store in a cool, dry place" }
-    ]
+    specifications: specsList
   };
 };
 
@@ -411,7 +479,7 @@ exports.getFrequentlyBoughtTogether = async (id) => {
     FROM seller_listings sl
     WHERE sl.id != $1 
       AND sl.is_active = true 
-      AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+      AND (sl.approval_status IN ('APPROVED', 'PUBLISHED') OR sl.approval_status IS NULL)
     LIMIT 2
   `, [id]);
 
@@ -477,25 +545,20 @@ exports.searchProducts = async (qOrFilters = {}, pageArg = 1, limitArg = 20, fil
   }
 
   const offset = (page - 1) * limit;
-  let whereClause = ` WHERE sl.is_active = true AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)`;
+  let whereClause = ` WHERE sl.is_active = true AND (sl.approval_status IN ('APPROVED', 'PUBLISHED') OR sl.approval_status IS NULL)`;
   const params = [];
   let paramIdx = 1;
-
-  if (storeId) {
-    whereClause += ` AND sl.store_id::text = $${paramIdx++}`;
-    params.push(String(storeId));
-  }
-
-  if (q) {
-    whereClause += ` AND (sl.title ILIKE $${paramIdx} OR c.name ILIKE $${paramIdx} OR c.slug ILIKE $${paramIdx} OR st.store_name ILIKE $${paramIdx} OR sl.brand_tag ILIKE $${paramIdx})`;
-    paramIdx++;
-    params.push(`%${q}%`);
-  }
 
   if (storeId) {
     whereClause += ` AND (sl.store_id::text = $${paramIdx} OR st.id::text = $${paramIdx})`;
     paramIdx++;
     params.push(String(storeId));
+  }
+
+  if (q) {
+    whereClause += ` AND (sl.title ILIKE $${paramIdx} OR c.name ILIKE $${paramIdx} OR c.slug ILIKE $${paramIdx} OR st.store_name ILIKE $${paramIdx} OR sl.brand_tag ILIKE $${paramIdx} OR orig_st.store_name ILIKE $${paramIdx} OR pp_st.store_name ILIKE $${paramIdx} OR mfg_u.company_name ILIKE $${paramIdx})`;
+    paramIdx++;
+    params.push(`%${q}%`);
   }
 
   if (storeName) {
@@ -544,6 +607,12 @@ exports.searchProducts = async (qOrFilters = {}, pageArg = 1, limitArg = 20, fil
     FROM seller_listings sl
     LEFT JOIN stores st ON sl.store_id = st.id
     LEFT JOIN categories c ON sl.category_id = c.id
+    LEFT JOIN seller_listings orig_sl ON sl.original_listing_id = orig_sl.id
+    LEFT JOIN stores orig_st ON orig_sl.store_id = orig_st.id
+    LEFT JOIN partner_packs pp ON (pp.store_id = sl.store_id AND (pp.source_listing_id = sl.original_listing_id OR pp.source_listing_id = sl.id))
+    LEFT JOIN stores pp_st ON pp.source_brand_store_id = pp_st.id
+    LEFT JOIN manage_manufacturer_products mfg_p ON sl.manufacturer_product_id = mfg_p.id
+    LEFT JOIN manage_b_to_b_userdetail mfg_u ON mfg_p.manufacturer_id = mfg_u.id
     ${whereClause}
   `;
   const countRes = await pool.query(countQuery, params);
@@ -566,10 +635,26 @@ exports.searchProducts = async (qOrFilters = {}, pageArg = 1, limitArg = 20, fil
       COALESCE(pi.image_url, '/product_images/' || LOWER(TRIM(sl.title)) || '.jpeg', 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&q=80') as image, 
       sl.is_active as status,
       c.slug as category_slug,
-      c.name as category_name
+      c.name as category_name,
+      sl.original_listing_id,
+      sl.manufacturer_product_id,
+      CASE 
+        WHEN sl.original_listing_id IS NOT NULL OR sl.manufacturer_product_id IS NOT NULL OR pp.id IS NOT NULL THEN true
+        ELSE false
+      END as "isResellerProduct",
+      COALESCE(orig_st.store_name, pp_st.store_name, mfg_u.company_name, mfg_u.owner_name) as "originalSellerName",
+      COALESCE(orig_st.id, pp_st.id) as "originalStoreId",
+      COALESCE(orig_st.city, pp_st.city, mfg_u.city) as "originalSellerCity",
+      COALESCE(orig_sl.brand_tag, mfg_p.product_name) as "originalBrand"
     FROM seller_listings sl
     LEFT JOIN stores st ON sl.store_id = st.id
     LEFT JOIN categories c ON sl.category_id = c.id
+    LEFT JOIN seller_listings orig_sl ON sl.original_listing_id = orig_sl.id
+    LEFT JOIN stores orig_st ON orig_sl.store_id = orig_st.id
+    LEFT JOIN partner_packs pp ON (pp.store_id = sl.store_id AND (pp.source_listing_id = sl.original_listing_id OR pp.source_listing_id = sl.id))
+    LEFT JOIN stores pp_st ON pp.source_brand_store_id = pp_st.id
+    LEFT JOIN manage_manufacturer_products mfg_p ON sl.manufacturer_product_id = mfg_p.id
+    LEFT JOIN manage_b_to_b_userdetail mfg_u ON mfg_p.manufacturer_id = mfg_u.id
     LEFT JOIN LATERAL (
       SELECT image_url FROM product_images 
       WHERE product_id = sl.id 
@@ -611,6 +696,11 @@ exports.searchProducts = async (qOrFilters = {}, pageArg = 1, limitArg = 20, fil
     const stockQty = parseInt(row.stock_qty || 0, 10);
     return {
       ...row,
+      isResellerProduct: Boolean(row.isResellerProduct),
+      originalSellerName: row.originalSellerName || null,
+      originalStoreId: row.originalStoreId || null,
+      originalSellerCity: row.originalSellerCity || null,
+      originalBrand: row.originalBrand || null,
       status: row.status ? 'PUBLISHED' : 'HIDDEN',
       price,
       mrp,
@@ -637,7 +727,7 @@ exports.getSearchSuggestions = async (q = '') => {
     SELECT DISTINCT title as suggestion 
     FROM seller_listings 
     WHERE is_active = true 
-      AND (approval_status = 'APPROVED' OR approval_status IS NULL)
+      AND (approval_status IN ('APPROVED', 'PUBLISHED') OR approval_status IS NULL)
       AND title ILIKE $1 
     UNION
     SELECT DISTINCT name as suggestion
@@ -774,10 +864,26 @@ exports.getProductsByCategory = async (slug) => {
       st.id as "storeId",
       COALESCE(st.store_name, 'AgroFoods') as "sellerName", 
       COALESCE(pi.image_url, '/product_images/' || LOWER(TRIM(sl.title)) || '.jpeg', 'https://via.placeholder.com/150') as image, 
-      sl.is_active as status 
+      sl.is_active as status,
+      sl.original_listing_id,
+      sl.manufacturer_product_id,
+      CASE 
+        WHEN sl.original_listing_id IS NOT NULL OR sl.manufacturer_product_id IS NOT NULL OR pp.id IS NOT NULL THEN true
+        ELSE false
+      END as "isResellerProduct",
+      COALESCE(orig_st.store_name, pp_st.store_name, mfg_u.company_name, mfg_u.owner_name) as "originalSellerName",
+      COALESCE(orig_st.id, pp_st.id) as "originalStoreId",
+      COALESCE(orig_st.city, pp_st.city, mfg_u.city) as "originalSellerCity",
+      COALESCE(orig_sl.brand_tag, mfg_p.product_name) as "originalBrand"
     FROM seller_listings sl
     JOIN categories c ON sl.category_id = c.id
     LEFT JOIN stores st ON sl.store_id = st.id
+    LEFT JOIN seller_listings orig_sl ON sl.original_listing_id = orig_sl.id
+    LEFT JOIN stores orig_st ON orig_sl.store_id = orig_st.id
+    LEFT JOIN partner_packs pp ON (pp.store_id = sl.store_id AND (pp.source_listing_id = sl.original_listing_id OR pp.source_listing_id = sl.id))
+    LEFT JOIN stores pp_st ON pp.source_brand_store_id = pp_st.id
+    LEFT JOIN manage_manufacturer_products mfg_p ON sl.manufacturer_product_id = mfg_p.id
+    LEFT JOIN manage_b_to_b_userdetail mfg_u ON mfg_p.manufacturer_id = mfg_u.id
     LEFT JOIN LATERAL (
       SELECT image_url FROM product_images 
       WHERE product_id = sl.id 
@@ -786,7 +892,7 @@ exports.getProductsByCategory = async (slug) => {
       LIMIT 1
     ) pi ON true
     WHERE sl.is_active = true 
-      AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+      AND (sl.approval_status IN ('APPROVED', 'PUBLISHED') OR sl.approval_status IS NULL)
       AND c.slug = $1
     LIMIT 20
   `, [slug]);
@@ -797,6 +903,11 @@ exports.getProductsByCategory = async (slug) => {
     const stockQty = parseInt(row.stock_qty || 0, 10);
     return {
       ...row,
+      isResellerProduct: Boolean(row.isResellerProduct),
+      originalSellerName: row.originalSellerName || null,
+      originalStoreId: row.originalStoreId || null,
+      originalSellerCity: row.originalSellerCity || null,
+      originalBrand: row.originalBrand || null,
       status: row.status ? 'PUBLISHED' : 'HIDDEN',
       price,
       mrp,
@@ -853,9 +964,25 @@ exports.getBrandProducts = async (slug) => {
       sl.rating, 
       sl.stock_qty,
       st.store_name as "sellerName", 
-      COALESCE(pi.image_url, '/product_images/' || LOWER(TRIM(sl.title)) || '.jpeg', 'https://via.placeholder.com/150') as image 
+      COALESCE(pi.image_url, '/product_images/' || LOWER(TRIM(sl.title)) || '.jpeg', 'https://via.placeholder.com/150') as image,
+      sl.original_listing_id,
+      sl.manufacturer_product_id,
+      CASE 
+        WHEN sl.original_listing_id IS NOT NULL OR sl.manufacturer_product_id IS NOT NULL OR pp.id IS NOT NULL THEN true
+        ELSE false
+      END as "isResellerProduct",
+      COALESCE(orig_st.store_name, pp_st.store_name, mfg_u.company_name, mfg_u.owner_name) as "originalSellerName",
+      COALESCE(orig_st.id, pp_st.id) as "originalStoreId",
+      COALESCE(orig_st.city, pp_st.city, mfg_u.city) as "originalSellerCity",
+      COALESCE(orig_sl.brand_tag, mfg_p.product_name) as "originalBrand"
     FROM seller_listings sl
     LEFT JOIN stores st ON sl.store_id = st.id
+    LEFT JOIN seller_listings orig_sl ON sl.original_listing_id = orig_sl.id
+    LEFT JOIN stores orig_st ON orig_sl.store_id = orig_st.id
+    LEFT JOIN partner_packs pp ON (pp.store_id = sl.store_id AND (pp.source_listing_id = sl.original_listing_id OR pp.source_listing_id = sl.id))
+    LEFT JOIN stores pp_st ON pp.source_brand_store_id = pp_st.id
+    LEFT JOIN manage_manufacturer_products mfg_p ON sl.manufacturer_product_id = mfg_p.id
+    LEFT JOIN manage_b_to_b_userdetail mfg_u ON mfg_p.manufacturer_id = mfg_u.id
     LEFT JOIN LATERAL (
       SELECT image_url FROM product_images 
       WHERE product_id = sl.id 
@@ -865,12 +992,17 @@ exports.getBrandProducts = async (slug) => {
     ) pi ON true
     WHERE LOWER(sl.brand_tag) = LOWER($1)
       AND sl.is_active = true 
-      AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+      AND (sl.approval_status IN ('APPROVED', 'PUBLISHED') OR sl.approval_status IS NULL)
     LIMIT 20
   `, [slug]);
 
   return res.rows.map(r => ({
     ...r,
+    isResellerProduct: Boolean(r.isResellerProduct),
+    originalSellerName: r.originalSellerName || null,
+    originalStoreId: r.originalStoreId || null,
+    originalSellerCity: r.originalSellerCity || null,
+    originalBrand: r.originalBrand || null,
     price: parseFloat(r.price),
     mrp: parseFloat(r.mrp || r.price),
     rating: parseFloat(r.rating || 4.5),
@@ -935,10 +1067,26 @@ exports.getRecommendedProducts = async () => {
       COALESCE(pi.image_url, '/product_images/' || LOWER(TRIM(sl.title)) || '.jpeg', 'https://via.placeholder.com/150') as image, 
       sl.is_active as status,
       c.slug as category_slug,
-      c.name as category_name
+      c.name as category_name,
+      sl.original_listing_id,
+      sl.manufacturer_product_id,
+      CASE 
+        WHEN sl.original_listing_id IS NOT NULL OR sl.manufacturer_product_id IS NOT NULL OR pp.id IS NOT NULL THEN true
+        ELSE false
+      END as "isResellerProduct",
+      COALESCE(orig_st.store_name, pp_st.store_name, mfg_u.company_name, mfg_u.owner_name) as "originalSellerName",
+      COALESCE(orig_st.id, pp_st.id) as "originalStoreId",
+      COALESCE(orig_st.city, pp_st.city, mfg_u.city) as "originalSellerCity",
+      COALESCE(orig_sl.brand_tag, mfg_p.product_name) as "originalBrand"
     FROM seller_listings sl
     LEFT JOIN stores st ON sl.store_id = st.id
     LEFT JOIN categories c ON sl.category_id = c.id
+    LEFT JOIN seller_listings orig_sl ON sl.original_listing_id = orig_sl.id
+    LEFT JOIN stores orig_st ON orig_sl.store_id = orig_st.id
+    LEFT JOIN partner_packs pp ON (pp.store_id = sl.store_id AND (pp.source_listing_id = sl.original_listing_id OR pp.source_listing_id = sl.id))
+    LEFT JOIN stores pp_st ON pp.source_brand_store_id = pp_st.id
+    LEFT JOIN manage_manufacturer_products mfg_p ON sl.manufacturer_product_id = mfg_p.id
+    LEFT JOIN manage_b_to_b_userdetail mfg_u ON mfg_p.manufacturer_id = mfg_u.id
     LEFT JOIN LATERAL (
       SELECT image_url FROM product_images 
       WHERE product_id = sl.id 
@@ -947,7 +1095,7 @@ exports.getRecommendedProducts = async () => {
       LIMIT 1
     ) pi ON true
     WHERE sl.is_active = true 
-      AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+      AND (sl.approval_status IN ('APPROVED', 'PUBLISHED') OR sl.approval_status IS NULL)
     LIMIT 10
   `);
 
@@ -957,6 +1105,11 @@ exports.getRecommendedProducts = async () => {
     const stockQty = parseInt(row.stock_qty || 0, 10);
     return {
       ...row,
+      isResellerProduct: Boolean(row.isResellerProduct),
+      originalSellerName: row.originalSellerName || null,
+      originalStoreId: row.originalStoreId || null,
+      originalSellerCity: row.originalSellerCity || null,
+      originalBrand: row.originalBrand || null,
       status: row.status ? 'PUBLISHED' : 'HIDDEN',
       price,
       mrp,

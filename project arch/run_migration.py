@@ -4,10 +4,11 @@ import sys
 def execute_migration():
     try:
         conn = psycopg2.connect(
-            host='dpg-davljkid0e5s738fkddg-a.oregon-postgres.render.com',
-            dbname='adab_b2c_team',
-            user='adab_b2c_team_user',
-            password='XBl5rzgqY22fI75kE1zjHUNdMhrzLyen',
+            host='ep-restless-hat-azawryc7-pooler.c-3.ap-southeast-1.aws.neon.tech',
+            dbname='neondb',
+            user='neondb_owner',
+            password='npg_YHgOFwUDz54R',
+            port=5432,
             sslmode='require'
         )
         conn.autocommit = True

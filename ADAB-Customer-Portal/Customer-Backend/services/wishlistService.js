@@ -35,7 +35,7 @@ exports.getWishlistByUser = async (userId) => {
     JOIN seller_listings sl ON wi.listing_id = sl.id
     WHERE w.user_id = $1 
       AND sl.is_active = true 
-      AND (sl.approval_status = 'APPROVED' OR sl.approval_status IS NULL)
+      AND (sl.approval_status IN ('APPROVED', 'PUBLISHED') OR sl.approval_status IS NULL)
   `, [userId]);
   return res.rows.map(row => row.listing_id);
 };

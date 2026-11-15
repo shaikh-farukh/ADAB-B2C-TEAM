@@ -55,10 +55,7 @@ api.interceptors.request.use((config) => {
     userId = null;
   }
 
-  if (!userId) {
-    userId = '11111111-1111-1111-1111-111111111111';
-  }
-
+  // If unauthenticated, do not attach a fake user ID so address/orders are not leaked
   if (token) {
     config.headers['Authorization'] = `Bearer ${token}`;
   }

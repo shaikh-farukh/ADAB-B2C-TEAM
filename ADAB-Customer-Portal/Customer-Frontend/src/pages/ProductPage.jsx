@@ -90,9 +90,16 @@ export default function ProductPage({ onAddToCart, onToggleWishlist, wishlist })
           {/* Details Section */}
           <div className="p-8 lg:p-12 flex flex-col">
             <div className="mb-2">
-              <span className="inline-block px-3 py-1 bg-brand-light text-brand-green text-xs font-bold rounded-full uppercase tracking-wider mb-4">
-                {product.sellerName}
-              </span>
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <span className="inline-block px-3 py-1 bg-brand-light text-brand-green text-xs font-bold rounded-full uppercase tracking-wider">
+                  {product.sellerName}
+                </span>
+                {product.originalSellerName && (
+                  <span className="inline-block px-3 py-1 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold rounded-full">
+                    Sourced from: {product.originalSellerName}
+                  </span>
+                )}
+              </div>
               <h1 className="text-3xl font-black text-gray-900 leading-tight mb-4">{product.name}</h1>
               
               <div className="flex items-center gap-4 mb-6">

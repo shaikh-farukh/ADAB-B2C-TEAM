@@ -54,18 +54,37 @@ export default function ProductCard({
       </div>
       <div className="p-4 flex flex-col justify-between flex-1">
         <div>
-        <span 
-          onClick={(e) => {
-            e.stopPropagation();
-            if (product.store_id || product.storeId) {
-              navigate(`/stores?store_id=${product.store_id || product.storeId}`);
-            }
-          }}
-          className={`bg-[#E8F5E9] text-[#18753C] text-[10px] font-extrabold px-2 py-1 rounded mb-2 inline-flex items-center gap-1 uppercase tracking-wider ${(product.store_id || product.storeId) ? 'hover:bg-emerald-200 transition-colors cursor-pointer' : ''}`}
-        >
-          <i className="fa-solid fa-store text-[10px] text-emerald-600"></i>
-          <span className="truncate">{product.sellerName || 'Verified Shop'}</span>
-        </span>
+        <div className="flex flex-wrap items-center gap-1.5 mb-2">
+          <span 
+            onClick={(e) => {
+              e.stopPropagation();
+              if (product.store_id || product.storeId) {
+                navigate(`/stores?store_id=${product.store_id || product.storeId}`);
+              }
+            }}
+            className={`bg-[#E8F5E9] text-[#18753C] text-[10px] font-extrabold px-2 py-0.5 rounded inline-flex items-center gap-1 uppercase tracking-wider ${(product.store_id || product.storeId) ? 'hover:bg-emerald-200 transition-colors cursor-pointer' : ''}`}
+            title={`Sold by ${product.sellerName || 'Verified Shop'}`}
+          >
+            <i className="fa-solid fa-store text-[10px] text-emerald-600"></i>
+            <span className="truncate max-w-[130px]">{product.sellerName || 'Verified Shop'}</span>
+          </span>
+
+          {product.originalSellerName && (
+            <span 
+              onClick={(e) => {
+                e.stopPropagation();
+                if (product.originalStoreId) {
+                  navigate(`/stores?store_id=${product.originalStoreId}`);
+                }
+              }}
+              className={`bg-amber-50 text-amber-800 border border-amber-200/80 text-[10px] font-bold px-2 py-0.5 rounded inline-flex items-center gap-1 tracking-tight ${product.originalStoreId ? 'hover:bg-amber-100 transition-colors cursor-pointer' : ''}`}
+              title={`Original Manufacturer / Sourced from: ${product.originalSellerName}`}
+            >
+              <i className="fa-solid fa-industry text-[9px] text-amber-600"></i>
+              <span className="truncate max-w-[120px]">Source: {product.originalSellerName}</span>
+            </span>
+          )}
+        </div>
         <div 
           onClick={() => navigate(`/product/${product.id}`)}
           className="font-bold text-[14px] leading-tight line-clamp-2 min-h-[2.5rem] text-[#111827] cursor-pointer hover:text-[#18753C] mb-1 capitalize"

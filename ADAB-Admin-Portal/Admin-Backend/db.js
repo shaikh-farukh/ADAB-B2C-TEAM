@@ -2,19 +2,31 @@ const { Pool } = require('pg');
 const dotenv = require('dotenv');
 dotenv.config();
 
-const pool = new Pool({
-  host: process.env.DB_HOST || 'dpg-davljkid0e5s738fkddg-a.oregon-postgres.render.com',
-  user: process.env.DB_USER || 'adab_b2c_team_user',
-  password: process.env.DB_PASSWORD || 'XBl5rzgqY22fI75kE1zjHUNdMhrzLyen',
-  database: process.env.DB_NAME || 'adab_b2c_team',
-  port: Number(process.env.DB_PORT) || 5432,
-  ssl: process.env.DB_SSL_MODE === 'disable' ? false : {
-    rejectUnauthorized: false
-  },
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000
-});
+const poolConfig = process.env.DATABASE_URL
+  ? {
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.DB_SSL_MODE === 'disable' ? false : {
+        rejectUnauthorized: false
+      },
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000
+    }
+  : {
+      host: process.env.DB_HOST || 'ep-restless-hat-azawryc7-pooler.c-3.ap-southeast-1.aws.neon.tech',
+      user: process.env.DB_USER || 'neondb_owner',
+      password: process.env.DB_PASSWORD || 'npg_YHgOFwUDz54R',
+      database: process.env.DB_NAME || 'neondb',
+      port: Number(process.env.DB_PORT) || 5432,
+      ssl: process.env.DB_SSL_MODE === 'disable' ? false : {
+        rejectUnauthorized: false
+      },
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000
+    };
+
+const pool = new Pool(poolConfig);
 
 if (process.env.NODE_ENV !== 'test') {
   pool.connect((err, client, release) => {

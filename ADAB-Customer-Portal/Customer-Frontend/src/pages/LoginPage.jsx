@@ -19,9 +19,14 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
   const [signupStep, setSignupStep] = useState(1);
 
   // Login form state
+  const [loginMethod, setLoginMethod] = useState('otp'); // 'otp' | 'password' (Default to OTP Login)
+  const [loginOtpStep, setLoginOtpStep] = useState(1); // 1 = Enter Email, 2 = Enter OTP
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [loginOtp, setLoginOtp] = useState('');
+  const [loginOtpHint, setLoginOtpHint] = useState('');
+  const [loginOtpTimer, setLoginOtpTimer] = useState(0);
 
   // Register Step 1: Personal Details
   const [regName, setRegName] = useState('');
@@ -41,6 +46,9 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
   const [regAddressType, setRegAddressType] = useState('Home');
   const [regRecipientName, setRegRecipientName] = useState('');
   const [regRecipientPhone, setRegRecipientPhone] = useState('');
+  const [regHouseNumber, setRegHouseNumber] = useState('');
+  const [regBuildingName, setRegBuildingName] = useState('');
+  const [regAreaName, setRegAreaName] = useState('');
   const [regAddressLine, setRegAddressLine] = useState('');
   const [regLandmark, setRegLandmark] = useState('');
   const [regPincode, setRegPincode] = useState('');
@@ -64,7 +72,7 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Timer countdown for OTP resend
+  // Timer countdown for registration OTP resend
   useEffect(() => {
     let timer = null;
     if (otpResendTimer > 0) {
@@ -74,6 +82,17 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
     }
     return () => clearInterval(timer);
   }, [otpResendTimer]);
+
+  // Timer countdown for Login OTP resend
+  useEffect(() => {
+    let timer = null;
+    if (loginOtpTimer > 0) {
+      timer = setInterval(() => {
+        setLoginOtpTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [loginOtpTimer]);
 
   const clearFeedback = () => {
     setErrorMsg('');
@@ -85,8 +104,99 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
     clearFeedback();
     if (newMode === 'register') {
       setSignupStep(1);
+    } else if (newMode === 'login') {
+      setLoginOtpStep(1);
+      setLoginOtp('');
     }
     setMode(newMode);
+  };
+
+  // ==========================================================
+  // EMAIL OTP LOGIN HANDLERS
+  // ==========================================================
+  const handleSendLoginOtp = async (e) => {
+    if (e) e.preventDefault();
+    clearFeedback();
+
+    if (!loginEmail.trim()) {
+      setErrorMsg('Please enter your email address.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(loginEmail.trim())) {
+      setErrorMsg('Please enter a valid email address.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await AuthAPI.sendLoginOtp(loginEmail.trim());
+      if (res && res.success) {
+        setLoginOtp(''); // Empty so user types code received in their email
+        setLoginOtpTimer(30);
+        setLoginOtpStep(2);
+        setSuccessMsg(res.message || 'Verification code sent to your email! Please check your inbox (and Spam folder).');
+      } else {
+        setErrorMsg(res?.message || 'Could not send verification code.');
+      }
+    } catch (err) {
+      setErrorMsg(err.message || 'Failed to send login code. Please check your email.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyLoginOtp = async (e) => {
+    if (e) e.preventDefault();
+    clearFeedback();
+
+    if (!loginOtp.trim() || loginOtp.trim().length < 4) {
+      setErrorMsg('Please enter the 6-digit verification code.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await AuthAPI.verifyLoginOtp(loginEmail.trim(), loginOtp.trim());
+      if (res && res.success && res.user) {
+        localStorage.setItem('adab_auth_token', res.token || 'auth_token_' + Date.now());
+        localStorage.setItem('adab_user', JSON.stringify(res.user));
+        localStorage.setItem('adab_user_id', res.user.id);
+
+        setSuccessMsg(`Welcome back, ${res.user.name || res.user.full_name || 'Customer'}!`);
+
+        if (onLoginSuccess) {
+          onLoginSuccess(res.user);
+        }
+      } else {
+        setErrorMsg(res?.message || 'Invalid verification code. Please check and try again.');
+      }
+    } catch (err) {
+      setErrorMsg(err.message || 'Verification failed. Please check your code.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendLoginOtp = async () => {
+    if (loginOtpTimer > 0 || loading) return;
+    clearFeedback();
+    setLoading(true);
+    try {
+      const res = await AuthAPI.sendLoginOtp(loginEmail.trim());
+      if (res && res.success) {
+        setLoginOtp('');
+        setLoginOtpTimer(30);
+        setSuccessMsg('A fresh verification code has been sent to your email! Please check your inbox.');
+      } else {
+        setErrorMsg(res?.message || 'Failed to resend code.');
+      }
+    } catch (err) {
+      setErrorMsg(err.message || 'Failed to resend code.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Handle Login submission
@@ -160,10 +270,7 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
     try {
       const res = await AuthAPI.sendRegistrationOtp(regEmail.trim(), regPhone.trim(), regName.trim());
       if (res && res.success) {
-        if (res.otp) {
-          setRegOtpHint(res.otp);
-          setRegOtp(res.otp); // Prefill for smooth demo / automated testing
-        }
+        setRegOtp('');
         setOtpResendTimer(30);
         setRegRecipientName(regName.trim());
         setRegRecipientPhone(regPhone.trim());
@@ -215,12 +322,9 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
     try {
       const res = await AuthAPI.sendRegistrationOtp(regEmail.trim(), regPhone.trim(), regName.trim());
       if (res && res.success) {
-        if (res.otp) {
-          setRegOtpHint(res.otp);
-          setRegOtp(res.otp);
-        }
+        setRegOtp('');
         setOtpResendTimer(30);
-        setSuccessMsg('A fresh verification code has been sent!');
+        setSuccessMsg('A fresh verification code has been sent to your email!');
       } else {
         setErrorMsg(res?.message || 'Could not resend code. Please try again.');
       }
@@ -271,8 +375,18 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
     e.preventDefault();
     clearFeedback();
 
-    if (!regAddressLine.trim()) {
-      setErrorMsg('Please enter your street address / flat details.');
+    if (!regHouseNumber.trim()) {
+      setErrorMsg('Please enter your house or flat number.');
+      return;
+    }
+
+    if (!regBuildingName.trim()) {
+      setErrorMsg('Please enter your building, apartment, or society name.');
+      return;
+    }
+
+    if (!regAreaName.trim()) {
+      setErrorMsg('Please enter your area or street name.');
       return;
     }
 
@@ -280,6 +394,8 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
       setErrorMsg('Please enter a valid 6-digit pincode.');
       return;
     }
+
+    const combinedAddress = `${regHouseNumber.trim()}, ${regBuildingName.trim()}, ${regAreaName.trim()}`;
 
     setLoading(true);
     try {
@@ -291,7 +407,11 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
         password: regPassword,
         otp: regOtp.trim(),
         // Address Details
-        address_line: regAddressLine.trim(),
+        house_number: regHouseNumber.trim(),
+        building_name: regBuildingName.trim(),
+        area_name: regAreaName.trim(),
+        address_line: combinedAddress,
+        address: combinedAddress,
         landmark: regLandmark.trim(),
         city: regCity.trim() || 'Surat',
         state: regState.trim() || 'Gujarat',
@@ -343,10 +463,7 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
       const res = await AuthAPI.forgotPassword(forgotEmail.trim());
       if (res && res.success) {
         setSuccessMsg(res.message || 'Verification code sent to your email.');
-        if (res.otp) {
-          setGeneratedOtpHint(res.otp);
-          setResetOtp(res.otp);
-        }
+        setResetOtp('');
         setMode('reset');
       } else {
         setErrorMsg(res?.message || 'Could not find an account with this email.');
@@ -393,6 +510,18 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
 
   return (
     <div className="w-full max-w-md mx-auto py-6 px-4">
+      {/* Back to Store Action */}
+      <div className="mb-4">
+        <button
+          type="button"
+          onClick={() => onNavigate && onNavigate('home')}
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-[#18753C] transition-colors cursor-pointer px-3 py-1.5 rounded-full hover:bg-emerald-50 border border-gray-200/70 shadow-2xs"
+        >
+          <i className="fa-solid fa-arrow-left text-[11px]"></i>
+          <span>Back to Store</span>
+        </button>
+      </div>
+
       {/* Brand Header */}
       <div className="text-center mb-6">
         <button
@@ -433,98 +562,305 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
         )}
 
         {/* ========================================================
-            VIEW 1: LOGIN (SIGN IN)
+            VIEW 1: LOGIN (SIGN IN) - EMAIL OTP & PASSWORD
         ======================================================== */}
         {mode === 'login' && (
           <div>
-            <div className="mb-6">
-              <h2 className="text-2xl font-black text-gray-900 tracking-tight">
-                Login
-              </h2>
-              <p className="text-xs text-gray-500 mt-1">
-                Enter your email and password to access your account, orders and addresses.
-              </p>
+            {/* Login Mode Toggle: Email OTP vs Password */}
+            <div className="flex bg-[#F1F5F2] p-1 rounded-2xl mb-6">
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginMethod('otp');
+                  clearFeedback();
+                }}
+                className={`flex-1 py-2.5 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  loginMethod === 'otp'
+                    ? 'bg-white text-[#18753C] shadow-sm'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                <i className="fa-solid fa-envelope-open-text text-sm"></i>
+                <span>Email OTP Login</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginMethod('password');
+                  clearFeedback();
+                }}
+                className={`flex-1 py-2.5 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  loginMethod === 'password'
+                    ? 'bg-white text-[#18753C] shadow-sm'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                <i className="fa-solid fa-lock text-sm"></i>
+                <span>Password</span>
+              </button>
             </div>
 
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
-              {/* Email Input */}
+            {/* ----------------------------------------------------
+                OPTION A: EMAIL OTP LOGIN (TEAM LEADER SPECIFICATION)
+            ---------------------------------------------------- */}
+            {loginMethod === 'otp' && (
               <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                  Email Address <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                    <i className="fa-solid fa-envelope text-sm"></i>
-                  </span>
-                  <input
-                    type="email"
-                    required
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    placeholder="e.g. pooja@example.com"
-                    autoComplete="email"
-                    className="w-full pl-10 pr-4 py-3 bg-[#F8F9FA] border border-gray-200 rounded-xl text-sm font-medium text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#18753C] focus:bg-white transition-all"
-                  />
-                </div>
-              </div>
+                {loginOtpStep === 1 ? (
+                  <form onSubmit={handleSendLoginOtp} className="space-y-4">
+                    <div className="mb-4">
+                      <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
+                        <span>Email OTP Login</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-[#18753C] px-2 py-0.5 rounded-full">
+                          Passwordless
+                        </span>
+                      </h2>
+                      <p className="text-xs text-gray-500 mt-1">
+                        We'll send a 6-digit secure login code directly to your email inbox.
+                      </p>
+                    </div>
 
-              {/* Password Input with See Password Toggle */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Password <span className="text-red-500">*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => switchMode('forgot')}
-                    className="text-xs font-bold text-[#18753C] hover:text-[#156030] hover:underline cursor-pointer"
-                  >
-                    Forgot Password?
-                  </button>
-                </div>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                    <i className="fa-solid fa-lock text-sm"></i>
-                  </span>
-                  <input
-                    type={showLoginPassword ? 'text' : 'password'}
-                    required
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    autoComplete="current-password"
-                    className="w-full pl-10 pr-11 py-3 bg-[#F8F9FA] border border-gray-200 rounded-xl text-sm font-medium text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#18753C] focus:bg-white transition-all"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowLoginPassword(!showLoginPassword)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-700 cursor-pointer transition-colors"
-                    title={showLoginPassword ? 'Hide password' : 'Show password'}
-                  >
-                    <i className={`fa-solid ${showLoginPassword ? 'fa-eye-slash' : 'fa-eye'} text-sm`}></i>
-                  </button>
-                </div>
-              </div>
+                    {/* Email Input */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                        Registered Email Address <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                          <i className="fa-solid fa-envelope text-sm"></i>
+                        </span>
+                        <input
+                          type="email"
+                          required
+                          value={loginEmail}
+                          onChange={(e) => setLoginEmail(e.target.value)}
+                          placeholder="e.g. pooja@example.com"
+                          autoComplete="email"
+                          className="w-full pl-10 pr-4 py-3 bg-[#F8F9FA] border border-gray-200 rounded-xl text-sm font-medium text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#18753C] focus:bg-white transition-all"
+                        />
+                      </div>
+                    </div>
 
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full mt-2 py-3.5 px-4 bg-[#18753C] hover:bg-[#156030] text-white font-extrabold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <>
-                    <i className="fa-solid fa-circle-notch fa-spin"></i>
-                    <span>Logging In...</span>
-                  </>
+                    {/* Send OTP Button */}
+                    <button
+                      type="submit"
+                      disabled={loading || !loginEmail.trim()}
+                      className="w-full mt-2 py-3.5 px-4 bg-[#18753C] hover:bg-[#156030] text-white font-extrabold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
+                      {loading ? (
+                        <>
+                          <i className="fa-solid fa-circle-notch fa-spin"></i>
+                          <span>Sending OTP to Mail...</span>
+                        </>
+                      ) : (
+                        <>
+                          <i className="fa-solid fa-paper-plane text-xs"></i>
+                          <span>Send OTP to Email</span>
+                        </>
+                      )}
+                    </button>
+
+                    <div className="p-3 bg-emerald-50/70 border border-emerald-100 rounded-xl flex items-center gap-2.5 text-[11px] text-emerald-800">
+                      <i className="fa-solid fa-shield-halved text-emerald-600"></i>
+                      <span>Fast & secure login verified via Brevo mail delivery.</span>
+                    </div>
+                  </form>
                 ) : (
-                  <>
-                    <span>Login</span>
-                    <i className="fa-solid fa-arrow-right text-xs"></i>
-                  </>
+                  <form onSubmit={handleVerifyLoginOtp} className="space-y-4">
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-xl font-black text-gray-900 tracking-tight">
+                          Enter Verification Code
+                        </h2>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            clearFeedback();
+                            setLoginOtpStep(1);
+                          }}
+                          className="text-xs font-bold text-[#18753C] hover:underline cursor-pointer"
+                        >
+                          Change Email
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Enter the 6-digit login code sent to <strong className="text-gray-800">{loginEmail}</strong>
+                      </p>
+                    </div>
+
+                    {/* Mail delivery notice */}
+                    <div className="p-3 bg-blue-50/80 border border-blue-200/60 rounded-xl text-xs text-blue-800 flex items-center gap-2.5">
+                      <i className="fa-solid fa-envelope-circle-check text-blue-600 shrink-0 text-sm"></i>
+                      <span>Check your email inbox or <strong>Spam/Junk</strong> folder for your 6-digit code.</span>
+                    </div>
+
+                    {/* 6-Digit OTP Code Input */}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 text-center">
+                        6-Digit Login Code <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          required
+                          autoFocus
+                          maxLength={6}
+                          value={loginOtp}
+                          onChange={(e) => setLoginOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                          placeholder="------"
+                          className="w-full text-center py-3.5 bg-[#F8F9FA] border-2 border-emerald-500 rounded-xl text-xl font-mono tracking-[0.5em] font-extrabold text-gray-900 focus:outline-none focus:bg-white transition-all shadow-xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Resend Code Section */}
+                    <div className="flex items-center justify-between text-xs pt-1">
+                      <span className="text-gray-500">Didn't receive email?</span>
+                      {loginOtpTimer > 0 ? (
+                        <span className="font-bold text-gray-400">
+                          Resend in {loginOtpTimer}s
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleResendLoginOtp}
+                          disabled={loading}
+                          className="font-bold text-[#18753C] hover:underline cursor-pointer"
+                        >
+                          Resend Code
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Action Buttons: Back + Verify */}
+                    <div className="flex items-center gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          clearFeedback();
+                          setLoginOtpStep(1);
+                        }}
+                        className="w-1/3 py-3 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <i className="fa-solid fa-arrow-left text-[10px]"></i>
+                        <span>Back</span>
+                      </button>
+
+                      <button
+                        type="submit"
+                        disabled={loading || loginOtp.length < 4}
+                        className="flex-1 py-3.5 px-4 bg-[#18753C] hover:bg-[#156030] text-white font-extrabold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {loading ? (
+                          <>
+                            <i className="fa-solid fa-circle-notch fa-spin"></i>
+                            <span>Verifying...</span>
+                          </>
+                        ) : (
+                          <>
+                            <i className="fa-solid fa-lock-open text-xs"></i>
+                            <span>Verify & Login</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
                 )}
-              </button>
-            </form>
+              </div>
+            )}
+
+            {/* ----------------------------------------------------
+                OPTION B: PASSWORD LOGIN (TRADITIONAL)
+            ---------------------------------------------------- */}
+            {loginMethod === 'password' && (
+              <form onSubmit={handleLoginSubmit} className="space-y-4">
+                <div className="mb-4">
+                  <h2 className="text-xl font-black text-gray-900 tracking-tight">
+                    Password Login
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Enter your email and password to access your account.
+                  </p>
+                </div>
+
+                {/* Email Input */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                    Email Address <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                      <i className="fa-solid fa-envelope text-sm"></i>
+                    </span>
+                    <input
+                      type="email"
+                      required
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      placeholder="e.g. pooja@example.com"
+                      autoComplete="email"
+                      className="w-full pl-10 pr-4 py-3 bg-[#F8F9FA] border border-gray-200 rounded-xl text-sm font-medium text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#18753C] focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Password Input with See Password Toggle */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Password <span className="text-red-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => switchMode('forgot')}
+                      className="text-xs font-bold text-[#18753C] hover:text-[#156030] hover:underline cursor-pointer"
+                    >
+                      Forgot Password?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                      <i className="fa-solid fa-lock text-sm"></i>
+                    </span>
+                    <input
+                      type={showLoginPassword ? 'text' : 'password'}
+                      required
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      autoComplete="current-password"
+                      className="w-full pl-10 pr-11 py-3 bg-[#F8F9FA] border border-gray-200 rounded-xl text-sm font-medium text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#18753C] focus:bg-white transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowLoginPassword(!showLoginPassword)}
+                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-700 cursor-pointer transition-colors"
+                      title={showLoginPassword ? 'Hide password' : 'Show password'}
+                    >
+                      <i className={`fa-solid ${showLoginPassword ? 'fa-eye-slash' : 'fa-eye'} text-sm`}></i>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full mt-2 py-3.5 px-4 bg-[#18753C] hover:bg-[#156030] text-white font-extrabold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <>
+                      <i className="fa-solid fa-circle-notch fa-spin"></i>
+                      <span>Logging In...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Login</span>
+                      <i className="fa-solid fa-arrow-right text-xs"></i>
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
 
             {/* Quick Helper to Register */}
             <div className="mt-6 pt-5 border-t border-gray-100 text-center">
@@ -787,13 +1123,11 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
             ---------------------------------------------------- */}
             {signupStep === 2 && (
               <form onSubmit={handleStep2Submit} className="space-y-4">
-                {/* OTP Hint Helper Banner for Instant Testing */}
-                {regOtpHint && (
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center justify-between animate-fadeIn">
-                    <span>Verification code: <strong className="font-mono text-sm tracking-widest">{regOtpHint}</strong></span>
-                    <span className="text-[10px] bg-emerald-200 text-emerald-900 font-bold px-2 py-0.5 rounded-full">Valid 15m</span>
-                  </div>
-                )}
+                {/* Mail delivery notice */}
+                <div className="p-3 bg-blue-50/80 border border-blue-200/60 rounded-xl text-xs text-blue-800 flex items-center gap-2.5">
+                  <i className="fa-solid fa-envelope-circle-check text-blue-600 shrink-0 text-sm"></i>
+                  <span>Check your email inbox or <strong>Spam/Junk</strong> folder for your 6-digit verification code.</span>
+                </div>
 
                 {/* 6-Digit OTP Code Input */}
                 <div>
@@ -931,33 +1265,83 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
                   </div>
                 </div>
 
-                {/* Street Address / Flat details */}
+                {/* House / Flat Number */}
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                    Flat / House No / Street Address <span className="text-red-500">*</span>
+                    House / Flat / Block No <span className="text-red-500">*</span>
                   </label>
-                  <textarea
-                    required
-                    rows={2}
-                    value={regAddressLine}
-                    onChange={(e) => setRegAddressLine(e.target.value)}
-                    placeholder="e.g. Flat 502, Orchid Heights, VIP Road, Vesu"
-                    className="w-full px-3.5 py-2.5 bg-[#F8F9FA] border border-gray-200 rounded-xl text-xs font-medium text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#18753C] focus:bg-white resize-none"
-                  />
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                      <i className="fa-solid fa-house-chimney text-xs"></i>
+                    </span>
+                    <input
+                      type="text"
+                      required
+                      value={regHouseNumber}
+                      onChange={(e) => setRegHouseNumber(e.target.value)}
+                      placeholder="e.g. Flat 502, 5th Floor / House 12"
+                      className="w-full pl-9 pr-3.5 py-2.5 bg-[#F8F9FA] border border-gray-200 rounded-xl text-xs font-medium text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#18753C] focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Building / Apartment / Society Name */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                    Building / Society / Apartment Name <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                      <i className="fa-solid fa-building text-xs"></i>
+                    </span>
+                    <input
+                      type="text"
+                      required
+                      value={regBuildingName}
+                      onChange={(e) => setRegBuildingName(e.target.value)}
+                      placeholder="e.g. Orchid Heights / Shivalik Residency"
+                      className="w-full pl-9 pr-3.5 py-2.5 bg-[#F8F9FA] border border-gray-200 rounded-xl text-xs font-medium text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#18753C] focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Area / Street / Road Name */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                    Area / Street / Locality Name <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                      <i className="fa-solid fa-road text-xs"></i>
+                    </span>
+                    <input
+                      type="text"
+                      required
+                      value={regAreaName}
+                      onChange={(e) => setRegAreaName(e.target.value)}
+                      placeholder="e.g. VIP Road, Vesu / Adajan Gam"
+                      className="w-full pl-9 pr-3.5 py-2.5 bg-[#F8F9FA] border border-gray-200 rounded-xl text-xs font-medium text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#18753C] focus:bg-white transition-all"
+                    />
+                  </div>
                 </div>
 
                 {/* Landmark */}
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                    Landmark / Area <span className="text-gray-400 font-normal">(optional)</span>
+                    Landmark <span className="text-gray-400 font-normal">(optional)</span>
                   </label>
-                  <input
-                    type="text"
-                    value={regLandmark}
-                    onChange={(e) => setRegLandmark(e.target.value)}
-                    placeholder="e.g. Near Textile Market / Opposite Central Mall"
-                    className="w-full px-3.5 py-2.5 bg-[#F8F9FA] border border-gray-200 rounded-xl text-xs font-medium text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#18753C] focus:bg-white"
-                  />
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                      <i className="fa-solid fa-location-crosshairs text-xs"></i>
+                    </span>
+                    <input
+                      type="text"
+                      value={regLandmark}
+                      onChange={(e) => setRegLandmark(e.target.value)}
+                      placeholder="e.g. Near Textile Market / Opposite Central Mall"
+                      className="w-full pl-9 pr-3.5 py-2.5 bg-[#F8F9FA] border border-gray-200 rounded-xl text-xs font-medium text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#18753C] focus:bg-white transition-all"
+                    />
+                  </div>
                 </div>
 
                 {/* Pincode with Auto-detect */}
@@ -1153,12 +1537,10 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
               </p>
             </div>
 
-            {generatedOtpHint && (
-              <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center justify-between">
-                <span>Verification code: <strong className="font-mono text-sm">{generatedOtpHint}</strong></span>
-                <span className="text-[10px] bg-emerald-200 text-emerald-900 font-bold px-2 py-0.5 rounded-full">Valid 15m</span>
-              </div>
-            )}
+            <div className="mb-4 p-3 bg-blue-50/80 border border-blue-200/60 rounded-xl text-xs text-blue-800 flex items-center gap-2.5">
+              <i className="fa-solid fa-envelope-circle-check text-blue-600 shrink-0 text-sm"></i>
+              <span>Enter the 6-digit verification code sent to your email inbox or <strong>Spam/Junk</strong> folder.</span>
+            </div>
 
             <form onSubmit={handleResetSubmit} className="space-y-4">
               {/* Verification Code */}
