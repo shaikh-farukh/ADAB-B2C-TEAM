@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import apiClient from '../api/apiClient';
+import useDebounce from '../hooks/useDebounce';
 import AdminTable from '../components/ui/AdminTable';
 import StatusBadge from '../components/ui/StatusBadge';
 import Pagination from '../components/ui/Pagination';
@@ -14,6 +15,7 @@ export default function Returns() {
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 400);
   const [statusFilter, setStatusFilter] = useState('');
 
   // Selected Return Detail Modal State
@@ -44,7 +46,7 @@ export default function Returns() {
     const params = new URLSearchParams({
       page: page,
       limit: 10,
-      search: searchTerm,
+      search: debouncedSearchTerm,
       status: currentStatusFilter,
       exceptions: activeTab === 'exceptions' ? 'true' : 'false'
     });
@@ -66,7 +68,7 @@ export default function Returns() {
         setError(err.response?.data?.message || 'Failed to load returns requests');
       })
       .finally(() => setLoading(false));
-  }, [searchTerm, statusFilter, activeTab]);
+  }, [debouncedSearchTerm, statusFilter, activeTab]);
 
   useEffect(() => {
     fetchReturns(1);

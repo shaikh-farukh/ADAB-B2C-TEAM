@@ -96,23 +96,6 @@ export default function AuditLog() {
     setEntityId('');
     setSearch('');
     setPage(1);
-    // Directly fetch with cleared filters
-    setLoading(true);
-    apiClient.get('/audit', { params: { page: 1, limit: pageSize } })
-      .then(res => {
-        if (res.data?.success) {
-          const data = res.data.data;
-          const logList = Array.isArray(data) ? data : (data?.logs || []);
-          setLogs(logList);
-          const pagination = res.data.pagination || res.data.meta || {};
-          setTotal(pagination.total !== undefined ? pagination.total : logList.length);
-          setTotalPages(pagination.totalPages !== undefined ? pagination.totalPages : Math.max(1, Math.ceil(logList.length / pageSize)));
-        }
-      })
-      .catch(err => {
-        console.error('Reset fetch error:', err);
-      })
-      .finally(() => setLoading(false));
   };
 
   const handlePageChange = (newPage) => {

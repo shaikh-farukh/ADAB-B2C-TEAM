@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../api/apiClient';
+import useDebounce from '../hooks/useDebounce';
 import AdminTable from '../components/ui/AdminTable';
 import Pagination from '../components/ui/Pagination';
 import StatusBadge from '../components/ui/StatusBadge';
@@ -16,6 +17,7 @@ export default function ProductCatalog() {
   const [totalPages, setTotalPages] = useState(1);
   const [statusTab, setStatusTab] = useState('ALL');
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 400);
   const [sellerFilter, setSellerFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
 
@@ -33,7 +35,7 @@ export default function ProductCatalog() {
           page,
           limit: 10,
           status: statusTab,
-          search,
+          search: debouncedSearch,
           seller: sellerFilter,
           category: categoryFilter
         }
@@ -60,7 +62,7 @@ export default function ProductCatalog() {
 
   useEffect(() => {
     fetchProducts();
-  }, [page, statusTab, search, sellerFilter, categoryFilter]);
+  }, [page, statusTab, debouncedSearch, sellerFilter, categoryFilter]);
 
   const handleActionClick = (product, action) => {
     setSelectedProduct(product);

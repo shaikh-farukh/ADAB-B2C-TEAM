@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import apiClient from '../api/apiClient';
+import useDebounce from '../hooks/useDebounce';
 import AdminTable from '../components/ui/AdminTable';
 import StatusBadge from '../components/ui/StatusBadge';
 import Pagination from '../components/ui/Pagination';
@@ -14,6 +15,7 @@ export default function Orders() {
 
   // Search & Filters
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 400);
   const [statusFilter, setStatusFilter] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
 
@@ -43,7 +45,7 @@ export default function Orders() {
     const params = new URLSearchParams({
       page: page,
       limit: 10,
-      search: searchTerm,
+      search: debouncedSearchTerm,
       status: statusFilter,
       payment_status: paymentStatusFilter
     });
@@ -65,7 +67,7 @@ export default function Orders() {
         setError(err.response?.data?.message || 'Failed to load orders');
       })
       .finally(() => setLoading(false));
-  }, [searchTerm, statusFilter, paymentStatusFilter, activeTab]);
+  }, [debouncedSearchTerm, statusFilter, paymentStatusFilter, activeTab]);
 
   useEffect(() => {
     fetchOrders(1);

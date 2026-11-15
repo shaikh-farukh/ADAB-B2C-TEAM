@@ -10,6 +10,7 @@ export default function Reports() {
     activeSellers: 0
   });
   const [tabData, setTabData] = useState([]);
+  const [dataCache, setDataCache] = useState({});
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [exportMsg, setExportMsg] = useState('');
@@ -40,14 +41,20 @@ export default function Reports() {
     reviews: '/reports/reviews'
   };
 
-  const fetchTabData = async (tab) => {
+  const fetchTabData = async (tab, forceRefresh = false) => {
     if (tab === 'summary') return;
+    if (!forceRefresh && dataCache[tab]) {
+      setTabData(dataCache[tab]);
+      return;
+    }
     setLoading(true);
     try {
       const endpoint = REPORT_ENDPOINTS[tab] || `/reports/${tab}`;
       const res = await apiClient.get(endpoint);
       if (res.data.success) {
-        setTabData(Array.isArray(res.data.data) ? res.data.data : []);
+        const result = Array.isArray(res.data.data) ? res.data.data : [];
+        setTabData(result);
+        setDataCache(prev => ({ ...prev, [tab]: result }));
       }
     } catch (err) {
       console.error(`Failed to load ${tab} report`, err);

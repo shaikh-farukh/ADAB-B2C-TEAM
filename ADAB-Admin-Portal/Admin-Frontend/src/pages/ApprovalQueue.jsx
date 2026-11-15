@@ -481,7 +481,7 @@ export default function ApprovalQueue() {
           <div className="flex items-center gap-2 flex-wrap">
             <button 
               type="button"
-              onClick={() => { setStatusFilter('ALL'); fetchApprovals(activeTab, 1, 'ALL', searchTerm); }}
+              onClick={() => setStatusFilter('ALL')}
               className={`rounded-xl px-3 py-1.5 min-w-18 text-center shadow-2xs transition-all cursor-pointer border ${
                 statusFilter === 'ALL'
                   ? 'bg-indigo-50 border-indigo-600 ring-2 ring-indigo-500/20 text-indigo-900 font-black'
@@ -494,7 +494,7 @@ export default function ApprovalQueue() {
             </button>
             <button 
               type="button"
-              onClick={() => { setStatusFilter('PENDING'); fetchApprovals(activeTab, 1, 'PENDING', searchTerm); }}
+              onClick={() => setStatusFilter('PENDING')}
               className={`rounded-xl px-3 py-1.5 min-w-18 text-center shadow-2xs transition-all cursor-pointer border ${
                 statusFilter === 'PENDING'
                   ? 'bg-amber-100 border-amber-600 ring-2 ring-amber-500/20 text-amber-950 font-black'
@@ -507,7 +507,7 @@ export default function ApprovalQueue() {
             </button>
             <button 
               type="button"
-              onClick={() => { setStatusFilter('APPROVED'); fetchApprovals(activeTab, 1, 'APPROVED', searchTerm); }}
+              onClick={() => setStatusFilter('APPROVED')}
               className={`rounded-xl px-3 py-1.5 min-w-18 text-center shadow-2xs transition-all cursor-pointer border ${
                 statusFilter === 'APPROVED'
                   ? 'bg-emerald-100 border-emerald-600 ring-2 ring-emerald-500/20 text-emerald-950 font-black'
@@ -520,7 +520,7 @@ export default function ApprovalQueue() {
             </button>
             <button 
               type="button"
-              onClick={() => { setStatusFilter('CHANGES_REQUESTED'); fetchApprovals(activeTab, 1, 'CHANGES_REQUESTED', searchTerm); }}
+              onClick={() => setStatusFilter('CHANGES_REQUESTED')}
               className={`rounded-xl px-3 py-1.5 min-w-18 text-center shadow-2xs transition-all cursor-pointer border ${
                 statusFilter === 'CHANGES_REQUESTED'
                   ? 'bg-orange-100 border-orange-600 ring-2 ring-orange-500/20 text-orange-950 font-black'
@@ -533,7 +533,7 @@ export default function ApprovalQueue() {
             </button>
             <button 
               type="button"
-              onClick={() => { setStatusFilter('REJECTED'); fetchApprovals(activeTab, 1, 'REJECTED', searchTerm); }}
+              onClick={() => setStatusFilter('REJECTED')}
               className={`rounded-xl px-3 py-1.5 min-w-18 text-center shadow-2xs transition-all cursor-pointer border ${
                 statusFilter === 'REJECTED'
                   ? 'bg-rose-100 border-rose-600 ring-2 ring-rose-500/20 text-rose-950 font-black'
@@ -612,10 +612,7 @@ export default function ApprovalQueue() {
             <label className="text-xs font-bold text-slate-500 whitespace-nowrap">Filter Status:</label>
             <select
               value={statusFilter}
-              onChange={e => {
-                setStatusFilter(e.target.value);
-                fetchApprovals(activeTab, 1, e.target.value, searchTerm);
-              }}
+              onChange={e => setStatusFilter(e.target.value)}
               className="border border-slate-200 py-2 px-3 rounded-xl text-xs bg-white outline-none focus:border-indigo-600 font-bold text-slate-700 cursor-pointer shadow-2xs"
             >
               <option value="ALL">All Statuses</option>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import apiClient from '../api/apiClient';
+import useDebounce from '../hooks/useDebounce';
 import AdminTable from '../components/ui/AdminTable';
 import StatusBadge from '../components/ui/StatusBadge';
 import Pagination from '../components/ui/Pagination';
@@ -10,6 +11,7 @@ export default function Offers() {
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 400);
   const [statusFilter, setStatusFilter] = useState('');
 
   const [createModal, setCreateModal] = useState({ isOpen: false, code: '', title: '', discount_type: 'PERCENTAGE', discount_value: '', min_order_amount: '', max_discount_amount: '', usage_limit: '' });
@@ -18,7 +20,7 @@ export default function Offers() {
 
   const fetchOffers = (p = 1) => {
     setLoading(true);
-    apiClient.get(`/offers?page=${p}&limit=10&search=${search}&status=${statusFilter}`)
+    apiClient.get(`/offers?page=${p}&limit=10&search=${debouncedSearch}&status=${statusFilter}`)
       .then(res => {
         setOffers(res.data.data || []);
         if (res.data.pagination) setPagination(res.data.pagination);
@@ -29,7 +31,7 @@ export default function Offers() {
 
   useEffect(() => {
     fetchOffers(1);
-  }, [search, statusFilter]);
+  }, [debouncedSearch, statusFilter]);
 
   const handleCreate = () => {
     if (!createModal.code || !createModal.title || !createModal.discount_value) {
