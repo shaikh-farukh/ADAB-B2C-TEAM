@@ -17,6 +17,17 @@ export function getSessionToken() {
   return token;
 }
 
+// Reset and rotate session token (e.g. on user logout to prevent session fixation / cart bleeding)
+export function resetSessionToken() {
+  const token = 'session_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+  try {
+    localStorage.setItem('adab_session_token', token);
+  } catch {
+    // Ignore storage errors
+  }
+  return token;
+}
+
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Dynamically extracts the authenticated user ID from localStorage or JWT
@@ -64,7 +75,7 @@ export function getCurrentUserId() {
     return null;
   }
 
-  return userId || '11111111-1111-1111-1111-111111111111';
+  return userId || null;
 }
 
 // Dynamically prepares auth headers for live requests
@@ -570,6 +581,11 @@ export const AuthAPI = {
     apiRequest('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ ...userData, session_token: sessionToken || getSessionToken() })
+    }),
+  googleAuth: (googleData, sessionToken = null) =>
+    apiRequest('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ ...googleData, session_token: sessionToken || getSessionToken() })
     }),
   forgotPassword: (email) =>
     apiRequest('/auth/forgot-password', {

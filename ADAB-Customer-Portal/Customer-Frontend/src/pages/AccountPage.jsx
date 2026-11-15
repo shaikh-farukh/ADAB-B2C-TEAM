@@ -54,7 +54,7 @@ export default function AccountPage({
     saveAddress: false,
     deleteAddress: null,
     setDefault: null,
-    serviceability: null
+    serviceability: new Set()
   });
 
   useEffect(() => {
@@ -84,6 +84,7 @@ export default function AccountPage({
   // Views: 'dashboard' | 'addresses' | 'profile' | 'placeholder'
   const [activeView, setActiveView] = useState('dashboard');
   const [placeholderText, setPlaceholderText] = useState('');
+  const [placeholderTitle, setPlaceholderTitle] = useState('Under Construction');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -93,14 +94,25 @@ export default function AccountPage({
   };
 
   // Edit forms
-  const [profileForm, setProfileForm] = useState({ name: accountDataCache?.profile?.name || '', phone: accountDataCache?.profile?.phone || '', email: accountDataCache?.profile?.email || '' });
+  const [profileForm, setProfileForm] = useState({
+    name: accountDataCache?.profile?.name || '',
+    phone: accountDataCache?.profile?.phone || '',
+    email: accountDataCache?.profile?.email || ''
+  });
 
   const [isAddingAddress, setIsAddingAddress] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState(null);
   const [, setIsDetectingPin] = useState(false);
   const [pinHint, setPinHint] = useState('');
   const [addressForm, setAddressForm] = useState({
-    type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false
+    type: 'Home',
+    recipientName: '',
+    phone: '',
+    address: '',
+    city: 'Surat',
+    state: 'Gujarat',
+    zip: '',
+    isDefault: false
   });
   const [serviceabilityResults, setServiceabilityResults] = useState({});
 
@@ -116,7 +128,7 @@ export default function AccountPage({
           city: offline.city,
           state: offline.state
         }));
-        setPinHint(`✓ Detected ${offline.city}, ${offline.state}`);
+        setPinHint(`✓ Detected: ${offline.city}, ${offline.state}`);
       }
 
       setIsDetectingPin(true);
@@ -328,7 +340,16 @@ export default function AccountPage({
         setIsAddingAddress(false);
         setEditingAddressId(null);
         setPinHint('');
-        setAddressForm({ type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false });
+        setAddressForm({
+          type: 'Home',
+          recipientName: '',
+          phone: '',
+          address: '',
+          city: 'Surat',
+          state: 'Gujarat',
+          zip: '',
+          isDefault: false
+        });
         await fetchData(true);
         showToast('Address saved successfully!', 'success');
       } else {
@@ -390,371 +411,6 @@ export default function AccountPage({
     }
   };
 
-  const showPlaceholder = (text) => {
-    setPlaceholderText(text);
-    setActiveView('placeholder');
-  };
-
-  if (loading) {
-    return (
-      <div className="max-w-4xl mx-auto p-4 space-y-4 animate-pulse">
-        <div className="h-44 bg-gray-200 rounded-2xl"></div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-20 bg-gray-200 rounded-2xl"></div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !hasLoaded) {
-    return (
-      <div className="max-w-md mx-auto my-12 bg-white rounded-3xl border border-red-100 p-8 text-center shadow-sm">
-        <div className="w-12 h-12 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-3">
-          <i className="fa-solid fa-triangle-exclamation text-xl"></i>
-        </div>
-        <h3 className="font-extrabold text-gray-900 text-base mb-1">Failed to Load Account</h3>
-        <p className="text-xs text-gray-500 mb-4">{error || 'Unable to load account details.'}</p>
-        <button
-          type="button"
-          disabled={loading}
-          onClick={() => fetchData(true)}
-          className="px-5 py-2.5 bg-[#18753C] text-white rounded-xl text-xs font-bold hover:bg-[#156030] transition inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <i className={`fa-solid fa-rotate-right ${loading ? 'animate-spin' : ''}`}></i>
-          Retry
-        </button>
-      </div>
-    );
-  }
-
-  const isLoggedIn = Boolean(currentUser || localStorage.getItem('adab_user'));
-  const effectiveUser = profile || currentUser || (() => {
-    try {
-      const saved = localStorage.getItem('adab_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch { return null; }
-  })();
-
-  const displayName = effectiveUser?.name || effectiveUser?.full_name || 'Customer';
-  const displayEmail = effectiveUser?.email || '';
-  const displayPhone = effectiveUser?.phone || '';
-  const displayInitial = displayName ? displayName.charAt(0).toUpperCase() : 'C';
-
-  const renderDashboard = () => (
-    <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto">
-      {/* Guest Sign In Callout if not authenticated */}
-      {!isLoggedIn && (
-        <div className="bg-gradient-to-r from-emerald-50 to-green-100 border border-emerald-200 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-[#18753C] text-white flex items-center justify-center text-xl shrink-0 shadow-sm">
-              <i className="fa-solid fa-user-lock"></i>
-            </div>
-            <div>
-              <h3 className="font-extrabold text-gray-900 text-sm">Log in to your ADAB account</h3>
-              <p className="text-xs text-gray-600 mt-0.5">Access your saved addresses, track live orders, earn points and customize alerts.</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => onOpenLogin ? onOpenLogin() : (onNavigate && onNavigate('login'))}
-            className="w-full sm:w-auto px-5 py-2.5 bg-[#18753C] hover:bg-[#156030] text-white font-bold text-xs rounded-xl shadow-xs transition-colors shrink-0 cursor-pointer flex items-center justify-center gap-2"
-          >
-            <span>Login / Register</span>
-            <i className="fa-solid fa-arrow-right text-[10px]"></i>
-          </button>
-        </div>
-      )}
-
-      {/* Top Banner */}
-      <div className="bg-[#18753C] rounded-2xl p-6 text-white shadow-sm flex flex-col gap-6 relative overflow-hidden">
-        <div className="flex justify-between items-start z-10">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-[#519468] rounded-xl flex items-center justify-center text-3xl font-extrabold text-white overflow-hidden shadow-sm shrink-0">
-              {profile?.profile_picture_url ? (
-                <img src={profile.profile_picture_url} alt="" className="w-full h-full object-cover" />
-              ) : (
-                displayInitial
-              )}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold">{displayName}</h2>
-                {effectiveUser?.loyalty_tier && (
-                  <span className="bg-[#2D804D] border border-white/20 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                    {effectiveUser.loyalty_tier} MEMBER
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-green-100 mt-1">
-                {displayPhone ? `${displayPhone} • ` : ''}{displayEmail || 'ADAB Customer Account'}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => { setActiveView('profile'); }}
-              className="bg-[#3D8856] hover:bg-[#4E9765] transition-colors text-white text-xs font-bold py-2 px-4 rounded-full border border-[#5CA072] cursor-pointer"
-            >
-              Edit Profile
-            </button>
-            {isLoggedIn && onLogout && (
-              <button
-                type="button"
-                onClick={onLogout}
-                className="bg-white/20 hover:bg-white/30 transition-colors text-white text-xs font-bold py-2 px-3.5 rounded-full border border-white/30 cursor-pointer flex items-center gap-1.5"
-                title="Sign Out"
-              >
-                <i className="fa-solid fa-arrow-right-from-bracket text-[11px]"></i>
-                <span className="hidden sm:inline">Sign Out</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-4 z-10">
-          <div className="bg-[#2D804D] rounded-xl p-4 text-center">
-            <div className="text-xl font-extrabold">{displayOrders}</div>
-            <div className="text-[10px] text-green-100 font-semibold uppercase tracking-wider mt-1">Orders</div>
-          </div>
-          <div
-            onClick={() => onNavigate && onNavigate('points')}
-            className="bg-[#2D804D] rounded-xl p-4 text-center cursor-pointer hover:bg-[#256f42] transition"
-          >
-            <div className="text-xl font-extrabold">{Number(displayPoints).toLocaleString('en-IN')}</div>
-            <div className="text-[10px] text-green-100 font-semibold uppercase tracking-wider mt-1">Points</div>
-          </div>
-          <div className="bg-[#2D804D] rounded-xl p-4 text-center">
-            <div className="text-xl font-extrabold">₹{Number(displayWallet).toLocaleString('en-IN')}</div>
-            <div className="text-[10px] text-green-100 font-semibold uppercase tracking-wider mt-1">Wallet</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Grid of Options */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* 1. My Orders (with active badge) */}
-        <div onClick={() => onNavigate('orders')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
-          <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center text-xl shrink-0">
-            <i className="fa-solid fa-box"></i>
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-gray-900 text-sm">My Orders</span>
-              {displayOrders > 0 && (
-                <span className="bg-red-100 text-red-600 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">{displayOrders}</span>
-              )}
-            </div>
-            <div className="text-xs text-gray-500 mt-0.5">Track, return, or buy again</div>
-          </div>
-          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
-        </div>
-
-        {/* 2. Wishlist */}
-        <div onClick={() => onNavigate('wishlist')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
-          <div className="w-12 h-12 bg-pink-50 text-pink-500 rounded-xl flex items-center justify-center text-xl shrink-0">
-            <i className="fa-solid fa-heart"></i>
-          </div>
-          <div className="flex-1">
-            <div className="font-bold text-gray-900 text-sm">Wishlist</div>
-            <div className="text-xs text-gray-500 mt-0.5">Your saved items</div>
-          </div>
-          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
-        </div>
-
-        {/* 3. Addresses */}
-        <div onClick={() => setActiveView('addresses')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
-          <div className="w-12 h-12 bg-red-50 text-red-500 rounded-xl flex items-center justify-center text-xl shrink-0">
-            <i className="fa-solid fa-location-dot"></i>
-          </div>
-          <div className="flex-1">
-            <div className="font-bold text-gray-900 text-sm">Addresses</div>
-            <div className="text-xs text-gray-500 mt-0.5">Manage delivery addresses ({addresses.length})</div>
-          </div>
-          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
-        </div>
-
-        {/* 4. Payment Methods */}
-        <div onClick={() => showPlaceholder('Payment Methods: Saved cards & UPI management coming soon.')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
-          <div className="w-12 h-12 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center text-xl shrink-0">
-            <i className="fa-solid fa-credit-card"></i>
-          </div>
-          <div className="flex-1">
-            <div className="font-bold text-gray-900 text-sm">Payment Methods</div>
-            <div className="text-xs text-gray-500 mt-0.5">Saved cards & UPI</div>
-          </div>
-          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
-        </div>
-
-        {/* 5. Pay Later & Credit Line */}
-        <div onClick={() => showPlaceholder('Pay Later & Credit Line coming soon.')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
-          <div className="w-12 h-12 bg-[#E8F5E9] text-[#18753C] rounded-xl flex items-center justify-center text-xl shrink-0">
-            <i className="fa-solid fa-hand-holding-dollar"></i>
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="font-bold text-gray-900 text-sm">Pay Later & Credit Line</span>
-              <span className="bg-[#E8F5E9] border border-[#23B65D] text-[#18753C] text-[8px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">0% Interest</span>
-            </div>
-            <div className="text-xs text-gray-500">Apply via HDFC, ICICI, SBI Mudra</div>
-          </div>
-          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
-        </div>
-
-        {/* 6. Coupons */}
-        <div onClick={() => showPlaceholder('Coupons: View available offers and discounts coming soon.')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
-          <div className="w-12 h-12 bg-green-50 text-green-500 rounded-xl flex items-center justify-center text-xl shrink-0">
-            <i className="fa-solid fa-tag"></i>
-          </div>
-          <div className="flex-1">
-            <div className="font-bold text-gray-900 text-sm">Coupons</div>
-            <div className="text-xs text-gray-500 mt-0.5">Available offers & promo codes</div>
-          </div>
-          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
-        </div>
-
-        {/* 7. ADAB Rewards (Day 5 Task 4: sec-points) */}
-        <div onClick={() => (onNavigate ? onNavigate('points') : null)} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
-          <div className="w-12 h-12 bg-yellow-50 text-yellow-500 rounded-xl flex items-center justify-center text-xl shrink-0">
-            <i className="fa-solid fa-star"></i>
-          </div>
-          <div className="flex-1">
-            <div className="font-bold text-gray-900 text-sm">ADAB Rewards</div>
-            <div className="text-xs text-gray-500 mt-0.5">{Number(displayPoints).toLocaleString('en-IN')} points available</div>
-          </div>
-          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
-        </div>
-
-        {/* 8. My Reviews (Day 5 Task 2: sec-reviews) */}
-        <div onClick={() => (onNavigate ? onNavigate('reviews') : null)} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
-          <div className="w-12 h-12 bg-orange-50 text-orange-500 rounded-xl flex items-center justify-center text-xl shrink-0">
-            <i className="fa-regular fa-star-half-stroke"></i>
-          </div>
-          <div className="flex-1">
-            <div className="font-bold text-gray-900 text-sm">My Reviews</div>
-            <div className="text-xs text-gray-500 mt-0.5">Rate past purchases &amp; stores</div>
-          </div>
-          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
-        </div>
-
-        {/* 9. Notifications */}
-        <div onClick={() => (onNavigate ? onNavigate('notifications') : setActiveView('profile'))} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
-          <div className="w-12 h-12 bg-purple-50 text-purple-500 rounded-xl flex items-center justify-center text-xl shrink-0">
-            <i className="fa-solid fa-bell"></i>
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-gray-900 text-sm">Notifications</span>
-              {displayUnreadNotifications > 0 && (
-                <span className="bg-red-100 text-red-600 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">
-                  {displayUnreadNotifications}
-                </span>
-              )}
-            </div>
-            <div className="text-xs text-gray-500 mt-0.5">Order & promo alerts</div>
-          </div>
-          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
-        </div>
-
-        {/* 10. Help & Support (Day 5 Task 3: sec-help, sec-messages) */}
-        <div onClick={() => (onNavigate ? onNavigate('help') : null)} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
-          <div className="w-12 h-12 bg-teal-50 text-teal-500 rounded-xl flex items-center justify-center text-xl shrink-0">
-            <i className="fa-solid fa-headset"></i>
-          </div>
-          <div className="flex-1">
-            <div className="font-bold text-gray-900 text-sm">Help &amp; Support</div>
-            <div className="text-xs text-gray-500 mt-0.5">Tickets, live chat &amp; order disputes</div>
-          </div>
-          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
-        </div>
-
-        {/* Returns & Refunds (Day 5) */}
-        <div onClick={() => (onNavigate ? onNavigate('returns') : null)} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
-          <div className="w-12 h-12 bg-gray-100 text-gray-700 rounded-xl flex items-center justify-center text-xl shrink-0">
-            <i className="fa-solid fa-rotate-left"></i>
-          </div>
-          <div className="flex-1">
-            <div className="font-bold text-gray-900 text-sm">Returns &amp; Refunds</div>
-            <div className="text-xs text-gray-500 mt-0.5">Track return requests &amp; pickup slots</div>
-          </div>
-          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
-        </div>
-
-        {/* 11. Settings (Added from sidebar) */}
-        <div onClick={() => setActiveView('profile')} className="bg-white border border-gray-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-brand-green/30 transition-colors">
-          <div className="w-12 h-12 bg-gray-100 text-gray-600 rounded-xl flex items-center justify-center text-xl shrink-0">
-            <i className="fa-solid fa-gear"></i>
-          </div>
-          <div className="flex-1">
-            <div className="font-bold text-gray-900 text-sm">Settings</div>
-            <div className="text-xs text-gray-500 mt-0.5">Profile, security & preferences</div>
-          </div>
-          <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
-        </div>
-
-        {/* 12. Sign Out / Sign In */}
-        {isLoggedIn ? (
-          <div
-            onClick={onLogout}
-            className="bg-white border border-red-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-red-300 hover:bg-red-50/20 transition-colors"
-          >
-            <div className="w-12 h-12 bg-red-50 text-red-600 rounded-xl flex items-center justify-center text-xl shrink-0">
-              <i className="fa-solid fa-arrow-right-from-bracket"></i>
-            </div>
-            <div className="flex-1">
-              <div className="font-bold text-red-600 text-sm">Sign Out</div>
-              <div className="text-xs text-gray-500 mt-0.5">Log out of your customer account</div>
-            </div>
-            <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
-          </div>
-        ) : (
-          <div
-            onClick={() => onOpenLogin ? onOpenLogin() : (onNavigate && onNavigate('login'))}
-            className="bg-white border border-emerald-100 p-4 rounded-2xl shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] flex items-center gap-4 cursor-pointer hover:border-[#18753C] hover:bg-emerald-50/20 transition-colors"
-          >
-            <div className="w-12 h-12 bg-emerald-50 text-[#18753C] rounded-xl flex items-center justify-center text-xl shrink-0">
-              <i className="fa-solid fa-user-plus"></i>
-            </div>
-            <div className="flex-1">
-              <div className="font-bold text-[#18753C] text-sm">Login / Register</div>
-              <div className="text-xs text-gray-500 mt-0.5">Log into your existing account or join</div>
-            </div>
-            <i className="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
-          </div>
-        )}
-      </div>
-
-      {/* 12. Sell on ADAB Section (Added from sidebar) */}
-      <div
-        onClick={() => showToast('Redirecting to ADAB Seller Portal...')}
-        className="bg-gradient-to-r from-emerald-50 via-green-50 to-emerald-50/70 border border-emerald-200 p-5 rounded-2xl shadow-xs flex items-center justify-between cursor-pointer hover:border-emerald-400 transition-all group pb-4 mb-8"
-      >
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-[#18753C] text-white rounded-xl flex items-center justify-center text-xl shrink-0 shadow-sm group-hover:scale-105 transition-transform">
-            <i className="fa-solid fa-store"></i>
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold text-gray-900 text-base">Sell on ADAB</span>
-              <span className="bg-[#18753C] text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                Partner With Us
-              </span>
-            </div>
-            <div className="text-xs text-gray-600 mt-1">
-              Register your neighbourhood shop and start selling to customers across Surat.
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5 text-xs font-bold text-[#18753C] shrink-0 pl-2">
-          <span>Learn More</span>
-          <i className="fa-solid fa-arrow-right text-[11px] group-hover:translate-x-1 transition-transform"></i>
-        </div>
-      </div>
-    </div>
-  );
-
   const checkServiceability = async (addressId) => {
     if (actionInFlightRef.current.serviceability.has(addressId)) return;
     actionInFlightRef.current.serviceability.add(addressId);
@@ -770,7 +426,10 @@ export default function AccountPage({
       if (res.data?.success) {
         setServiceabilityResults(prev => ({ ...prev, [addressId]: res.data.data }));
       } else {
-        setServiceabilityErrors(prev => ({ ...prev, [addressId]: res.data?.message || 'Serviceability check failed.' }));
+        setServiceabilityErrors(prev => ({
+          ...prev,
+          [addressId]: res.data?.message || 'Serviceability check failed.'
+        }));
       }
     } catch (err) {
       if (!isMountedRef.current) return;
@@ -787,28 +446,863 @@ export default function AccountPage({
     }
   };
 
+  const showPlaceholder = (text, title = 'Under Construction') => {
+    setPlaceholderText(text);
+    setPlaceholderTitle(title);
+    setActiveView('placeholder');
+  };
+
+  const isLoggedIn = Boolean(currentUser || (typeof localStorage !== 'undefined' && localStorage.getItem('adab_user')));
+  const effectiveUser = profile || currentUser || (() => {
+    try {
+      const saved = localStorage.getItem('adab_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  })();
+
+  const displayName = effectiveUser?.name || effectiveUser?.full_name || 'Customer';
+  const displayEmail = effectiveUser?.email || '';
+  const displayPhone = effectiveUser?.phone || '';
+  const displayInitial = displayName ? displayName.charAt(0).toUpperCase() : 'C';
+
+  // Loading skeleton - desktop-first responsive
+  if (loading) {
+    return (
+      <div className="w-full max-w-7xl 2xl:max-w-[1520px] mx-auto py-4 animate-pulse">
+        <div className="flex flex-col lg:flex-row gap-6 xl:gap-8 items-start">
+          {/* Sidebar Skeleton */}
+          <div className="hidden lg:flex flex-col w-72 xl:w-80 shrink-0 space-y-4">
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4 shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 bg-gray-200 rounded-2xl shrink-0"></div>
+                <div className="space-y-2 flex-1">
+                  <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                  <div className="h-3 bg-gray-100 rounded w-1/2"></div>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2.5 shadow-xs">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="h-10 bg-gray-100 rounded-xl"></div>
+              ))}
+            </div>
+          </div>
+
+          {/* Main Content Skeleton */}
+          <div className="flex-1 min-w-0 w-full space-y-6">
+            <div className="h-48 bg-gray-200 rounded-3xl"></div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-24 bg-gray-200 rounded-2xl"></div>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-28 bg-gray-200 rounded-2xl"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !hasLoaded) {
+    return (
+      <div className="w-full max-w-lg mx-auto my-16 bg-white rounded-3xl border border-red-100 p-8 text-center shadow-sm">
+        <div className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <i className="fa-solid fa-triangle-exclamation text-2xl"></i>
+        </div>
+        <h3 className="font-extrabold text-gray-900 text-lg mb-1">Failed to Load Account</h3>
+        <p className="text-xs text-gray-500 mb-6 leading-relaxed">{error || 'Unable to load account details. Please check your connection and retry.'}</p>
+        <button
+          type="button"
+          disabled={loading}
+          onClick={() => fetchData(true)}
+          className="px-6 py-3 bg-[#18753C] hover:bg-[#156030] text-white rounded-xl text-xs font-bold transition-all shadow-sm inline-flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <i className={`fa-solid fa-rotate-right ${loading ? 'animate-spin' : ''}`}></i>
+          Retry Account Details
+        </button>
+      </div>
+    );
+  }
+
+  // Sidebar navigation item
+  const SidebarNavItem = ({ icon, label, badge, badgeColor = 'bg-red-100 text-red-600', active, onClick }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full text-left flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer select-none ${
+        active
+          ? 'bg-[#E8F5E9] text-[#18753C] shadow-xs'
+          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
+      }`}
+    >
+      <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs shrink-0 transition-colors ${
+        active ? 'bg-[#18753C] text-white shadow-xs' : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'
+      }`}>
+        <i className={`fa-solid ${icon}`}></i>
+      </div>
+      <span className="flex-1 truncate">{label}</span>
+      {badge && (
+        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full shrink-0 ${badgeColor}`}>
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+
+  // Render Persistent Desktop Navigation Rail & Drawer Menu
+  const renderSidebarContent = () => (
+    <>
+      {/* 1. Profile Summary Card */}
+      <div className="bg-white rounded-2xl border border-gray-100/90 p-5 shadow-xs">
+        <div className="flex items-center gap-3.5">
+          <div className="relative">
+            <div className="w-13 h-13 rounded-2xl bg-[#18753C] text-white flex items-center justify-center text-xl font-black overflow-hidden shadow-sm shrink-0">
+              {profile?.profile_picture_url ? (
+                <img src={profile.profile_picture_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                displayInitial
+              )}
+            </div>
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full"></div>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-extrabold text-gray-900 text-sm truncate">{displayName}</span>
+            </div>
+            <p className="text-[11px] text-gray-500 truncate mt-0.5">
+              {displayPhone || displayEmail || 'ADAB Customer'}
+            </p>
+            {effectiveUser?.loyalty_tier && (
+              <span className="inline-block mt-1 bg-amber-50 text-amber-700 border border-amber-200 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                <i className="fa-solid fa-crown text-[8px] mr-1 text-amber-500"></i>
+                {effectiveUser.loyalty_tier}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-3.5 pt-3 border-t border-gray-100 flex items-center justify-between text-xs">
+          <button
+            type="button"
+            onClick={() => { setActiveView('profile'); setIsSidebarOpen(false); }}
+            className="text-[#18753C] hover:text-[#156030] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+          >
+            <i className="fa-solid fa-pen-to-square text-[10px]"></i>
+            <span>Edit Profile</span>
+          </button>
+          <span className="text-[11px] text-gray-400 font-medium">Surat, Gujarat</span>
+        </div>
+      </div>
+
+      {/* 2. Structured Navigation Menus */}
+      <div className="bg-white rounded-2xl border border-gray-100/90 p-3 shadow-xs space-y-4">
+        {/* OVERVIEW */}
+        <div>
+          <div className="px-3 pb-1 text-[10px] font-black uppercase tracking-wider text-gray-400">Overview</div>
+          <SidebarNavItem
+            icon="fa-gauge-high"
+            label="Dashboard Overview"
+            active={activeView === 'dashboard'}
+            onClick={() => { setActiveView('dashboard'); setIsSidebarOpen(false); }}
+          />
+        </div>
+
+        {/* ORDERS & PURCHASES */}
+        <div>
+          <div className="px-3 pb-1 text-[10px] font-black uppercase tracking-wider text-gray-400">Orders &amp; Shopping</div>
+          <div className="space-y-0.5">
+            <SidebarNavItem
+              icon="fa-box"
+              label="My Orders"
+              badge={displayOrders > 0 ? displayOrders : null}
+              badgeColor="bg-blue-100 text-blue-700"
+              active={false}
+              onClick={() => { if (onNavigate) onNavigate('orders'); setIsSidebarOpen(false); }}
+            />
+            <SidebarNavItem
+              icon="fa-heart"
+              label="Wishlist"
+              active={false}
+              onClick={() => { if (onNavigate) onNavigate('wishlist'); setIsSidebarOpen(false); }}
+            />
+            <SidebarNavItem
+              icon="fa-rotate-left"
+              label="Returns &amp; Refunds"
+              active={false}
+              onClick={() => { if (onNavigate) onNavigate('returns'); setIsSidebarOpen(false); }}
+            />
+          </div>
+        </div>
+
+        {/* WALLET & REWARDS */}
+        <div>
+          <div className="px-3 pb-1 text-[10px] font-black uppercase tracking-wider text-gray-400">Wallet &amp; Rewards</div>
+          <div className="space-y-0.5">
+            <SidebarNavItem
+              icon="fa-star"
+              label="ADAB Rewards"
+              badge={`${Number(displayPoints).toLocaleString('en-IN')} pts`}
+              badgeColor="bg-amber-100 text-amber-800"
+              active={false}
+              onClick={() => { if (onNavigate) onNavigate('points'); setIsSidebarOpen(false); }}
+            />
+            <SidebarNavItem
+              icon="fa-wallet"
+              label="ADAB Wallet"
+              badge={`₹${Number(displayWallet).toLocaleString('en-IN')}`}
+              badgeColor="bg-emerald-100 text-emerald-800"
+              active={false}
+              onClick={() => { showPlaceholder('ADAB Wallet: Instant checkout balance & transaction history.', 'ADAB Wallet'); setIsSidebarOpen(false); }}
+            />
+            <SidebarNavItem
+              icon="fa-tag"
+              label="Coupons &amp; Offers"
+              active={false}
+              onClick={() => { showPlaceholder('Coupons: View available store discount codes and seasonal promos.', 'Coupons & Discounts'); setIsSidebarOpen(false); }}
+            />
+            <SidebarNavItem
+              icon="fa-hand-holding-dollar"
+              label="Pay Later (0% EMI)"
+              badge="0% Int"
+              badgeColor="bg-green-100 text-green-800"
+              active={false}
+              onClick={() => { showPlaceholder('Pay Later & Credit Line: Instant credit limit via partner banks.', 'Pay Later & Credit'); setIsSidebarOpen(false); }}
+            />
+            <SidebarNavItem
+              icon="fa-credit-card"
+              label="Payment Methods"
+              active={false}
+              onClick={() => { showPlaceholder('Payment Methods: Saved cards & UPI management.', 'Payment Methods'); setIsSidebarOpen(false); }}
+            />
+          </div>
+        </div>
+
+        {/* ACCOUNT SETTINGS */}
+        <div>
+          <div className="px-3 pb-1 text-[10px] font-black uppercase tracking-wider text-gray-400">Account Settings</div>
+          <div className="space-y-0.5">
+            <SidebarNavItem
+              icon="fa-location-dot"
+              label="Delivery Addresses"
+              badge={addresses.length > 0 ? addresses.length : null}
+              badgeColor="bg-gray-100 text-gray-700"
+              active={activeView === 'addresses'}
+              onClick={() => { setActiveView('addresses'); setIsSidebarOpen(false); }}
+            />
+            <SidebarNavItem
+              icon="fa-user-gear"
+              label="Profile &amp; Security"
+              active={activeView === 'profile'}
+              onClick={() => { setActiveView('profile'); setIsSidebarOpen(false); }}
+            />
+            <SidebarNavItem
+              icon="fa-bell"
+              label="Notifications"
+              badge={displayUnreadNotifications > 0 ? displayUnreadNotifications : null}
+              badgeColor="bg-red-100 text-red-600"
+              active={false}
+              onClick={() => { if (onNavigate) onNavigate('notifications'); setIsSidebarOpen(false); }}
+            />
+          </div>
+        </div>
+
+        {/* SUPPORT & ECOSYSTEM */}
+        <div>
+          <div className="px-3 pb-1 text-[10px] font-black uppercase tracking-wider text-gray-400">Support &amp; Partners</div>
+          <div className="space-y-0.5">
+            <SidebarNavItem
+              icon="fa-headset"
+              label="Help &amp; Support"
+              active={false}
+              onClick={() => { if (onNavigate) onNavigate('help'); setIsSidebarOpen(false); }}
+            />
+            <SidebarNavItem
+              icon="fa-star-half-stroke"
+              label="My Reviews"
+              active={false}
+              onClick={() => { if (onNavigate) onNavigate('reviews'); setIsSidebarOpen(false); }}
+            />
+            <SidebarNavItem
+              icon="fa-store"
+              label="Sell on ADAB"
+              badge="Partner"
+              badgeColor="bg-emerald-100 text-emerald-800"
+              active={false}
+              onClick={() => { showToast('Redirecting to ADAB Seller Portal...'); setIsSidebarOpen(false); }}
+            />
+          </div>
+        </div>
+
+        {/* SIGN IN / SIGN OUT */}
+        <div className="pt-2 border-t border-gray-100">
+          {isLoggedIn ? (
+            <button
+              type="button"
+              onClick={() => { setIsSidebarOpen(false); if (onLogout) onLogout(); }}
+              className="w-full text-left flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-red-600 hover:bg-red-50 transition-all cursor-pointer"
+            >
+              <div className="w-7 h-7 rounded-lg bg-red-50 text-red-600 flex items-center justify-center text-xs shrink-0">
+                <i className="fa-solid fa-arrow-right-from-bracket"></i>
+              </div>
+              <span>Sign Out</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setIsSidebarOpen(false);
+                if (onOpenLogin) onOpenLogin();
+                else if (onNavigate) onNavigate('login');
+              }}
+              className="w-full text-left flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-[#18753C] hover:bg-emerald-50 transition-all cursor-pointer"
+            >
+              <div className="w-7 h-7 rounded-lg bg-emerald-50 text-[#18753C] flex items-center justify-center text-xs shrink-0">
+                <i className="fa-solid fa-arrow-right-to-bracket"></i>
+              </div>
+              <span>Login / Register</span>
+            </button>
+          )}
+        </div>
+      </div>
+    </>
+  );
+
+  // Render Dashboard Overview
+  const renderDashboard = () => (
+    <div className="space-y-6 w-full">
+      {/* 1. Guest Sign In Callout (if unauthenticated) */}
+      {!isLoggedIn && (
+        <div className="bg-gradient-to-r from-emerald-50 via-green-50 to-emerald-100/60 border border-emerald-200/80 rounded-2xl p-5 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-[#18753C] text-white flex items-center justify-center text-xl shrink-0 shadow-sm">
+              <i className="fa-solid fa-user-lock"></i>
+            </div>
+            <div>
+              <h3 className="font-extrabold text-gray-900 text-sm sm:text-base">Log in to your ADAB account</h3>
+              <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">
+                Save delivery addresses, track live 14–45 min orders, redeem reward points, and unlock 0% interest credit.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onOpenLogin ? onOpenLogin() : (onNavigate && onNavigate('login'))}
+            className="w-full md:w-auto px-6 py-2.5 bg-[#18753C] hover:bg-[#156030] text-white font-extrabold text-xs rounded-xl shadow-xs transition-all shrink-0 cursor-pointer flex items-center justify-center gap-2"
+          >
+            <span>Login / Register</span>
+            <i className="fa-solid fa-arrow-right text-[10px]"></i>
+          </button>
+        </div>
+      )}
+
+      {/* 2. Executive Hero Welcome Banner */}
+      <div className="bg-gradient-to-br from-[#064E3B] via-[#0E6C3B] to-[#15803D] rounded-3xl p-6 sm:p-7 text-white shadow-md relative overflow-hidden">
+        {/* Subtle decorative background accents */}
+        <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full blur-2xl pointer-events-none -mr-20 -mt-20"></div>
+        <div className="absolute bottom-0 right-1/4 w-40 h-40 bg-emerald-400/10 rounded-full blur-xl pointer-events-none"></div>
+
+        <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5">
+          <div className="flex items-center gap-4.5">
+            <div
+              onClick={() => setActiveView('profile')}
+              title="Click to edit avatar"
+              className="w-16 h-16 sm:w-18 sm:h-18 bg-white/15 hover:bg-white/25 rounded-2xl flex items-center justify-center text-3xl font-black text-white overflow-hidden shadow-inner shrink-0 cursor-pointer border border-white/20 transition-all hover:scale-105"
+            >
+              {profile?.profile_picture_url ? (
+                <img src={profile.profile_picture_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                displayInitial
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h2 className="text-xl sm:text-2xl font-black tracking-tight">{displayName}</h2>
+                {effectiveUser?.loyalty_tier && (
+                  <span className="bg-white/20 backdrop-blur-md border border-white/30 text-emerald-100 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-xs">
+                    <i className="fa-solid fa-sparkles text-[9px] text-amber-300"></i>
+                    {effectiveUser.loyalty_tier} MEMBER
+                  </span>
+                )}
+                <span className="bg-emerald-500/20 text-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-400/20 hidden sm:inline-flex items-center gap-1">
+                  <i className="fa-solid fa-circle-check text-[9px] text-emerald-300"></i>
+                  Verified Surat Account
+                </span>
+              </div>
+              <p className="text-xs text-emerald-100/90 mt-1 font-medium">
+                {displayPhone ? `${displayPhone} • ` : ''}{displayEmail || 'ADAB Customer Account'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 self-stretch sm:self-auto justify-end">
+            <button
+              type="button"
+              onClick={() => setActiveView('profile')}
+              className="bg-white/15 hover:bg-white/25 transition-all text-white text-xs font-extrabold py-2.5 px-4 rounded-xl border border-white/25 cursor-pointer backdrop-blur-md flex items-center gap-2 shadow-xs"
+            >
+              <i className="fa-solid fa-pen-to-square text-[11px]"></i>
+              <span>Edit Profile</span>
+            </button>
+            {isLoggedIn && onLogout && (
+              <button
+                type="button"
+                onClick={onLogout}
+                className="bg-black/20 hover:bg-black/30 transition-all text-white text-xs font-bold py-2.5 px-4 rounded-xl border border-white/15 cursor-pointer flex items-center gap-2 shadow-xs"
+                title="Sign Out"
+              >
+                <i className="fa-solid fa-arrow-right-from-bracket text-[11px]"></i>
+                <span className="hidden sm:inline">Sign Out</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Executive Metric Cards Strip */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-6 pt-5 border-t border-white/15 relative z-10">
+          {/* 1. Orders */}
+          <div
+            onClick={() => onNavigate && onNavigate('orders')}
+            className="bg-white/10 hover:bg-white/15 backdrop-blur-md border border-white/15 rounded-2xl p-4 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-emerald-100 font-extrabold uppercase tracking-wider">Orders Placed</span>
+              <i className="fa-solid fa-arrow-up-right-from-square text-[10px] text-emerald-200/70 group-hover:text-white transition-colors"></i>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black mt-1.5">{displayOrders}</div>
+            <div className="text-[11px] text-emerald-200 mt-1 font-medium truncate">
+              {displayOrders > 0 ? 'Track live shipments' : 'Start your first order'}
+            </div>
+          </div>
+
+          {/* 2. Points */}
+          <div
+            onClick={() => onNavigate && onNavigate('points')}
+            className="bg-white/10 hover:bg-white/15 backdrop-blur-md border border-white/15 rounded-2xl p-4 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-emerald-100 font-extrabold uppercase tracking-wider">Reward Points</span>
+              <i className="fa-solid fa-sparkles text-[10px] text-amber-300"></i>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black mt-1.5">{Number(displayPoints).toLocaleString('en-IN')}</div>
+            <div className="text-[11px] text-emerald-200 mt-1 font-medium truncate">
+              Worth ₹{Math.floor(displayPoints / 10)} • Redeem
+            </div>
+          </div>
+
+          {/* 3. Wallet */}
+          <div
+            onClick={() => showPlaceholder('ADAB Wallet: Instant checkout balance & transaction history.', 'ADAB Wallet')}
+            className="bg-white/10 hover:bg-white/15 backdrop-blur-md border border-white/15 rounded-2xl p-4 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-emerald-100 font-extrabold uppercase tracking-wider">ADAB Wallet</span>
+              <i className="fa-solid fa-wallet text-[10px] text-emerald-200/70 group-hover:text-white transition-colors"></i>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black mt-1.5">₹{Number(displayWallet).toLocaleString('en-IN')}</div>
+            <div className="text-[11px] text-emerald-200 mt-1 font-medium truncate">
+              Instant 1-click checkout
+            </div>
+          </div>
+
+          {/* 4. Notifications */}
+          <div
+            onClick={() => onNavigate && onNavigate('notifications')}
+            className="bg-white/10 hover:bg-white/15 backdrop-blur-md border border-white/15 rounded-2xl p-4 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-emerald-100 font-extrabold uppercase tracking-wider">Alerts</span>
+              <i className="fa-solid fa-bell text-[10px] text-emerald-200/70 group-hover:text-white transition-colors"></i>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black mt-1.5">{displayUnreadNotifications}</div>
+            <div className="text-[11px] text-emerald-200 mt-1 font-medium truncate">
+              {displayUnreadNotifications > 0 ? `${displayUnreadNotifications} unread updates` : 'All caught up'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Thematic Hub 1: Orders & Shopping Activity */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <div>
+            <h3 className="text-base sm:text-lg font-black text-gray-900">Orders &amp; Shopping Activity</h3>
+            <p className="text-xs text-gray-500">Track shipments, request returns, and view saved items</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* My Orders Card */}
+          <div
+            onClick={() => onNavigate('orders')}
+            className="bg-white border border-gray-200/80 hover:border-[#18753C]/40 p-5 rounded-2xl shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform">
+                <i className="fa-solid fa-box"></i>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h4 className="font-extrabold text-gray-900 text-sm">My Orders</h4>
+                  {displayOrders > 0 && (
+                    <span className="bg-red-100 text-red-600 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                      {displayOrders}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">
+                  Track live shipments, download tax invoices, reorder past essentials.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-blue-600 group-hover:text-blue-700">
+              <span>View Orders</span>
+              <i className="fa-solid fa-arrow-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
+            </div>
+          </div>
+
+          {/* Wishlist Card */}
+          <div
+            onClick={() => onNavigate('wishlist')}
+            className="bg-white border border-gray-200/80 hover:border-[#18753C]/40 p-5 rounded-2xl shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-pink-50 text-pink-500 rounded-xl flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform">
+                <i className="fa-solid fa-heart"></i>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-extrabold text-gray-900 text-sm">Wishlist</h4>
+                <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">
+                  Your curated list of favourite pantry staples, dairy &amp; produce.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-pink-600 group-hover:text-pink-700">
+              <span>Open Wishlist</span>
+              <i className="fa-solid fa-arrow-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
+            </div>
+          </div>
+
+          {/* Returns & Refunds Card */}
+          <div
+            onClick={() => onNavigate('returns')}
+            className="bg-white border border-gray-200/80 hover:border-[#18753C]/40 p-5 rounded-2xl shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform">
+                <i className="fa-solid fa-rotate-left"></i>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-extrabold text-gray-900 text-sm">Returns &amp; Refunds</h4>
+                <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">
+                  Doorstep pickup tracking, replacement status &amp; instant refunds.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-amber-600 group-hover:text-amber-700">
+              <span>Track Returns</span>
+              <i className="fa-solid fa-arrow-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Thematic Hub 2: Wallet, Rewards & Payment Suite */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <div>
+            <h3 className="text-base sm:text-lg font-black text-gray-900">Wallet, Rewards &amp; Credit</h3>
+            <p className="text-xs text-gray-500">Manage payment methods, loyalty coins, and credit lines</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {/* ADAB Rewards */}
+          <div
+            onClick={() => onNavigate('points')}
+            className="bg-white border border-gray-200/80 hover:border-[#18753C]/40 p-4.5 rounded-2xl shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="w-11 h-11 bg-amber-50 text-amber-500 rounded-xl flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                <i className="fa-solid fa-star"></i>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-extrabold text-gray-900 text-sm">ADAB Rewards</h4>
+                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                  {Number(displayPoints).toLocaleString('en-IN')} points available to redeem.
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-amber-600">
+              <span>Redeem Coins</span>
+              <i className="fa-solid fa-arrow-right text-[10px]"></i>
+            </div>
+          </div>
+
+          {/* ADAB Wallet */}
+          <div
+            onClick={() => showPlaceholder('ADAB Wallet: Instant checkout balance & transaction history.', 'ADAB Wallet')}
+            className="bg-white border border-gray-200/80 hover:border-[#18753C]/40 p-4.5 rounded-2xl shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="w-11 h-11 bg-emerald-50 text-[#18753C] rounded-xl flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                <i className="fa-solid fa-wallet"></i>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-extrabold text-gray-900 text-sm">ADAB Wallet</h4>
+                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                  ₹{Number(displayWallet).toLocaleString('en-IN')} store balance for 1-click orders.
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-[#18753C]">
+              <span>Manage Wallet</span>
+              <i className="fa-solid fa-arrow-right text-[10px]"></i>
+            </div>
+          </div>
+
+          {/* Pay Later & Credit Line */}
+          <div
+            onClick={() => showPlaceholder('Pay Later & Credit Line: Instant credit limit via partner banks.', 'Pay Later & Credit')}
+            className="bg-white border border-gray-200/80 hover:border-[#18753C]/40 p-4.5 rounded-2xl shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="w-11 h-11 bg-green-50 text-green-700 rounded-xl flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                <i className="fa-solid fa-hand-holding-dollar"></i>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h4 className="font-extrabold text-gray-900 text-sm">Pay Later</h4>
+                  <span className="bg-emerald-50 text-[#18753C] border border-emerald-200 text-[8px] font-black px-1.5 py-0.2 rounded-full">
+                    0% EMI
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                  Up to ₹50,000 credit via partner banks.
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-green-700">
+              <span>Check Limit</span>
+              <i className="fa-solid fa-arrow-right text-[10px]"></i>
+            </div>
+          </div>
+
+          {/* Coupons */}
+          <div
+            onClick={() => showPlaceholder('Coupons: View available offers and promo codes.', 'Coupons & Discounts')}
+            className="bg-white border border-gray-200/80 hover:border-[#18753C]/40 p-4.5 rounded-2xl shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="w-11 h-11 bg-orange-50 text-orange-500 rounded-xl flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                <i className="fa-solid fa-tag"></i>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-extrabold text-gray-900 text-sm">Coupons</h4>
+                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                  Active promo codes &amp; store discounts.
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-orange-600">
+              <span>View Offers</span>
+              <i className="fa-solid fa-arrow-right text-[10px]"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 5. Thematic Hub 3: Delivery Addresses & Account Preferences */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <div>
+            <h3 className="text-base sm:text-lg font-black text-gray-900">Account Settings &amp; Addresses</h3>
+            <p className="text-xs text-gray-500">Manage delivery locations, profile information, and alerts</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {/* Addresses */}
+          <div
+            onClick={() => setActiveView('addresses')}
+            className="bg-white border border-gray-200/80 hover:border-[#18753C]/40 p-4.5 rounded-2xl shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="w-11 h-11 bg-red-50 text-red-500 rounded-xl flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                <i className="fa-solid fa-location-dot"></i>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <h4 className="font-extrabold text-gray-900 text-sm">Addresses</h4>
+                  <span className="bg-gray-100 text-gray-700 text-[10px] font-bold px-1.5 py-0.2 rounded-full">
+                    {addresses.length}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                  Manage doorstep delivery addresses.
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-red-600">
+              <span>Manage Addresses</span>
+              <i className="fa-solid fa-arrow-right text-[10px]"></i>
+            </div>
+          </div>
+
+          {/* Profile & Security */}
+          <div
+            onClick={() => setActiveView('profile')}
+            className="bg-white border border-gray-200/80 hover:border-[#18753C]/40 p-4.5 rounded-2xl shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="w-11 h-11 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                <i className="fa-solid fa-user-shield"></i>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-extrabold text-gray-900 text-sm">Profile &amp; Security</h4>
+                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                  Name, phone, email &amp; session security.
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-indigo-600">
+              <span>Edit Settings</span>
+              <i className="fa-solid fa-arrow-right text-[10px]"></i>
+            </div>
+          </div>
+
+          {/* Notifications */}
+          <div
+            onClick={() => (onNavigate ? onNavigate('notifications') : setActiveView('profile'))}
+            className="bg-white border border-gray-200/80 hover:border-[#18753C]/40 p-4.5 rounded-2xl shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="w-11 h-11 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                <i className="fa-solid fa-bell"></i>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <h4 className="font-extrabold text-gray-900 text-sm">Notifications</h4>
+                  {displayUnreadNotifications > 0 && (
+                    <span className="bg-red-100 text-red-600 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">
+                      {displayUnreadNotifications}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                  Order SMS, soundbox &amp; promo alerts.
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-purple-600">
+              <span>Configure Alerts</span>
+              <i className="fa-solid fa-arrow-right text-[10px]"></i>
+            </div>
+          </div>
+
+          {/* Reviews */}
+          <div
+            onClick={() => (onNavigate ? onNavigate('reviews') : null)}
+            className="bg-white border border-gray-200/80 hover:border-[#18753C]/40 p-4.5 rounded-2xl shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="w-11 h-11 bg-teal-50 text-teal-600 rounded-xl flex items-center justify-center text-lg shrink-0 group-hover:scale-105 transition-transform">
+                <i className="fa-solid fa-star-half-stroke"></i>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-extrabold text-gray-900 text-sm">My Reviews</h4>
+                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                  Rate past purchases &amp; neighbourhood stores.
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs font-bold text-teal-600">
+              <span>View Reviews</span>
+              <i className="fa-solid fa-arrow-right text-[10px]"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 6. Thematic Hub 4: Support & Ecosystem (2 wide cards) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-4">
+        {/* Help & Support Card */}
+        <div
+          onClick={() => (onNavigate ? onNavigate('help') : null)}
+          className="bg-white border border-gray-200/80 hover:border-teal-400 p-5 rounded-2xl shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+        >
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 bg-teal-50 text-teal-600 rounded-xl flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform">
+              <i className="fa-solid fa-headset"></i>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h4 className="font-extrabold text-gray-900 text-sm sm:text-base">24/7 Help &amp; Support</h4>
+                <span className="bg-teal-50 text-teal-700 text-[9px] font-bold px-2 py-0.5 rounded-full border border-teal-200">
+                  Always Active
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                Need help with an ongoing order or payment? Chat live with our Surat-based support team or raise a resolution ticket.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-extrabold text-teal-700">
+            <span>Open Support Center</span>
+            <i className="fa-solid fa-arrow-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
+          </div>
+        </div>
+
+        {/* Sell on ADAB Merchant Banner */}
+        <div
+          onClick={() => showToast('Redirecting to ADAB Seller Portal...')}
+          className="bg-gradient-to-r from-emerald-50 via-green-50 to-emerald-100/60 border border-emerald-200 hover:border-emerald-400 p-5 rounded-2xl shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+        >
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 bg-[#18753C] text-white rounded-xl flex items-center justify-center text-xl shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+              <i className="fa-solid fa-store"></i>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h4 className="font-extrabold text-gray-900 text-sm sm:text-base">Partner With Us · Sell on ADAB</h4>
+                <span className="bg-[#18753C] text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  Sellers
+                </span>
+              </div>
+              <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                Register your neighbourhood grocery, dairy, or bakery. Connect with 10,000+ local customers across Surat with 15-min delivery.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-emerald-200/50 flex items-center justify-between text-xs font-extrabold text-[#18753C]">
+            <span>Become an ADAB Merchant</span>
+            <i className="fa-solid fa-arrow-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Render Addresses View (Full-width responsive grid)
   const renderAddresses = () => {
     if (!isLoggedIn) {
       return (
-        <div className="max-w-4xl mx-auto w-full text-center py-12 px-4">
-          <button
-            type="button"
-            onClick={() => setActiveView('dashboard')}
-            className="mb-4 text-sm font-bold text-gray-600 hover:text-black flex items-center gap-2 cursor-pointer transition-colors"
-          >
-            <i className="fa-solid fa-arrow-left"></i> Back to Account
-          </button>
+        <div className="w-full bg-white rounded-3xl border border-gray-100 p-12 text-center shadow-xs">
           <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-[#18753C] flex items-center justify-center text-2xl mx-auto mb-4">
             <i className="fa-solid fa-location-dot"></i>
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">No Saved Addresses</h2>
-          <p className="text-xs text-gray-500 mb-6 max-w-sm mx-auto">
-            Please log in or register to view and manage your delivery addresses.
+          <h2 className="text-xl font-black text-gray-900 mb-2">Login Required for Saved Addresses</h2>
+          <p className="text-xs text-gray-500 mb-6 max-w-sm mx-auto leading-relaxed">
+            Please log in or create an account to view, save and manage your delivery addresses across Surat.
           </p>
           <button
             type="button"
             onClick={() => onOpenLogin ? onOpenLogin() : (onNavigate && onNavigate('login'))}
-            className="px-6 py-3 bg-[#18753C] hover:bg-[#156030] text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+            className="px-6 py-2.5 bg-[#18753C] hover:bg-[#156030] text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
           >
             Login / Register
           </button>
@@ -817,57 +1311,260 @@ export default function AccountPage({
     }
 
     return (
-      <div className="max-w-4xl mx-auto w-full">
-        <div className="flex items-center justify-between mb-6">
+      <div className="w-full space-y-6">
+        {/* Addresses View Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-gray-200/60">
           <div>
-            <h2 className="text-2xl font-black text-[#111827]">Delivery Addresses</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Manage your saved shipping addresses for fast 1-click checkout</p>
+            <div className="flex items-center gap-2 text-xs font-bold text-gray-400 mb-1">
+              <button
+                type="button"
+                onClick={() => setActiveView('dashboard')}
+                className="hover:text-gray-700 cursor-pointer"
+              >
+                Dashboard
+              </button>
+              <span>/</span>
+              <span className="text-gray-700">Delivery Addresses</span>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black text-gray-900">Delivery Addresses</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Manage your saved shipping addresses for 14–45 min local delivery in Surat</p>
           </div>
-          <button
-            onClick={() => { setActiveView('dashboard'); setIsAddingAddress(false); setEditingAddressId(null); }}
-            className="text-xs font-bold text-gray-500 hover:text-gray-900 bg-white border border-gray-200 px-3 py-1.5 rounded-xl transition cursor-pointer"
-          >
-            ← Back to Account
-          </button>
+
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => { setActiveView('dashboard'); setIsAddingAddress(false); setEditingAddressId(null); }}
+              className="text-xs font-bold text-gray-600 hover:text-gray-900 bg-white border border-gray-200 px-3.5 py-2 rounded-xl transition cursor-pointer"
+            >
+              ← Back to Dashboard
+            </button>
+            {!isAddingAddress && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddingAddress(true);
+                  setEditingAddressId(null);
+                  setPinHint('');
+                  setAddressForm({
+                    type: 'Home',
+                    recipientName: '',
+                    phone: '',
+                    address: '',
+                    city: 'Surat',
+                    state: 'Gujarat',
+                    zip: '',
+                    isDefault: false
+                  });
+                }}
+                className="px-4 py-2 bg-[#18753C] hover:bg-[#156030] text-white font-extrabold text-xs rounded-xl shadow-xs transition cursor-pointer flex items-center gap-1.5"
+              >
+                <i className="fa-solid fa-plus text-[10px]"></i>
+                <span>Add Address</span>
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="flex flex-col gap-4 mb-12">
-          {addresses.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-gray-500">
-              <div className="w-12 h-12 rounded-full bg-emerald-50 text-[#18753C] flex items-center justify-center text-xl mx-auto mb-3">
-                <i className="fa-solid fa-location-dot"></i>
+        {/* Add / Edit Address Form Modal/Card */}
+        {isAddingAddress && (
+          <form onSubmit={handleSaveAddress} className="bg-white p-6 sm:p-7 rounded-3xl border-2 border-[#18753C] shadow-lg space-y-4 animate-fade-in">
+            <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+              <div>
+                <h3 className="font-black text-lg text-gray-900">{editingAddressId ? 'Edit Delivery Address' : 'Add New Delivery Address'}</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Enter accurate recipient and landmark details for fast delivery</p>
               </div>
-              <div className="font-bold text-sm text-gray-800">No addresses saved yet</div>
-              <p className="text-xs text-gray-500 mt-1">Add your delivery address for 14–45 min local delivery.</p>
+              <button
+                type="button"
+                onClick={() => { setIsAddingAddress(false); setEditingAddressId(null); }}
+                className="text-gray-400 hover:text-gray-700 text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-gray-100 transition"
+              >
+                ✕ Cancel
+              </button>
             </div>
-          ) : (
-            addresses.map(addr => {
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-[11px] font-black text-gray-500 uppercase tracking-wider block mb-1.5">Address Type</label>
+                <select
+                  value={addressForm.type}
+                  onChange={e => setAddressForm({ ...addressForm, type: e.target.value })}
+                  className="w-full border border-gray-200 p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none bg-white font-semibold"
+                >
+                  <option value="Home">Home (Personal)</option>
+                  <option value="Office">Office / Business</option>
+                  <option value="Other">Other / Relative</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-black text-gray-500 uppercase tracking-wider block mb-1.5">Recipient Name</label>
+                <input
+                  type="text"
+                  value={addressForm.recipientName}
+                  onChange={e => setAddressForm({ ...addressForm, recipientName: e.target.value })}
+                  className="w-full border border-gray-200 p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-medium"
+                  placeholder="Full Name"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-[11px] font-black text-gray-500 uppercase tracking-wider block mb-1.5">Mobile Number</label>
+                <input
+                  type="tel"
+                  value={addressForm.phone}
+                  onChange={e => setAddressForm({ ...addressForm, phone: e.target.value })}
+                  className="w-full border border-gray-200 p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-medium"
+                  placeholder="10-digit Phone Number"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-black text-gray-500 uppercase tracking-wider block mb-1.5">Pincode</label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={addressForm.zip}
+                  onChange={e => handleAddressPincodeChange(e.target.value)}
+                  className="w-full border border-gray-200 p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-mono font-bold"
+                  placeholder="6-digit Pincode (e.g. 395007)"
+                  required
+                />
+                {pinHint && (
+                  <p className="text-xs text-[#18753C] font-semibold mt-1.5 flex items-center gap-1">
+                    <i className="fa-solid fa-location-dot"></i> {pinHint}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-black text-gray-500 uppercase tracking-wider block mb-1.5">Flat, House no., Building, Street</label>
+              <textarea
+                value={addressForm.address}
+                onChange={e => setAddressForm({ ...addressForm, address: e.target.value })}
+                className="w-full border border-gray-200 p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-medium"
+                placeholder="House / Flat / Street address"
+                required
+                rows="2"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-[11px] font-black text-gray-500 uppercase tracking-wider block mb-1.5">City</label>
+                <input
+                  type="text"
+                  value={addressForm.city}
+                  onChange={e => setAddressForm({ ...addressForm, city: e.target.value })}
+                  className="w-full border border-gray-200 p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-medium"
+                  placeholder="City (e.g. Surat)"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-black text-gray-500 uppercase tracking-wider block mb-1.5">State</label>
+                <input
+                  type="text"
+                  value={addressForm.state}
+                  onChange={e => setAddressForm({ ...addressForm, state: e.target.value })}
+                  className="w-full border border-gray-200 p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-medium"
+                  placeholder="State (e.g. Gujarat)"
+                  required
+                />
+              </div>
+            </div>
+
+            <label className="flex items-center gap-2.5 text-xs pt-1 cursor-pointer font-bold text-gray-700 select-none">
+              <input
+                type="checkbox"
+                checked={addressForm.isDefault}
+                onChange={e => setAddressForm({ ...addressForm, isDefault: e.target.checked })}
+                className="w-4 h-4 accent-[#18753C] rounded"
+              />
+              <span>Set as my default shipping address</span>
+            </label>
+
+            <div className="flex gap-3 justify-end pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => { setIsAddingAddress(false); setEditingAddressId(null); }}
+                className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-xs text-gray-700 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingAddress}
+                className="px-6 py-2.5 bg-[#18753C] hover:bg-[#156030] text-white rounded-xl font-extrabold text-xs shadow-md transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savingAddress ? 'Saving...' : 'Save Address'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Addresses Grid (2-column on desktop for optimal reading width) */}
+        {addresses.length === 0 ? (
+          <div className="bg-white rounded-3xl border border-gray-200/80 p-12 text-center text-gray-500 shadow-xs">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-[#18753C] flex items-center justify-center text-2xl mx-auto mb-3">
+              <i className="fa-solid fa-location-dot"></i>
+            </div>
+            <h3 className="font-extrabold text-base text-gray-900">No addresses saved yet</h3>
+            <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto leading-relaxed">
+              Add your delivery address in Surat for 14–45 min doorstep delivery.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            {addresses.map(addr => {
               const serviceInfo = serviceabilityResults[addr.id];
               return (
-                <div key={addr.id} className={`border rounded-2xl p-5 flex flex-col sm:flex-row justify-between sm:items-start gap-4 transition-all ${addr.isDefault ? 'border-[#18753C] bg-[#F5FBF7] shadow-sm' : 'border-gray-200 bg-white shadow-sm'}`}>
-                  <div className="space-y-1.5 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-gray-900 text-base">{addr.type}</span>
-                      {addr.isDefault ? (
-                        <span className="bg-[#E8F5E9] text-[#18753C] text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-green-200">
-                          DEFAULT ADDRESS
-                        </span>
-                      ) : (
+                <div
+                  key={addr.id}
+                  className={`border rounded-2xl p-5 flex flex-col justify-between transition-all ${
+                    addr.isDefault
+                      ? 'border-[#18753C] bg-[#F5FBF7] shadow-xs'
+                      : 'border-gray-200 bg-white shadow-xs hover:border-gray-300'
+                  }`}
+                >
+                  <div className="space-y-2.5">
+                    {/* Header Row: Type and Default Badge */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-gray-900 text-sm sm:text-base">{addr.type}</span>
+                        {addr.isDefault && (
+                          <span className="bg-[#E8F5E9] text-[#18753C] text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-green-200">
+                            DEFAULT
+                          </span>
+                        )}
+                      </div>
+                      {!addr.isDefault && (
                         <button
                           type="button"
                           disabled={settingDefaultId === addr.id || deletingAddressId === addr.id}
                           onClick={() => handleSetDefaultAddress(addr)}
-                          className="text-[10px] text-gray-500 hover:text-brand-green font-bold underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-[11px] text-gray-500 hover:text-[#18753C] font-bold underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {settingDefaultId === addr.id ? 'Updating...' : 'Set as Default'}
                         </button>
                       )}
                     </div>
-                    <p className="text-gray-700 text-sm">{addr.address}, {addr.city}, {addr.state} - <span className="font-bold text-gray-900">{addr.zip}</span></p>
-                    <p className="text-gray-500 text-xs">{addr.recipientName || profile?.name || 'Customer'} &bull; {addr.phone || profile?.phone || '+91 98765 12340'}</p>
+
+                    {/* Address String */}
+                    <p className="text-gray-700 text-xs sm:text-sm leading-relaxed">
+                      {addr.address}, {addr.city}, {addr.state} - <span className="font-bold text-gray-900">{addr.zip}</span>
+                    </p>
+
+                    {/* Contact Person */}
+                    <p className="text-gray-500 text-xs font-medium">
+                      <i className="fa-solid fa-user text-[10px] mr-1.5 text-gray-400"></i>
+                      {addr.recipientName || profile?.name || 'Customer'} &bull; {addr.phone || profile?.phone || '+91 98765 12340'}
+                    </p>
 
                     {/* Serviceability Check Result / Button */}
-                    <div className="pt-2">
+                    <div className="pt-1">
                       {serviceInfo ? (
                         <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-emerald-200">
                           <i className="fa-solid fa-bolt text-emerald-600"></i>
@@ -880,7 +1577,7 @@ export default function AccountPage({
                             type="button"
                             disabled={checkingServiceabilityId === addr.id}
                             onClick={() => checkServiceability(addr.id)}
-                            className="font-bold underline text-brand-green cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="font-bold underline text-[#18753C] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {checkingServiceabilityId === addr.id ? 'Checking...' : 'Retry'}
                           </button>
@@ -890,25 +1587,35 @@ export default function AccountPage({
                           type="button"
                           disabled={checkingServiceabilityId === addr.id}
                           onClick={() => checkServiceability(addr.id)}
-                          className="text-[11px] font-bold text-brand-green hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-[11px] font-bold text-[#18753C] hover:underline flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <i className="fa-solid fa-location-crosshairs"></i>
-                          {checkingServiceabilityId === addr.id ? 'Checking...' : 'Check Delivery Serviceability'}
+                          <i className="fa-solid fa-location-crosshairs text-[10px]"></i>
+                          <span>{checkingServiceabilityId === addr.id ? 'Checking...' : 'Check Delivery Serviceability'}</span>
                         </button>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 self-end sm:self-start">
+                  {/* Actions Footer */}
+                  <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
                     <button
                       type="button"
                       disabled={deletingAddressId === addr.id}
                       onClick={() => {
                         setEditingAddressId(addr.id);
-                        setAddressForm({ type: addr.type, recipientName: addr.recipientName || '', phone: addr.phone || '', address: addr.address, city: addr.city, state: addr.state, zip: addr.zip, isDefault: addr.isDefault });
+                        setAddressForm({
+                          type: addr.type,
+                          recipientName: addr.recipientName || '',
+                          phone: addr.phone || '',
+                          address: addr.address,
+                          city: addr.city,
+                          state: addr.state,
+                          zip: addr.zip,
+                          isDefault: addr.isDefault
+                        });
                         setIsAddingAddress(true);
                       }}
-                      className="text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-xl transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 px-3.5 py-1.5 rounded-xl transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Edit
                     </button>
@@ -916,131 +1623,67 @@ export default function AccountPage({
                       type="button"
                       disabled={deletingAddressId === addr.id}
                       onClick={() => handleDeleteAddress(addr.id)}
-                      className="text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-xl transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3.5 py-1.5 rounded-xl transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {deletingAddressId === addr.id ? 'Deleting...' : 'Delete'}
                     </button>
                   </div>
                 </div>
               );
-            })
-          )}
-        </div>
-
-        {/* ADD NEW ADDRESS BUTTON */}
-        {!isAddingAddress && (
-          <button
-            onClick={() => {
-              setIsAddingAddress(true);
-              setEditingAddressId(null);
-              setPinHint('');
-              setAddressForm({ type: 'Home', recipientName: '', phone: '', address: '', city: 'Surat', state: 'Gujarat', zip: '', isDefault: false });
-            }}
-            className="w-full border-2 border-dashed border-[#18753C]/40 bg-white text-[#18753C] font-extrabold py-5 rounded-2xl flex items-center justify-center gap-2 hover:bg-green-50 transition text-base cursor-pointer"
-          >
-            <i className="fa-solid fa-plus"></i> Add New Delivery Address
-          </button>
-        )}
-
-        {isAddingAddress && (
-          <form onSubmit={handleSaveAddress} className="flex flex-col gap-4 bg-white p-6 rounded-3xl border border-[#18753C] shadow-lg mt-2 animate-fade-in">
-            <div className="flex justify-between items-center mb-1">
-              <h3 className="font-black text-lg text-gray-900">{editingAddressId ? 'Edit Address' : 'Add New Address'}</h3>
-              <button
-                type="button"
-                onClick={() => { setIsAddingAddress(false); setEditingAddressId(null); }}
-                className="text-gray-400 hover:text-gray-700 text-sm font-bold"
-              >
-                ✕ Cancel
-              </button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Address Type</label>
-                <select value={addressForm.type} onChange={e => setAddressForm({...addressForm, type: e.target.value})} className="w-full border border-gray-200 p-3 rounded-xl text-sm focus:border-brand-green outline-none bg-white font-medium">
-                  <option value="Home">Home (Personal)</option>
-                  <option value="Office">Office / Business</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Recipient Name</label>
-                <input type="text" value={addressForm.recipientName} onChange={e => setAddressForm({...addressForm, recipientName: e.target.value})} className="w-full border border-gray-200 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium" placeholder="Full Name" required />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Mobile Number</label>
-                <input type="tel" value={addressForm.phone} onChange={e => setAddressForm({...addressForm, phone: e.target.value})} className="w-full border border-gray-200 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium" placeholder="10-digit Phone Number" required />
-              </div>
-              <div>
-                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Pincode</label>
-                <input type="text" maxLength={6} value={addressForm.zip} onChange={e => handleAddressPincodeChange(e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-mono" placeholder="6-digit Pincode (e.g. 395007)" required />
-                {pinHint && (
-                  <p className="text-xs text-[#18753C] font-semibold mt-1 flex items-center gap-1">
-                    <i className="fa-solid fa-location-dot"></i> {pinHint}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Flat, House no., Building, Street</label>
-              <textarea value={addressForm.address} onChange={e => setAddressForm({...addressForm, address: e.target.value})} className="w-full border border-gray-200 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium" placeholder="House / Flat / Street address" required rows="2" />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">City</label>
-                <input type="text" value={addressForm.city} onChange={e => setAddressForm({...addressForm, city: e.target.value})} className="w-full border border-gray-200 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium" placeholder="City (e.g. Surat)" required />
-              </div>
-              <div>
-                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">State</label>
-                <input type="text" value={addressForm.state} onChange={e => setAddressForm({...addressForm, state: e.target.value})} className="w-full border border-gray-200 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium" placeholder="State (e.g. Gujarat)" required />
-              </div>
-            </div>
-
-            <label className="flex items-center gap-2.5 text-xs mt-2 cursor-pointer font-bold text-gray-700 select-none">
-              <input type="checkbox" checked={addressForm.isDefault} onChange={e => setAddressForm({...addressForm, isDefault: e.target.checked})} className="w-4 h-4 accent-[#18753C] rounded" />
-              Make this my default shipping address
-            </label>
-
-            <div className="flex gap-3 justify-end mt-4 pt-3 border-t border-gray-100">
-              <button type="button" onClick={() => { setIsAddingAddress(false); setEditingAddressId(null); }} className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-xs text-gray-700 transition cursor-pointer">Cancel</button>
-              <button type="submit" disabled={savingAddress} className="px-6 py-2.5 bg-[#18753C] hover:bg-[#156030] text-white rounded-xl font-extrabold text-xs shadow-md transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">{savingAddress ? 'Saving...' : 'Save Address'}</button>
-            </div>
-          </form>
+            })}
+          </div>
         )}
       </div>
     );
   };
 
+  // Render Settings & Profile View (Full-width structured layout)
   const renderProfile = () => (
-    <div className="max-w-4xl mx-auto w-full">
-      <button
-        type="button"
-        onClick={() => setActiveView('dashboard')}
-        className="mb-4 text-sm font-bold text-gray-600 hover:text-black flex items-center gap-2 cursor-pointer transition-colors"
-      >
-        <i className="fa-solid fa-arrow-left"></i> Back to Account
-      </button>
-
-      <div className="flex items-center gap-2 mb-6">
-        <h2 className="text-2xl font-black text-[#111827]">Settings & Profile</h2>
+    <div className="w-full space-y-6">
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-gray-200/60">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-bold text-gray-400 mb-1">
+            <button
+              type="button"
+              onClick={() => setActiveView('dashboard')}
+              className="hover:text-gray-700 cursor-pointer"
+            >
+              Dashboard
+            </button>
+            <span>/</span>
+            <span className="text-gray-700">Settings &amp; Profile</span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-black text-gray-900">Settings &amp; Profile</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Manage your personal credentials, communication alerts and security</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setActiveView('dashboard')}
+          className="text-xs font-bold text-gray-600 hover:text-gray-900 bg-white border border-gray-200 px-3.5 py-2 rounded-xl transition cursor-pointer self-start sm:self-auto"
+        >
+          ← Back to Dashboard
+        </button>
       </div>
 
-      {/* Profile Avatar Selector */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
-        <h3 className="text-lg font-bold text-gray-900 mb-2">Profile Avatar</h3>
-        <p className="text-xs text-gray-500 mb-4">Select an avatar or paste a custom URL to customize your customer profile.</p>
+      {/* Profile Avatar Selector Card */}
+      <div className="bg-white rounded-2xl shadow-xs border border-gray-200/80 p-6">
+        <h3 className="text-base font-extrabold text-gray-900 mb-1">Profile Avatar</h3>
+        <p className="text-xs text-gray-500 mb-4">Select an avatar preset to customize your customer profile.</p>
         <div className="flex flex-wrap items-center gap-4">
-          <img
-            src={profile?.profile_picture_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-            alt="Current Avatar"
-            className="w-16 h-16 rounded-full object-cover border-2 border-brand-green shadow-sm"
-          />
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <img
+              src={profile?.profile_picture_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+              alt="Current Avatar"
+              className="w-16 h-16 rounded-full object-cover border-2 border-[#18753C] shadow-sm"
+            />
+            {updatingAvatar && (
+              <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center">
+                <i className="fa-solid fa-spinner animate-spin text-white text-xs"></i>
+              </div>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2.5">
             {[
               'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
               'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
@@ -1053,8 +1696,8 @@ export default function AccountPage({
                 type="button"
                 disabled={updatingAvatar}
                 onClick={() => handleUpdateAvatar(url)}
-                className={`w-10 h-10 rounded-full overflow-hidden border-2 transition hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                  profile?.profile_picture_url === url ? 'border-brand-green ring-2 ring-brand-green/30' : 'border-gray-200'
+                className={`w-11 h-11 rounded-full overflow-hidden border-2 transition-all hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                  profile?.profile_picture_url === url ? 'border-[#18753C] ring-2 ring-[#18753C]/30 scale-105' : 'border-gray-200'
                 }`}
                 title={`Select Avatar ${idx + 1}`}
               >
@@ -1065,24 +1708,44 @@ export default function AccountPage({
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
-        <h3 className="text-lg font-bold text-gray-900 mb-6">Personal Information</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-bold text-gray-500">Full Name</label>
-            <input type="text" value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="border border-gray-200 p-3 rounded-xl focus:border-brand-green outline-none text-gray-700" placeholder="Full Name" />
+      {/* Personal Information Form Card */}
+      <div className="bg-white rounded-2xl shadow-xs border border-gray-200/80 p-6">
+        <h3 className="text-base font-extrabold text-gray-900 mb-1">Personal Information</h3>
+        <p className="text-xs text-gray-500 mb-5">Primary customer identity used for invoices and SMS tracking</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-gray-600">Full Name</label>
+            <input
+              type="text"
+              value={profileForm.name}
+              onChange={e => setProfileForm({ ...profileForm, name: e.target.value })}
+              className="border border-gray-200 p-3 rounded-xl focus:border-[#18753C] outline-none text-xs sm:text-sm text-gray-800 font-medium"
+              placeholder="Full Name"
+            />
           </div>
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-bold text-gray-500">Phone</label>
-            <input type="text" value={profileForm.phone} onChange={e => setProfileForm({...profileForm, phone: e.target.value})} className="border border-gray-200 p-3 rounded-xl focus:border-brand-green outline-none text-gray-700" placeholder="Phone Number" />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-gray-600">Mobile Phone</label>
+            <input
+              type="text"
+              value={profileForm.phone}
+              onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
+              className="border border-gray-200 p-3 rounded-xl focus:border-[#18753C] outline-none text-xs sm:text-sm text-gray-800 font-medium"
+              placeholder="Phone Number"
+            />
           </div>
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-bold text-gray-500">Email</label>
-            <input type="email" value={profileForm.email} onChange={e => setProfileForm({...profileForm, email: e.target.value})} className="border border-gray-200 p-3 rounded-xl focus:border-brand-green outline-none text-gray-700" placeholder="Email Address" />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-gray-600">Email Address</label>
+            <input
+              type="email"
+              value={profileForm.email}
+              onChange={e => setProfileForm({ ...profileForm, email: e.target.value })}
+              className="border border-gray-200 p-3 rounded-xl focus:border-[#18753C] outline-none text-xs sm:text-sm text-gray-800 font-medium"
+              placeholder="Email Address"
+            />
           </div>
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-bold text-gray-500">Language</label>
-            <select className="border border-gray-200 p-3 rounded-xl bg-gray-100 text-gray-700 outline-none">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-gray-600">Preferred Language</label>
+            <select className="border border-gray-200 p-3 rounded-xl bg-gray-50 text-xs sm:text-sm text-gray-800 outline-none font-medium">
               <option>English</option>
               <option>Gujarati</option>
               <option>Hindi</option>
@@ -1091,49 +1754,113 @@ export default function AccountPage({
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
-        <h3 className="text-lg font-bold text-gray-900 mb-4">Notification Preferences</h3>
-        <div className="flex flex-col gap-4">
-          <label className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
-            <div onClick={() => setNotificationPrefs(p => ({ ...p, order_updates_sms: !p.order_updates_sms }))} className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${notificationPrefs.order_updates_sms ? 'bg-[#F26E21] text-white' : 'border border-gray-300'}`}>
-              {notificationPrefs.order_updates_sms && <i className="fa-solid fa-check"></i>}
-            </div> Order status updates (SMS & Push)
+      {/* Notification Preferences Card */}
+      <div className="bg-white rounded-2xl shadow-xs border border-gray-200/80 p-6">
+        <h3 className="text-base font-extrabold text-gray-900 mb-1">Notification Preferences</h3>
+        <p className="text-xs text-gray-500 mb-4">Configure channels for dispatch updates, soundbox and deals</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50/70 transition cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={notificationPrefs.order_updates_sms}
+              onChange={() => setNotificationPrefs(p => ({ ...p, order_updates_sms: !p.order_updates_sms }))}
+              className="w-4 h-4 mt-0.5 accent-[#18753C] rounded"
+            />
+            <div>
+              <div className="text-xs font-bold text-gray-800">Order Updates (SMS &amp; Push)</div>
+              <div className="text-[11px] text-gray-500 mt-0.5">Live rider tracking &amp; doorstep delivery notices</div>
+            </div>
           </label>
-          <label className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
-            <div onClick={() => setNotificationPrefs(p => ({ ...p, promotional_sms: !p.promotional_sms }))} className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${notificationPrefs.promotional_sms ? 'bg-[#F26E21] text-white' : 'border border-gray-300'}`}>
-              {notificationPrefs.promotional_sms && <i className="fa-solid fa-check"></i>}
-            </div> Promotional offers
+
+          <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50/70 transition cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={notificationPrefs.promotional_sms}
+              onChange={() => setNotificationPrefs(p => ({ ...p, promotional_sms: !p.promotional_sms }))}
+              className="w-4 h-4 mt-0.5 accent-[#18753C] rounded"
+            />
+            <div>
+              <div className="text-xs font-bold text-gray-800">Promotional Offers</div>
+              <div className="text-[11px] text-gray-500 mt-0.5">Flash deals &amp; weekend coupons from Surat stores</div>
+            </div>
           </label>
-          <label className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
-            <div onClick={() => setNotificationPrefs(p => ({ ...p, soundbox_alerts: !p.soundbox_alerts }))} className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${notificationPrefs.soundbox_alerts ? 'bg-[#F26E21] text-white' : 'border border-gray-300'}`}>
-              {notificationPrefs.soundbox_alerts && <i className="fa-solid fa-check"></i>}
-            </div> Soundbox / In-app alerts
+
+          <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50/70 transition cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={notificationPrefs.soundbox_alerts}
+              onChange={() => setNotificationPrefs(p => ({ ...p, soundbox_alerts: !p.soundbox_alerts }))}
+              className="w-4 h-4 mt-0.5 accent-[#18753C] rounded"
+            />
+            <div>
+              <div className="text-xs font-bold text-gray-800">Soundbox &amp; In-app Alerts</div>
+              <div className="text-[11px] text-gray-500 mt-0.5">Audio and popup chime upon payment and delivery</div>
+            </div>
           </label>
-          <label className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
-            <div onClick={() => setNotificationPrefs(p => ({ ...p, order_updates_email: !p.order_updates_email }))} className={`w-5 h-5 rounded flex items-center justify-center text-[10px] ${notificationPrefs.order_updates_email ? 'bg-[#F26E21] text-white' : 'border border-gray-300'}`}>
-              {notificationPrefs.order_updates_email && <i className="fa-solid fa-check"></i>}
-            </div> Email Newsletter
+
+          <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50/70 transition cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={notificationPrefs.order_updates_email}
+              onChange={() => setNotificationPrefs(p => ({ ...p, order_updates_email: !p.order_updates_email }))}
+              className="w-4 h-4 mt-0.5 accent-[#18753C] rounded"
+            />
+            <div>
+              <div className="text-xs font-bold text-gray-800">Email Tax Invoices</div>
+              <div className="text-[11px] text-gray-500 mt-0.5">Monthly itemized receipts and order bills</div>
+            </div>
           </label>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
-        <h3 className="text-lg font-bold text-gray-900 mb-4">Security</h3>
-        <div className="flex flex-col gap-3">
-          <button type="button" onClick={() => showToast('Password reset link sent to your registered email')} className="flex items-center gap-3 text-sm text-gray-700 bg-gray-50 p-3 rounded-xl hover:bg-gray-100 transition-colors text-left font-bold border-none w-full cursor-pointer">
-            <i className="fa-solid fa-key w-4 text-center"></i> Change Password
+      {/* Security Actions Card */}
+      <div className="bg-white rounded-2xl shadow-xs border border-gray-200/80 p-6">
+        <h3 className="text-base font-extrabold text-gray-900 mb-1">Security &amp; Device Sessions</h3>
+        <p className="text-xs text-gray-500 mb-4">Protect your account access and saved payment instruments</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <button
+            type="button"
+            onClick={() => showToast('Password reset link sent to your registered email')}
+            className="flex items-center gap-3 text-xs text-gray-700 bg-gray-50 hover:bg-gray-100 p-3.5 rounded-xl transition text-left font-bold cursor-pointer border border-gray-200/60"
+          >
+            <i className="fa-solid fa-key text-[#18753C] text-sm"></i>
+            <div>
+              <div>Change Password</div>
+              <div className="text-[10px] text-gray-400 font-normal">Sent to registered email</div>
+            </div>
           </button>
-          <button type="button" onClick={() => showToast('Two-factor authentication is currently enabled via SMS')} className="flex items-center gap-3 text-sm text-gray-700 bg-gray-50 p-3 rounded-xl hover:bg-gray-100 transition-colors text-left font-bold border-none w-full cursor-pointer">
-            <i className="fa-solid fa-shield-halved w-4 text-center"></i> Two-Factor Authentication
+          <button
+            type="button"
+            onClick={() => showToast('Two-factor authentication is currently enabled via SMS')}
+            className="flex items-center gap-3 text-xs text-gray-700 bg-gray-50 hover:bg-gray-100 p-3.5 rounded-xl transition text-left font-bold cursor-pointer border border-gray-200/60"
+          >
+            <i className="fa-solid fa-shield-halved text-emerald-600 text-sm"></i>
+            <div>
+              <div>Two-Factor Auth</div>
+              <div className="text-[10px] text-emerald-600 font-normal">Enabled via SMS OTP</div>
+            </div>
           </button>
-          <button type="button" onClick={() => showToast('All active sessions are verified on this device')} className="flex items-center gap-3 text-sm text-gray-700 bg-gray-50 p-3 rounded-xl hover:bg-gray-100 transition-colors text-left font-bold border-none w-full cursor-pointer">
-            <i className="fa-solid fa-arrow-right-from-bracket w-4 text-center"></i> Manage Sessions
+          <button
+            type="button"
+            onClick={() => showToast('All active sessions are verified on this device')}
+            className="flex items-center gap-3 text-xs text-gray-700 bg-gray-50 hover:bg-gray-100 p-3.5 rounded-xl transition text-left font-bold cursor-pointer border border-gray-200/60"
+          >
+            <i className="fa-solid fa-laptop text-blue-600 text-sm"></i>
+            <div>
+              <div>Active Sessions</div>
+              <div className="text-[10px] text-gray-400 font-normal">This desktop browser</div>
+            </div>
           </button>
         </div>
       </div>
 
-      <div className="flex gap-3">
-        <button type="button" onClick={() => setActiveView('dashboard')} className="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-sm text-gray-700 transition-colors cursor-pointer">
+      {/* Action Buttons */}
+      <div className="flex items-center justify-end gap-3 pt-2">
+        <button
+          type="button"
+          onClick={() => setActiveView('dashboard')}
+          className="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-xs text-gray-700 transition cursor-pointer"
+        >
           Cancel
         </button>
         <button
@@ -1143,156 +1870,135 @@ export default function AccountPage({
             const ok = await handleUpdateProfile(e);
             if (ok) setActiveView('dashboard');
           }}
-          className="bg-[#18753C] hover:bg-[#156030] text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          className="bg-[#18753C] hover:bg-[#156030] text-white px-7 py-2.5 rounded-xl font-extrabold text-xs shadow-sm transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
-          {savingProfile ? 'Saving...' : 'Save Changes'}
+          {savingProfile ? (
+            <>
+              <i className="fa-solid fa-spinner animate-spin text-xs"></i>
+              <span>Saving...</span>
+            </>
+          ) : (
+            <span>Save Changes</span>
+          )}
         </button>
       </div>
     </div>
   );
 
+  // Render Placeholder / Coming Soon View
   const renderPlaceholder = () => (
-    <div className="max-w-2xl mx-auto w-full">
-      <button onClick={() => setActiveView('dashboard')} className="mb-4 text-sm font-bold text-gray-600 hover:text-black flex items-center gap-2 cursor-pointer transition-colors">
-        <i className="fa-solid fa-arrow-left"></i> Back to Account
-      </button>
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center mb-12">
-        <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 mx-auto mb-4 text-2xl">
-          <i className="fa-solid fa-screwdriver-wrench"></i>
+    <div className="w-full space-y-6">
+      <div className="flex items-center justify-between pb-2 border-b border-gray-200/60">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-bold text-gray-400 mb-1">
+            <button
+              type="button"
+              onClick={() => setActiveView('dashboard')}
+              className="hover:text-gray-700 cursor-pointer"
+            >
+              Dashboard
+            </button>
+            <span>/</span>
+            <span className="text-gray-700">{placeholderTitle}</span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-black text-gray-900">{placeholderTitle}</h2>
         </div>
-        <h2 className="text-lg font-bold text-gray-900 mb-2">Under Construction</h2>
-        <p className="text-gray-500 text-sm">{placeholderText}</p>
         <button
+          type="button"
           onClick={() => setActiveView('dashboard')}
-          className="mt-6 px-6 py-2.5 bg-[#18753C] text-white text-xs font-bold rounded-xl hover:bg-[#156030] transition-colors cursor-pointer"
+          className="text-xs font-bold text-gray-600 hover:text-gray-900 bg-white border border-gray-200 px-3.5 py-2 rounded-xl transition cursor-pointer"
         >
-          Return to Dashboard
+          ← Return to Dashboard
         </button>
       </div>
-    </div>
-  );
 
-  const SidebarItem = ({ icon, label, badge, active, onClick }) => (
-    <div
-      onClick={() => { onClick(); setIsSidebarOpen(false); }}
-      className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
-        active
-          ? 'bg-[#E8F5E9] text-brand-green font-bold rounded-xl relative'
-          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-xl font-medium'
-      }`}
-    >
-      {active && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-brand-green rounded-r-md"></div>}
-      <i className={`fa-solid ${icon} w-5 text-center`}></i>
-      <span className="text-sm flex-1">{label}</span>
-      {badge && (
-        <span className="bg-red-100 text-red-600 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">
-          {badge}
-        </span>
-      )}
+      <div className="bg-white rounded-3xl shadow-xs border border-gray-200/80 p-12 text-center">
+        <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center text-[#18753C] mx-auto mb-4 text-2xl">
+          <i className="fa-solid fa-clock-rotate-left"></i>
+        </div>
+        <h3 className="text-lg font-black text-gray-900 mb-2">{placeholderTitle}</h3>
+        <p className="text-gray-500 text-xs sm:text-sm max-w-md mx-auto leading-relaxed">{placeholderText}</p>
+        <button
+          type="button"
+          onClick={() => setActiveView('dashboard')}
+          className="mt-6 px-6 py-2.5 bg-[#18753C] hover:bg-[#156030] text-white text-xs font-extrabold rounded-xl transition cursor-pointer"
+        >
+          Back to Overview
+        </button>
+      </div>
     </div>
   );
 
   return (
-    <div className="p-4 bg-[#F8F9FA] min-h-screen relative">
-      {/* Account Page Title & Drawer Menu Toggle */}
-      {activeView === 'dashboard' && (
-        <div className="max-w-4xl mx-auto w-full mb-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-black text-gray-900">My Account</h1>
-            <p className="text-xs text-gray-500">Manage your profile, orders, addresses & preferences</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setIsSidebarOpen(true)}
-            className="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center text-gray-700 shadow-sm hover:bg-gray-50 transition-colors cursor-pointer"
-            title="Menu"
-            aria-label="Account Menu"
-          >
-            <i className="fa-solid fa-bars"></i>
-          </button>
+    <div className="w-full relative pb-12">
+      {/* Top Breadcrumb & Mobile Drawer Header Bar */}
+      <div className="w-full max-w-7xl 2xl:max-w-[1520px] mx-auto mb-5 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">Customer Dashboard</h1>
         </div>
-      )}
 
-      {/* SIDEBAR OVERLAY */}
+        {/* Mobile / Tablet Drawer Toggle Button */}
+        <button
+          type="button"
+          onClick={() => setIsSidebarOpen(true)}
+          className="lg:hidden px-3 py-2 bg-white border border-gray-200 rounded-xl flex items-center gap-2 text-xs font-bold text-gray-700 shadow-xs hover:bg-gray-50 transition cursor-pointer"
+          title="Account Menu"
+          aria-label="Account Menu"
+        >
+          <i className="fa-solid fa-bars text-sm"></i>
+          <span>Menu</span>
+        </button>
+      </div>
+
+      {/* Main Full-Width Dashboard Composition */}
+      <div className="w-full max-w-7xl 2xl:max-w-[1520px] mx-auto flex flex-col lg:flex-row gap-6 xl:gap-8 items-start">
+        {/* Left Column: Persistent Desktop Navigation Rail */}
+        <aside className="hidden lg:flex flex-col w-72 xl:w-80 shrink-0 sticky top-24 space-y-4">
+          {renderSidebarContent()}
+        </aside>
+
+        {/* Right Column: Main Dashboard Workspace */}
+        <main className="flex-1 min-w-0 w-full">
+          {activeView === 'dashboard' && renderDashboard()}
+          {activeView === 'addresses' && renderAddresses()}
+          {activeView === 'profile' && renderProfile()}
+          {activeView === 'placeholder' && renderPlaceholder()}
+        </main>
+      </div>
+
+      {/* Mobile Drawer Menu (Visible only when triggered on mobile/tablet) */}
       {isSidebarOpen && (
-        <div className="fixed inset-0 z-50 flex">
+        <div className="fixed inset-0 z-50 flex lg:hidden">
           {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
+            onClick={() => setIsSidebarOpen(false)}
+          ></div>
 
-          {/* Drawer */}
-          <div className="relative w-64 h-full bg-white shadow-2xl flex flex-col pt-4 pb-6 overflow-y-auto transform transition-transform duration-300">
-            <div className="flex items-center justify-between px-4 mb-4">
-              <div className="text-xs font-bold text-gray-400 tracking-wider uppercase">My Account</div>
-              <button onClick={() => setIsSidebarOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors">
+          {/* Drawer Container */}
+          <div className="relative w-80 max-w-[85vw] h-full bg-[#F8FAFC] shadow-2xl flex flex-col p-4 overflow-y-auto space-y-4 transform transition-transform duration-300">
+            <div className="flex items-center justify-between pb-2 border-b border-gray-200">
+              <div className="text-xs font-black uppercase tracking-wider text-gray-400">Account Menu</div>
+              <button
+                type="button"
+                onClick={() => setIsSidebarOpen(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-600 hover:text-black transition"
+              >
                 <i className="fa-solid fa-times"></i>
               </button>
             </div>
-
-            <div className="px-2 flex flex-col gap-1">
-              <SidebarItem icon="fa-user" label="Profile" active={activeView === 'dashboard' || activeView === 'profile'} onClick={() => setActiveView('dashboard')} />
-              <SidebarItem icon="fa-box" label="Orders" badge="2" active={false} onClick={() => { if (onNavigate) onNavigate('orders'); }} />
-              <SidebarItem icon="fa-heart" label="Wishlist" active={false} onClick={() => { if (onNavigate) onNavigate('wishlist'); }} />
-              <SidebarItem icon="fa-location-dot" label="Addresses" active={activeView === 'addresses'} onClick={() => setActiveView('addresses')} />
-              <SidebarItem icon="fa-credit-card" label="Payments" active={placeholderText.includes('Payment')} onClick={() => showPlaceholder('Payment Methods: Saved cards & UPI management coming soon.')} />
-              <SidebarItem icon="fa-tag" label="Coupons" active={placeholderText.includes('Coupons')} onClick={() => showPlaceholder('Coupons: View available offers and discounts coming soon.')} />
-              <SidebarItem icon="fa-star" label="Rewards" active={placeholderText.includes('Rewards')} onClick={() => showPlaceholder('ADAB Rewards: Loyalty program details coming soon.')} />
-              <SidebarItem icon="fa-star-half-stroke" label="Reviews" active={placeholderText.includes('Reviews')} onClick={() => showPlaceholder('My Reviews: Rate past purchases coming soon.')} />
-              <SidebarItem icon="fa-bell" label="Notifications" active={activeView === 'profile'} onClick={() => { if (onNavigate) onNavigate('notifications'); else setActiveView('profile'); }} />
-              <SidebarItem icon="fa-headset" label="Help" active={placeholderText.includes('Help')} onClick={() => showPlaceholder('Help & Support: Customer service portal coming soon.')} />
-              <SidebarItem icon="fa-gear" label="Settings" active={activeView === 'profile'} onClick={() => setActiveView('profile')} />
-
-              <div className="h-px bg-gray-100 my-2 mx-2"></div>
-
-              <div
-                onClick={() => {
-                  showToast('Redirecting to ADAB Seller Portal...');
-                  setIsSidebarOpen(false);
-                }}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors text-brand-green hover:bg-green-50 font-bold mx-2"
-              >
-                <i className="fa-solid fa-store w-5 text-center"></i>
-                <span className="text-sm">Sell on ADAB</span>
-              </div>
-
-              {isLoggedIn ? (
-                <div
-                  onClick={() => {
-                    setIsSidebarOpen(false);
-                    if (onLogout) onLogout();
-                  }}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors text-red-600 hover:bg-red-50 font-bold mx-2 mt-1"
-                >
-                  <i className="fa-solid fa-arrow-right-from-bracket w-5 text-center"></i>
-                  <span className="text-sm">Sign Out</span>
-                </div>
-              ) : (
-                <div
-                  onClick={() => {
-                    setIsSidebarOpen(false);
-                    if (onOpenLogin) onOpenLogin();
-                    else if (onNavigate) onNavigate('login');
-                  }}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors text-[#18753C] hover:bg-emerald-50 font-bold mx-2 mt-1"
-                >
-                  <i className="fa-solid fa-arrow-right-to-bracket w-5 text-center"></i>
-                  <span className="text-sm">Login / Register</span>
-                </div>
-              )}
-            </div>
+            {renderSidebarContent()}
           </div>
         </div>
       )}
 
-      {/* Render Active View */}
-      {activeView === 'dashboard' && renderDashboard()}
-      {activeView === 'addresses' && renderAddresses()}
-      {activeView === 'profile' && renderProfile()}
-      {activeView === 'placeholder' && renderPlaceholder()}
-
       {/* Toast Notification */}
       {toast && (
-        <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full text-white font-medium shadow-xl transition-all duration-300 ${toast.type === 'error' ? 'bg-red-500' : 'bg-[#18753C]'}`}>
-          {toast.message}
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full text-white text-xs font-extrabold shadow-xl transition-all duration-300 flex items-center gap-2 ${
+          toast.type === 'error' ? 'bg-red-600' : 'bg-[#18753C]'
+        }`}>
+          <i className={`fa-solid ${toast.type === 'error' ? 'fa-circle-exclamation' : 'fa-circle-check'}`}></i>
+          <span>{toast.message}</span>
         </div>
       )}
     </div>

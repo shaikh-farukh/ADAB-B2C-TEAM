@@ -23,7 +23,8 @@ import ShopsPage from './pages/ShopsPage';
 import LoginPage from './pages/LoginPage';
 import CategoriesPage from './pages/CategoriesPage';
 import OffersPage from './pages/OffersPage';
-import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI, CustomerAPI, RewardAPI, getCurrentUserId } from './services/api';
+import GuestAuthGate from './components/GuestAuthGate';
+import { CartAPI, CheckoutAPI, WishlistAPI, OrderAPI, CustomerAPI, RewardAPI, getCurrentUserId, resetSessionToken } from './services/api';
 import { api } from './api/api';
 
 export default function App() {
@@ -31,6 +32,12 @@ export default function App() {
   const navigate = useNavigate();
   const activeTab = location.pathname.substring(1) || 'home';
   const setActiveTab = (tab) => navigate(`/${tab === 'home' ? '' : tab}`);
+  const [userSelectedAuthMode, setUserSelectedAuthMode] = useState(null);
+  const authMode = (activeTab === 'signup' || activeTab === 'register')
+    ? 'register'
+    : (activeTab === 'login' ? (userSelectedAuthMode || 'login') : 'login');
+  const setAuthMode = (mode) => setUserSelectedAuthMode(mode);
+  const isAuthPage = activeTab === 'login' || activeTab === 'signup' || activeTab === 'register';
   const [points, setPoints] = useState(0);
   const [walletBalance, setWalletBalance] = useState(0);
 
@@ -224,9 +231,15 @@ export default function App() {
   const handleLoginSuccess = async (user, initialAddress = null) => {
     setCurrentUser(user);
     clearAccountCache();
+    // Reset local cart state before loading user's cart
+    setCartData({
+      items: [],
+      stores: [],
+      summary: { subtotal: 0, grand_total: 0, delivery_fee: 29, discount: 0 }
+    });
     showToast(`Welcome to ADAB, ${user.name || user.full_name || 'Customer'}!`);
     refreshOrders();
-    refreshCart();
+    await refreshCart();
     refreshNotifications();
     refreshCustomerStats();
     if (initialAddress) {
@@ -253,20 +266,36 @@ export default function App() {
     setActiveTab('account');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     localStorage.removeItem('adab_auth_token');
     localStorage.removeItem('adab_user');
     localStorage.removeItem('adab_user_id');
     localStorage.removeItem('adab_selected_address');
+    resetSessionToken();
     setSelectedAddress(null);
     setCurrentUser(null);
     setOrdersList([]);
     setPoints(0);
     setWalletBalance(0);
     setUnreadNotifications(0);
+    setCartData({
+      items: [],
+      stores: [],
+      summary: { subtotal: 0, grand_total: 0, delivery_fee: 29, discount: 0 }
+    });
     clearAccountCache();
+    try {
+      await refreshCart();
+    } catch {
+      // ignore
+    }
     showToast('You have been logged out successfully.');
     setActiveTab('home');
+  };
+
+  const handleContinueGuest = () => {
+    setActiveTab('home');
+    showToast('Browsing as guest. You can sign in anytime to complete checkout.');
   };
 
   const [loadingOrders, setLoadingOrders] = useState(false);
@@ -470,6 +499,11 @@ export default function App() {
 
   const handleToggleWishlist = async (listingId) => {
     if (!listingId || wishlistPendingRef.current.has(listingId)) return;
+    if (!currentUser) {
+      showToast('Please sign in to save items to your wishlist ❤️');
+      setActiveTab('login');
+      return;
+    }
     wishlistPendingRef.current.add(listingId);
     try {
       const isWishlisted = wishlist.includes(listingId);
@@ -708,6 +742,11 @@ export default function App() {
 
       // Valid: clear issues and navigate to checkout
       setValidationIssues([]);
+      if (!currentUser) {
+        showToast('Please sign in or create an account to proceed to checkout.');
+        setActiveTab('login');
+        return false;
+      }
       setActiveTab('checkout');
       return true;
     } catch (err) {
@@ -737,13 +776,34 @@ export default function App() {
         </div>
       )}
 
-      {/* Website Top Navigation (shown on tablets/desktops >= 900px matching unified-customer-portal-demo.html) */}
-      <header className="site-nav" id="siteNav">
-        <div className="site-nav-inner">
-          <button type="button" className="site-logo" onClick={() => setActiveTab('home')}>
-            <i>A</i>ADAB
-          </button>
-          <nav className="site-links">
+      {/* Website Top Navigation */}
+      {isAuthPage ? (
+        <header className="site-nav !block border-b border-slate-100 bg-white sticky top-0 z-40" id="siteNav">
+          <div className="site-nav-inner !flex items-center justify-between !h-14 sm:!h-16 px-4 sm:px-6">
+            <button
+              type="button"
+              className="site-logo !m-0 !p-0 cursor-pointer"
+              onClick={() => setActiveTab('home')}
+            >
+              <i>A</i>ADAB
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('home')}
+              className="text-xs sm:text-sm font-semibold text-slate-600 hover:text-[#18753C] flex items-center gap-1.5 transition-colors cursor-pointer py-1.5 px-3 rounded-lg hover:bg-slate-50"
+            >
+              <i className="fa-solid fa-arrow-left text-xs"></i>
+              <span>Back to shop</span>
+            </button>
+          </div>
+        </header>
+      ) : (
+        <header className="site-nav" id="siteNav">
+          <div className="site-nav-inner">
+            <button type="button" className="site-logo" onClick={() => setActiveTab('home')}>
+              <i>A</i>ADAB
+            </button>
+            <nav className="site-links">
             <button
               type="button"
               className={`site-link ${activeTab === 'home' ? 'on' : ''}`}
@@ -856,14 +916,32 @@ export default function App() {
                 </button>
               </div>
             ) : (
-              <button
-                type="button"
-                className="site-btn"
-                onClick={() => setActiveTab('login')}
-              >
-                <i className="fa-solid fa-user"></i>
-                <span id="navAuth">Login</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  className="site-btn"
+                  onClick={() => {
+                    setAuthMode('login');
+                    setActiveTab('login');
+                  }}
+                  id="navLoginBtn"
+                >
+                  <i className="fa-solid fa-user"></i>
+                  <span id="navAuth">Login</span>
+                </button>
+                <button
+                  type="button"
+                  className="site-btn !bg-emerald-50 !border-[#18753C] !text-[#18753C] hover:!bg-[#18753C] hover:!text-white font-extrabold transition-all"
+                  onClick={() => {
+                    setAuthMode('register');
+                    setActiveTab('signup');
+                  }}
+                  id="navSignupBtn"
+                >
+                  <i className="fa-solid fa-user-plus"></i>
+                  <span id="navSignup">Sign Up</span>
+                </button>
+              </div>
             )}
             <button
               type="button"
@@ -880,6 +958,7 @@ export default function App() {
           </div>
         </div>
       </header>
+      )}
 
       {/* Main App Header (Shown on Home) */}
       {activeTab === 'home' && (
@@ -921,14 +1000,30 @@ export default function App() {
                     </button>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('login')}
-                    className="glass px-2.5 h-9 rounded-full flex items-center gap-1.5 text-xs font-bold transition hover:bg-white/30 cursor-pointer"
-                  >
-                    <i className="fa-solid fa-user"></i>
-                    <span>Login</span>
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthMode('login');
+                        setActiveTab('login');
+                      }}
+                      className="glass px-2.5 h-8 rounded-full flex items-center gap-1 text-[11px] font-extrabold transition hover:bg-white/30 cursor-pointer"
+                    >
+                      <i className="fa-solid fa-user text-[10px]"></i>
+                      <span>Login</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthMode('register');
+                        setActiveTab('signup');
+                      }}
+                      className="bg-white text-[#18753C] shadow-xs px-2.5 h-8 rounded-full flex items-center gap-1 text-[11px] font-extrabold transition hover:bg-emerald-50 cursor-pointer"
+                    >
+                      <i className="fa-solid fa-user-plus text-[10px]"></i>
+                      <span>Sign Up</span>
+                    </button>
+                  </div>
                 )}
 
                 <button
@@ -977,119 +1072,207 @@ export default function App() {
               </div>
             </div>
 
-            {/* Location Delivery Selector */}
-            <button
-              type="button"
-              onClick={() => {
-                if (!currentUser) {
-                  setActiveTab('login');
-                  showToast('Please login to set your delivery address.');
-                  return;
-                }
-                setIsAddressModalOpen(true);
-              }}
-              className="flex items-center gap-2 mb-3 text-left w-full group cursor-pointer"
-            >
-              <i className="fa-solid fa-location-dot text-brand-coral text-base"></i>
-              <div className="flex-1 min-w-0">
-                <div className="text-[10px] font-bold text-green-100 uppercase tracking-wider">
-                  Deliver to
+            {/* Desktop Balanced Hero Layout: Left column has delivery, headline, search, stats; Right column has live local showcase */}
+            <div className="hero-grid-wrapper lg:grid lg:grid-cols-12 lg:gap-8 lg:items-center">
+              <div className="lg:col-span-7 xl:col-span-7 flex flex-col justify-center">
+                {/* Location Delivery Selector */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!currentUser) {
+                      setActiveTab('login');
+                      showToast('Please login to set your delivery address.');
+                      return;
+                    }
+                    setIsAddressModalOpen(true);
+                  }}
+                  className="flex items-center gap-2 mb-3 text-left w-full group cursor-pointer max-w-2xl"
+                >
+                  <i className="fa-solid fa-location-dot text-brand-coral text-base"></i>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] font-bold text-green-100 uppercase tracking-wider">
+                      Deliver to
+                    </div>
+                    <div className="font-extrabold text-sm truncate flex items-center gap-1">
+                      {currentUser && selectedAddress
+                        ? `${selectedAddress.label || selectedAddress.type || 'Home'} · ${selectedAddress.address_line ? selectedAddress.address_line.split(',')[0] : (selectedAddress.address ? selectedAddress.address.split(',')[0] : 'Surat')}, ${selectedAddress.city || 'Surat'}`
+                        : currentUser
+                        ? 'Select Delivery Address'
+                        : 'Login to set address'}
+                      <i className="fa-solid fa-chevron-down text-[9px] opacity-70 group-hover:translate-y-0.5 transition-transform"></i>
+                    </div>
+                  </div>
+                  <span className="delivery-pill shrink-0">
+                    <i className="fa-solid fa-bolt mr-1"></i>14–45 min
+                  </span>
+                </button>
+
+                {/* Hero Copy (shown on desktop >= 900px matching demo) */}
+                <div className="hero-copy">
+                  <h1>
+                    Your neighbourhood shops,<br className="hidden md:block" /> delivered in minutes.
+                  </h1>
+                  <p>
+                    Groceries, dairy, fashion and more from {storeCount} trusted local stores in {selectedAddress?.city || 'Surat'} — one cart, one delivery.
+                  </p>
                 </div>
-                <div className="font-extrabold text-sm truncate flex items-center gap-1">
-                  {currentUser && selectedAddress
-                    ? `${selectedAddress.label || selectedAddress.type || 'Home'} · ${selectedAddress.address_line ? selectedAddress.address_line.split(',')[0] : (selectedAddress.address ? selectedAddress.address.split(',')[0] : 'Surat')}, ${selectedAddress.city || 'Surat'}`
-                    : currentUser
-                    ? 'Select Delivery Address'
-                    : 'Login to set address'}
-                  <i className="fa-solid fa-chevron-down text-[9px] opacity-70 group-hover:translate-y-0.5 transition-transform"></i>
-                </div>
-              </div>
-              <span className="delivery-pill shrink-0">
-                <i className="fa-solid fa-bolt mr-1"></i>14–45 min
-              </span>
-            </button>
 
-            {/* Hero Copy (shown on desktop >= 900px matching demo) */}
-            <div className="hero-copy">
-              <h1>
-                Your neighbourhood shops,<br className="hidden md:block" /> delivered in minutes.
-              </h1>
-              <p>
-                Groceries, dairy, fashion and more from {storeCount} trusted local stores in {selectedAddress?.city || 'Surat'} — one cart, one delivery.
-              </p>
-            </div>
-
-            {/* Search Input with autocomplete suggestions */}
-            <form onSubmit={handleSearchSubmit} className="relative w-full">
-              <div className="search-pill w-full flex items-center gap-3 bg-white rounded-2xl px-4 py-3 text-left text-gray-800 shadow-sm">
-                <i className="fa-solid fa-magnifying-glass text-brand-green text-lg"></i>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
-                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                  id="global-search-input"
-                  name="global_search"
-                  placeholder="Search for fresh groceries, fashion, electronics..."
-                  className="w-full bg-transparent border-none text-sm font-medium text-gray-900 placeholder-gray-400 focus:outline-none"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => { setSearchQuery(''); setSuggestions([]); }}
-                    className="text-gray-400 hover:text-gray-600 text-xs cursor-pointer"
-                  >
-                    <i className="fa-solid fa-xmark"></i>
-                  </button>
-                )}
-              </div>
-
-              {/* Suggestions Dropdown */}
-              {showSuggestions && (suggestionsLoading || suggestionsError || (suggestionsLoaded && suggestions.length > 0)) && (
-                <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-gray-200 rounded-2xl shadow-xl z-50 overflow-hidden text-gray-800">
-                  {suggestionsLoading ? (
-                    <div className="px-4 py-3 text-sm text-gray-500 font-medium">Searching suggestions...</div>
-                  ) : suggestionsError ? (
-                    <div className="px-4 py-3 flex items-center justify-between gap-3 text-sm">
-                      <span className="text-red-600 font-medium">{suggestionsError}</span>
+                {/* Search Input with autocomplete suggestions */}
+                <form onSubmit={handleSearchSubmit} className="relative w-full max-w-2xl">
+                  <div className="search-pill w-full flex items-center gap-3 bg-white rounded-2xl px-4 py-3 text-left text-gray-800 shadow-sm">
+                    <i className="fa-solid fa-magnifying-glass text-brand-green text-lg"></i>
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+                      onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                      id="global-search-input"
+                      name="global_search"
+                      placeholder="Search for fresh groceries, fashion, electronics..."
+                      className="w-full bg-transparent border-none text-sm font-medium text-gray-900 placeholder-gray-400 focus:outline-none"
+                    />
+                    {searchQuery && (
                       <button
                         type="button"
-                        disabled={suggestionsLoading}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => fetchSuggestions(searchQuery, true)}
-                        className="px-3 py-1 rounded-lg bg-[#18753C] text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                        onClick={() => { setSearchQuery(''); setSuggestions([]); }}
+                        className="text-gray-400 hover:text-gray-600 text-xs cursor-pointer"
                       >
-                        Retry
+                        <i className="fa-solid fa-xmark"></i>
                       </button>
-                    </div>
-                  ) : (
-                    suggestions.map((suggestion, idx) => (
-                      <div
-                        key={idx}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          setSearchQuery(suggestion);
-                          setShowSuggestions(false);
-                          navigate(`/search?q=${encodeURIComponent(suggestion)}`);
-                        }}
-                        className="px-4 py-3 hover:bg-green-50 cursor-pointer text-sm font-semibold text-gray-700 flex items-center gap-3 transition-colors border-b border-gray-50 last:border-0"
-                      >
-                        <i className="fa-solid fa-magnifying-glass text-gray-400 text-xs"></i>
-                        <span>{suggestion}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </form>
+                    )}
+                  </div>
 
-            {/* Hero Stats (shown on desktop >= 900px matching demo) */}
-            <div className="hero-stats">
-              <span>🏪 {storeCount} local stores</span>
-              <span>⚡ 14–45 min delivery</span>
-              <span>⭐ Earn rewards on every order</span>
-              <span>🔒 Secure payments</span>
+                  {/* Suggestions Dropdown */}
+                  {showSuggestions && (suggestionsLoading || suggestionsError || (suggestionsLoaded && suggestions.length > 0)) && (
+                    <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-gray-200 rounded-2xl shadow-xl z-50 overflow-hidden text-gray-800">
+                      {suggestionsLoading ? (
+                        <div className="px-4 py-3 text-sm text-gray-500 font-medium">Searching suggestions...</div>
+                      ) : suggestionsError ? (
+                        <div className="px-4 py-3 flex items-center justify-between gap-3 text-sm">
+                          <span className="text-red-600 font-medium">{suggestionsError}</span>
+                          <button
+                            type="button"
+                            disabled={suggestionsLoading}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => fetchSuggestions(searchQuery, true)}
+                            className="px-3 py-1 rounded-lg bg-[#18753C] text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                          >
+                            Retry
+                          </button>
+                        </div>
+                      ) : (
+                        suggestions.map((suggestion, idx) => (
+                          <div
+                            key={idx}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setSearchQuery(suggestion);
+                              setShowSuggestions(false);
+                              navigate(`/search?q=${encodeURIComponent(suggestion)}`);
+                            }}
+                            className="px-4 py-3 hover:bg-green-50 cursor-pointer text-sm font-semibold text-gray-700 flex items-center gap-3 transition-colors border-b border-gray-50 last:border-0"
+                          >
+                            <i className="fa-solid fa-magnifying-glass text-gray-400 text-xs"></i>
+                            <span>{suggestion}</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </form>
+
+                {/* Popular Search Quick Discovery Chips (Blinkit / Amazon pattern) */}
+                <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+                  <span className="text-[11px] text-green-100 font-bold">Popular:</span>
+                  {['Milk & Dairy', 'Fresh Veggies', 'Atta & Staples', 'Balaji Chips', 'Cooking Oil'].map((term) => (
+                    <button
+                      key={term}
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery(term);
+                        navigate(`/search?q=${encodeURIComponent(term)}`);
+                      }}
+                      className="px-2.5 py-0.5 rounded-full bg-white/15 hover:bg-white/25 text-white text-[11px] font-semibold transition cursor-pointer"
+                    >
+                      {term}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Hero Stats (shown on desktop >= 900px matching demo) */}
+                <div className="hero-stats">
+                  <span>🏪 {storeCount} local stores</span>
+                  <span>⚡ 14–45 min delivery</span>
+                  <span>⭐ Earn rewards on every order</span>
+                  <span>🔒 Secure payments</span>
+                </div>
+              </div>
+
+              {/* Right Side Desktop Hero Showcase (eliminates empty space on wide monitors) */}
+              <div className="hidden lg:flex lg:col-span-5 xl:col-span-5 flex-col justify-center">
+                <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl p-5 xl:p-6 text-white shadow-xl relative overflow-hidden">
+                  <div className="absolute -top-10 -right-10 w-36 h-36 bg-[#F26E21]/20 rounded-full blur-2xl pointer-events-none"></div>
+                  <div className="flex items-center justify-between mb-3.5">
+                    <span className="px-3 py-1 rounded-full bg-white/20 text-xs font-black tracking-wide text-amber-300 flex items-center gap-1.5">
+                      <i className="fa-solid fa-bolt text-amber-300"></i> Surat Instant Kirana
+                    </span>
+                    <span className="text-xs text-emerald-200 font-bold">14–45 Min Express</span>
+                  </div>
+                  <h3 className="text-lg font-black text-white leading-tight mb-1.5">
+                    Fresh from Neighbourhood Stores
+                  </h3>
+                  <p className="text-xs text-emerald-100 font-medium mb-4 leading-relaxed">
+                    Order from verified local kirana merchants with zero price markups and direct store pricing.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => navigate('/browse?category=Vegetables')}
+                      className="bg-white/15 hover:bg-white/25 border border-white/15 rounded-xl p-2.5 text-left transition cursor-pointer flex items-center gap-2"
+                    >
+                      <span className="text-xl">🥬</span>
+                      <div>
+                        <div className="text-xs font-black">Fresh Veggies</div>
+                        <div className="text-[10px] text-emerald-200">Daily batches</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/browse?category=Dairy')}
+                      className="bg-white/15 hover:bg-white/25 border border-white/15 rounded-xl p-2.5 text-left transition cursor-pointer flex items-center gap-2"
+                    >
+                      <span className="text-xl">🥛</span>
+                      <div>
+                        <div className="text-xs font-black">Milk & Dairy</div>
+                        <div className="text-[10px] text-emerald-200">Morning fresh</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/browse?category=Atta')}
+                      className="bg-white/15 hover:bg-white/25 border border-white/15 rounded-xl p-2.5 text-left transition cursor-pointer flex items-center gap-2"
+                    >
+                      <span className="text-xl">🌾</span>
+                      <div>
+                        <div className="text-xs font-black">Atta & Dals</div>
+                        <div className="text-[10px] text-emerald-200">Kirana staples</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/offers')}
+                      className="bg-[#F26E21] hover:bg-[#d95d18] text-white rounded-xl p-2.5 text-left transition cursor-pointer flex items-center gap-2 shadow-sm"
+                    >
+                      <span className="text-xl">🏷️</span>
+                      <div>
+                        <div className="text-xs font-black">Active Deals</div>
+                        <div className="text-[10px] text-orange-100">Store discounts</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </header>
@@ -1111,8 +1294,8 @@ export default function App() {
             <i className="fa-solid fa-arrow-left text-lg"></i>
           </button>
           <h1 id="subHeaderTitle" className="font-extrabold text-base flex-1 capitalize">
-            {activeTab === 'login'
-              ? 'Login / Register'
+            {activeTab === 'login' || activeTab === 'signup' || activeTab === 'register'
+              ? (activeTab === 'signup' || activeTab === 'register' || authMode === 'register' ? 'Create Account' : 'Login / Register')
               : activeTab === 'cart'
               ? 'Your Cart'
               : activeTab === 'checkout'
@@ -1145,21 +1328,29 @@ export default function App() {
       )}
 
       {/* Main Dynamic Content Area */}
-      <main className="page px-4 pt-4 pb-28 flex-1">
+      <main className={`page flex-1 ${isAuthPage ? '!p-0 !pb-0 !max-w-full' : 'px-4 pt-4 pb-28'}`}>
         {/* Home Screen (Catalog, Deals, Stores, Trending by Mahi) */}
         {activeTab === 'home' && (
           <HomePage
             onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
             onToggleWishlist={handleToggleWishlist}
             wishlist={wishlist}
+            currentUser={currentUser}
             onNavigate={(tab, extra) => {
-              if (tab.startsWith('browse')) navigate(`/${tab}`);
-              else if (tab.startsWith('search')) {
+              if (tab === 'signup' || tab === 'register') {
+                setAuthMode('register');
+                setActiveTab('signup');
+              } else if (tab === 'login') {
+                setAuthMode('login');
+                setActiveTab('login');
+              } else if (tab.startsWith('browse')) {
+                navigate(`/${tab}`);
+              } else if (tab.startsWith('search')) {
                 if (tab.includes('?')) navigate(`/${tab}`);
                 else setActiveTab('search');
-              }
-              else if (tab === 'track') setActiveTab('track');
-              else if (tab === 'stores' || tab === 'shops') {
+              } else if (tab === 'track') {
+                setActiveTab('track');
+              } else if (tab === 'stores' || tab === 'shops') {
                 if (extra?.storeId) {
                   navigate(`/stores?store_id=${extra.storeId}`);
                 } else if (tab === 'shops') {
@@ -1167,11 +1358,15 @@ export default function App() {
                 } else {
                   navigate('/stores');
                 }
+              } else if (tab === 'offers') {
+                setActiveTab('offers');
+              } else if (tab === 'cart') {
+                setActiveTab('cart');
+              } else if (tab === 'orders') {
+                setActiveTab('orders');
+              } else {
+                setActiveTab(tab);
               }
-              else if (tab === 'offers') setActiveTab('offers');
-              else if (tab === 'cart') setActiveTab('cart');
-              else if (tab === 'orders') setActiveTab('orders');
-              else setActiveTab(tab);
             }}
           />
         )}
@@ -1236,19 +1431,53 @@ export default function App() {
 
         {/* Wishlist Page */}
         {activeTab === 'wishlist' && (
-          <WishlistPage
-            onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
-            onToggleWishlist={handleToggleWishlist}
-            onMoveToCart={handleMoveToCart}
-            wishlist={wishlist}
-          />
+          currentUser ? (
+            <WishlistPage
+              onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
+              onToggleWishlist={handleToggleWishlist}
+              onMoveToCart={handleMoveToCart}
+              wishlist={wishlist}
+            />
+          ) : (
+            <GuestAuthGate
+              title="Sign in to view your wishlist"
+              subtitle="Save your favourite groceries, dairy, and local essentials to access and sync across all devices."
+              icon="fa-heart"
+              onLogin={() => {
+                setAuthMode('login');
+                setActiveTab('login');
+              }}
+              onSignUp={() => {
+                setAuthMode('register');
+                setActiveTab('signup');
+              }}
+              onContinueBrowsing={() => setActiveTab('home')}
+              features={[
+                { icon: 'fa-heart', text: 'Save items from all 7 Surat neighbourhood stores' },
+                { icon: 'fa-rotate', text: 'Sync your saved items across your mobile and desktop' },
+                { icon: 'fa-cart-shopping', text: 'Move wishlisted items to your active cart in one click' }
+              ]}
+            />
+          )
         )}
 
         {/* Login / Authentication Page */}
-        {activeTab === 'login' && (
+        {(activeTab === 'login' || activeTab === 'signup' || activeTab === 'register') && (
           <LoginPage
+            initialMode={activeTab === 'signup' || activeTab === 'register' ? 'register' : authMode}
             onLoginSuccess={handleLoginSuccess}
-            onNavigate={setActiveTab}
+            onContinueGuest={handleContinueGuest}
+            onNavigate={(tab) => {
+              if (tab === 'signup' || tab === 'register') {
+                setAuthMode('register');
+                setActiveTab('signup');
+              } else if (tab === 'login') {
+                setAuthMode('login');
+                setActiveTab('login');
+              } else {
+                setActiveTab(tab);
+              }
+            }}
           />
         )}
 
@@ -1258,7 +1487,10 @@ export default function App() {
             onNavigate={setActiveTab}
             currentUser={currentUser}
             onLogout={handleLogout}
-            onOpenLogin={() => setActiveTab('login')}
+            onOpenLogin={() => {
+              setAuthMode('login');
+              setActiveTab('login');
+            }}
             ordersCount={currentUser ? ordersList.length : 0}
             points={points}
             walletBalance={walletBalance}
@@ -1286,20 +1518,42 @@ export default function App() {
 
         {/* Checkout Screen (Task 4: sec-checkout) */}
         {activeTab === 'checkout' && (
-          <CheckoutView
-            cartData={cartData}
-            onPlaceOrder={handlePlaceOrder}
-            onBackToCart={async () => {
-              await refreshCart();
-              setActiveTab('cart');
-            }}
-            loading={placingOrder}
-            selectedDeliveryAddress={selectedAddress}
-            onSelectDeliveryAddress={handleSelectAddress}
-            currentUser={currentUser}
-            pointsBalance={points}
-            onPointsRedeemed={(newBal) => setPoints(newBal)}
-          />
+          currentUser ? (
+            <CheckoutView
+              cartData={cartData}
+              onPlaceOrder={handlePlaceOrder}
+              onBackToCart={async () => {
+                await refreshCart();
+                setActiveTab('cart');
+              }}
+              loading={placingOrder}
+              selectedDeliveryAddress={selectedAddress}
+              onSelectDeliveryAddress={handleSelectAddress}
+              currentUser={currentUser}
+              pointsBalance={points}
+              onPointsRedeemed={(newBal) => setPoints(newBal)}
+            />
+          ) : (
+            <GuestAuthGate
+              title="Sign in to proceed to checkout"
+              subtitle="Please log in or create an account to select your delivery address, apply coupons, and complete payment."
+              icon="fa-shield-halved"
+              onLogin={() => {
+                setAuthMode('login');
+                setActiveTab('login');
+              }}
+              onSignUp={() => {
+                setAuthMode('register');
+                setActiveTab('signup');
+              }}
+              onContinueBrowsing={() => setActiveTab('cart')}
+              features={[
+                { icon: 'fa-location-dot', text: 'Saved delivery addresses in Surat for 14-45 min delivery' },
+                { icon: 'fa-ticket', text: 'Exclusive store coupons and member discount codes' },
+                { icon: 'fa-shield-halved', text: '100% secure payment with UPI, Cards, and COD' }
+              ]}
+            />
+          )
         )}
 
         {/* Order Success Screen (Day 6 Frontend Task 1: sec-order-success) */}
@@ -1318,34 +1572,56 @@ export default function App() {
 
         {/* Orders Screen (sec-orders) & Order History (sec-orderhistory) */}
         {(activeTab === 'orders' || activeTab === 'orderhistory') && (
-          <OrdersView
-            orders={ordersList}
-            initialView={activeTab === 'orderhistory' ? 'orderhistory' : 'orders'}
-            loading={loadingOrders}
-            onRefresh={refreshOrders}
-            onViewChange={(view) => setActiveTab(view)}
-            onSelectOrder={async (order) => {
-              setActiveOrder(order);
-              setActiveTab('track');
-              try {
-                if (order?.id) {
-                  const full = await OrderAPI.getOrderById(order.id);
-                  if (full?.data) setActiveOrder(full.data);
+          currentUser ? (
+            <OrdersView
+              orders={ordersList}
+              initialView={activeTab === 'orderhistory' ? 'orderhistory' : 'orders'}
+              loading={loadingOrders}
+              onRefresh={refreshOrders}
+              onViewChange={(view) => setActiveTab(view)}
+              onSelectOrder={async (order) => {
+                setActiveOrder(order);
+                setActiveTab('track');
+                try {
+                  if (order?.id) {
+                    const full = await OrderAPI.getOrderById(order.id);
+                    if (full?.data) setActiveOrder(full.data);
+                  }
+                } catch (err) {
+                  console.warn('Could not fetch full order details:', err);
                 }
-              } catch (err) {
-                console.warn('Could not fetch full order details:', err);
-              }
-            }}
-            onCancelOrder={handleCancelOrder}
-            onReorder={handleReorder}
-            onReviewOrder={handleReviewOrder}
-            onRequestReturn={(ord) => {
-              setReturnTargetOrder(ord);
-              setActiveTab('returns');
-            }}
-            onBrowseShops={() => setActiveTab('stores')}
-            showToast={showToast}
-          />
+              }}
+              onCancelOrder={handleCancelOrder}
+              onReorder={handleReorder}
+              onReviewOrder={handleReviewOrder}
+              onRequestReturn={(ord) => {
+                setReturnTargetOrder(ord);
+                setActiveTab('returns');
+              }}
+              onBrowseShops={() => setActiveTab('stores')}
+              showToast={showToast}
+            />
+          ) : (
+            <GuestAuthGate
+              title="Sign in to view your orders"
+              subtitle="Track active deliveries from Surat neighbourhood shops, download tax invoices, and reorder past purchases."
+              icon="fa-bag-shopping"
+              onLogin={() => {
+                setAuthMode('login');
+                setActiveTab('login');
+              }}
+              onSignUp={() => {
+                setAuthMode('register');
+                setActiveTab('signup');
+              }}
+              onContinueBrowsing={() => setActiveTab('home')}
+              features={[
+                { icon: 'fa-map-pin', text: 'Live GPS status and rider contact information' },
+                { icon: 'fa-receipt', text: 'Digital tax invoices and store receipts' },
+                { icon: 'fa-rotate-left', text: 'Hassle-free 24-hr item returns and refunds' }
+              ]}
+            />
+          )
         )}
 
         {/* Track Delivery Screen (sec-track) */}
@@ -1364,87 +1640,138 @@ export default function App() {
 
         {/* Notifications Screen (Task 3: sec-notifications) */}
         {activeTab === 'notifications' && (
-          <NotificationsView
-            onBack={() => setActiveTab('home')}
-            onNavigate={async (url) => {
-              if (!url) return;
-              const [pathPart, queryString] = url.split('?');
-              const cleanPath = (pathPart.startsWith('/') ? pathPart.substring(1) : pathPart).toLowerCase();
-              const params = new URLSearchParams(queryString || '');
-              const orderId = params.get('orderId') || params.get('id');
+          currentUser ? (
+            <NotificationsView
+              onBack={() => setActiveTab('home')}
+              onNavigate={async (url) => {
+                if (!url) return;
+                const [pathPart, queryString] = url.split('?');
+                const cleanPath = (pathPart.startsWith('/') ? pathPart.substring(1) : pathPart).toLowerCase();
+                const params = new URLSearchParams(queryString || '');
+                const orderId = params.get('orderId') || params.get('id');
 
-              if (cleanPath === 'track' || cleanPath.startsWith('track') || cleanPath.startsWith('orders/')) {
-                const targetOrderId = orderId || (cleanPath.startsWith('orders/') ? cleanPath.split('/')[1] : null);
-                if (targetOrderId) {
-                  try {
-                    const orderRes = await OrderAPI.getOrderById(targetOrderId);
-                    if (orderRes?.data) {
-                      setActiveOrder(orderRes.data);
-                      setActiveTab('track');
-                      return;
+                if (cleanPath === 'track' || cleanPath.startsWith('track') || cleanPath.startsWith('orders/')) {
+                  const targetOrderId = orderId || (cleanPath.startsWith('orders/') ? cleanPath.split('/')[1] : null);
+                  if (targetOrderId) {
+                    try {
+                      const orderRes = await OrderAPI.getOrderById(targetOrderId);
+                      if (orderRes?.data) {
+                        setActiveOrder(orderRes.data);
+                        setActiveTab('track');
+                        return;
+                      }
+                    } catch (e) {
+                      console.warn('Could not fetch target order for tracking:', e);
                     }
-                  } catch (e) {
-                    console.warn('Could not fetch target order for tracking:', e);
+                    setActiveOrder({ id: targetOrderId, order_status: 'CONFIRMED' });
+                    setActiveTab('track');
+                    return;
                   }
-                  setActiveOrder({ id: targetOrderId, order_status: 'CONFIRMED' });
-                  setActiveTab('track');
+                  if (ordersList.length > 0) {
+                    setActiveOrder(ordersList[0]);
+                    setActiveTab('track');
+                  } else {
+                    setActiveTab('orders');
+                  }
                   return;
                 }
-                if (ordersList.length > 0) {
-                  setActiveOrder(ordersList[0]);
-                  setActiveTab('track');
-                } else {
-                  setActiveTab('orders');
+
+                if (cleanPath === 'orderhistory' || cleanPath === 'history') {
+                  setActiveTab('orderhistory');
+                  return;
                 }
-                return;
-              }
 
-              if (cleanPath === 'orderhistory' || cleanPath === 'history') {
-                setActiveTab('orderhistory');
-                return;
-              }
+                const tabMap = {
+                  orders: 'orders',
+                  returns: 'returns',
+                  refunds: 'returns',
+                  rewards: 'points',
+                  points: 'points',
+                  wallet: 'wallet',
+                  addresses: 'addresses',
+                  account: 'account',
+                  cart: 'cart',
+                  checkout: 'checkout',
+                  home: 'home',
+                  stores: 'stores',
+                  help: 'help'
+                };
 
-              const tabMap = {
-                orders: 'orders',
-                returns: 'returns',
-                refunds: 'returns',
-                rewards: 'points',
-                points: 'points',
-                wallet: 'wallet',
-                addresses: 'addresses',
-                account: 'account',
-                cart: 'cart',
-                checkout: 'checkout',
-                home: 'home',
-                stores: 'stores',
-                help: 'help'
-              };
-
-              setActiveTab(tabMap[cleanPath] || cleanPath || 'home');
-            }}
-            showToast={showToast}
-            onUnreadCountChange={(count) => setUnreadNotifications(count)}
-          />
+                setActiveTab(tabMap[cleanPath] || cleanPath || 'home');
+              }}
+              showToast={showToast}
+              onUnreadCountChange={(count) => setUnreadNotifications(count)}
+            />
+          ) : (
+            <GuestAuthGate
+              title="Sign in to view notifications"
+              subtitle="Get real-time alerts about your orders, out-for-delivery updates, and exclusive neighbourhood discounts."
+              icon="fa-bell"
+              onLogin={() => {
+                setAuthMode('login');
+                setActiveTab('login');
+              }}
+              onSignUp={() => {
+                setAuthMode('register');
+                setActiveTab('signup');
+              }}
+              onContinueBrowsing={() => setActiveTab('home')}
+            />
+          )
         )}
 
         {/* Returns & Replacements Screen (Day 5 Task 1: sec-returns) */}
         {activeTab === 'returns' && (
-          <ReturnsView
-            onBack={() => setActiveTab('account')}
-            onNavigate={setActiveTab}
-            showToast={showToast}
-            preselectedOrder={returnTargetOrder}
-          />
+          currentUser ? (
+            <ReturnsView
+              onBack={() => setActiveTab('account')}
+              onNavigate={setActiveTab}
+              showToast={showToast}
+              preselectedOrder={returnTargetOrder}
+            />
+          ) : (
+            <GuestAuthGate
+              title="Sign in to manage returns"
+              subtitle="Request instant replacements, return damaged items, and check your refund statuses."
+              icon="fa-rotate-left"
+              onLogin={() => {
+                setAuthMode('login');
+                setActiveTab('login');
+              }}
+              onSignUp={() => {
+                setAuthMode('register');
+                setActiveTab('signup');
+              }}
+              onContinueBrowsing={() => setActiveTab('home')}
+            />
+          )
         )}
 
         {/* Verified Customer Reviews Screen (Day 5 Task 2: sec-reviews) */}
         {activeTab === 'reviews' && (
-          <ReviewsView
-            onBack={() => setActiveTab('account')}
-            onNavigate={setActiveTab}
-            showToast={showToast}
-            preselectedPendingItem={reviewTargetItem}
-          />
+          currentUser ? (
+            <ReviewsView
+              onBack={() => setActiveTab('account')}
+              onNavigate={setActiveTab}
+              showToast={showToast}
+              preselectedPendingItem={reviewTargetItem}
+            />
+          ) : (
+            <GuestAuthGate
+              title="Sign in to rate & review items"
+              subtitle="Share your experience and photos of items purchased from local neighbourhood kiranas."
+              icon="fa-star"
+              onLogin={() => {
+                setAuthMode('login');
+                setActiveTab('login');
+              }}
+              onSignUp={() => {
+                setAuthMode('register');
+                setActiveTab('signup');
+              }}
+              onContinueBrowsing={() => setActiveTab('home')}
+            />
+          )
         )}
 
         {/* Help & Customer Support Screen (Day 5 Task 3: sec-help, sec-messages) */}
@@ -1461,13 +1788,30 @@ export default function App() {
 
         {/* Reward Points & Loyalty Ledger Screen (Day 5 Task 4: sec-points) */}
         {(activeTab === 'points' || activeTab === 'rewards') && (
-          <PointsView
-            onBack={() => setActiveTab('account')}
-            onNavigate={setActiveTab}
-            showToast={showToast}
-            pointsBalance={points}
-            onPointsChange={(newBal) => setPoints(newBal)}
-          />
+          currentUser ? (
+            <PointsView
+              onBack={() => setActiveTab('account')}
+              onNavigate={setActiveTab}
+              showToast={showToast}
+              pointsBalance={points}
+              onPointsChange={(newBal) => setPoints(newBal)}
+            />
+          ) : (
+            <GuestAuthGate
+              title="Sign in to view reward coins"
+              subtitle="Earn ADAB coins on every order and redeem them for direct discounts at local neighbourhood stores."
+              icon="fa-coins"
+              onLogin={() => {
+                setAuthMode('login');
+                setActiveTab('login');
+              }}
+              onSignUp={() => {
+                setAuthMode('register');
+                setActiveTab('signup');
+              }}
+              onContinueBrowsing={() => setActiveTab('home')}
+            />
+          )
         )}
 
         {/* Other Tab Placeholders */}
@@ -1493,6 +1837,8 @@ export default function App() {
           activeTab !== 'wishlist' &&
           activeTab !== 'account' &&
           activeTab !== 'login' &&
+          activeTab !== 'signup' &&
+          activeTab !== 'register' &&
           !activeTab.startsWith('product/') && (
             <div className="bg-white rounded-2xl p-6 text-center border border-gray-200">
               <h2 className="font-extrabold text-lg capitalize">{activeTab} Section</h2>
@@ -1509,41 +1855,43 @@ export default function App() {
       </main>
 
       {/* Website Footer (Desktop >= 900px matching unified-customer-portal-demo.html) */}
-      <footer className="site-footer">
-        <div className="site-footer-inner">
-          <div>
-            <h4 style={{ fontSize: '18px' }}>ADAB</h4>
-            <p style={{ fontSize: '13px', lineHeight: '1.7', maxWidth: '320px' }}>
-              Your local stores, one place. Supporting neighbourhood businesses across Surat with fast, reliable delivery.
-            </p>
+      {!isAuthPage && (
+        <footer className="site-footer">
+          <div className="site-footer-inner">
+            <div>
+              <h4 style={{ fontSize: '18px' }}>ADAB</h4>
+              <p style={{ fontSize: '13px', lineHeight: '1.7', maxWidth: '320px' }}>
+                Your local stores, one place. Supporting neighbourhood businesses across Surat with fast, reliable delivery.
+              </p>
+            </div>
+            <div>
+              <h4>Shop</h4>
+              <a onClick={() => setActiveTab('stores')}>All shops</a>
+              <a onClick={() => setActiveTab('categories')}>Categories</a>
+              <a onClick={() => setActiveTab('offers')}>Offers</a>
+            </div>
+            <div>
+              <h4>Account</h4>
+              <a onClick={() => setActiveTab('orders')}>My orders</a>
+              <a onClick={() => setActiveTab('orderhistory')}>Order history</a>
+              <a onClick={() => showToast('Wallet balance: ₹0')}>Wallet</a>
+              <a onClick={() => showToast(`Rewards Points: ${points}`)}>Rewards</a>
+            </div>
+            <div>
+              <h4>Support</h4>
+              <a onClick={() => showToast('Help centre: support@adab.shop')}>Help centre</a>
+              <a onClick={() => showToast('Frequently asked questions')}>FAQs</a>
+              <a onClick={() => showToast('Returns & refund policy')}>Returns</a>
+            </div>
+            <div className="copy">
+              © 2026 ADAB · Surat, Gujarat · Made for local businesses
+            </div>
           </div>
-          <div>
-            <h4>Shop</h4>
-            <a onClick={() => setActiveTab('stores')}>All shops</a>
-            <a onClick={() => setActiveTab('stores')}>Categories</a>
-            <a onClick={() => setActiveTab('offers')}>Offers</a>
-          </div>
-          <div>
-            <h4>Account</h4>
-            <a onClick={() => setActiveTab('orders')}>My orders</a>
-            <a onClick={() => setActiveTab('orderhistory')}>Order history</a>
-            <a onClick={() => showToast('Wallet balance: ₹0')}>Wallet</a>
-            <a onClick={() => showToast(`Rewards Points: ${points}`)}>Rewards</a>
-          </div>
-          <div>
-            <h4>Support</h4>
-            <a onClick={() => showToast('Help centre: support@adab.shop')}>Help centre</a>
-            <a onClick={() => showToast('Frequently asked questions')}>FAQs</a>
-            <a onClick={() => showToast('Returns & refund policy')}>Returns</a>
-          </div>
-          <div className="copy">
-            © 2026 ADAB · Surat, Gujarat · Made for local businesses
-          </div>
-        </div>
-      </footer>
+        </footer>
+      )}
 
       {/* Floating Cart Bar (Task 2) */}
-      {activeTab !== 'cart' && activeTab !== 'checkout' && activeTab !== 'order-success' && activeTab !== 'ordersuccess' && (
+      {activeTab !== 'cart' && activeTab !== 'checkout' && activeTab !== 'order-success' && activeTab !== 'ordersuccess' && !isAuthPage && (
         <FloatingCartBar
           itemCount={totalItemCount}
           totalPrice={grandTotal}
@@ -1553,79 +1901,81 @@ export default function App() {
       )}
 
       {/* Bottom Navigation matching unified-customer-portal-demo.html */}
-      <nav className="bottom-nav">
-        <div className="page flex justify-around py-1.5">
-          <button
-            type="button"
-            onClick={() => setActiveTab('home')}
-            className={`nav-tab flex flex-col items-center gap-0.5 py-1.5 px-3 cursor-pointer ${
-              activeTab === 'home' ? 'nav-tab-on' : 'nav-tab-off'
-            }`}
-          >
-            <i className="fa-solid fa-compass text-[22px]"></i>
-            <span className="text-[10px] font-bold">Explore</span>
-            <span className="nav-dot"></span>
-          </button>
+      {!isAuthPage && (
+        <nav className="bottom-nav">
+          <div className="page flex justify-around py-1.5">
+            <button
+              type="button"
+              onClick={() => setActiveTab('home')}
+              className={`nav-tab flex flex-col items-center gap-0.5 py-1.5 px-3 cursor-pointer ${
+                activeTab === 'home' ? 'nav-tab-on' : 'nav-tab-off'
+              }`}
+            >
+              <i className="fa-solid fa-compass text-[22px]"></i>
+              <span className="text-[10px] font-bold">Explore</span>
+              <span className="nav-dot"></span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('browse')}
-            className={`nav-tab flex flex-col items-center gap-0.5 py-1.5 px-3 cursor-pointer ${
-              activeTab === 'browse' ? 'nav-tab-on' : 'nav-tab-off'
-            }`}
-          >
-            <i className="fa-solid fa-layer-group text-[22px]"></i>
-            <span className="text-[10px] font-bold">Browse</span>
-            <span className="nav-dot"></span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('browse')}
+              className={`nav-tab flex flex-col items-center gap-0.5 py-1.5 px-3 cursor-pointer ${
+                activeTab === 'browse' ? 'nav-tab-on' : 'nav-tab-off'
+              }`}
+            >
+              <i className="fa-solid fa-layer-group text-[22px]"></i>
+              <span className="text-[10px] font-bold">Browse</span>
+              <span className="nav-dot"></span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('stores')}
-            className={`nav-tab flex flex-col items-center gap-0.5 py-1.5 px-3 cursor-pointer ${
-              activeTab === 'stores' ? 'nav-tab-on' : 'nav-tab-off'
-            }`}
-          >
-            <i className="fa-solid fa-store text-[22px]"></i>
-            <span className="text-[10px] font-bold">Shops</span>
-            <span className="nav-dot"></span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('stores')}
+              className={`nav-tab flex flex-col items-center gap-0.5 py-1.5 px-3 cursor-pointer ${
+                activeTab === 'stores' ? 'nav-tab-on' : 'nav-tab-off'
+              }`}
+            >
+              <i className="fa-solid fa-store text-[22px]"></i>
+              <span className="text-[10px] font-bold">Shops</span>
+              <span className="nav-dot"></span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('orders')}
-            className={`nav-tab flex flex-col items-center gap-0.5 py-1.5 px-3 relative cursor-pointer ${
-              activeTab === 'orders' ? 'nav-tab-on' : 'nav-tab-off'
-            }`}
-          >
-            <i className="fa-solid fa-bag-shopping text-[22px]"></i>
-            <span className="text-[10px] font-bold">Orders</span>
-            <span className="nav-dot"></span>
-            <span className="absolute top-1 right-1 w-2 h-2 bg-brand-coral rounded-full"></span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('orders')}
+              className={`nav-tab flex flex-col items-center gap-0.5 py-1.5 px-3 relative cursor-pointer ${
+                activeTab === 'orders' ? 'nav-tab-on' : 'nav-tab-off'
+              }`}
+            >
+              <i className="fa-solid fa-bag-shopping text-[22px]"></i>
+              <span className="text-[10px] font-bold">Orders</span>
+              <span className="nav-dot"></span>
+              <span className="absolute top-1 right-1 w-2 h-2 bg-brand-coral rounded-full"></span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('account')}
-            className={`nav-tab flex flex-col items-center gap-0.5 py-1.5 px-3 relative cursor-pointer ${
-              activeTab === 'account' ? 'nav-tab-on' : 'nav-tab-off'
-            }`}
-          >
-            <i className="fa-solid fa-circle-user text-[22px]"></i>
-            <span className="text-[10px] font-bold">You</span>
-            <span className="nav-dot"></span>
-            {unreadNotifications > 0 && (
-              <span
-                id="navNotifBadge"
-                data-testid="bottom-nav-notif-badge"
-                className="absolute top-1 right-2 min-w-[15px] h-3.5 px-1 bg-brand-coral text-white rounded-full text-[8px] font-extrabold flex items-center justify-center shadow-xs"
-              >
-                {unreadNotifications > 99 ? '99+' : unreadNotifications}
-              </span>
-            )}
-          </button>
-        </div>
-      </nav>
+            <button
+              type="button"
+              onClick={() => setActiveTab('account')}
+              className={`nav-tab flex flex-col items-center gap-0.5 py-1.5 px-3 relative cursor-pointer ${
+                activeTab === 'account' ? 'nav-tab-on' : 'nav-tab-off'
+              }`}
+            >
+              <i className="fa-solid fa-circle-user text-[22px]"></i>
+              <span className="text-[10px] font-bold">You</span>
+              <span className="nav-dot"></span>
+              {unreadNotifications > 0 && (
+                <span
+                  id="navNotifBadge"
+                  data-testid="bottom-nav-notif-badge"
+                  className="absolute top-1 right-2 min-w-[15px] h-3.5 px-1 bg-brand-coral text-white rounded-full text-[8px] font-extrabold flex items-center justify-center shadow-xs"
+                >
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </span>
+              )}
+            </button>
+          </div>
+        </nav>
+      )}
 
       {/* Global Delivery Address Selector Modal */}
       <AddressModal

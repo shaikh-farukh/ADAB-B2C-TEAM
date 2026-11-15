@@ -6,6 +6,8 @@ const authController = require('../controllers/authController');
 router.post('/login', authController.login);
 router.post('/register', authController.register);
 router.post('/signup', authController.register); // alias for signup
+router.post('/google', authController.googleAuth);
+router.post('/google-auth', authController.googleAuth); // alias
 router.post('/send-registration-otp', authController.sendRegistrationOtp);
 router.post('/send-otp', authController.sendRegistrationOtp); // alias
 router.post('/verify-registration-otp', authController.verifyRegistrationOtp);

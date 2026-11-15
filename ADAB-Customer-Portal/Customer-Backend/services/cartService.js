@@ -61,8 +61,8 @@ async function getOrCreateCart({ customerId, sessionToken }) {
     // 2. If a sessionToken was provided on this browser/device, check if there is an unattached guest cart
     if (sessionToken) {
       const guestRes = await pool.query(
-        `SELECT * FROM carts WHERE session_token = $1 AND (customer_id IS NULL OR customer_id != $2) LIMIT 1`,
-        [sessionToken, validCustomerId]
+        `SELECT * FROM carts WHERE session_token = $1 AND customer_id IS NULL LIMIT 1`,
+        [sessionToken]
       );
       const guestCart = guestRes.rows[0] || null;
 
@@ -113,10 +113,10 @@ async function getOrCreateCart({ customerId, sessionToken }) {
     }
   }
 
-  // Case B: Only sessionToken provided (guest browsing)
+  // Case B: Only sessionToken provided (guest browsing) - ONLY return unattached guest carts
   if (sessionToken) {
     const res = await pool.query(
-      `SELECT * FROM carts WHERE session_token = $1 LIMIT 1`,
+      `SELECT * FROM carts WHERE session_token = $1 AND customer_id IS NULL LIMIT 1`,
       [sessionToken]
     );
     if (res.rows.length > 0) return res.rows[0];

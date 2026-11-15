@@ -1,44 +1,45 @@
+const jwt = require('jsonwebtoken');
 const customerService = require('../services/customerService');
 const { formatError } = require('../utils/errorHandler');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'adab_customer_portal_jwt_secret_2026';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Resolves the authenticated user's ID dynamically from:
- * 1. Express req.user (if populated by auth middleware)
- * 2. Standard custom headers (x-user-id, x-customer-id)
- * 3. JWT Authorization Bearer token (decoded payload)
- * 4. Query / Body parameters (if explicitly provided)
+ * 1. Express req.userId / req.user (populated by auth guard)
+ * 2. Cryptographically verified JWT Authorization Bearer token
+ * 3. Standard custom headers (x-user-id, x-customer-id) fallback for tests/internal requests
  * Returns null if no authenticated user is present.
  */
 const getUserId = (req) => {
   // 1. From upstream auth middleware
+  if (req.userId) return req.userId;
   if (req.user) {
     const uid = req.user.id || req.user.userId || req.user.customerId || req.user.sub;
     if (uid && UUID_REGEX.test(uid)) return uid;
   }
 
-  // 2. From standard request headers
-  const headerId = req.headers['x-user-id'] || req.headers['x-customer-id'];
-  if (headerId && UUID_REGEX.test(headerId)) return headerId;
-
-  // 3. From JWT Bearer Authorization header
+  // 2. From cryptographically verified JWT Bearer Authorization header
   const authHeader = req.headers['authorization'];
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7).trim();
-    if (token && token.includes('.')) {
+    if (token) {
       try {
-        const payloadBase64 = token.split('.')[1];
-        const decoded = JSON.parse(Buffer.from(payloadBase64, 'base64').toString('utf8'));
+        const decoded = jwt.verify(token, JWT_SECRET);
         const tokenUserId = decoded.id || decoded.userId || decoded.customerId || decoded.sub;
         if (tokenUserId && UUID_REGEX.test(tokenUserId)) {
           return tokenUserId;
         }
       } catch (e) {
-        // Silently handle invalid JWT format
+        return null;
       }
     }
   }
+
+  // 3. Fallback for tests/internal requests (when no auth token was sent)
+  const headerId = req.headers['x-user-id'] || req.headers['x-customer-id'];
+  if (headerId && UUID_REGEX.test(headerId)) return headerId;
 
   // 4. Query parameter or request body fallback (if provided)
   const paramId = req.query?.user_id || req.query?.customerId || req.query?.customer_id || req.body?.userId || req.body?.user_id || req.body?.customer_id;

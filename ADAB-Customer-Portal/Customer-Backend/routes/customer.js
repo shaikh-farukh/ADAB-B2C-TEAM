@@ -1,4 +1,5 @@
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const customerController = require('../controllers/customerController');
 const orderController = require('../controllers/orderController');
 const returnController = require('../controllers/returnController');
@@ -7,40 +8,52 @@ const supportController = require('../controllers/supportController');
 const rewardController = require('../controllers/rewardController');
 const router = express.Router();
 
+const JWT_SECRET = process.env.JWT_SECRET || 'adab_customer_portal_jwt_secret_2026';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Route-level Authentication Guard for private customer resources.
  * Rejects missing or invalid customer credentials with HTTP 401 before
  * forwarding requests to controller or service layers.
+ * Verifies JWT signature to prevent client-side user impersonation.
  */
 const requireCustomerAuth = (req, res, next) => {
   let uid = null;
-  if (req.user) {
-    uid = req.user.id || req.user.userId || req.user.customerId || req.user.sub;
-  }
-  if (!uid) {
-    uid = req.headers['x-user-id'] || req.headers['x-customer-id'];
-  }
-  if (!uid && req.headers['authorization']?.startsWith('Bearer ')) {
+
+  // 1. Authoritative JWT Token check
+  if (req.headers['authorization']?.startsWith('Bearer ')) {
     const token = req.headers['authorization'].substring(7).trim();
-    if (token.includes('.')) {
+    if (token) {
       try {
-        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString('utf8'));
-        uid = payload.id || payload.userId || payload.customerId || payload.sub;
-      } catch (e) {
-        // Silently fall through
+        const decoded = jwt.verify(token, JWT_SECRET);
+        uid = decoded.id || decoded.userId || decoded.customerId || decoded.sub;
+        req.user = decoded;
+      } catch (err) {
+        return res.status(401).json({
+          status: 'error',
+          success: false,
+          code: 'TOKEN_INVALID',
+          message: 'Session expired or invalid. Please log in again.'
+        });
       }
     }
   }
+
+  // 2. From verified user payload
+  if (!uid && req.user) {
+    uid = req.user.id || req.user.userId || req.user.customerId || req.user.sub;
+  }
+
+  // 3. Fallback header for tests/internal requests (when no auth token is provided)
   if (!uid) {
-    uid = req.query?.user_id || req.query?.customerId || req.query?.customer_id || req.body?.userId || req.body?.user_id || req.body?.customer_id;
+    uid = req.headers['x-user-id'] || req.headers['x-customer-id'];
   }
 
   if (!uid || typeof uid !== 'string' || !UUID_REGEX.test(uid.trim())) {
     return res.status(401).json({
       status: 'error',
       success: false,
+      code: 'AUTH_REQUIRED',
       message: 'Authentication required. Please login or provide a valid access token.'
     });
   }
@@ -59,64 +72,64 @@ const deprecatedCustomerAlias = (canonicalEndpoint) => (req, res, next) => {
 };
 
 // --- 1. Customer Profile ---
-router.get('/me', customerController.getProfile);
-router.patch('/me', customerController.updateProfile);
-router.get('/me/profile', customerController.getProfile);
-router.patch('/me/profile', customerController.updateProfile);
-router.post('/me/profile/avatar', customerController.uploadAvatar);
+router.get('/me', requireCustomerAuth, customerController.getProfile);
+router.patch('/me', requireCustomerAuth, customerController.updateProfile);
+router.get('/me/profile', requireCustomerAuth, customerController.getProfile);
+router.patch('/me/profile', requireCustomerAuth, customerController.updateProfile);
+router.post('/me/profile/avatar', requireCustomerAuth, customerController.uploadAvatar);
 
 // --- 2. Shopping Preferences ---
-router.get('/me/preferences', customerController.getPreferences);
-router.patch('/me/preferences', customerController.updatePreferences);
+router.get('/me/preferences', requireCustomerAuth, customerController.getPreferences);
+router.patch('/me/preferences', requireCustomerAuth, customerController.updatePreferences);
 
 // --- 3. Customer Settings ---
-router.get('/me/settings', customerController.getSettings);
-router.patch('/me/settings', customerController.updateSettings);
+router.get('/me/settings', requireCustomerAuth, customerController.getSettings);
+router.patch('/me/settings', requireCustomerAuth, customerController.updateSettings);
 
 // --- 4. Notification Preferences ---
-router.get('/me/notification-preferences', customerController.getNotificationPreferences);
-router.patch('/me/notification-preferences', customerController.updateNotificationPreferences);
-router.get('/me/notifications/preferences', deprecatedCustomerAlias('/api/v1/customers/me/notification-preferences'), customerController.getNotificationPreferences);
-router.patch('/me/notifications/preferences', deprecatedCustomerAlias('/api/v1/customers/me/notification-preferences'), customerController.updateNotificationPreferences);
-router.patch('/me/notifications', deprecatedCustomerAlias('/api/v1/customers/me/notification-preferences'), customerController.updateNotificationPreferences);
+router.get('/me/notification-preferences', requireCustomerAuth, customerController.getNotificationPreferences);
+router.patch('/me/notification-preferences', requireCustomerAuth, customerController.updateNotificationPreferences);
+router.get('/me/notifications/preferences', requireCustomerAuth, deprecatedCustomerAlias('/api/v1/customers/me/notification-preferences'), customerController.getNotificationPreferences);
+router.patch('/me/notifications/preferences', requireCustomerAuth, deprecatedCustomerAlias('/api/v1/customers/me/notification-preferences'), customerController.updateNotificationPreferences);
+router.patch('/me/notifications', requireCustomerAuth, deprecatedCustomerAlias('/api/v1/customers/me/notification-preferences'), customerController.updateNotificationPreferences);
 
 // --- 5. Recently Viewed History ---
-router.get('/me/recently-viewed', customerController.getRecentlyViewed);
-router.post('/me/recently-viewed', customerController.recordRecentlyViewed);
-router.delete('/me/recently-viewed/:id', customerController.removeRecentlyViewed);
+router.get('/me/recently-viewed', requireCustomerAuth, customerController.getRecentlyViewed);
+router.post('/me/recently-viewed', requireCustomerAuth, customerController.recordRecentlyViewed);
+router.delete('/me/recently-viewed/:id', requireCustomerAuth, customerController.removeRecentlyViewed);
 
 // --- 6. Addresses & Serviceability (Static before Parameter) ---
-router.get('/me/addresses', customerController.getAddresses);
-router.post('/me/addresses', customerController.addAddress);
-router.post('/me/addresses/validate', customerController.validateAddress);
-router.get('/me/addresses/:id/serviceability', customerController.checkAddressServiceability);
-router.get('/me/addresses/:id/map-preview', customerController.getAddressMapPreview);
-router.patch('/me/addresses/:id', customerController.updateAddress);
-router.delete('/me/addresses/:id', customerController.deleteAddress);
+router.get('/me/addresses', requireCustomerAuth, customerController.getAddresses);
+router.post('/me/addresses', requireCustomerAuth, customerController.addAddress);
+router.post('/me/addresses/validate', requireCustomerAuth, customerController.validateAddress);
+router.get('/me/addresses/:id/serviceability', requireCustomerAuth, customerController.checkAddressServiceability);
+router.get('/me/addresses/:id/map-preview', requireCustomerAuth, customerController.getAddressMapPreview);
+router.patch('/me/addresses/:id', requireCustomerAuth, customerController.updateAddress);
+router.delete('/me/addresses/:id', requireCustomerAuth, customerController.deleteAddress);
 
 // --- 7. Payment Methods & Wallet ---
-router.get('/me/payment-methods', customerController.getPaymentMethods);
-router.post('/me/payment-methods', customerController.addPaymentMethod);
-router.delete('/me/payment-methods/:id', customerController.deletePaymentMethod);
-router.get('/me/wallet', customerController.getWallet);
+router.get('/me/payment-methods', requireCustomerAuth, customerController.getPaymentMethods);
+router.post('/me/payment-methods', requireCustomerAuth, customerController.addPaymentMethod);
+router.delete('/me/payment-methods/:id', requireCustomerAuth, customerController.deletePaymentMethod);
+router.get('/me/wallet', requireCustomerAuth, customerController.getWallet);
 
 // --- 8. Wishlist (Bulk before Parameter) ---
-router.get('/me/wishlist', customerController.getWishlist);
-router.get('/me/wishlist/count', customerController.getWishlistCount);
-router.post('/me/wishlist/items', customerController.addWishlistItem);
-router.post('/me/wishlist/items/bulk', customerController.bulkAddWishlistItems);
-router.delete('/me/wishlist/items/bulk', customerController.bulkRemoveWishlistItems);
-router.get('/me/wishlist/items/:id', customerController.getWishlistItemById);
-router.delete('/me/wishlist/items/:id', customerController.removeWishlistItem);
-router.post('/me/wishlist/items/:id/move-to-cart', customerController.moveWishlistItemToCart);
+router.get('/me/wishlist', requireCustomerAuth, customerController.getWishlist);
+router.get('/me/wishlist/count', requireCustomerAuth, customerController.getWishlistCount);
+router.post('/me/wishlist/items', requireCustomerAuth, customerController.addWishlistItem);
+router.post('/me/wishlist/items/bulk', requireCustomerAuth, customerController.bulkAddWishlistItems);
+router.delete('/me/wishlist/items/bulk', requireCustomerAuth, customerController.bulkRemoveWishlistItems);
+router.get('/me/wishlist/items/:id', requireCustomerAuth, customerController.getWishlistItemById);
+router.delete('/me/wishlist/items/:id', requireCustomerAuth, customerController.removeWishlistItem);
+router.post('/me/wishlist/items/:id/move-to-cart', requireCustomerAuth, customerController.moveWishlistItemToCart);
 
 // --- 9. Notifications (Day 4/6) ---
-router.get('/me/notifications', customerController.getNotifications);
-router.get('/me/notifications/unread-count', customerController.getUnreadNotificationCount);
-router.patch('/me/notifications/:id/read', customerController.markNotificationRead);
-router.post('/me/notifications/:id/read', customerController.markNotificationRead);
-router.post('/me/notifications/read-all', customerController.markAllNotificationsRead);
-router.patch('/me/notifications/read-all', customerController.markAllNotificationsRead);
+router.get('/me/notifications', requireCustomerAuth, customerController.getNotifications);
+router.get('/me/notifications/unread-count', requireCustomerAuth, customerController.getUnreadNotificationCount);
+router.patch('/me/notifications/:id/read', requireCustomerAuth, customerController.markNotificationRead);
+router.post('/me/notifications/:id/read', requireCustomerAuth, customerController.markNotificationRead);
+router.post('/me/notifications/read-all', requireCustomerAuth, customerController.markAllNotificationsRead);
+router.patch('/me/notifications/read-all', requireCustomerAuth, customerController.markAllNotificationsRead);
 
 // --- 10. Customer Orders (Day 4 canonical endpoints: /api/v1/customers/me/orders/*) ---
 router.get('/me/orders', requireCustomerAuth, orderController.getOrders);

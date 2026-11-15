@@ -1,16 +1,34 @@
+const jwt = require('jsonwebtoken');
 const orderService = require('../services/orderService');
 const { formatError } = require('../utils/errorHandler');
 
 /**
  * Order Controller handling customer order retrieval, lifecycle, tracking, and invoicing
+ * Strictly isolates customer orders: users can ONLY access their own orders.
  */
 
+const JWT_SECRET = process.env.JWT_SECRET || 'adab_customer_portal_jwt_secret_2026';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const getCustomerId = (req) => {
+  if (req.userId) return req.userId;
+  if (req.user && (req.user.id || req.user.userId)) return req.user.id || req.user.userId;
+
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7).trim();
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        return decoded.id || decoded.userId || decoded.customerId || decoded.sub;
+      } catch (err) {
+        return null;
+      }
+    }
+  }
+
   const rawId = req.headers['x-user-id'] ||
     req.headers['x-customer-id'] ||
-    req.headers['x-session-token'] ||
     (req.query && req.query.customer_id) ||
     (req.body && req.body.customer_id) ||
     null;
@@ -18,9 +36,40 @@ const getCustomerId = (req) => {
   return UUID_REGEX.test(rawId) ? rawId : null;
 };
 
+/**
+ * Verifies that the requested order exists and strictly belongs to the requesting customer
+ */
+async function verifyOrderAccess(orderId, customerId) {
+  const order = await orderService.getOrderById(orderId);
+  if (!order) {
+    const err = new Error(`Order #${orderId} not found`);
+    err.statusCode = 404;
+    throw err;
+  }
+  if (order.customer_id) {
+    if (!customerId) {
+      const err = new Error('Authentication required. Please log in to view or manage this order.');
+      err.statusCode = 401;
+      throw err;
+    }
+    if (order.customer_id !== customerId) {
+      const err = new Error('Access denied. You do not have permission to access another customer’s order.');
+      err.statusCode = 403;
+      throw err;
+    }
+  }
+  return order;
+}
+
 async function getOrders(req, res) {
   try {
     const customerId = getCustomerId(req);
+    if (!customerId) {
+      return res.json({
+        status: 'success',
+        data: []
+      });
+    }
     const orders = await orderService.getCustomerOrders(customerId);
 
     return res.json({
@@ -41,11 +90,8 @@ async function getOrder(req, res) {
       return res.status(400).json({ status: 'error', message: 'Order ID is required' });
     }
 
-    const order = await orderService.getOrderById(id);
-
-    if (!order) {
-      return res.status(404).json({ status: 'error', message: `Order #${id} not found` });
-    }
+    const customerId = getCustomerId(req);
+    const order = await verifyOrderAccess(id, customerId);
 
     return res.json({
       status: 'success',
@@ -65,6 +111,8 @@ async function cancelOrder(req, res) {
       return res.status(400).json({ status: 'error', message: 'Order ID is required' });
     }
     const customerId = getCustomerId(req);
+    await verifyOrderAccess(id, customerId);
+
     const cancelledOrder = await orderService.cancelOrder(id, customerId);
 
     return res.json({
@@ -85,9 +133,10 @@ async function reorderOrder(req, res) {
     if (!id) {
       return res.status(400).json({ status: 'error', message: 'Order ID is required' });
     }
-    const customerId = req.headers['x-user-id'] || (req.body && req.body.customer_id) || null;
-    const sessionToken = req.headers['x-session-token'] || null;
+    const customerId = getCustomerId(req);
+    await verifyOrderAccess(id, customerId);
 
+    const sessionToken = req.headers['x-session-token'] || null;
     const result = await orderService.reorderOrder(id, { customerId, sessionToken });
 
     return res.json({
@@ -109,6 +158,9 @@ async function getOrderStatusHistory(req, res) {
       return res.status(400).json({ status: 'error', message: 'Order ID is required' });
     }
 
+    const customerId = getCustomerId(req);
+    await verifyOrderAccess(id, customerId);
+
     const history = await orderService.getOrderStatusHistory(id);
 
     return res.json({
@@ -128,6 +180,9 @@ async function getOrderShipments(req, res) {
     if (!id) {
       return res.status(400).json({ status: 'error', message: 'Order ID is required' });
     }
+
+    const customerId = getCustomerId(req);
+    await verifyOrderAccess(id, customerId);
 
     const shipments = await orderService.getOrderShipments(id);
 
@@ -149,6 +204,9 @@ async function getOrderTracking(req, res) {
       return res.status(400).json({ status: 'error', message: 'Order ID is required' });
     }
 
+    const customerId = getCustomerId(req);
+    await verifyOrderAccess(id, customerId);
+
     const tracking = await orderService.getOrderTracking(id);
 
     return res.json({
@@ -168,6 +226,9 @@ async function getOrderInvoice(req, res) {
     if (!id) {
       return res.status(400).json({ status: 'error', message: 'Order ID is required' });
     }
+
+    const customerId = getCustomerId(req);
+    await verifyOrderAccess(id, customerId);
 
     const invoice = await orderService.getOrderInvoice(id);
 
