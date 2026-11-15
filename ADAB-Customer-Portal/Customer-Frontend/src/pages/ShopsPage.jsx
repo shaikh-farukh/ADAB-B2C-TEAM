@@ -1,27 +1,61 @@
-import React, { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api/api';
-import { Store, Star, MapPin, Truck, ChevronRight, Search, ShieldCheck, ShoppingBag, ArrowLeft } from 'lucide-react';
+import { Store, Star, MapPin, Truck, ChevronRight, Search, ShieldCheck, RefreshCw, AlertCircle } from 'lucide-react';
 
 export default function ShopsPage({ onNavigate }) {
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [error, setError] = useState(null);
   const [searchFilter, setSearchFilter] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
 
+  const hasFetchedRef = useRef(false);
+  const inFlightRef = useRef(false);
+  const isMountedRef = useRef(true);
+
   useEffect(() => {
-    const fetchStores = async () => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const fetchStores = useCallback(async (force = false) => {
+    if (inFlightRef.current) return;
+    if (!force && hasFetchedRef.current) return;
+
+    hasFetchedRef.current = true;
+    inFlightRef.current = true;
+    if (force) {
       setLoading(true);
-      try {
-        const res = await api.get('/catalog/sellers');
-        setStores(res.data?.data || res.data || []);
-      } catch (err) {
-        console.error('Error fetching stores:', err);
-      } finally {
+      setError(null);
+    }
+
+    try {
+      const res = await api.get('/catalog/sellers');
+      if (!isMountedRef.current) return;
+      const list = res.data?.data ?? res.data;
+      setStores(Array.isArray(list) ? list : []);
+      setHasLoaded(true);
+      setError(null);
+    } catch (err) {
+      hasFetchedRef.current = false;
+      if (!isMountedRef.current) return;
+      console.error('Error fetching stores:', err);
+      setError(err.response?.data?.message || 'Unable to load local stores. Please try again.');
+    } finally {
+      inFlightRef.current = false;
+      if (isMountedRef.current) {
         setLoading(false);
       }
-    };
-    fetchStores();
+    }
   }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchStores(false);
+  }, [fetchStores]);
 
   const storeImages = [
     'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=600&q=80',
@@ -32,10 +66,10 @@ export default function ShopsPage({ onNavigate }) {
   ];
 
   const filteredStores = stores.filter(shop => {
-    const matchesSearch = !searchFilter || 
+    const matchesSearch = !searchFilter ||
       (shop.name || '').toLowerCase().includes(searchFilter.toLowerCase()) ||
       (shop.area || '').toLowerCase().includes(searchFilter.toLowerCase());
-    const matchesCategory = selectedCategory === 'ALL' || 
+    const matchesCategory = selectedCategory === 'ALL' ||
       (Array.isArray(shop.tags) && shop.tags.some(t => t.toLowerCase().includes(selectedCategory.toLowerCase())));
     return matchesSearch && matchesCategory;
   });
@@ -68,7 +102,7 @@ export default function ShopsPage({ onNavigate }) {
           {/* Search bar inside header */}
           <div className="mt-5 relative max-w-md">
             <Search className="w-4 h-4 text-emerald-700 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input 
+            <input
               type="text"
               placeholder="Search shops by name, specialty or locality..."
               value={searchFilter}
@@ -76,7 +110,7 @@ export default function ShopsPage({ onNavigate }) {
               className="w-full bg-white text-gray-900 border-0 rounded-2xl pl-10 pr-9 py-2.5 text-xs font-semibold placeholder-gray-400 shadow-md outline-none focus:ring-2 focus:ring-emerald-300 transition-all"
             />
             {searchFilter && (
-              <button 
+              <button
                 onClick={() => setSearchFilter('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-bold"
               >
@@ -87,33 +121,7 @@ export default function ShopsPage({ onNavigate }) {
         </div>
       </div>
 
-      {/* Control Bar: Stores count & Category Pills */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-        <div className="flex items-center gap-2">
-          <Store className="w-4 h-4 text-[#18753C]" />
-          <h2 className="font-black text-gray-900 text-base">
-            All Stores ({filteredStores.length})
-          </h2>
-        </div>
-
-        <div className="flex items-center gap-2 overflow-x-auto hide-scroll pb-1">
-          {['ALL', 'Grocery', 'Supermarket', 'Fresh'].map(cat => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer shrink-0 ${
-                selectedCategory === cat 
-                  ? 'bg-[#18753C] text-white shadow-xs' 
-                  : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-              }`}
-            >
-              {cat === 'ALL' ? 'All Merchants' : cat}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Stores Grid */}
+      {/* Stores Section: Hidden until API returns; loading & error states shown instead */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {[...Array(6)].map((_, i) => (
@@ -124,98 +132,144 @@ export default function ShopsPage({ onNavigate }) {
             </div>
           ))}
         </div>
-      ) : filteredStores.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredStores.map((shop, i) => (
-            <div 
-              key={shop.id}
-              onClick={() => onNavigate(`browse?storeId=${shop.id}&storeName=${encodeURIComponent(shop.name)}`)}
-              className="group bg-white rounded-2xl border border-gray-200/80 hover:border-emerald-500/50 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden cursor-pointer flex flex-col justify-between shadow-2xs"
-            >
-              <div>
-                {/* Store Cover Image & Badges */}
-                <div className="relative h-40 bg-gray-100 overflow-hidden">
-                  <img 
-                    src={shop.image || storeImages[i % storeImages.length]} 
-                    alt={shop.name} 
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
-                  
-                  {/* Rating Badge */}
-                  <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-xs font-black text-gray-900 flex items-center gap-1 shadow-xs">
-                    <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                    <span>{shop.rating ? Number(shop.rating).toFixed(1) : '4.8'}</span>
-                  </div>
-
-                  {/* Delivery Distance */}
-                  <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center gap-1">
-                    <Truck className="w-3 h-3 text-emerald-400" />
-                    <span>{shop.distance || '1.2 km'}</span>
-                  </div>
-
-                  {/* Store Name overlay at image bottom */}
-                  <div className="absolute bottom-3 left-3 right-3 text-white">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider bg-emerald-600/90 backdrop-blur-md px-2 py-0.5 rounded text-white inline-flex items-center gap-1 mb-1 shadow-xs">
-                      <ShieldCheck className="w-3 h-3 text-white" /> Verified Store
-                    </span>
-                    <h3 className="text-base font-black text-white leading-tight drop-shadow-sm truncate">
-                      {shop.name}
-                    </h3>
-                  </div>
-                </div>
-
-                {/* Store Details Body */}
-                <div className="p-4 space-y-2.5">
-                  <div className="flex items-start gap-1.5 text-xs text-gray-500">
-                    <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
-                    <span className="line-clamp-1">{shop.area || 'Local Market Area, Surat'}</span>
-                  </div>
-
-                  <div className="flex flex-wrap gap-1.5">
-                    {Array.isArray(shop.tags) && shop.tags.length > 0 ? (
-                      shop.tags.map((tag, idx) => (
-                        <span key={idx} className="text-[10px] font-bold bg-gray-50 border border-gray-100 text-gray-600 px-2 py-0.5 rounded-lg">
-                          {tag}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-[10px] font-bold bg-gray-50 border border-gray-100 text-gray-600 px-2 py-0.5 rounded-lg">
-                        Grocery & Essentials
-                      </span>
-                    )}
-                    <span className="text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-100/80 px-2 py-0.5 rounded-lg">
-                      15-30m Express
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Button Footer */}
-              <div className="p-4 pt-0">
-                <div className="w-full py-2.5 px-4 bg-emerald-50 hover:bg-[#18753C] text-[#18753C] hover:text-white rounded-xl font-extrabold text-xs transition-colors flex items-center justify-between shadow-2xs group-hover:bg-[#18753C] group-hover:text-white">
-                  <span>Browse Store Products</span>
-                  <ChevronRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="bg-white rounded-3xl border border-gray-100 p-12 text-center shadow-sm">
-          <Store className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <h3 className="font-black text-base text-gray-900">No stores found</h3>
-          <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-            No merchants match "{searchFilter}". Try clearing your search query to see all local partner shops.
-          </p>
-          <button 
-            onClick={() => setSearchFilter('')}
-            className="mt-4 px-4 py-2 bg-[#18753C] text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition"
+      ) : error ? (
+        <div className="bg-white rounded-3xl border border-red-100 p-8 text-center max-w-md mx-auto shadow-sm my-8">
+          <div className="w-12 h-12 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-3">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <h3 className="font-extrabold text-gray-900 text-base mb-1">Failed to Load Stores</h3>
+          <p className="text-xs text-gray-500 mb-4">{error}</p>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => fetchStores(true)}
+            className="px-5 py-2.5 bg-[#18753C] text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition inline-flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Show All Stores
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Retry
           </button>
         </div>
-      )}
+      ) : hasLoaded ? (
+        <>
+          {/* Control Bar: Stores count & Category Pills */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+            <div className="flex items-center gap-2">
+              <Store className="w-4 h-4 text-[#18753C]" />
+              <h2 className="font-black text-gray-900 text-base">
+                All Stores ({filteredStores.length})
+              </h2>
+            </div>
+
+            <div className="flex items-center gap-2 overflow-x-auto hide-scroll pb-1">
+              {['ALL', 'Grocery', 'Supermarket', 'Fresh'].map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer shrink-0 ${
+                    selectedCategory === cat
+                      ? 'bg-[#18753C] text-white shadow-xs'
+                      : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  {cat === 'ALL' ? 'All Merchants' : cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {filteredStores.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {filteredStores.map((shop, i) => (
+                <div
+                  key={shop.id}
+                  onClick={() => onNavigate(`browse?storeId=${shop.id}&storeName=${encodeURIComponent(shop.name)}`)}
+                  className="group bg-white rounded-2xl border border-gray-200/80 hover:border-emerald-500/50 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 overflow-hidden cursor-pointer flex flex-col justify-between shadow-2xs"
+                >
+                  <div>
+                    {/* Store Cover Image & Badges */}
+                    <div className="relative h-40 bg-gray-100 overflow-hidden">
+                      <img
+                        src={shop.image || storeImages[i % storeImages.length]}
+                        alt={shop.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
+
+                      {/* Rating Badge */}
+                      <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full text-xs font-black text-gray-900 flex items-center gap-1 shadow-xs">
+                        <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                        <span>{shop.rating ? Number(shop.rating).toFixed(1) : '4.8'}</span>
+                      </div>
+
+                      {/* Delivery Distance */}
+                      <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center gap-1">
+                        <Truck className="w-3 h-3 text-emerald-400" />
+                        <span>{shop.distance || '1.2 km'}</span>
+                      </div>
+
+                      {/* Store Name overlay at image bottom */}
+                      <div className="absolute bottom-3 left-3 right-3 text-white">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider bg-emerald-600/90 backdrop-blur-md px-2 py-0.5 rounded text-white inline-flex items-center gap-1 mb-1 shadow-xs">
+                          <ShieldCheck className="w-3 h-3 text-white" /> Verified Store
+                        </span>
+                        <h3 className="text-base font-black text-white leading-tight drop-shadow-sm truncate">
+                          {shop.name}
+                        </h3>
+                      </div>
+                    </div>
+
+                    {/* Store Details Body */}
+                    <div className="p-4 space-y-2.5">
+                      <div className="flex items-start gap-1.5 text-xs text-gray-500">
+                        <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                        <span className="line-clamp-1">{shop.area || 'Local Market Area, Surat'}</span>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5">
+                        {Array.isArray(shop.tags) && shop.tags.length > 0 ? (
+                          shop.tags.map((tag, idx) => (
+                            <span key={idx} className="text-[10px] font-bold bg-gray-50 border border-gray-100 text-gray-600 px-2 py-0.5 rounded-lg">
+                              {tag}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-[10px] font-bold bg-gray-50 border border-gray-100 text-gray-600 px-2 py-0.5 rounded-lg">
+                            Grocery & Essentials
+                          </span>
+                        )}
+                        <span className="text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-100/80 px-2 py-0.5 rounded-lg">
+                          15-30m Express
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Button Footer */}
+                  <div className="p-4 pt-0">
+                    <div className="w-full py-2.5 px-4 bg-emerald-50 hover:bg-[#18753C] text-[#18753C] hover:text-white rounded-xl font-extrabold text-xs transition-colors flex items-center justify-between shadow-2xs group-hover:bg-[#18753C] group-hover:text-white">
+                      <span>Browse Store Products</span>
+                      <ChevronRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white rounded-3xl border border-gray-100 p-12 text-center shadow-sm">
+              <Store className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <h3 className="font-black text-base text-gray-900">No stores found</h3>
+              <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
+                No merchants match "{searchFilter}". Try clearing your search query to see all local partner shops.
+              </p>
+              <button
+                onClick={() => setSearchFilter('')}
+                className="mt-4 px-4 py-2 bg-[#18753C] text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition"
+              >
+                Show All Stores
+              </button>
+            </div>
+          )}
+        </>
+      ) : null}
     </div>
   );
 }

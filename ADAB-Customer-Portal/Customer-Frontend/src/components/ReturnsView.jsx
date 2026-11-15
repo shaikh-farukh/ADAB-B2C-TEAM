@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ReturnAPI, OrderAPI } from '../services/api';
 
 /**
  * 4-Stage Return Lifecycle Milestones:
  * REQUESTED → APPROVED → PICKUP_SCHEDULED → REFUNDED
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const RETURN_MILESTONE_STEPS = [
   { key: 'REQUESTED', label: 'Requested', icon: 'fa-file-lines' },
   { key: 'APPROVED', label: 'Approved', icon: 'fa-check' },
@@ -12,6 +13,7 @@ export const RETURN_MILESTONE_STEPS = [
   { key: 'REFUNDED', label: 'Refunded', icon: 'fa-money-bill-transfer' }
 ];
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const getReturnStepIndex = (status) => {
   const s = (status || '').toUpperCase();
   if (s === 'REFUNDED' || s === 'COMPLETED') return 3;
@@ -31,7 +33,6 @@ export const getReturnStepIndex = (status) => {
  */
 export default function ReturnsView({
   onBack,
-  onNavigate,
   showToast = () => {},
   preselectedOrder = null,
   initialReturnsList = [],
@@ -69,7 +70,7 @@ export default function ReturnsView({
 
   // Status timeline modal
   const [selectedReturnDetail, setSelectedReturnDetail] = useState(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [, setLoadingDetail] = useState(false);
 
   // Fetch Returns and Refunds on mount
   const refreshData = async () => {
@@ -94,12 +95,14 @@ export default function ReturnsView({
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshData();
   }, []);
 
   // Pre-selected order from Order Detail view or Order Tracking view
   useEffect(() => {
     if (preselectedOrder) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedOrder(preselectedOrder);
       const initialItems = {};
       if (preselectedOrder.items && preselectedOrder.items.length > 0) {
@@ -115,7 +118,7 @@ export default function ReturnsView({
     setIsNewReturnModalOpen(true);
     setLoadingOrders(true);
     try {
-      const ordersRes = await OrderAPI.getCustomerOrders();
+      const ordersRes = await OrderAPI.getOrders();
       const orders = ordersRes?.data || [];
       const delivered = orders.filter((o) =>
         ['DELIVERED', 'COMPLETED'].includes((o.order_status || '').toUpperCase())
@@ -783,7 +786,7 @@ export default function ReturnsView({
                       {ref.gateway_refund_id ? ` (Ref: ${ref.gateway_refund_id})` : ''}
                     </span>
                     <span className="text-[11px] font-mono text-gray-400">
-                      {new Date(ref.created_at || Date.now()).toLocaleDateString('en-IN', {
+                      {new Date(ref.created_at || 0).toLocaleDateString('en-IN', {
                         day: 'numeric',
                         month: 'short'
                       })}

@@ -1,12 +1,35 @@
+const jwt = require('jsonwebtoken');
 const supportService = require('../services/supportService');
 const { formatError } = require('../utils/errorHandler');
 
-const getCustomerId = (req) =>
-  req.headers['x-user-id'] ||
-  req.headers['x-session-token'] ||
-  (req.query && req.query.customer_id) ||
-  (req.body && req.body.customer_id) ||
-  null;
+const JWT_SECRET = process.env.JWT_SECRET || 'adab_customer_portal_jwt_secret_2026';
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const getCustomerId = (req) => {
+  if (req.userId) return req.userId;
+  if (req.user && (req.user.id || req.user.userId)) return req.user.id || req.user.userId;
+
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7).trim();
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        return decoded.id || decoded.userId || decoded.customerId || decoded.sub;
+      } catch (err) {
+        return null;
+      }
+    }
+  }
+
+  const rawId = req.headers['x-user-id'] ||
+    req.headers['x-customer-id'] ||
+    (req.query && req.query.customer_id) ||
+    (req.body && req.body.customer_id) ||
+    null;
+  if (!rawId) return null;
+  return UUID_REGEX.test(rawId) ? rawId : null;
+};
 
 /**
  * Create support ticket (with category, priority, optional order_id, initial message)

@@ -808,9 +808,16 @@ async function cancelOrder(orderId, customerId = null) {
       const { resolveCustomerUserId } = require('./customerService');
       actorUserId = await resolveCustomerUserId(actorUserId);
     } catch {
-      actorUserId = order.customer_id;
+      actorUserId = null;
     }
-  } else {
+  }
+
+  if (order.customer_id && actorUserId && order.customer_id !== actorUserId) {
+    const err = new Error('Access denied. You do not have permission to cancel another customer’s order.');
+    err.statusCode = 403;
+    throw err;
+  }
+  if (!actorUserId) {
     actorUserId = order.customer_id;
   }
 
@@ -891,6 +898,12 @@ async function reorderOrder(orderId, { customerId = null, sessionToken = null } 
     } catch {
       resolvedCustomerId = null;
     }
+  }
+
+  if (orderRes.rows[0].customer_id && resolvedCustomerId && orderRes.rows[0].customer_id !== resolvedCustomerId) {
+    const err = new Error('Access denied. You do not have permission to reorder items from another customer’s order.');
+    err.statusCode = 403;
+    throw err;
   }
 
   const { getOrCreateCart, addItemToCart } = require('./cartService');

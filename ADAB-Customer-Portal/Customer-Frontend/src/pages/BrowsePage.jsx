@@ -1,14 +1,14 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api/api';
 import ProductCard from '../components/ProductCard';
-import { Filter, Store, SlidersHorizontal, X } from 'lucide-react';
+import { AlertCircle, Filter, RefreshCw, Store, SlidersHorizontal, X } from 'lucide-react';
 
 let browseCategoriesCache = null;
 
-export default function BrowsePage({ 
-  onAddToCart, 
-  onToggleWishlist, 
+export default function BrowsePage({
+  onAddToCart,
+  onToggleWishlist,
   wishlist,
   selectedStoreId = null,
   selectedStore = null,
@@ -18,18 +18,47 @@ export default function BrowsePage({
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [productsLoaded, setProductsLoaded] = useState(false);
+  const [productsError, setProductsError] = useState(null);
   const [totalPages, setTotalPages] = useState(1);
-  const [categoriesList, setCategoriesList] = useState([]);
+  const [categoriesList, setCategoriesList] = useState(browseCategoriesCache || []);
+  const [categoriesLoading, setCategoriesLoading] = useState(!browseCategoriesCache);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(Boolean(browseCategoriesCache));
+  const [categoriesError, setCategoriesError] = useState(null);
   const [storesList, setStoresList] = useState([]);
+  const [sellersLoading, setSellersLoading] = useState(true);
+  const [sellersLoaded, setSellersLoaded] = useState(false);
+  const [sellersError, setSellersError] = useState(null);
   const [currentStore, setCurrentStore] = useState(selectedStore || null);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+
+  const isMountedRef = useRef(true);
+  const categoriesFetchedRef = useRef(Boolean(browseCategoriesCache));
+  const categoriesInFlightRef = useRef(false);
+  const sellersFetchedRef = useRef(false);
+  const sellersInFlightRef = useRef(false);
+  const lastFetchedStoreIdRef = useRef(null);
+  const inFlightStoreIdRef = useRef(null);
+  const lastSearchKeyRef = useRef(null);
+  const inFlightSearchKeyRef = useRef(null);
+  const searchRequestIdRef = useRef(0);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Read URL State
   const q = searchParams.get('q') || '';
   const category = searchParams.get('category') || '';
   const categoryNameParam = searchParams.get('categoryName') || '';
   const categoriesParam = searchParams.get('categories') || '';
-  const rawCategories = categoriesParam ? categoriesParam.split(',').filter(Boolean) : [];
+  const rawCategories = useMemo(
+    () => (categoriesParam ? categoriesParam.split(',').filter(Boolean) : []),
+    [categoriesParam]
+  );
 
   // Derive active selected category names across ?categories=..., ?category=..., and ?categoryName=...
   // Automatically activates and checks the category checkbox when redirected from CategoriesPage or HomePage
@@ -41,15 +70,17 @@ export default function BrowsePage({
       return [categoryNameParam];
     }
     if (category && categoriesList.length > 0) {
-      const match = categoriesList.find(c => 
-        String(c.id) === String(category) || 
-        c.slug === category || 
+      const match = categoriesList.find(c =>
+        String(c.id) === String(category) ||
+        c.slug === category ||
         c.name.toLowerCase() === category.toLowerCase()
       );
       if (match) return [match.name];
     }
     return [];
-  }, [rawCategories.join(','), categoryNameParam, category, categoriesList]);
+  }, [rawCategories, categoryNameParam, category, categoriesList]);
+
+  const selectedCategoriesKey = selectedCategories.join(',');
 
   const storeId = searchParams.get('store_id') || searchParams.get('storeId') || searchParams.get('store') || selectedStoreId || (selectedStore?.id) || '';
   const storeName = searchParams.get('storeName') || currentStore?.name || '';
@@ -58,66 +89,150 @@ export default function BrowsePage({
   const maxPrice = searchParams.get('maxPrice') || '';
   const page = parseInt(searchParams.get('page')) || 1;
 
-  // Fetch categories dynamically from database with deduplication cache
+  // Fetch categories dynamically from database with StrictMode-safe guard
+  const fetchCategories = useCallback(async (force = false) => {
+    if (categoriesInFlightRef.current) return;
+    if (!force && categoriesFetchedRef.current) return;
+    categoriesFetchedRef.current = true;
+    categoriesInFlightRef.current = true;
+    if (force) {
+      browseCategoriesCache = null;
+      setCategoriesLoading(true);
+      setCategoriesError(null);
+    }
+    try {
+      const res = await api.get('/catalog/categories');
+      if (!isMountedRef.current) return;
+      const cats = res.data?.data ?? res.data;
+      const list = Array.isArray(cats) ? cats : [];
+      browseCategoriesCache = list;
+      setCategoriesList(list);
+      setCategoriesLoaded(true);
+      setCategoriesError(null);
+    } catch (err) {
+      categoriesFetchedRef.current = false;
+      if (!isMountedRef.current) return;
+      console.error('Error fetching categories:', err);
+      setCategoriesError(err.response?.data?.message || 'Failed to load categories.');
+    } finally {
+      categoriesInFlightRef.current = false;
+      if (isMountedRef.current) {
+        setCategoriesLoading(false);
+      }
+    }
+  }, []);
+
   useEffect(() => {
-    if (browseCategoriesCache) {
-      setCategoriesList(browseCategoriesCache);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchCategories(false);
+  }, [fetchCategories]);
+
+  // Fetch sellers/stores list dynamically from database with StrictMode-safe guard
+  const fetchSellers = useCallback(async (force = false) => {
+    if (sellersInFlightRef.current) return;
+    if (!force && sellersFetchedRef.current) return;
+    sellersFetchedRef.current = true;
+    sellersInFlightRef.current = true;
+    if (force) {
+      setSellersLoading(true);
+      setSellersError(null);
+    }
+    try {
+      const res = await api.get('/catalog/sellers');
+      if (!isMountedRef.current) return;
+      const list = res.data?.data ?? res.data;
+      setStoresList(Array.isArray(list) ? list : []);
+      setSellersLoaded(true);
+      setSellersError(null);
+    } catch (err) {
+      sellersFetchedRef.current = false;
+      if (!isMountedRef.current) return;
+      console.error('Error fetching sellers:', err);
+      setSellersError(err.response?.data?.message || 'Failed to load shops.');
+    } finally {
+      sellersInFlightRef.current = false;
+      if (isMountedRef.current) {
+        setSellersLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchSellers(false);
+  }, [fetchSellers]);
+
+  // Sync seller/store details (StrictMode-safe)
+  useEffect(() => {
+    if (!storeId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCurrentStore(null);
       return;
     }
-    api.get('/catalog/categories')
-      .then(res => {
-        const cats = res.data?.data || res.data || [];
-        browseCategoriesCache = cats;
-        setCategoriesList(cats);
-      })
-      .catch(err => console.error('Error fetching categories:', err));
-  }, []);
-
-  // Fetch stores list dynamically from database
-  useEffect(() => {
-    api.get('/catalog/stores')
-      .then(res => {
-        const list = res.data?.data || res.data || [];
-        setStoresList(list);
-      })
-      .catch(err => console.error('Error fetching stores:', err));
-  }, []);
-
-  // Sync store details
-  useEffect(() => {
-    if (storeId) {
-      if (selectedStore && String(selectedStore.id) === String(storeId)) {
-        setCurrentStore(selectedStore);
-      } else {
-        const match = storesList.find(s => String(s.id) === String(storeId));
-        if (match) {
-          setCurrentStore(match);
-        } else {
-          // Fetch store details by ID from API
-          api.get(`/catalog/stores/${storeId}`)
-            .then(res => {
-              if (res.data?.success && res.data?.data) {
-                setCurrentStore(res.data.data);
-              }
-            })
-            .catch(() => {});
-        }
-      }
-    } else {
-      setCurrentStore(null);
+    if (selectedStore && String(selectedStore.id) === String(storeId)) {
+      setCurrentStore(selectedStore);
+      return;
     }
-  }, [storeId, storesList, selectedStore]);
+    const match = storesList.find(s => String(s.id) === String(storeId));
+    if (match) {
+      setCurrentStore(match);
+      return;
+    }
+    // Wait for initial sellers list before fetching an individual seller fallback
+    if (!sellersLoaded && !sellersError) return;
+    if (inFlightStoreIdRef.current === storeId || lastFetchedStoreIdRef.current === storeId) return;
 
-  // Fetch products cleanly without triggering premature net::ERR_CANCELED DevTools errors
-  useEffect(() => {
-    let isCurrent = true;
+    lastFetchedStoreIdRef.current = storeId;
+    inFlightStoreIdRef.current = storeId;
+    api.get(`/catalog/sellers/${storeId}`)
+      .then(res => {
+        if (!isMountedRef.current) return;
+        if (res.data?.success && res.data?.data) {
+          setCurrentStore(res.data.data);
+        }
+      })
+      .catch(() => {
+        lastFetchedStoreIdRef.current = null;
+      })
+      .finally(() => {
+        if (inFlightStoreIdRef.current === storeId) {
+          inFlightStoreIdRef.current = null;
+        }
+      });
+  }, [storeId, storesList, selectedStore, sellersLoaded, sellersError]);
 
-    const fetchProducts = async () => {
+  const currentSearchKey = useMemo(
+    () =>
+      JSON.stringify({
+        q,
+        selectedCategoriesKey,
+        category,
+        storeId,
+        storeName,
+        minPrice,
+        maxPrice,
+        sortBy,
+        page
+      }),
+    [q, selectedCategoriesKey, category, storeId, storeName, minPrice, maxPrice, sortBy, page]
+  );
+
+  // Fetch products: guarded per query key against StrictMode double-invoke, while refetching whenever filters/query/sort/page change
+  const fetchProducts = useCallback(
+    async (keyToLoad, force = false) => {
+      if (!force && inFlightSearchKeyRef.current === keyToLoad) return;
+      if (!force && lastSearchKeyRef.current === keyToLoad) return;
+
+      lastSearchKeyRef.current = keyToLoad;
+      inFlightSearchKeyRef.current = keyToLoad;
+      const reqId = ++searchRequestIdRef.current;
+
       setLoading(true);
+      setProductsError(null);
+
       try {
         const params = new URLSearchParams();
         if (q) params.append('q', q);
-        // Pass category filters: prioritize selectedCategories (names) or fallback to single category
         if (selectedCategories.length > 0) {
           params.append('categories', selectedCategories.join(','));
         } else if (category) {
@@ -139,29 +254,39 @@ export default function BrowsePage({
         params.append('limit', 12);
 
         const res = await api.get(`/catalog/search?${params.toString()}`);
-        
-        if (!isCurrent) return;
 
-        setProducts(res.data?.data || []);
-        const total = res.data?.pagination?.total ?? (res.data?.data?.length || 0);
+        if (!isMountedRef.current || reqId !== searchRequestIdRef.current) return;
+
+        const items = Array.isArray(res.data?.data) ? res.data.data : [];
+        setProducts(items);
+        const total = res.data?.pagination?.total ?? items.length;
         const pages = res.data?.pagination?.totalPages ?? Math.max(1, Math.ceil(total / 12));
         setTotalPages(pages);
+        setProductsLoaded(true);
+        setProductsError(null);
       } catch (err) {
-        if (!isCurrent) return;
+        if (lastSearchKeyRef.current === keyToLoad) {
+          lastSearchKeyRef.current = null;
+        }
+        if (!isMountedRef.current || reqId !== searchRequestIdRef.current) return;
         console.error('Error fetching browse products:', err);
+        setProductsError(err.response?.data?.message || 'Unable to load products. Please try again.');
       } finally {
-        if (isCurrent) {
+        if (inFlightSearchKeyRef.current === keyToLoad) {
+          inFlightSearchKeyRef.current = null;
+        }
+        if (isMountedRef.current && reqId === searchRequestIdRef.current) {
           setLoading(false);
         }
       }
-    };
+    },
+    [q, selectedCategories, category, storeId, storeName, minPrice, maxPrice, sortBy, page]
+  );
 
-    fetchProducts();
-
-    return () => {
-      isCurrent = false;
-    };
-  }, [q, category, categoryNameParam, categoriesParam, selectedCategories.join(','), storeId, storeName, minPrice, maxPrice, sortBy, page]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchProducts(currentSearchKey, false);
+  }, [currentSearchKey, fetchProducts]);
 
   // Handlers for Filter changes
   const updateFilter = (key, value) => {
@@ -281,71 +406,117 @@ export default function BrowsePage({
             <span>All Local Shops</span>
             {!storeId && <i className="fa-solid fa-check text-xs"></i>}
           </button>
-          {storesList.map(s => {
-            const isSelected = String(s.id) === String(storeId);
-            return (
+          {sellersLoading ? (
+            <div className="space-y-1.5 pt-1">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="h-8 bg-gray-100 rounded-xl animate-pulse"></div>
+              ))}
+            </div>
+          ) : sellersError ? (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 text-[11px] text-red-700 space-y-2 mt-1">
+              <div className="flex items-center gap-1.5 font-medium">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>{sellersError}</span>
+              </div>
               <button
-                key={s.id}
                 type="button"
-                onClick={() => handleSelectStore(s)}
-                className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-between ${
-                  isSelected ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-xs' : 'text-gray-700 hover:bg-gray-100'
-                }`}
+                disabled={sellersLoading}
+                onClick={() => fetchSellers(true)}
+                className="px-2.5 py-1 bg-white border border-red-200 rounded-lg font-bold text-red-800 hover:bg-red-100 transition inline-flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span className="truncate max-w-[170px]">{s.name}</span>
-                {isSelected && <i className="fa-solid fa-check text-xs"></i>}
+                <RefreshCw className={`w-3 h-3 ${sellersLoading ? 'animate-spin' : ''}`} /> Retry
               </button>
-            );
-          })}
+            </div>
+          ) : sellersLoaded ? (
+            storesList.map(s => {
+              const isSelected = String(s.id) === String(storeId);
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => handleSelectStore(s)}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-between ${
+                    isSelected ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-xs' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <span className="truncate max-w-[170px]">{s.name}</span>
+                  {isSelected && <i className="fa-solid fa-check text-xs"></i>}
+                </button>
+              );
+            })
+          ) : null}
         </div>
       </div>
-      
+
       <div>
         <h3 className="text-xs font-extrabold mb-3 uppercase tracking-wider text-gray-500">
-          Categories ({categoriesList.length})
+          Categories {categoriesLoaded ? `(${categoriesList.length})` : ''}
         </h3>
-        <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-          {categoriesList.map(cat => {
-            const catName = cat.name || cat;
-            const isChecked = selectedCategories.includes(catName) ||
-              (selectedCategories.length === 0 && (
-                category === String(cat.id) ||
-                category === cat.slug ||
-                category === catName ||
-                categoryNameParam === catName
-              ));
-            return (
-              <label key={cat.id || catName} className="flex items-center gap-2.5 text-xs cursor-pointer select-none py-1 hover:text-brand-green transition">
-                <input 
-                  type="checkbox" 
-                  className="rounded text-brand-green focus:ring-brand-green w-4 h-4 accent-[#18753C]" 
-                  checked={isChecked}
-                  onChange={() => toggleCategoryName(catName)}
-                /> 
-                <span className={isChecked ? 'font-bold text-emerald-800' : 'text-gray-600'}>{catName}</span>
-              </label>
-            );
-          })}
-        </div>
+        {categoriesLoading ? (
+          <div className="space-y-2">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-6 bg-gray-100 rounded-lg animate-pulse"></div>
+            ))}
+          </div>
+        ) : categoriesError ? (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 text-[11px] text-red-700 space-y-2">
+            <div className="flex items-center gap-1.5 font-medium">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>{categoriesError}</span>
+            </div>
+            <button
+              type="button"
+              disabled={categoriesLoading}
+              onClick={() => fetchCategories(true)}
+              className="px-2.5 py-1 bg-white border border-red-200 rounded-lg font-bold text-red-800 hover:bg-red-100 transition inline-flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`w-3 h-3 ${categoriesLoading ? 'animate-spin' : ''}`} /> Retry
+            </button>
+          </div>
+        ) : categoriesLoaded ? (
+          <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+            {categoriesList.map(cat => {
+              const catName = cat.name || cat;
+              const isChecked = selectedCategories.includes(catName) ||
+                (selectedCategories.length === 0 && (
+                  category === String(cat.id) ||
+                  category === cat.slug ||
+                  category === catName ||
+                  categoryNameParam === catName
+                ));
+              return (
+                <label key={cat.id || catName} className="flex items-center gap-2.5 text-xs cursor-pointer select-none py-1 hover:text-brand-green transition">
+                  <input
+                    type="checkbox"
+                    className="rounded text-brand-green focus:ring-brand-green w-4 h-4 accent-[#18753C]"
+                    checked={isChecked}
+                    onChange={() => toggleCategoryName(catName)}
+                  />
+                  <span className={isChecked ? 'font-bold text-emerald-800' : 'text-gray-600'}>{catName}</span>
+                </label>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
-      
+
       <div>
         <h3 className="text-xs font-extrabold mb-3 uppercase tracking-wider text-gray-500">Price Range (₹)</h3>
         <div className="flex items-center gap-2">
-          <input 
-            type="number" 
-            placeholder="Min" 
+          <input
+            type="number"
+            placeholder="Min"
             value={minPrice}
             onChange={(e) => updateFilter('minPrice', e.target.value)}
-            className="w-full border border-gray-200 rounded-xl p-2.5 text-xs bg-gray-50 focus:bg-white focus:border-brand-green outline-none" 
+            className="w-full border border-gray-200 rounded-xl p-2.5 text-xs bg-gray-50 focus:bg-white focus:border-brand-green outline-none"
           />
           <span className="text-gray-400 font-bold">-</span>
-          <input 
-            type="number" 
-            placeholder="Max" 
+          <input
+            type="number"
+            placeholder="Max"
             value={maxPrice}
             onChange={(e) => updateFilter('maxPrice', e.target.value)}
-            className="w-full border border-gray-200 rounded-xl p-2.5 text-xs bg-gray-50 focus:bg-white focus:border-brand-green outline-none" 
+            className="w-full border border-gray-200 rounded-xl p-2.5 text-xs bg-gray-50 focus:bg-white focus:border-brand-green outline-none"
           />
         </div>
       </div>
@@ -362,14 +533,14 @@ export default function BrowsePage({
       {/* Mobile Bottom Filter Sheet / Drawer */}
       {isMobileFilterOpen && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end md:hidden">
-          <div 
+          <div
             className="fixed inset-0 bg-black/40 backdrop-blur-sm"
             onClick={() => setIsMobileFilterOpen(false)}
           ></div>
           <div className="relative bg-white rounded-t-3xl p-6 shadow-2xl z-10 max-h-[85vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-100">
               <span className="font-extrabold text-base text-gray-900">Filter Products</span>
-              <button 
+              <button
                 onClick={() => setIsMobileFilterOpen(false)}
                 className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:text-black cursor-pointer"
               >
@@ -399,9 +570,9 @@ export default function BrowsePage({
       <div className="flex-1 w-full">
         {/* Search Input Bar (Supports Day 1 Test & Fast Lookup) */}
         <div className="relative mb-5">
-          <input 
-            type="text" 
-            placeholder="Search shops, products..." 
+          <input
+            type="text"
+            placeholder="Search shops, products..."
             value={q}
             onChange={(e) => updateFilter('q', e.target.value)}
             className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3 pl-11 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none shadow-xs placeholder-gray-400"
@@ -419,20 +590,20 @@ export default function BrowsePage({
 
         {/* Selected Shop Hero Banner */}
         {(currentStore || storeId) && (
-          <div 
+          <div
             className="mb-6 rounded-2xl shop-hero text-white p-5 shadow-lg relative overflow-hidden"
-            style={{ 
-              background: 'linear-gradient(135deg, #064E3B 0%, #047857 50%, #059669 100%)', 
+            style={{
+              background: 'linear-gradient(135deg, #064E3B 0%, #047857 50%, #059669 100%)',
               color: '#ffffff',
               boxShadow: '0 10px 25px -5px rgba(6, 78, 59, 0.35)'
             }}
           >
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
               <div className="flex items-center gap-4">
-                <div 
+                <div
                   className="w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl text-white shadow-md shrink-0"
-                  style={{ 
-                    background: 'rgba(255, 255, 255, 0.22)', 
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.22)',
                     border: '1.5px solid rgba(255, 255, 255, 0.4)',
                     backdropFilter: 'blur(8px)',
                     WebkitBackdropFilter: 'blur(8px)'
@@ -442,23 +613,23 @@ export default function BrowsePage({
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span 
+                    <span
                       className="text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm"
-                      style={{ 
-                        background: '#10B981', 
-                        color: '#ffffff', 
-                        border: '1px solid #34D399', 
-                        letterSpacing: '0.02em' 
+                      style={{
+                        background: '#10B981',
+                        color: '#ffffff',
+                        border: '1px solid #34D399',
+                        letterSpacing: '0.02em'
                       }}
                     >
                       <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
                       OPEN NOW
                     </span>
-                    <span 
+                    <span
                       className="text-[11px] font-bold flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-                      style={{ 
-                        background: 'rgba(255, 255, 255, 0.18)', 
-                        color: '#F0FDF4', 
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.18)',
+                        color: '#F0FDF4',
                         border: '1px solid rgba(255, 255, 255, 0.3)',
                         backdropFilter: 'blur(4px)',
                         WebkitBackdropFilter: 'blur(4px)'
@@ -531,7 +702,7 @@ export default function BrowsePage({
             {/* Sort Selector */}
             <div className="flex items-center gap-2 text-xs bg-gray-50 border border-gray-200/60 px-3 py-1.5 rounded-xl">
               <span className="text-gray-400 font-bold hidden sm:inline">Sort by:</span>
-              <select 
+              <select
                 value={sortBy}
                 onChange={(e) => updateFilter('sortBy', e.target.value)}
                 className="border-none bg-transparent font-extrabold text-gray-800 focus:ring-0 cursor-pointer text-xs outline-none"
@@ -603,26 +774,42 @@ export default function BrowsePage({
               <div key={i} className="animate-pulse bg-gray-100 rounded-2xl aspect-[3/4] border border-gray-100"></div>
             ))}
           </div>
-        ) : products.length > 0 ? (
+        ) : productsError ? (
+          <div className="bg-white rounded-3xl border border-red-100 p-8 text-center max-w-md mx-auto shadow-sm my-8">
+            <div className="w-12 h-12 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <h3 className="font-extrabold text-gray-900 text-base mb-1">Failed to Load Products</h3>
+            <p className="text-xs text-gray-500 mb-4">{productsError}</p>
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => fetchProducts(currentSearchKey, true)}
+              className="px-5 py-2.5 bg-[#18753C] text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition inline-flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Retry
+            </button>
+          </div>
+        ) : productsLoaded && products.length > 0 ? (
           <>
             {/* Properly Spaced 3-Column Responsive Grid (Only for Browse Page) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {products.map(product => (
-                <ProductCard 
-                  key={product.id} 
-                  product={product} 
-                  onAddToCart={onAddToCart} 
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  onAddToCart={onAddToCart}
                   onToggleWishlist={onToggleWishlist}
                   wishlist={wishlist}
                   customClassName="h-full border-gray-200/80 hover:shadow-lg hover:border-emerald-500/50 transition-all duration-300"
                 />
               ))}
             </div>
-            
+
             {/* Pagination Controls */}
             <div className="flex justify-center items-center gap-3 mt-12">
-              <button 
-                disabled={page <= 1}
+              <button
+                disabled={loading || page <= 1}
                 onClick={() => updateFilter('page', page - 1)}
                 className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-xs disabled:opacity-40 font-bold hover:bg-gray-50 cursor-pointer disabled:cursor-not-allowed shadow-sm transition"
               >
@@ -631,8 +818,8 @@ export default function BrowsePage({
               <span className="text-xs font-extrabold text-gray-700 bg-white border border-gray-100 px-3.5 py-2 rounded-xl shadow-sm">
                 Page {page} of {totalPages}
               </span>
-              <button 
-                disabled={page >= totalPages}
+              <button
+                disabled={loading || page >= totalPages}
                 onClick={() => updateFilter('page', page + 1)}
                 className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold disabled:opacity-40 hover:bg-gray-50 cursor-pointer disabled:cursor-not-allowed shadow-sm transition"
               >
@@ -640,7 +827,7 @@ export default function BrowsePage({
               </button>
             </div>
           </>
-        ) : (
+        ) : productsLoaded ? (
           <div className="py-20 text-center bg-white rounded-3xl border border-gray-100 p-8 shadow-xs">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <i className="fa-solid fa-store-slash text-2xl text-gray-400"></i>
@@ -648,7 +835,7 @@ export default function BrowsePage({
             <h3 className="text-lg font-bold text-gray-900 mb-1">No approved products found</h3>
             <p className="text-gray-500 text-sm max-w-sm mx-auto">
               {currentStore || storeId
-                ? `There are currently no approved products listed from ${currentStore?.name || storeName || 'this shop'}.` 
+                ? `There are currently no approved products listed from ${currentStore?.name || storeName || 'this shop'}.`
                 : 'Try adjusting your filters or search criteria.'}
             </p>
             <div className="flex items-center justify-center gap-3 mt-4">
@@ -669,7 +856,7 @@ export default function BrowsePage({
               </button>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
