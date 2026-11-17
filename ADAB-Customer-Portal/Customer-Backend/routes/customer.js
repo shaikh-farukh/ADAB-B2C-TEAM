@@ -76,7 +76,9 @@ router.get('/me', requireCustomerAuth, customerController.getProfile);
 router.patch('/me', requireCustomerAuth, customerController.updateProfile);
 router.get('/me/profile', requireCustomerAuth, customerController.getProfile);
 router.patch('/me/profile', requireCustomerAuth, customerController.updateProfile);
+router.post('/me/profile/avatar/sign', requireCustomerAuth, customerController.getAvatarUploadSignature);
 router.post('/me/profile/avatar', requireCustomerAuth, customerController.uploadAvatar);
+router.delete('/me/profile/avatar', requireCustomerAuth, customerController.removeAvatar);
 
 // --- 2. Shopping Preferences ---
 router.get('/me/preferences', requireCustomerAuth, customerController.getPreferences);

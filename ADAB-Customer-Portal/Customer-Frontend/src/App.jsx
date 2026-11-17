@@ -369,6 +369,12 @@ export default function App() {
       } else if (profRes?.data && typeof profRes.data.points === 'number') {
         setPoints(profRes.data.points);
       }
+      if (profRes?.data) {
+        const pUrl = profRes.data.profile_picture_url || profRes.data.avatarUrl;
+        if (pUrl) {
+          setCurrentUser(prev => prev ? ({ ...prev, profile_picture_url: pUrl, avatar_url: pUrl }) : prev);
+        }
+      }
       if (walletRes?.data && typeof walletRes.data.balance === 'number') {
         setWalletBalance(walletRes.data.balance);
       }
@@ -900,8 +906,20 @@ export default function App() {
                   onClick={() => setActiveTab('account')}
                   title="View Profile & Account"
                 >
-                  <div className="w-6 h-6 rounded-full bg-[#18753C] text-white flex items-center justify-center text-xs font-black">
-                    {(currentUser.name || currentUser.full_name || 'U').charAt(0).toUpperCase()}
+                  <div className="w-6 h-6 rounded-full bg-[#18753C] text-white flex items-center justify-center text-xs font-black overflow-hidden shrink-0">
+                    {(currentUser.profile_picture_url || currentUser.avatar_url) ? (
+                      <img
+                        src={currentUser.profile_picture_url || currentUser.avatar_url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      (currentUser.name || currentUser.full_name || 'U').charAt(0).toUpperCase()
+                    )}
                   </div>
                   <span className="truncate max-w-[110px]">{currentUser.name || currentUser.full_name || 'Account'}</span>
                 </button>
@@ -984,8 +1002,20 @@ export default function App() {
                       onClick={() => setActiveTab('account')}
                       className="glass px-2.5 h-9 rounded-full flex items-center gap-1.5 text-xs font-bold transition hover:bg-white/30 cursor-pointer"
                     >
-                      <div className="w-5 h-5 rounded-full bg-white text-[#18753C] flex items-center justify-center text-[10px] font-black">
-                        {(currentUser.name || currentUser.full_name || 'U').charAt(0).toUpperCase()}
+                      <div className="w-5 h-5 rounded-full bg-white text-[#18753C] flex items-center justify-center text-[10px] font-black overflow-hidden shrink-0">
+                        {(currentUser.profile_picture_url || currentUser.avatar_url) ? (
+                          <img
+                            src={currentUser.profile_picture_url || currentUser.avatar_url}
+                            alt=""
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          (currentUser.name || currentUser.full_name || 'U').charAt(0).toUpperCase()
+                        )}
                       </div>
                       <span className="truncate max-w-[70px]">{(currentUser.name || currentUser.full_name || 'You').split(' ')[0]}</span>
                     </button>
@@ -1486,6 +1516,7 @@ export default function App() {
           <AccountPage
             onNavigate={setActiveTab}
             currentUser={currentUser}
+            onUpdateCurrentUser={(updated) => setCurrentUser(prev => ({ ...prev, ...updated }))}
             onLogout={handleLogout}
             onOpenLogin={() => {
               setAuthMode('login');

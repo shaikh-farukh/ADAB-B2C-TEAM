@@ -93,13 +93,41 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
-// 3. POST /api/v1/customers/me/profile/avatar
+// 3a. POST /api/v1/customers/me/profile/avatar/sign
+exports.getAvatarUploadSignature = async (req, res) => {
+  try {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const data = await customerService.getAvatarUploadSignature(userId, req.body);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(error.status || error.statusCode || 500).json({
+      success: false,
+      code: error.code || 'SIGNATURE_FAILED',
+      message: error.message
+    });
+  }
+};
+
+// 3b. POST /api/v1/customers/me/profile/avatar
 exports.uploadAvatar = async (req, res) => {
   try {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const data = await customerService.uploadAvatar(userId, req.body);
     res.json({ success: true, message: 'Avatar updated successfully', data });
+  } catch (error) {
+    res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+};
+
+// 3c. DELETE /api/v1/customers/me/profile/avatar
+exports.removeAvatar = async (req, res) => {
+  try {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const data = await customerService.removeAvatar(userId);
+    res.json(data);
   } catch (error) {
     res.status(error.status || 500).json({ success: false, message: error.message });
   }
