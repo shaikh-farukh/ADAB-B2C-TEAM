@@ -835,8 +835,14 @@ class SellerController {
   async orderRestockCases(req, res) {
     try {
       const { storeId, userId } = getAuthenticatedSellerContext(req);
-      const { masterCatalogId, orderedCases, notes } = req.body;
-      const result = await sellerService.orderRestockCases(storeId, userId, { masterCatalogId, orderedCases, notes });
+      const { masterCatalogId, orderedCases, notes, paymentMethod, payment_method, deliveryAddress, shippingAddress } = req.body;
+      const result = await sellerService.orderRestockCases(storeId, userId, {
+        masterCatalogId,
+        orderedCases,
+        notes,
+        paymentMethod: paymentMethod || payment_method || 'CASH',
+        deliveryAddress: deliveryAddress || shippingAddress
+      });
       res.status(201).json({ success: true, data: result });
     } catch (error) {
       handleError(res, error);
@@ -846,8 +852,13 @@ class SellerController {
   async bulkOrderRestockCases(req, res) {
     try {
       const { storeId, userId } = getAuthenticatedSellerContext(req);
-      const { items, notes } = req.body;
-      const result = await sellerService.bulkOrderRestockCases(storeId, userId, { items, notes });
+      const { items, notes, paymentMethod, payment_method, deliveryAddress, shippingAddress } = req.body;
+      const result = await sellerService.bulkOrderRestockCases(storeId, userId, {
+        items,
+        notes,
+        paymentMethod: paymentMethod || payment_method || 'CASH',
+        deliveryAddress: deliveryAddress || shippingAddress
+      });
       res.status(201).json({ success: true, data: result });
     } catch (error) {
       handleError(res, error);

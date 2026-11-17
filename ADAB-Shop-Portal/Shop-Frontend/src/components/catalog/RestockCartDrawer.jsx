@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { sellerApi } from '../../api/sellerApi';
 import useRestockCart from '../../hooks/useRestockCart';
 
 export default function RestockCartDrawer({ isOpen, onClose, onOrderPlaced }) {
+  const navigate = useNavigate();
   const { cart, updateCases, removeFromCart, clearCart, totalCartons, totalAmount, totalProfit } = useRestockCart();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -251,27 +253,20 @@ export default function RestockCartDrawer({ isOpen, onClose, onOrderPlaced }) {
           <div className="p-4 sm:p-5 border-t border-gray-100 bg-white space-y-2">
             <button
               type="button"
-              disabled={isSubmitting}
-              onClick={handleCheckout}
-              className="w-full btn-primary !py-3 !text-sm font-extrabold flex items-center justify-center gap-2 shadow-md cursor-pointer disabled:opacity-50"
+              onClick={() => {
+                onClose();
+                navigate('/catalog/checkout');
+              }}
+              className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md cursor-pointer transition-all active:scale-[0.99]"
             >
-              {isSubmitting ? (
-                <>
-                  <i className="fa-solid fa-spinner fa-spin"></i>
-                  <span>Routing to Local Distributor...</span>
-                </>
-              ) : (
-                <>
-                  <i className="fa-solid fa-truck-ramp-box"></i>
-                  <span>Confirm Restock Delivery ({totalCartons} Cartons)</span>
-                </>
-              )}
+              <i className="fa-solid fa-lock"></i>
+              <span>Proceed to Wholesale Checkout (₹{totalAmount.toFixed(2)})</span>
             </button>
             <button
               type="button"
               disabled={isSubmitting}
               onClick={clearCart}
-              className="w-full py-1.5 text-xs text-gray-400 hover:text-gray-600 transition text-center cursor-pointer"
+              className="w-full py-1 text-xs text-gray-400 hover:text-gray-600 transition text-center cursor-pointer"
             >
               Clear Entire Restock Cart
             </button>

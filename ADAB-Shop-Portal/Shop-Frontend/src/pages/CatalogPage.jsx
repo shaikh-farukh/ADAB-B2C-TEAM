@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { sellerApi } from '../api/sellerApi';
 import listingService from '../services/listingService';
 import { useTranslation } from '../context/LanguageContext';
@@ -8,7 +8,8 @@ import RestockCartDrawer from '../components/catalog/RestockCartDrawer';
 
 export default function CatalogPage() {
   const { t } = useTranslation();
-  const { totalCartons } = useRestockCart();
+  const navigate = useNavigate();
+  const { addToCart, totalCartons } = useRestockCart();
   const [isRestockCartOpen, setIsRestockCartOpen] = useState(false);
 
   const [products, setProducts] = useState([]);
@@ -398,31 +399,42 @@ export default function CatalogPage() {
                   </div>
                 </div>
 
-                {/* Dual Action Buttons */}
-                <div className="pt-3 mt-3 border-t border-gray-100 flex items-center gap-2">
-                  {item.already_in_store ? (
-                    <span className="flex-1 py-1.5 px-2.5 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-bold flex items-center justify-center gap-1 border border-emerald-200">
-                      <i className="fa-solid fa-circle-check"></i> In Store
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => openAdoptModal(item)}
-                      className="flex-1 btn-soft !py-1.5 !px-2.5 !text-xs flex items-center justify-center gap-1 cursor-pointer font-bold hover:border-emerald-300 hover:text-emerald-700"
-                      title="Add to your store POS & inventory to sell to retail buyers"
-                    >
-                      <i className="fa-solid fa-plus text-emerald-600"></i> Add to Store
-                    </button>
+                {/* Amazon / Flipkart Style Actions */}
+                <div className="pt-3 mt-3 border-t border-gray-100 flex flex-col gap-2">
+                  {item.already_in_store && (
+                    <div className="text-[11px] font-bold text-emerald-700 flex items-center justify-center gap-1.5 bg-emerald-50 py-1 rounded-xl border border-emerald-200">
+                      <i className="fa-solid fa-circle-check text-emerald-600"></i>
+                      <span>Active in Your Store POS</span>
+                    </div>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={() => openRestockModal(item)}
-                    className="flex-1 btn-primary !py-1.5 !px-2.5 !text-xs flex items-center justify-center gap-1 cursor-pointer font-bold shadow-xs"
-                    title={`Order restock shipper cartons from ${item.distributor_name || 'Local Stockist'}`}
-                  >
-                    <i className="fa-solid fa-boxes-packing"></i> Restock Cases
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        addToCart(item, 1);
+                        showToast(`🛒 Added 1 carton of "${item.product_name}" to Wholesale Cart!`);
+                      }}
+                      className="flex-1 py-2 px-3 rounded-xl bg-amber-400 hover:bg-amber-500 text-gray-950 text-xs font-black transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer border border-amber-500 active:scale-[0.98]"
+                      title="Add 1 carton to wholesale cart"
+                    >
+                      <i className="fa-solid fa-cart-plus text-xs"></i>
+                      <span>Add to Cart</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        addToCart(item, 1);
+                        navigate('/catalog/checkout');
+                      }}
+                      className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-black transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
+                      title="Buy now and proceed to checkout"
+                    >
+                      <i className="fa-solid fa-bolt text-xs"></i>
+                      <span>Buy Now</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             );

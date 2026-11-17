@@ -1191,7 +1191,7 @@ class SellerRepository {
           buyer.city as buyer_city,
           buyer.latitude as buyer_lat,
           buyer.longitude as buyer_lng,
-          supp.store_name as supplier_store_name,
+          COALESCE(supp.store_name, bpo.distributor_name, 'Apex City Stockists') as supplier_store_name,
           supp.phone as supplier_phone,
           supp.city as supplier_city,
           supp.latitude as supplier_lat,
@@ -1240,6 +1240,10 @@ class SellerRepository {
           sourceChannel = 'OTHER_STORE_BRANDS';
           sourceLabel = 'Other Store Brands';
           partnerRole = 'Brand Store';
+        } else if (poNum.startsWith('PO-B2B-ORD-') || poNum.startsWith('PO-FMCG-') || String(row.notes || '').toLowerCase().includes('fmcg') || String(row.notes || '').toLowerCase().includes('restock')) {
+          sourceChannel = 'MANUFACTURER';
+          sourceLabel = 'National FMCG Brand';
+          partnerRole = 'Authorized Stockist';
         } else if (poNum.startsWith('PO-B2B-') || poNum.startsWith('PO-NK-')) {
           sourceChannel = 'NEARBY_KIRANA';
           sourceLabel = 'Nearby Kirana';
@@ -1810,6 +1814,8 @@ class SellerRepository {
         ALTER TABLE cart_items ADD CONSTRAINT cart_items_listing_id_fkey FOREIGN KEY (listing_id) REFERENCES seller_listings(id) ON DELETE CASCADE;
         ALTER TABLE b2b_purchase_orders DROP CONSTRAINT IF EXISTS b2b_purchase_orders_status_check;
         ALTER TABLE b2b_purchase_orders ADD CONSTRAINT b2b_purchase_orders_status_check CHECK (status IN ('REQUESTED', 'APPROVED', 'DECLINED', 'PLACED', 'CONFIRMED', 'PACKING', 'PACKED', 'DISPATCHED', 'IN_TRANSIT', 'SHIPPED', 'DELIVERED', 'RECEIVED', 'CANCELLED'));
+        ALTER TABLE b2b_purchase_orders ALTER COLUMN supplier_store_id DROP NOT NULL;
+        ALTER TABLE b2b_purchase_orders ADD COLUMN IF NOT EXISTS distributor_name VARCHAR(150);
       `);
       this._b2bPurchaseTablesReady = true;
     } catch (_) {
@@ -5381,7 +5387,7 @@ class SellerRepository {
   }
 
   async orderRestockCases(storeId, userId, data = {}) {
-    const { masterCatalogId, orderedCases = 1, notes } = data;
+    const { masterCatalogId, orderedCases = 1, notes, paymentMethod = 'CASH', deliveryAddress } = data;
     if (!storeId && !userId) throw new Error('Seller identity is required');
     if (!masterCatalogId) throw new Error('Master Catalog Item ID is required');
 
@@ -5397,6 +5403,7 @@ class SellerRepository {
     const sRes = await pool.query('SELECT id, store_name, pincode, address_line FROM stores WHERE id = $1', [storeId]);
     const store = sRes.rows[0] || {};
     const storePincode = store.pincode || '400001';
+    const finalAddress = deliveryAddress || (store.address_line ? `${store.store_name}, ${store.address_line}, Pincode: ${storePincode}` : `Pincode: ${storePincode}`);
 
     // 3. Resolve Distributor for this brand & pincode
     const distRes = await pool.query(`
@@ -5419,10 +5426,16 @@ class SellerRepository {
     const unitWholesale = Number(master.distributor_price) || Math.round(Number(master.retail_price || master.mrp || 0) * 0.85 * 100) / 100;
     const casePrice = Number(master.case_distributor_price) || Math.round(unitWholesale * caseSize * 100) / 100;
     const totalAmount = Math.round(casePrice * numCases * 100) / 100;
+    const totalUnits = numCases * caseSize;
 
     const orderNumber = 'B2B-ORD-' + Date.now().toString().slice(-6) + '-' + Math.floor(100 + Math.random() * 900);
+    const poNumber = 'PO-' + orderNumber;
 
-    // 4. Create Order in manage_b_to_b_orders
+    const normalizedPaymentMethod = String(paymentMethod || 'CASH').toUpperCase();
+    const poTerms = normalizedPaymentMethod === 'CREDIT' ? 'CREDIT_14D' : (normalizedPaymentMethod === 'UPI' ? 'ADVANCE_UPI' : 'COD');
+    const poPaymentStatus = normalizedPaymentMethod === 'UPI' ? 'PAID' : 'PENDING';
+
+    // 4. Create Order in manage_b_to_b_orders (for Distributor / Manufacturer)
     const ordRes = await pool.query(`
       INSERT INTO manage_b_to_b_orders (
         order_number, distributor_id, manufacturer_id, shop_id,
@@ -5430,15 +5443,17 @@ class SellerRepository {
         delivery_mode, payment_mode, shipping_address, active, order_date
       ) VALUES (
         $1, $2, $3, 3,
-        $4, $4, 'PENDING', 'UNPAID',
-        'Local Distributor Delivery Van', 'CASH', $5, true, NOW()
+        $4, $4, 'PENDING', $5,
+        'Local Distributor Delivery Van', $6, $7, true, NOW()
       ) RETURNING *;
     `, [
       orderNumber,
       assignedDistributorId,
       master.manufacturer_id || 1,
       totalAmount,
-      store.address_line ? `${store.store_name}, ${store.address_line}, Pincode: ${storePincode}` : `Pincode: ${storePincode}`
+      poPaymentStatus === 'PAID' ? 'PAID' : 'UNPAID',
+      normalizedPaymentMethod,
+      finalAddress
     ]);
 
     const order = ordRes.rows[0];
@@ -5465,7 +5480,7 @@ class SellerRepository {
       ) VALUES ($1, 'PENDING', $2);
     `, [
       order.id,
-      `Restock order placed by ${store.store_name || 'Kirana Store'}. Auto-routed to ${distributorName} for Pincode ${storePincode}.`
+      `Restock order placed by ${store.store_name || 'Kirana Store'}. Auto-routed to ${distributorName} for Pincode ${storePincode}. Payment: ${normalizedPaymentMethod}`
     ]);
 
     // 7. Decrement local distributor inventory if exists
@@ -5479,20 +5494,111 @@ class SellerRepository {
       console.warn('Inventory decrement notice:', invErr.message);
     }
 
+    // 8. RECORD IN SELLER'S B2B STORE ORDERS (b2b_purchase_orders & b2b_purchase_items)
+    try {
+      await this.ensureB2BPurchaseTables();
+      const poRes = await pool.query(`
+        INSERT INTO b2b_purchase_orders (
+          po_number, buyer_store_id, total_amount, payment_terms, payment_status,
+          payment_method, payment_reference, delivery_method, delivery_fee, status,
+          notes, distributor_name, created_at, updated_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, 'Local Distributor Delivery Van', 0, 'PLACED', $8, $9, NOW(), NOW()
+        ) RETURNING id, po_number;
+      `, [
+        poNumber,
+        storeId,
+        totalAmount,
+        poTerms,
+        poPaymentStatus,
+        normalizedPaymentMethod,
+        orderNumber,
+        notes || `FMCG restock order auto-routed to ${distributorName}`,
+        distributorName
+      ]);
+      const b2bPo = poRes.rows[0];
+
+      await pool.query(`
+        INSERT INTO b2b_purchase_items (
+          purchase_order_id, item_name, unit, image_url, brand_tag, category_name, mrp,
+          quantity, unit_price, total_price
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `, [
+        b2bPo.id,
+        `${master.brand_name} - ${master.product_name} (${caseSize} packs/carton)`,
+        master.standard_unit || 'Piece',
+        master.default_image_url || null,
+        master.brand_name || 'Brand',
+        master.category_name || 'FMCG',
+        Number(master.retail_price || master.mrp || 0),
+        totalUnits,
+        unitWholesale,
+        totalAmount
+      ]);
+    } catch (b2bPoErr) {
+      console.warn('Failed to insert into b2b_purchase_orders:', b2bPoErr.message);
+    }
+
+    // 9. AUTOMATICALLY SYNC / ADOPT PRODUCT TO STORE POS & INVENTORY (seller_listings)
+    try {
+      const finalSellPrice = Number(master.retail_price || master.mrp || 0) || 50;
+      const existingListing = await pool.query(
+        `SELECT id FROM seller_listings WHERE store_id = $1 AND (manufacturer_product_id = $2 OR (barcode IS NOT NULL AND barcode = $3))`,
+        [storeId, master.id, master.barcode || '']
+      );
+
+      if (existingListing.rows.length > 0) {
+        await pool.query(`
+          UPDATE seller_listings
+          SET stock_qty = stock_qty + $1,
+              is_active = true,
+              approval_status = 'APPROVED',
+              updated_at = NOW()
+          WHERE id = $2
+        `, [totalUnits, existingListing.rows[0].id]);
+      } else {
+        await pool.query(`
+          INSERT INTO seller_listings (
+            store_id, manufacturer_product_id, title, barcode, brand_tag, category_id,
+            mrp, wholesale_price, sell_price, unit, min_order_qty, stock_qty, product_type, approval_status, is_active, attributes
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1, $11, 'PACKED_ITEM', 'APPROVED', true, $12
+          )
+        `, [
+          storeId,
+          master.id,
+          master.product_name,
+          master.barcode,
+          master.brand_name,
+          master.category_id || 1,
+          Number(master.retail_price || master.mrp || 0),
+          unitWholesale,
+          finalSellPrice,
+          master.standard_unit || 'Piece',
+          totalUnits,
+          master.attributes || {}
+        ]);
+      }
+    } catch (listingErr) {
+      console.warn('Auto-inventory sync warning:', listingErr.message);
+    }
+
     return {
       success: true,
       order_number: orderNumber,
+      po_number: poNumber,
       order_id: order.id,
       assigned_distributor: distributorName,
       ordered_cases: numCases,
-      total_units: numCases * caseSize,
+      total_units: totalUnits,
       total_amount: totalAmount,
+      payment_method: normalizedPaymentMethod,
       lead_time_hours: distRes.rows[0]?.lead_time_hours || 12
     };
   }
 
   async bulkOrderRestockCases(storeId, userId, data = {}) {
-    const { items = [], notes } = data;
+    const { items = [], notes, paymentMethod = 'CASH', deliveryAddress } = data;
     if (!storeId && !userId) throw new Error('Seller identity is required');
     if (!Array.isArray(items) || items.length === 0) throw new Error('Cart items are required');
 
@@ -5500,6 +5606,7 @@ class SellerRepository {
     const sRes = await pool.query('SELECT id, store_name, pincode, address_line FROM stores WHERE id = $1', [storeId]);
     const store = sRes.rows[0] || {};
     const storePincode = store.pincode || '400001';
+    const finalAddress = deliveryAddress || (store.address_line ? `${store.store_name}, ${store.address_line}, Pincode: ${storePincode}` : `Pincode: ${storePincode}`);
 
     // 2. Process each item: fetch master item, resolve distributor
     const preparedItems = [];
@@ -5532,6 +5639,7 @@ class SellerRepository {
       const unitWholesale = Number(master.distributor_price) || Math.round(Number(master.retail_price || master.mrp || 0) * 0.85 * 100) / 100;
       const casePrice = Number(master.case_distributor_price) || Math.round(unitWholesale * caseSize * 100) / 100;
       const totalAmount = Math.round(casePrice * numCases * 100) / 100;
+      const totalUnits = numCases * caseSize;
 
       preparedItems.push({
         master,
@@ -5540,7 +5648,9 @@ class SellerRepository {
         numCases,
         caseSize,
         casePrice,
+        unitWholesale,
         totalAmount,
+        totalUnits,
         leadTimeHours: distRes.rows[0]?.lead_time_hours || 12
       });
     }
@@ -5548,6 +5658,10 @@ class SellerRepository {
     if (preparedItems.length === 0) {
       throw new Error('No valid manufacturer products found to order');
     }
+
+    const normalizedPaymentMethod = String(paymentMethod || 'CASH').toUpperCase();
+    const poTerms = normalizedPaymentMethod === 'CREDIT' ? 'CREDIT_14D' : (normalizedPaymentMethod === 'UPI' ? 'ADVANCE_UPI' : 'COD');
+    const poPaymentStatus = normalizedPaymentMethod === 'UPI' ? 'PAID' : 'PENDING';
 
     // 3. Group by distributor so each distributor receives their order
     const byDistributor = {};
@@ -5566,9 +5680,14 @@ class SellerRepository {
       byDistributor[distId].totalAmount += item.totalAmount;
     }
 
+    await this.ensureB2BPurchaseTables();
+
     const createdOrders = [];
     for (const [distId, distGroup] of Object.entries(byDistributor)) {
       const orderNumber = 'B2B-ORD-' + Date.now().toString().slice(-6) + '-' + Math.floor(100 + Math.random() * 900);
+      const poNumber = 'PO-' + orderNumber;
+
+      // Create in manage_b_to_b_orders
       const ordRes = await pool.query(`
         INSERT INTO manage_b_to_b_orders (
           order_number, distributor_id, manufacturer_id, shop_id,
@@ -5576,20 +5695,50 @@ class SellerRepository {
           delivery_mode, payment_mode, shipping_address, active, order_date
         ) VALUES (
           $1, $2, $3, 3,
-          $4, $4, 'PENDING', 'UNPAID',
-          'Local Distributor Delivery Van', 'CASH', $5, true, NOW()
+          $4, $4, 'PENDING', $5,
+          'Local Distributor Delivery Van', $6, $7, true, NOW()
         ) RETURNING *;
       `, [
         orderNumber,
         Number(distId),
         distGroup.manufacturerId,
         distGroup.totalAmount,
-        store.address_line ? `${store.store_name}, ${store.address_line}, Pincode: ${storePincode}` : `Pincode: ${storePincode}`
+        poPaymentStatus === 'PAID' ? 'PAID' : 'UNPAID',
+        normalizedPaymentMethod,
+        finalAddress
       ]);
 
       const order = ordRes.rows[0];
 
+      // Create in b2b_purchase_orders for the kirana store
+      let b2bPo = null;
+      try {
+        const poRes = await pool.query(`
+          INSERT INTO b2b_purchase_orders (
+            po_number, buyer_store_id, total_amount, payment_terms, payment_status,
+            payment_method, payment_reference, delivery_method, delivery_fee, status,
+            notes, distributor_name, created_at, updated_at
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, 'Local Distributor Delivery Van', 0, 'PLACED', $8, $9, NOW(), NOW()
+          ) RETURNING id, po_number;
+        `, [
+          poNumber,
+          storeId,
+          distGroup.totalAmount,
+          poTerms,
+          poPaymentStatus,
+          normalizedPaymentMethod,
+          orderNumber,
+          notes || `Wholesale restock order auto-routed to ${distGroup.distributorName}`,
+          distGroup.distributorName
+        ]);
+        b2bPo = poRes.rows[0];
+      } catch (poErr) {
+        console.warn('Failed to insert into b2b_purchase_orders:', poErr.message);
+      }
+
       for (const it of distGroup.items) {
+        // Distributor item
         await pool.query(`
           INSERT INTO manage_b_to_b_order_items (
             order_id, product_name, quantity, unit_price, total_price
@@ -5603,6 +5752,75 @@ class SellerRepository {
           it.casePrice,
           it.totalAmount
         ]);
+
+        // Seller purchase item
+        if (b2bPo) {
+          try {
+            await pool.query(`
+              INSERT INTO b2b_purchase_items (
+                purchase_order_id, item_name, unit, image_url, brand_tag, category_name, mrp,
+                quantity, unit_price, total_price
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            `, [
+              b2bPo.id,
+              `${it.master.brand_name} - ${it.master.product_name} (${it.caseSize} packs/carton)`,
+              it.master.standard_unit || 'Piece',
+              it.master.default_image_url || null,
+              it.master.brand_name || 'Brand',
+              it.master.category_name || 'FMCG',
+              Number(it.master.retail_price || it.master.mrp || 0),
+              it.totalUnits,
+              it.unitWholesale,
+              it.totalAmount
+            ]);
+          } catch (itemErr) {
+            console.warn('Failed to insert b2b_purchase_item:', itemErr.message);
+          }
+        }
+
+        // Inventory sync to seller_listings
+        try {
+          const finalSellPrice = Number(it.master.retail_price || it.master.mrp || 0) || 50;
+          const existingListing = await pool.query(
+            `SELECT id FROM seller_listings WHERE store_id = $1 AND (manufacturer_product_id = $2 OR (barcode IS NOT NULL AND barcode = $3))`,
+            [storeId, it.master.id, it.master.barcode || '']
+          );
+
+          if (existingListing.rows.length > 0) {
+            await pool.query(`
+              UPDATE seller_listings
+              SET stock_qty = stock_qty + $1,
+                  is_active = true,
+                  approval_status = 'APPROVED',
+                  updated_at = NOW()
+            WHERE id = $2
+            `, [it.totalUnits, existingListing.rows[0].id]);
+          } else {
+            await pool.query(`
+              INSERT INTO seller_listings (
+                store_id, manufacturer_product_id, title, barcode, brand_tag, category_id,
+                mrp, wholesale_price, sell_price, unit, min_order_qty, stock_qty, product_type, approval_status, is_active, attributes
+              ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1, $11, 'PACKED_ITEM', 'APPROVED', true, $12
+              )
+            `, [
+              storeId,
+              it.master.id,
+              it.master.product_name,
+              it.master.barcode,
+              it.master.brand_name,
+              it.master.category_id || 1,
+              Number(it.master.retail_price || it.master.mrp || 0),
+              it.unitWholesale,
+              finalSellPrice,
+              it.master.standard_unit || 'Piece',
+              it.totalUnits,
+              it.master.attributes || {}
+            ]);
+          }
+        } catch (syncErr) {
+          console.warn('Auto inventory sync error:', syncErr.message);
+        }
 
         try {
           await pool.query(`
@@ -5621,15 +5839,17 @@ class SellerRepository {
         ) VALUES ($1, 'PENDING', $2);
       `, [
         order.id,
-        `Multi-item restock order placed by ${store.store_name || 'Kirana Store'}. Auto-routed to ${distGroup.distributorName} for Pincode ${storePincode}.`
+        `Multi-item restock order placed by ${store.store_name || 'Kirana Store'}. Auto-routed to ${distGroup.distributorName} for Pincode ${storePincode}. Payment: ${normalizedPaymentMethod}`
       ]);
 
       createdOrders.push({
         order_number: orderNumber,
+        po_number: poNumber,
         order_id: order.id,
         assigned_distributor: distGroup.distributorName,
         total_amount: distGroup.totalAmount,
         items_count: distGroup.items.length,
+        payment_method: normalizedPaymentMethod,
         lead_time_hours: distGroup.leadTimeHours
       });
     }
@@ -5638,7 +5858,8 @@ class SellerRepository {
       success: true,
       orders: createdOrders,
       total_orders_placed: createdOrders.length,
-      total_amount: createdOrders.reduce((acc, o) => acc + o.total_amount, 0)
+      total_amount: createdOrders.reduce((acc, o) => acc + o.total_amount, 0),
+      payment_method: normalizedPaymentMethod
     };
   }
 

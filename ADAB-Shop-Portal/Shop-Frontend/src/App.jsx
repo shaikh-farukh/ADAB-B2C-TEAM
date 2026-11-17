@@ -38,6 +38,7 @@ import ReportsPage from './pages/ReportsPage';
 import PartnerBrandsPage from './pages/PartnerBrandsPage';
 import CatalogPage from './pages/CatalogPage';
 import ProductDetailPage from './pages/ProductDetailPage';
+import CatalogCheckoutPage from './pages/CatalogCheckoutPage';
 import Sidebar from './components/layout/Sidebar';
 import StoreStatusButton from './components/layout/StoreStatusButton';
 import LanguageSelector from './components/layout/LanguageSelector';
@@ -298,6 +299,7 @@ function PortalContent() {
         <Route path="/create" element={<Navigate to="/products" replace />} />
 
         <Route path="/catalog" element={<CatalogPage />} />
+        <Route path="/catalog/checkout" element={<CatalogCheckoutPage />} />
         <Route path="/catalog/:id" element={<ProductDetailPage />} />
         <Route 
           path="/partnerbrands" 
