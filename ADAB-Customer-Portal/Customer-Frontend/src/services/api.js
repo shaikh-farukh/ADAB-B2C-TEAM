@@ -486,11 +486,70 @@ export const CustomerAPI = {
       method: 'PATCH',
       body: JSON.stringify(profile)
     }),
-  uploadAvatar: (avatarUrl) =>
-    apiRequest('/customers/me/profile/avatar', {
+  uploadAvatar: (avatarUrl, publicId = null) => {
+    const payload = typeof avatarUrl === 'string'
+      ? { avatarUrl, publicId }
+      : avatarUrl;
+    return apiRequest('/customers/me/profile/avatar', {
       method: 'POST',
-      body: JSON.stringify(typeof avatarUrl === 'string' ? { avatarUrl } : avatarUrl)
+      body: JSON.stringify(payload)
+    });
+  },
+  getAvatarUploadSignature: (fileType, fileSize) =>
+    apiRequest('/customers/me/profile/avatar/sign', {
+      method: 'POST',
+      body: JSON.stringify({ fileType, fileSize })
     }),
+  removeAvatar: () =>
+    apiRequest('/customers/me/profile/avatar', {
+      method: 'DELETE'
+    }),
+  uploadImageToCloudinary: async (file) => {
+    // Client-side validation: formats and max 2 MB
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const lowerName = (file.name || '').toLowerCase();
+    const hasValidExt = lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg') || lowerName.endsWith('.png') || lowerName.endsWith('.webp');
+    if (!allowedTypes.includes(file.type) && !hasValidExt) {
+      throw new Error('Only JPG, JPEG, PNG, and WebP files are allowed.');
+    }
+    const maxSize = 2 * 1024 * 1024; // 2 MB
+    if (file.size > maxSize) {
+      throw new Error('File size exceeds 2 MB limit. Please select a smaller photo.');
+    }
+
+    // 1. Request signed parameters from backend
+    const signRes = await CustomerAPI.getAvatarUploadSignature(file.type, file.size);
+    const signData = signRes.data || signRes;
+
+    if (!signData?.uploadUrl || !signData?.signature) {
+      throw new Error('Failed to generate Cloudinary upload signature from backend.');
+    }
+
+    // 2. Direct client-to-Cloudinary signed upload
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('api_key', signData.apiKey);
+    formData.append('timestamp', signData.timestamp);
+    formData.append('signature', signData.signature);
+    formData.append('folder', signData.folder);
+    formData.append('public_id', signData.publicId);
+
+    const uploadRes = await fetch(signData.uploadUrl, {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!uploadRes.ok) {
+      const errJson = await uploadRes.json().catch(() => ({}));
+      throw new Error(errJson?.error?.message || `Cloudinary upload failed with status ${uploadRes.status}`);
+    }
+
+    const result = await uploadRes.json();
+    return {
+      avatarUrl: result.secure_url || result.url,
+      publicId: result.public_id
+    };
+  },
   getPreferences: () => apiRequest('/customers/me/preferences'),
   updatePreferences: (preferences) =>
     apiRequest('/customers/me/preferences', {

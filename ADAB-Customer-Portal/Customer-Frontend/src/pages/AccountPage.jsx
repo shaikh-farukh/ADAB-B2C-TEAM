@@ -1,9 +1,17 @@
 import { useCallback, useState, useEffect, useRef } from 'react';
 import { api } from '../api/api';
-import { RewardAPI, AuthAPI } from '../services/api';
+import { RewardAPI, AuthAPI, CustomerAPI } from '../services/api';
 import { lookupPincode, getOfflinePincodeHint } from '../utils/pincode';
 
 let accountDataCache = null;
+
+const PRESET_AVATARS = [
+  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
+  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
+  'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150'
+];
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function clearAccountCache() {
@@ -13,6 +21,7 @@ export function clearAccountCache() {
 export default function AccountPage({
   onNavigate,
   currentUser,
+  onUpdateCurrentUser,
   onLogout,
   onOpenLogin,
   ordersCount = 0,
@@ -38,7 +47,8 @@ export default function AccountPage({
   });
 
   const [savingProfile, setSavingProfile] = useState(false);
-  const [updatingAvatar, setUpdatingAvatar] = useState(false);
+  const [pendingAvatar, setPendingAvatar] = useState(null); // { type: 'file' | 'preset' | 'remove', file, previewUrl, url }
+  const fileInputRef = useRef(null);
   const [savingAddress, setSavingAddress] = useState(false);
   const [deletingAddressId, setDeletingAddressId] = useState(null);
   const [settingDefaultId, setSettingDefaultId] = useState(null);
@@ -362,26 +372,79 @@ export default function AccountPage({
     fetchData(false);
   }, [fetchData]);
 
-  const handleUpdateAvatar = async (avatarUrl) => {
-    if (actionInFlightRef.current.avatar) return;
-    actionInFlightRef.current.avatar = true;
-    setUpdatingAvatar(true);
-    try {
-      const res = await api.post('/customers/me/profile/avatar', { avatarUrl });
-      if (!isMountedRef.current) return;
-      if (res.data?.success) {
-        setProfile(prev => ({ ...prev, profile_picture_url: avatarUrl }));
-        if (accountDataCache?.profile) {
-          accountDataCache.profile.profile_picture_url = avatarUrl;
-        }
-        showToast('Profile avatar updated successfully!');
+  // Clean up blob preview URLs on unmount or when pending avatar changes
+  useEffect(() => {
+    return () => {
+      if (pendingAvatar?.previewUrl && pendingAvatar.previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(pendingAvatar.previewUrl);
       }
-    } catch {
-      if (isMountedRef.current) showToast('Failed to update avatar', 'error');
-    } finally {
-      actionInFlightRef.current.avatar = false;
-      if (isMountedRef.current) setUpdatingAvatar(false);
+    };
+  }, [pendingAvatar]);
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate type: JPG, JPEG, PNG, WebP
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const lowerName = file.name.toLowerCase();
+    const hasValidExt = lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg') || lowerName.endsWith('.png') || lowerName.endsWith('.webp');
+    if (!allowedTypes.includes(file.type) && !hasValidExt) {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      showToast('Please select a JPG, JPEG, PNG, or WebP image.', 'error');
+      return;
     }
+
+    // Validate size: max 2 MB
+    const maxSize = 2 * 1024 * 1024;
+    if (file.size > maxSize) {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      showToast('Image size exceeds 2 MB limit. Please select a smaller photo.', 'error');
+      return;
+    }
+
+    // Revoke previous blob preview if any
+    if (pendingAvatar?.previewUrl && pendingAvatar.previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(pendingAvatar.previewUrl);
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setPendingAvatar({
+      type: 'file',
+      file,
+      previewUrl
+    });
+    showToast('Photo selected! Click "Save Changes" below to update your profile.', 'success');
+  };
+
+  const handleSelectPreset = (url) => {
+    if (pendingAvatar?.previewUrl && pendingAvatar.previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(pendingAvatar.previewUrl);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setPendingAvatar({
+      type: 'preset',
+      url
+    });
+  };
+
+  const handleRemovePhoto = () => {
+    if (pendingAvatar?.previewUrl && pendingAvatar.previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(pendingAvatar.previewUrl);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setPendingAvatar({
+      type: 'remove'
+    });
+    showToast('Photo removed in preview. Click "Save Changes" to confirm.', 'info');
+  };
+
+  const handleResetAvatar = () => {
+    if (pendingAvatar?.previewUrl && pendingAvatar.previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(pendingAvatar.previewUrl);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setPendingAvatar(null);
   };
 
   const handleUpdateProfile = async (e) => {
@@ -389,28 +452,64 @@ export default function AccountPage({
     if (actionInFlightRef.current.profile) return false;
     actionInFlightRef.current.profile = true;
     setSavingProfile(true);
+
     try {
-      const res = await api.patch('/customers/me', profileForm);
+      const payload = { ...profileForm };
+
+      // Deferred avatar upload / persistence on profile save
+      if (pendingAvatar) {
+        if (pendingAvatar.type === 'file') {
+          showToast('Uploading photo to secure Cloudinary storage...', 'info');
+          const uploadRes = await CustomerAPI.uploadImageToCloudinary(pendingAvatar.file);
+          payload.avatarUrl = uploadRes.avatarUrl;
+          payload.publicId = uploadRes.publicId;
+        } else if (pendingAvatar.type === 'preset') {
+          payload.avatarUrl = pendingAvatar.url;
+          payload.publicId = null;
+        } else if (pendingAvatar.type === 'remove') {
+          payload.removeAvatar = true;
+        }
+      }
+
+      const res = await api.patch('/customers/me', payload);
       const notifRes = await api.patch('/customers/me/notification-preferences', notificationPrefs);
+
       if (!isMountedRef.current) return false;
+
       if (res.data?.success && notifRes.data?.success) {
-        setProfile(res.data.data);
+        const updatedProfile = res.data.data;
+        setProfile(updatedProfile);
+
+        if (pendingAvatar?.previewUrl && pendingAvatar.previewUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(pendingAvatar.previewUrl);
+        }
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        setPendingAvatar(null);
+
         try {
           const raw = localStorage.getItem('adab_user');
           const existing = raw ? JSON.parse(raw) : {};
-          localStorage.setItem('adab_user', JSON.stringify({
+          const syncedUser = {
             ...existing,
-            name: res.data.data.name || res.data.data.full_name || existing.name,
-            phone: res.data.data.phone || existing.phone,
-            email: res.data.data.email || existing.email
-          }));
+            name: updatedProfile.name || updatedProfile.full_name || existing.name,
+            phone: updatedProfile.phone || existing.phone,
+            email: updatedProfile.email || existing.email,
+            profile_picture_url: updatedProfile.profile_picture_url || updatedProfile.avatarUrl || null,
+            avatar_url: updatedProfile.avatar_url || updatedProfile.profile_picture_url || null
+          };
+          localStorage.setItem('adab_user', JSON.stringify(syncedUser));
+          if (onUpdateCurrentUser) {
+            onUpdateCurrentUser(syncedUser);
+          }
         } catch {
           // Ignore state sync errors if unmounted
         }
+
         if (accountDataCache) {
-          accountDataCache.profile = res.data.data;
+          accountDataCache.profile = updatedProfile;
           accountDataCache.notifications = notificationPrefs;
         }
+
         showToast('Profile and preferences updated successfully!', 'success');
         return true;
       } else {
@@ -418,9 +517,9 @@ export default function AccountPage({
         return false;
       }
     } catch (err) {
-      console.error(err);
+      console.error('Update profile error:', err);
       if (isMountedRef.current) {
-        showToast(err.response?.data?.message || 'An error occurred while updating profile', 'error');
+        showToast(err.response?.data?.message || err.message || 'An error occurred while updating profile', 'error');
       }
       return false;
     } finally {
@@ -622,6 +721,12 @@ export default function AccountPage({
     return '';
   })();
 
+  const activeAvatarUrl = pendingAvatar
+    ? (pendingAvatar.type === 'file'
+        ? pendingAvatar.previewUrl
+        : (pendingAvatar.type === 'preset' ? pendingAvatar.url : null))
+    : (profile?.profile_picture_url || null);
+
   // Loading skeleton - desktop-first responsive
   if (loading) {
     return (
@@ -719,8 +824,16 @@ export default function AccountPage({
         <div className="flex items-center gap-3.5">
           <div className="relative">
             <div className="w-13 h-13 rounded-2xl bg-[#18753C] text-white flex items-center justify-center text-xl font-black overflow-hidden shadow-sm shrink-0">
-              {profile?.profile_picture_url ? (
-                <img src={profile.profile_picture_url} alt="" className="w-full h-full object-cover" />
+              {activeAvatarUrl ? (
+                <img
+                  src={activeAvatarUrl}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.style.display = 'none';
+                  }}
+                />
               ) : (
                 displayInitial
               )}
@@ -984,8 +1097,16 @@ export default function AccountPage({
               title="Click to edit avatar"
               className="w-16 h-16 sm:w-18 sm:h-18 bg-white/15 hover:bg-white/25 rounded-2xl flex items-center justify-center text-3xl font-black text-white overflow-hidden shadow-inner shrink-0 cursor-pointer border border-white/20 transition-all hover:scale-105"
             >
-              {profile?.profile_picture_url ? (
-                <img src={profile.profile_picture_url} alt="" className="w-full h-full object-cover" />
+              {activeAvatarUrl ? (
+                <img
+                  src={activeAvatarUrl}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.style.display = 'none';
+                  }}
+                />
               ) : (
                 displayInitial
               )}
@@ -1912,44 +2033,131 @@ export default function AccountPage({
         </button>
       </div>
 
-      {/* Profile Avatar Selector Card */}
+      {/* Profile Photo & Avatar Card */}
       <div className="bg-white rounded-2xl shadow-xs border border-gray-200/80 p-6">
-        <h3 className="text-base font-extrabold text-gray-900 mb-1">Profile Avatar</h3>
-        <p className="text-xs text-gray-500 mb-4">Select an avatar preset to customize your customer profile.</p>
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="relative">
-            <img
-              src={profile?.profile_picture_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-              alt="Current Avatar"
-              className="w-16 h-16 rounded-full object-cover border-2 border-[#18753C] shadow-sm"
-            />
-            {updatingAvatar && (
-              <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center">
-                <i className="fa-solid fa-spinner animate-spin text-white text-xs"></i>
-              </div>
-            )}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 mb-5 border-b border-gray-100">
+          <div>
+            <h3 className="text-base font-extrabold text-gray-900">Profile Photo &amp; Avatar</h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Upload your personal photo or select a preset avatar. Changes will only be saved when you click &quot;Save Changes&quot; below.
+            </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2.5">
-            {[
-              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-              'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-              'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-              'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
-              'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150'
-            ].map((url, idx) => (
-              <button
-                key={idx}
-                type="button"
-                disabled={updatingAvatar}
-                onClick={() => handleUpdateAvatar(url)}
-                className={`w-11 h-11 rounded-full overflow-hidden border-2 transition-all hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                  profile?.profile_picture_url === url ? 'border-[#18753C] ring-2 ring-[#18753C]/30 scale-105' : 'border-gray-200'
-                }`}
-                title={`Select Avatar ${idx + 1}`}
-              >
-                <img src={url} alt={`Preset ${idx + 1}`} className="w-full h-full object-cover" />
-              </button>
-            ))}
+          {pendingAvatar && (
+            <span className="self-start sm:self-auto bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-extrabold px-3 py-1 rounded-full flex items-center gap-1.5 animate-pulse">
+              <i className="fa-solid fa-clock-rotate-left text-[10px]"></i>
+              <span>Unsaved preview</span>
+            </span>
+          )}
+        </div>
+
+        {/* Hidden File Input for Image Upload */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          accept="image/jpeg,image/png,image/webp"
+          onChange={handleFileSelect}
+          className="hidden"
+          data-testid="profile-photo-input"
+        />
+
+        <div className="flex flex-col lg:flex-row lg:items-center gap-6">
+          {/* Avatar Preview & Direct Actions */}
+          <div className="flex items-center gap-4.5">
+            <div className="relative group shrink-0">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-[#18753C] text-white flex items-center justify-center text-3xl font-black overflow-hidden border-2 border-[#18753C] shadow-sm">
+                {activeAvatarUrl ? (
+                  <img
+                    src={activeAvatarUrl}
+                    alt="Active Avatar Preview"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  displayInitial
+                )}
+              </div>
+              {savingProfile && (
+                <div className="absolute inset-0 bg-black/50 rounded-2xl flex flex-col items-center justify-center text-white text-xs font-bold gap-1">
+                  <i className="fa-solid fa-spinner animate-spin text-lg"></i>
+                  <span className="text-[10px]">Saving...</span>
+                </div>
+              )}
+            </div>
+
+            {/* Upload, Change, Remove, Reset Controls */}
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={savingProfile}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3.5 py-2 bg-[#18753C] hover:bg-[#156030] text-white rounded-xl text-xs font-extrabold transition flex items-center gap-2 shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <i className="fa-solid fa-camera text-xs"></i>
+                  <span>{activeAvatarUrl ? 'Change Photo' : 'Upload Photo'}</span>
+                </button>
+
+                {activeAvatarUrl && (
+                  <button
+                    type="button"
+                    disabled={savingProfile}
+                    onClick={handleRemovePhoto}
+                    className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <i className="fa-solid fa-trash-can text-[11px]"></i>
+                    <span>Remove</span>
+                  </button>
+                )}
+
+                {pendingAvatar && (
+                  <button
+                    type="button"
+                    disabled={savingProfile}
+                    onClick={handleResetAvatar}
+                    className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Revert preview to currently saved profile picture"
+                  >
+                    <i className="fa-solid fa-rotate-left text-[11px]"></i>
+                    <span>Reset</span>
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] text-gray-500">
+                JPG, JPEG, PNG, or WebP. Max 2 MB. Stored securely on Cloudinary.
+              </p>
+            </div>
+          </div>
+
+          {/* Desktop divider */}
+          <div className="hidden lg:block w-px h-16 bg-gray-200"></div>
+
+          {/* Preset Avatar Selection */}
+          <div className="flex-1">
+            <span className="text-xs font-bold text-gray-700 block mb-2">Or choose a preset avatar:</span>
+            <div className="flex flex-wrap items-center gap-2.5">
+              {PRESET_AVATARS.map((url, idx) => {
+                const isSelected = activeAvatarUrl === url;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    disabled={savingProfile}
+                    onClick={() => handleSelectPreset(url)}
+                    className={`w-11 h-11 rounded-xl overflow-hidden border-2 transition-all hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isSelected
+                        ? 'border-[#18753C] ring-2 ring-[#18753C]/30 scale-105 shadow-xs'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                    title={`Select preset avatar ${idx + 1}`}
+                  >
+                    <img src={url} alt={`Preset ${idx + 1}`} className="w-full h-full object-cover" />
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -2104,7 +2312,15 @@ export default function AccountPage({
       <div className="flex items-center justify-end gap-3 pt-2">
         <button
           type="button"
-          onClick={() => setActiveView('dashboard')}
+          onClick={() => {
+            handleResetAvatar();
+            setProfileForm({
+              name: profile?.name || '',
+              phone: profile?.phone || '',
+              email: profile?.email || ''
+            });
+            setActiveView('dashboard');
+          }}
           className="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-xs text-gray-700 transition cursor-pointer"
         >
           Cancel

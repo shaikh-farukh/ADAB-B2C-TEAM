@@ -1,6 +1,7 @@
 const pool = require('../db');
 const { smartGeocode, resolveCoordinatesSync } = require('./geocodingService');
 const cartService = require('./cartService');
+const cloudinary = require('../utils/cloudinary');
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ELIGIBLE_LISTING_STATUS_SQL = `(sl.approval_status IN ('APPROVED', 'PUBLISHED') OR sl.approval_status IS NULL)`;
@@ -95,6 +96,9 @@ exports.getProfile = async (rawUserId) => {
       c.loyalty_tier as "loyaltyTier",
       c.loyalty_tier,
       c.profile_picture_url as "avatarUrl",
+      c.profile_picture_url,
+      c.profile_picture_public_id as "publicId",
+      c.profile_picture_public_id,
       c.company_name as "companyName",
       c.gst_in as "gstIn"
     FROM users u
@@ -140,8 +144,16 @@ exports.getProfile = async (rawUserId) => {
     console.warn('Could not query customer_wallets in getProfile:', wErr.message);
   }
 
+  const row = res.rows[0];
+  const avatarUrl = row?.profile_picture_url || row?.avatarUrl || null;
+  const publicId = row?.profile_picture_public_id || row?.publicId || null;
+
   return {
-    ...res.rows[0],
+    ...row,
+    avatarUrl,
+    profile_picture_url: avatarUrl,
+    publicId,
+    profile_picture_public_id: publicId,
     loyalty_tier: loyaltyTier,
     loyaltyTier: loyaltyTier,
     points,
@@ -168,7 +180,53 @@ exports.updateProfile = async (rawUserId, body) => {
     `, [body.name || null, body.phone || null, body.email || null, userId]);
   }
 
-  if (body.preferredLanguage || body.companyName || body.gstIn || body.avatarUrl) {
+  // Handle avatar removal or update on profile save
+  if (body.removeAvatar) {
+    const existingRes = await pool.query(
+      `SELECT profile_picture_public_id FROM customer_profiles WHERE user_id = $1`,
+      [userId]
+    );
+    const oldPublicId = existingRes.rows[0]?.profile_picture_public_id;
+    if (oldPublicId) {
+      await cloudinary.deleteCloudinaryAsset(oldPublicId);
+    }
+    await pool.query(`
+      UPDATE customer_profiles
+      SET profile_picture_url = NULL,
+          profile_picture_public_id = NULL,
+          updated_at = NOW()
+      WHERE user_id = $1
+    `, [userId]);
+    await pool.query(`UPDATE users SET avatar_url = NULL, updated_at = NOW() WHERE id = $1`, [userId]);
+  } else if (body.avatarUrl) {
+    const newPublicId = body.publicId || body.public_id || null;
+    const existingRes = await pool.query(
+      `SELECT profile_picture_public_id FROM customer_profiles WHERE user_id = $1`,
+      [userId]
+    );
+    const oldPublicId = existingRes.rows[0]?.profile_picture_public_id;
+    if (oldPublicId && oldPublicId !== newPublicId) {
+      await cloudinary.deleteCloudinaryAsset(oldPublicId);
+    }
+
+    await pool.query(`
+      INSERT INTO customer_profiles (id, user_id, preferred_language, loyalty_tier, created_at, updated_at)
+      VALUES (gen_random_uuid(), $1, 'en', 'BRONZE', NOW(), NOW())
+      ON CONFLICT (user_id) DO NOTHING
+    `, [userId]);
+
+    await pool.query(`
+      UPDATE customer_profiles
+      SET profile_picture_url = $1,
+          profile_picture_public_id = $2,
+          updated_at = NOW()
+      WHERE user_id = $3
+    `, [body.avatarUrl, newPublicId, userId]);
+
+    await pool.query(`UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2`, [body.avatarUrl, userId]);
+  }
+
+  if (body.preferredLanguage || body.companyName || body.gstIn) {
     await pool.query(`
       INSERT INTO customer_profiles (id, user_id, preferred_language, loyalty_tier, created_at, updated_at)
       VALUES (gen_random_uuid(), $1, 'en', 'BRONZE', NOW(), NOW())
@@ -180,30 +238,106 @@ exports.updateProfile = async (rawUserId, body) => {
       SET preferred_language = COALESCE($1, preferred_language),
           company_name = COALESCE($2, company_name),
           gst_in = COALESCE($3, gst_in),
-          profile_picture_url = COALESCE($4, profile_picture_url),
           updated_at = NOW()
-      WHERE user_id = $5
-    `, [body.preferredLanguage || null, body.companyName || null, body.gstIn || null, body.avatarUrl || null, userId]);
+      WHERE user_id = $4
+    `, [body.preferredLanguage || null, body.companyName || null, body.gstIn || null, userId]);
   }
 
   return exports.getProfile(userId);
 };
 
 /**
+ * Generate signed upload signature for direct client-to-Cloudinary upload
+ */
+exports.getAvatarUploadSignature = async (rawUserId, body = {}) => {
+  const userId = await resolveCustomerUserId(rawUserId);
+  if (!userId) {
+    const err = new Error('Authentication required');
+    err.status = 401;
+    throw err;
+  }
+  return cloudinary.generateUploadSignature(userId, body.fileType, body.fileSize);
+};
+
+/**
  * 3. POST /api/v1/customers/me/profile/avatar
  * Upload / set customer avatar metadata
  */
-exports.uploadAvatar = async (rawUserId, body) => {
+exports.uploadAvatar = async (rawUserId, body = {}) => {
   const userId = await resolveCustomerUserId(rawUserId);
-  const avatarUrl = body.avatarUrl || body.imageUrl || body.url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=80';
+  if (!userId) throw new Error('Customer ID required');
+
+  const avatarUrl = body.avatarUrl || body.secureUrl || body.url || body.imageUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=80';
+  const publicId = body.publicId || body.public_id || null;
+
+  // Clean up previous Cloudinary asset if replaced
+  const existingRes = await pool.query(
+    `SELECT profile_picture_public_id FROM customer_profiles WHERE user_id = $1`,
+    [userId]
+  );
+  const oldPublicId = existingRes.rows[0]?.profile_picture_public_id;
+  if (oldPublicId && oldPublicId !== publicId) {
+    await cloudinary.deleteCloudinaryAsset(oldPublicId);
+  }
 
   await pool.query(`
-    INSERT INTO customer_profiles (id, user_id, preferred_language, loyalty_tier, profile_picture_url, created_at, updated_at)
-    VALUES (gen_random_uuid(), $1, 'en', 'BRONZE', $2, NOW(), NOW())
-    ON CONFLICT (user_id) DO UPDATE SET profile_picture_url = $2, updated_at = NOW()
-  `, [userId, avatarUrl]);
+    INSERT INTO customer_profiles (id, user_id, preferred_language, loyalty_tier, profile_picture_url, profile_picture_public_id, created_at, updated_at)
+    VALUES (gen_random_uuid(), $1, 'en', 'BRONZE', $2, $3, NOW(), NOW())
+    ON CONFLICT (user_id) DO UPDATE
+    SET profile_picture_url = $2,
+        profile_picture_public_id = $3,
+        updated_at = NOW()
+  `, [userId, avatarUrl, publicId]);
 
-  return { userId, avatarUrl, success: true };
+  await pool.query(`
+    UPDATE users
+    SET avatar_url = $1,
+        updated_at = NOW()
+    WHERE id = $2
+  `, [avatarUrl, userId]);
+
+  return {
+    userId,
+    avatarUrl,
+    profile_picture_url: avatarUrl,
+    publicId,
+    profile_picture_public_id: publicId,
+    success: true
+  };
+};
+
+/**
+ * Remove customer profile avatar
+ */
+exports.removeAvatar = async (rawUserId) => {
+  const userId = await resolveCustomerUserId(rawUserId);
+  if (!userId) throw new Error('Customer ID required');
+
+  const existingRes = await pool.query(
+    `SELECT profile_picture_public_id FROM customer_profiles WHERE user_id = $1`,
+    [userId]
+  );
+  const oldPublicId = existingRes.rows[0]?.profile_picture_public_id;
+  if (oldPublicId) {
+    await cloudinary.deleteCloudinaryAsset(oldPublicId);
+  }
+
+  await pool.query(`
+    UPDATE customer_profiles
+    SET profile_picture_url = NULL,
+        profile_picture_public_id = NULL,
+        updated_at = NOW()
+    WHERE user_id = $1
+  `, [userId]);
+
+  await pool.query(`
+    UPDATE users
+    SET avatar_url = NULL,
+        updated_at = NOW()
+    WHERE id = $1
+  `, [userId]);
+
+  return { success: true, message: 'Profile avatar removed successfully' };
 };
 
 /**
