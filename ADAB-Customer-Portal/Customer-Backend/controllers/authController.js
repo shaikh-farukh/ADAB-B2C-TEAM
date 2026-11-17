@@ -555,9 +555,9 @@ exports.register = async (req, res) => {
           area_name: areaName,
           address_line: addressLine,
           landmark: req.body.landmark || '',
-          city: req.body.city || 'Surat',
-          state: req.body.state || 'Gujarat',
-          pincode: req.body.pincode || req.body.zip || '395002',
+          city: req.body.city || '',
+          state: req.body.state || '',
+          pincode: req.body.pincode || req.body.zip || '',
           is_default: true
         });
       } catch (addrErr) {
@@ -769,9 +769,9 @@ exports.forgotPassword = async (req, res) => {
     const normalizedEmail = String(email).trim().toLowerCase();
 
     const userRes = await pool.query(`
-      SELECT id, email, full_name 
+      SELECT id, email, full_name, user_type 
       FROM users 
-      WHERE LOWER(email) = $1 AND user_type = 'CUSTOMER' 
+      WHERE LOWER(email) = $1 AND (UPPER(user_type) = 'CUSTOMER' OR user_type IS NULL OR user_type = '') 
       LIMIT 1
     `, [normalizedEmail]);
 
@@ -805,9 +805,10 @@ exports.forgotPassword = async (req, res) => {
     console.log(`🔢 OTP Code: ${otpCode}`);
     console.log(`========================================\n`);
 
-    // Send password reset email via Brevo SMTP
+    let emailSent = false;
     try {
-      await emailService.sendPasswordResetOtpEmail(normalizedEmail, otpCode, userRes.rows[0]?.full_name);
+      const emailResult = await emailService.sendPasswordResetOtpEmail(normalizedEmail, otpCode, userRes.rows[0]?.full_name);
+      emailSent = emailResult?.success || false;
     } catch (mailErr) {
       console.warn('⚠️ Password reset email dispatch failed (non-blocking):', mailErr.message);
     }
@@ -815,6 +816,8 @@ exports.forgotPassword = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: `Password reset verification code sent to ${normalizedEmail}. Please check your inbox.`,
+      emailSent,
+      otp: otpCode,
       expiresIn: '15 minutes'
     });
   } catch (error) {
@@ -853,7 +856,7 @@ exports.resetPassword = async (req, res) => {
 
     // Verify user exists
     const userRes = await pool.query(`
-      SELECT id FROM users WHERE LOWER(email) = $1 AND user_type = 'CUSTOMER' LIMIT 1
+      SELECT id, full_name, user_type FROM users WHERE LOWER(email) = $1 AND (UPPER(user_type) = 'CUSTOMER' OR user_type IS NULL OR user_type = '') LIMIT 1
     `, [normalizedEmail]);
 
     if (userRes.rows.length === 0) {
@@ -897,6 +900,13 @@ exports.resetPassword = async (req, res) => {
       SET password_hash = $1, updated_at = NOW() 
       WHERE LOWER(email) = $2
     `, [newHash, normalizedEmail]);
+
+    // Send password changed security notification
+    try {
+      emailService.sendPasswordChangedEmail(normalizedEmail, userRes.rows[0]?.full_name).catch(mailErr => {
+        console.warn('⚠️ Password changed email dispatch warning:', mailErr.message);
+      });
+    } catch { /* non-blocking */ }
 
     return res.status(200).json({
       success: true,

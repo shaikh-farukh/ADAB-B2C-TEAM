@@ -14,7 +14,7 @@ export default function GuestAuthGate({
   onSignUp,
   onContinueBrowsing,
   features = [
-    { icon: 'fa-bolt', text: '14–45 min local express delivery in Surat' },
+    { icon: 'fa-bolt', text: '14–45 min local express delivery to your doorstep' },
     { icon: 'fa-location-dot', text: 'Live order tracking & instant reordering' },
     { icon: 'fa-coins', text: 'Earn ADAB reward coins on every order' }
   ]

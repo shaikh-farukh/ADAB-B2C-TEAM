@@ -308,6 +308,55 @@ async function confirmPayment({
 
     await client.query('COMMIT');
 
+    // 6. Send Order Confirmation & Payment Receipt Email asynchronously via Brevo SMTP
+    try {
+      const emailService = require('./emailService');
+      const orderUserRes = await pool.query(
+        `SELECT email, full_name FROM users WHERE id = $1 LIMIT 1`,
+        [order.customer_id]
+      );
+      const userObj = orderUserRes.rows[0];
+      const targetEmail = (userObj?.email || order.delivery_address?.email || '').trim();
+      if (targetEmail && !targetEmail.includes('guest_') && !targetEmail.endsWith('@adabtest.com')) {
+        const orderItemsRes = await pool.query(
+          `SELECT oi.quantity, oi.unit_price, oi.total_price, sl.title as name
+           FROM order_items oi
+           LEFT JOIN seller_listings sl ON oi.listing_id = sl.id
+           WHERE oi.parent_order_id = $1`,
+          [order.id]
+        );
+        const delAddr = order.delivery_address || {};
+        const formattedAddr = [
+          delAddr.address_line || delAddr.address,
+          delAddr.landmark && `Near ${delAddr.landmark}`,
+          delAddr.city,
+          delAddr.pincode
+        ].filter(Boolean).join(', ') || 'Delivery Address Provided';
+
+        emailService.sendOrderConfirmationEmail({
+          email: targetEmail,
+          userName: userObj?.full_name || delAddr.recipient_name || delAddr.full_name || 'Valued Customer',
+          order: {
+            orderNumber: order.order_number,
+            grandTotal: Number(order.grand_total),
+            deliveryMode: order.delivery_mode,
+            etaMinutes: order.eta_minutes || 25,
+            address: formattedAddr,
+            items: orderItemsRes.rows.map(r => ({
+              name: r.name || 'Local Grocery Item',
+              quantity: r.quantity,
+              price: Number(r.unit_price || r.total_price)
+            })),
+            paymentMethod: order.payment_method || 'Online Card / UPI'
+          }
+        }).catch(err => {
+          console.warn('⚠️ Payment confirmation email dispatch warning:', err.message);
+        });
+      }
+    } catch (mailErr) {
+      console.warn('Non-blocking payment confirmation email notice:', mailErr.message);
+    }
+
     return {
       payment: updatedPayRes.rows[0],
       order: updatedOrderRes.rows[0],

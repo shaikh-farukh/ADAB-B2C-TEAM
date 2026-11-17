@@ -1,6 +1,6 @@
 import { useCallback, useState, useEffect, useRef } from 'react';
 import { api } from '../api/api';
-import { RewardAPI } from '../services/api';
+import { RewardAPI, AuthAPI } from '../services/api';
 import { lookupPincode, getOfflinePincodeHint } from '../utils/pincode';
 
 let accountDataCache = null;
@@ -113,12 +113,114 @@ export default function AccountPage({
     area_name: '',
     address: '',
     landmark: '',
-    city: 'Surat',
-    state: 'Gujarat',
+    city: '',
+    state: '',
     zip: '',
     isDefault: false
   });
   const [serviceabilityResults, setServiceabilityResults] = useState({});
+
+  // Password Reset Modal State
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [passwordStep, setPasswordStep] = useState('confirm'); // 'confirm' | 'otp_form' | 'success'
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetOtp, setResetOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [sendingResetOtp, setSendingResetOtp] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [demoOtpHint, setDemoOtpHint] = useState('');
+
+  const handleOpenPasswordModal = () => {
+    let defaultEmail = profile?.email || profileForm.email || currentUser?.email || '';
+    if (!defaultEmail && typeof localStorage !== 'undefined') {
+      try {
+        const u = JSON.parse(localStorage.getItem('adab_user') || '{}');
+        defaultEmail = u.email || '';
+      } catch {
+        // ignore
+      }
+    }
+    setResetEmail(defaultEmail);
+    setResetOtp('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
+    setPasswordSuccess('');
+    setDemoOtpHint('');
+    setPasswordStep('confirm');
+    setIsPasswordModalOpen(true);
+  };
+
+  const handleSendPasswordResetOtp = async (targetEmail) => {
+    const emailToSend = (targetEmail || resetEmail || '').trim();
+    if (!emailToSend) {
+      setPasswordError('Please enter your registered email address.');
+      return;
+    }
+    setSendingResetOtp(true);
+    setPasswordError('');
+    setPasswordSuccess('');
+    try {
+      const res = await AuthAPI.forgotPassword(emailToSend);
+      if (res && res.success) {
+        setPasswordSuccess(res.message || `Password reset code sent to ${emailToSend}!`);
+        if (res.otp) {
+          setDemoOtpHint(`Your OTP is: ${res.otp}`);
+        }
+        setPasswordStep('otp_form');
+        showToast(`Verification code sent to ${emailToSend}!`);
+      } else {
+        setPasswordError(res?.message || 'Failed to send password reset code. Please check your email.');
+      }
+    } catch (err) {
+      console.error('Password reset request error:', err);
+      setPasswordError(err.message || 'Unable to send password reset code. Please verify your email.');
+    } finally {
+      setSendingResetOtp(false);
+    }
+  };
+
+  const handleConfirmPasswordReset = async (e) => {
+    if (e) e.preventDefault();
+    setPasswordError('');
+    if (!resetOtp.trim()) {
+      setPasswordError('Please enter the 6-digit verification code.');
+      return;
+    }
+    if (!newPassword || newPassword.length < 6) {
+      setPasswordError('Password must be at least 6 characters long.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match. Please re-enter.');
+      return;
+    }
+
+    setResettingPassword(true);
+    try {
+      const res = await AuthAPI.resetPassword(resetEmail.trim(), resetOtp.trim(), newPassword);
+      if (res && res.success) {
+        setPasswordStep('success');
+        setPasswordSuccess('✓ Password updated successfully! Your new password is now active.');
+        showToast('✓ Password updated successfully!');
+        setTimeout(() => {
+          setIsPasswordModalOpen(false);
+        }, 2200);
+      } else {
+        setPasswordError(res?.message || 'Password update failed. Invalid or expired verification code.');
+      }
+    } catch (err) {
+      console.error('Password update error:', err);
+      setPasswordError(err.message || 'Failed to update password. Please check your verification code.');
+    } finally {
+      setResettingPassword(false);
+    }
+  };
 
   const handleAddressPincodeChange = async (rawVal) => {
     const val = rawVal.replace(/\D/g, '').slice(0, 6);
@@ -365,8 +467,8 @@ export default function AccountPage({
           area_name: '',
           address: '',
           landmark: '',
-          city: 'Surat',
-          state: 'Gujarat',
+          city: activeAddress?.city || '',
+          state: activeAddress?.state || '',
           zip: '',
           isDefault: false
         });
@@ -484,6 +586,41 @@ export default function AccountPage({
   const displayEmail = effectiveUser?.email || '';
   const displayPhone = effectiveUser?.phone || '';
   const displayInitial = displayName ? displayName.charAt(0).toUpperCase() : 'C';
+
+  // Derive customer's active region dynamically from database addresses, selected address, or profile
+  const savedSelectedAddress = (() => {
+    try {
+      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('adab_selected_address') : null;
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  })();
+
+  const activeAddress = addresses.find(a => a.isDefault || a.is_default) || addresses[0] || savedSelectedAddress;
+
+  const displayRegion = (() => {
+    if (activeAddress?.city && activeAddress?.state) {
+      return `${activeAddress.city}, ${activeAddress.state}`;
+    }
+    if (activeAddress?.city) {
+      return activeAddress.city;
+    }
+    if (profile?.city && profile?.state) {
+      return `${profile.city}, ${profile.state}`;
+    }
+    if (profile?.city) {
+      return profile.city;
+    }
+    if (effectiveUser?.city && effectiveUser?.state) {
+      return `${effectiveUser.city}, ${effectiveUser.state}`;
+    }
+    if (effectiveUser?.city) {
+      return effectiveUser.city;
+    }
+    if (activeAddress?.pincode || activeAddress?.zip) {
+      return `PIN ${activeAddress.pincode || activeAddress.zip}`;
+    }
+    return '';
+  })();
 
   // Loading skeleton - desktop-first responsive
   if (loading) {
@@ -615,7 +752,21 @@ export default function AccountPage({
             <i className="fa-solid fa-pen-to-square text-[10px]"></i>
             <span>Edit Profile</span>
           </button>
-          <span className="text-[11px] text-gray-400 font-medium">Surat, Gujarat</span>
+          {displayRegion ? (
+            <span className="text-[11px] text-gray-500 font-medium truncate max-w-[150px] flex items-center gap-1" title={displayRegion}>
+              <i className="fa-solid fa-location-dot text-[10px] text-[#18753C]"></i>
+              <span className="truncate">{displayRegion}</span>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => { setActiveView('addresses'); setIsSidebarOpen(false); }}
+              className="text-[11px] text-gray-400 hover:text-[#18753C] font-medium flex items-center gap-1 cursor-pointer transition-colors"
+            >
+              <i className="fa-solid fa-plus text-[9px]"></i>
+              <span>Add Location</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -850,7 +1001,7 @@ export default function AccountPage({
                 )}
                 <span className="bg-emerald-500/20 text-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-400/20 hidden sm:inline-flex items-center gap-1">
                   <i className="fa-solid fa-circle-check text-[9px] text-emerald-300"></i>
-                  Verified Surat Account
+                  {activeAddress?.city ? `Verified ${activeAddress.city} Account` : 'Verified Account'}
                 </span>
               </div>
               <p className="text-xs text-emerald-100/90 mt-1 font-medium">
@@ -1267,7 +1418,7 @@ export default function AccountPage({
                 </span>
               </div>
               <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                Need help with an ongoing order or payment? Chat live with our Surat-based support team or raise a resolution ticket.
+                Need help with an ongoing order or payment? Chat live with our dedicated support team or raise a resolution ticket.
               </p>
             </div>
           </div>
@@ -1294,7 +1445,7 @@ export default function AccountPage({
                 </span>
               </div>
               <p className="text-xs text-gray-600 mt-1 leading-relaxed">
-                Register your neighbourhood grocery, dairy, or bakery. Connect with 10,000+ local customers across Surat with 15-min delivery.
+                Register your neighbourhood grocery, dairy, or bakery. Connect with 10,000+ local customers with 15-min delivery.
               </p>
             </div>
           </div>
@@ -1317,7 +1468,7 @@ export default function AccountPage({
           </div>
           <h2 className="text-xl font-black text-gray-900 mb-2">Login Required for Saved Addresses</h2>
           <p className="text-xs text-gray-500 mb-6 max-w-sm mx-auto leading-relaxed">
-            Please log in or create an account to view, save and manage your delivery addresses across Surat.
+            Please log in or create an account to view, save and manage your delivery addresses.
           </p>
           <button
             type="button"
@@ -1347,7 +1498,7 @@ export default function AccountPage({
               <span className="text-gray-700">Delivery Addresses</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-gray-900">Delivery Addresses</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Manage your saved shipping addresses for 14–45 min local delivery in Surat</p>
+            <p className="text-xs text-gray-500 mt-0.5">Manage your saved shipping addresses for 14–45 min local delivery</p>
           </div>
 
           <div className="flex items-center gap-2.5">
@@ -1374,8 +1525,8 @@ export default function AccountPage({
                     area_name: '',
                     address: '',
                     landmark: '',
-                    city: 'Surat',
-                    state: 'Gujarat',
+                    city: activeAddress?.city || '',
+                    state: activeAddress?.state || '',
                     zip: '',
                     isDefault: false
                   });
@@ -1550,7 +1701,7 @@ export default function AccountPage({
                   value={addressForm.city}
                   onChange={e => setAddressForm({ ...addressForm, city: e.target.value })}
                   className="w-full border border-gray-200 p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-medium"
-                  placeholder="City (e.g. Surat)"
+                  placeholder="City (e.g. Ahmedabad)"
                   required
                 />
               </div>
@@ -1604,7 +1755,7 @@ export default function AccountPage({
             </div>
             <h3 className="font-extrabold text-base text-gray-900">No addresses saved yet</h3>
             <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto leading-relaxed">
-              Add your delivery address in Surat for 14–45 min doorstep delivery.
+              Add your delivery address for 14–45 min doorstep delivery.
             </p>
           </div>
         ) : (
@@ -1703,8 +1854,8 @@ export default function AccountPage({
                           area_name: addr.area_name || '',
                           address: addr.address || addr.address_line || '',
                           landmark: addr.landmark || '',
-                          city: addr.city || 'Surat',
-                          state: addr.state || 'Gujarat',
+                          city: addr.city || '',
+                          state: addr.state || '',
                           zip: addr.zip || addr.pincode || '',
                           isDefault: Boolean(addr.isDefault || addr.is_default)
                         });
@@ -1876,7 +2027,7 @@ export default function AccountPage({
             />
             <div>
               <div className="text-xs font-bold text-gray-800">Promotional Offers</div>
-              <div className="text-[11px] text-gray-500 mt-0.5">Flash deals &amp; weekend coupons from Surat stores</div>
+              <div className="text-[11px] text-gray-500 mt-0.5">Flash deals &amp; weekend coupons from local neighbourhood stores</div>
             </div>
           </label>
 
@@ -1915,7 +2066,7 @@ export default function AccountPage({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <button
             type="button"
-            onClick={() => showToast('Password reset link sent to your registered email')}
+            onClick={handleOpenPasswordModal}
             className="flex items-center gap-3 text-xs text-gray-700 bg-gray-50 hover:bg-gray-100 p-3.5 rounded-xl transition text-left font-bold cursor-pointer border border-gray-200/60"
           >
             <i className="fa-solid fa-key text-[#18753C] text-sm"></i>
@@ -2083,6 +2234,232 @@ export default function AccountPage({
               </button>
             </div>
             {renderSidebarContent()}
+          </div>
+        </div>
+      )}
+
+      {/* Password Reset Modal */}
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 relative overflow-hidden">
+            {/* Header */}
+            <div className="flex items-start justify-between pb-4 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-[#18753C] flex items-center justify-center text-lg shadow-xs">
+                  <i className="fa-solid fa-key"></i>
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-gray-900 leading-tight">Change Password</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Secure your ADAB account</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPasswordModalOpen(false)}
+                className="w-8 h-8 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-900 flex items-center justify-center transition cursor-pointer"
+              >
+                <i className="fa-solid fa-times text-sm"></i>
+              </button>
+            </div>
+
+            {/* Error / Success Alerts */}
+            {passwordError && (
+              <div className="mt-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-start gap-2">
+                <i className="fa-solid fa-circle-exclamation mt-0.5 shrink-0 text-red-500"></i>
+                <div className="flex-1">{passwordError}</div>
+              </div>
+            )}
+
+            {passwordSuccess && passwordStep !== 'success' && (
+              <div className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-start gap-2">
+                <i className="fa-solid fa-circle-check mt-0.5 shrink-0 text-emerald-600"></i>
+                <div className="flex-1">{passwordSuccess}</div>
+              </div>
+            )}
+
+            {demoOtpHint && (
+              <div className="mt-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold flex items-center gap-2">
+                <i className="fa-solid fa-lightbulb text-amber-600"></i>
+                <span>{demoOtpHint}</span>
+              </div>
+            )}
+
+            {/* Step 1: Confirm / Enter Email to Send Reset OTP */}
+            {passwordStep === 'confirm' && (
+              <div className="mt-5 space-y-4">
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  We will send a 6-digit security code to your registered email address to verify your identity.
+                </p>
+
+                <div>
+                  <label className="text-[11px] font-bold text-gray-700 uppercase tracking-wider block mb-1.5">
+                    Registered Email
+                  </label>
+                  <div className="relative">
+                    <i className="fa-solid fa-envelope absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                    <input
+                      type="email"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs sm:text-sm font-semibold text-gray-900 focus:bg-white focus:border-[#18753C] outline-none transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsPasswordModalOpen(false)}
+                    className="px-4 py-2.5 text-xs font-bold text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={sendingResetOtp || !resetEmail.trim()}
+                    onClick={() => handleSendPasswordResetOtp(resetEmail)}
+                    className="px-5 py-2.5 bg-[#18753C] hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {sendingResetOtp ? (
+                      <>
+                        <i className="fa-solid fa-circle-notch fa-spin"></i>
+                        <span>Sending Code...</span>
+                      </>
+                    ) : (
+                      <>
+                        <i className="fa-solid fa-paper-plane"></i>
+                        <span>Send Security Code</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Enter Verification OTP and Set New Password */}
+            {passwordStep === 'otp_form' && (
+              <form onSubmit={handleConfirmPasswordReset} className="mt-5 space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] font-bold text-gray-700 uppercase tracking-wider">
+                      6-Digit Security Code
+                    </label>
+                    <button
+                      type="button"
+                      disabled={sendingResetOtp}
+                      onClick={() => handleSendPasswordResetOtp(resetEmail)}
+                      className="text-[11px] font-extrabold text-[#18753C] hover:underline cursor-pointer disabled:opacity-50"
+                    >
+                      {sendingResetOtp ? 'Resending...' : 'Resend Code'}
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={resetOtp}
+                    onChange={(e) => setResetOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="Enter 6-digit code"
+                    className="w-full text-center tracking-[0.3em] font-mono text-base font-extrabold py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-[#18753C] outline-none transition"
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-gray-700 uppercase tracking-wider block mb-1.5">
+                    New Password (min. 6 characters)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full pl-3 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs sm:text-sm font-semibold text-gray-900 focus:bg-white focus:border-[#18753C] outline-none transition"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 text-xs cursor-pointer"
+                    >
+                      <i className={`fa-solid ${showNewPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-gray-700 uppercase tracking-wider block mb-1.5">
+                    Confirm New Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full pl-3 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs sm:text-sm font-semibold text-gray-900 focus:bg-white focus:border-[#18753C] outline-none transition"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 text-xs cursor-pointer"
+                    >
+                      <i className={`fa-solid ${showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setPasswordStep('confirm')}
+                    className="px-4 py-2.5 text-xs font-bold text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition cursor-pointer"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resettingPassword || resetOtp.length < 6 || !newPassword}
+                    className="px-5 py-2.5 bg-[#18753C] hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {resettingPassword ? (
+                      <>
+                        <i className="fa-solid fa-circle-notch fa-spin"></i>
+                        <span>Updating Password...</span>
+                      </>
+                    ) : (
+                      <>
+                        <i className="fa-solid fa-check"></i>
+                        <span>Update Password</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Step 3: Success Screen */}
+            {passwordStep === 'success' && (
+              <div className="mt-6 py-4 flex flex-col items-center text-center space-y-3">
+                <div className="w-14 h-14 rounded-full bg-emerald-100 text-[#18753C] flex items-center justify-center text-2xl shadow-sm animate-bounce">
+                  <i className="fa-solid fa-check"></i>
+                </div>
+                <h4 className="text-base font-extrabold text-gray-900">Password Updated Successfully!</h4>
+                <p className="text-xs text-gray-600 max-w-xs leading-relaxed">
+                  Your new password is now active. A security confirmation email has also been sent to your inbox.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setIsPasswordModalOpen(false)}
+                  className="mt-2 px-6 py-2 bg-[#18753C] text-white rounded-xl text-xs font-bold hover:bg-emerald-800 transition cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

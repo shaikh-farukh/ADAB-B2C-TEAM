@@ -133,12 +133,29 @@ async function createTicket(rawCustomerId, ticketData = {}) {
       [createdTicket.id, userId, messageContent, attachment_url || null]
     );
 
-    const userRes = await pool.query(`SELECT full_name, user_type FROM users WHERE id = $1`, [userId]);
+    const userRes = await pool.query(`SELECT full_name, email, user_type FROM users WHERE id = $1`, [userId]);
+    const customerEmail = userRes.rows[0]?.email;
+    const customerName = userRes.rows[0]?.full_name || 'Customer';
     messages.push({
       ...msgRes.rows[0],
-      sender_name: userRes.rows[0]?.full_name || 'Customer',
+      sender_name: customerName,
       sender_role: userRes.rows[0]?.user_type || 'CUSTOMER'
     });
+
+    if (customerEmail && !customerEmail.includes('guest_') && !customerEmail.endsWith('@adabtest.com')) {
+      try {
+        const emailService = require('./emailService');
+        emailService.sendSupportTicketConfirmationEmail({
+          email: customerEmail,
+          userName: customerName,
+          ticket: createdTicket,
+          subject: subject || normalizedCategory,
+          message: messageContent
+        }).catch(mailErr => console.warn('⚠️ Support ticket email dispatch warning:', mailErr.message));
+      } catch (err) {
+        console.warn('Support ticket email trigger notice:', err.message);
+      }
+    }
   }
 
   return {

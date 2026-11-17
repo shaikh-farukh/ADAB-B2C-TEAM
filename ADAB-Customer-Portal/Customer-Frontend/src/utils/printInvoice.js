@@ -82,7 +82,7 @@ export function generateInvoiceHtml(data = {}) {
 
   // Store / Seller Info
   const storeName = seller.store_name || data.stores?.[0]?.store_name || 'ADAB Local Mart';
-  const storeAddress = seller.address || data.stores?.[0]?.address_line || 'Ring Road, Surat, Gujarat - 395002';
+  const storeAddress = seller.address || data.stores?.[0]?.address_line || 'Local Store Address';
   const sellerGstin = seller.gstin || data.stores?.[0]?.gstin || '24AAACA1234A1Z5';
   const storePhone = seller.phone || '+91 98765 43210';
 
@@ -90,7 +90,7 @@ export function generateInvoiceHtml(data = {}) {
   const recipientName = buyer.name || buyer.recipient_name || 'Customer';
   const fullAddress = buyer.address || buyer.address_line || 'Gujarat, India';
   const recipientPhone = buyer.phone || '';
-  const city = buyer.city || 'Ahmedabad';
+  const city = buyer.city || '';
   const pincode = buyer.pincode || '';
 
   // Pricing calculations

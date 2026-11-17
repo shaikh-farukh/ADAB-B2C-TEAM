@@ -43,11 +43,11 @@ export default function CheckoutView({
     phone: '',
     address_line: '',
     landmark: '',
-    city: 'Surat',
-    state: 'Gujarat',
-    pincode: '395002',
-    latitude: 21.170240,
-    longitude: 72.831062,
+    city: '',
+    state: '',
+    pincode: '',
+    latitude: null,
+    longitude: null,
     is_default: false
   });
 
@@ -59,11 +59,11 @@ export default function CheckoutView({
     phone: '',
     address_line: '',
     landmark: '',
-    city: 'Surat',
-    state: 'Gujarat',
-    pincode: '395002',
-    latitude: 21.170240,
-    longitude: 72.831062,
+    city: '',
+    state: '',
+    pincode: '',
+    latitude: null,
+    longitude: null,
     is_default: false
   });
   const [errorMessage, setErrorMessage] = useState(null);
@@ -342,7 +342,7 @@ export default function CheckoutView({
       }
     }
 
-    const city = addr.city || 'Surat';
+    const city = addr.city || '';
     const isAhmCity = city.toLowerCase().includes('ahmedabad') || (addr.pincode && String(addr.pincode).startsWith('38'));
 
     // Validate that coordinates actually match the destination city (prevent cross-city fallback bugs)
@@ -392,9 +392,9 @@ export default function CheckoutView({
       area_name: '',
       address_line: '',
       landmark: '',
-      city: 'Surat',
-      state: 'Gujarat',
-      pincode: '395002',
+      city: '',
+      state: '',
+      pincode: '',
       is_default: savedAddresses.length === 0
     });
     setAddressModalError(null);
@@ -431,9 +431,9 @@ export default function CheckoutView({
       area_name: area,
       address_line: line,
       landmark: addrToEdit.landmark || '',
-      city: addrToEdit.city || 'Surat',
-      state: addrToEdit.state || 'Gujarat',
-      pincode: addrToEdit.pincode || addrToEdit.zip || '395002',
+      city: addrToEdit.city || '',
+      state: addrToEdit.state || '',
+      pincode: addrToEdit.pincode || addrToEdit.zip || '',
       is_default: !!addrToEdit.is_default
     });
     setAddressModalError(null);
@@ -615,7 +615,7 @@ export default function CheckoutView({
       const effectiveUser = accountProfile || currentUser || userFromStorage;
       const effectiveName = effectiveUser?.name || effectiveUser?.full_name || address.recipient_name || address.full_name || 'Customer';
       const effectivePhone = effectiveUser?.phone || address.phone || '+919876512340';
-      const effectiveEmail = effectiveUser?.email || address.email || 'customer@adab.com';
+      const effectiveEmail = effectiveUser?.email || currentUser?.email || userFromStorage?.email || address.email || '';
       const effectiveCustomerId = effectiveUser?.id || undefined;
 
       const orderIdempotencyKey = generateIdempotencyKey('ord');
@@ -627,6 +627,7 @@ export default function CheckoutView({
         customer_email: effectiveEmail,
         delivery_address: {
           ...address,
+          email: effectiveEmail || address.email,
           delivery_slot: deliverySpeed === 'same' ? selectedSlot : null,
           delivery_slot_id: deliverySpeed === 'same' ? selectedSlot?.id : null
         },

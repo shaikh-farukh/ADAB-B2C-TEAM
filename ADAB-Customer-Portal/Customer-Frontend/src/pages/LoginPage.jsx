@@ -70,8 +70,8 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
   const [regAreaName, setRegAreaName] = useState('');
   const [regLandmark, setRegLandmark] = useState('');
   const [regPincode, setRegPincode] = useState('');
-  const [regCity, setRegCity] = useState('Surat');
-  const [regState, setRegState] = useState('Gujarat');
+  const [regCity, setRegCity] = useState('');
+  const [regState, setRegState] = useState('');
   const [regIsDefault, setRegIsDefault] = useState(true);
   const [isDetectingRegPin, setIsDetectingRegPin] = useState(false);
   const [regPinHint, setRegPinHint] = useState('');
@@ -351,6 +351,7 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
   // Initialize Google Identity Services (GIS)
   useEffect(() => {
     const clientId = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GOOGLE_CLIENT_ID) ||
+      (typeof import.meta !== 'undefined' && import.meta.env?.GOOGLE_CLIENT_ID) ||
       (typeof window !== 'undefined' && window.GOOGLE_CLIENT_ID) ||
       '';
 
@@ -390,6 +391,10 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
                   handleGoogleTokenSuccess(tokenResponse.access_token);
                 } else if (tokenResponse?.error) {
                   console.warn('[Google OAuth] Error response:', tokenResponse.error);
+                  setGoogleLoading(false);
+                  if (tokenResponse.error !== 'popup_closed_by_user') {
+                    setErrorMsg('Google sign-in was canceled or encountered an issue. Please try again.');
+                  }
                 }
               }
             });
@@ -412,6 +417,7 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
           script.onload = setupGoogleGsi;
           document.body.appendChild(script);
         } else {
+          existingScript.addEventListener('load', setupGoogleGsi);
           existingScript.onload = setupGoogleGsi;
         }
       } else {
@@ -424,6 +430,7 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
   const triggerGoogleSignIn = () => {
     clearFeedback();
     const clientId = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GOOGLE_CLIENT_ID) ||
+      (typeof import.meta !== 'undefined' && import.meta.env?.GOOGLE_CLIENT_ID) ||
       (typeof window !== 'undefined' && window.GOOGLE_CLIENT_ID) ||
       '';
 
@@ -433,6 +440,8 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
       simulateDevGoogleAuth();
       return;
     }
+
+    setGoogleLoading(true);
 
     // Priority 1: Official Google OAuth2 Token Client Popup (Account Chooser)
     if (tokenClientRef.current) {
@@ -462,7 +471,11 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
       const height = 620;
       const left = window.screenX + (window.outerWidth - width) / 2;
       const top = window.screenY + (window.outerHeight - height) / 2;
-      window.open(oauthUrl, 'GoogleSignIn', `width=${width},height=${height},left=${left},top=${top}`);
+      const popup = window.open(oauthUrl, 'GoogleSignIn', `width=${width},height=${height},left=${left},top=${top}`);
+      if (!popup) {
+        setGoogleLoading(false);
+        setErrorMsg('Popup was blocked by your browser. Please allow popups for this site.');
+      }
     }
   };
 
@@ -664,7 +677,9 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
         if (detected) {
           if (detected.city) setRegCity(detected.city);
           if (detected.state) setRegState(detected.state);
-          setRegPinHint(`✓ Auto-detected: ${detected.city || offline?.city || 'Surat'}, ${detected.state || offline?.state || 'Gujarat'}`);
+          const detectedCity = detected.city || offline?.city || '';
+          const detectedState = detected.state || offline?.state || '';
+          setRegPinHint(`✓ Auto-detected: ${[detectedCity, detectedState].filter(Boolean).join(', ')}`);
         } else if (!offline) {
           setRegPinHint('Pincode set. Confirm city & state below.');
         }
@@ -723,8 +738,8 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
         address_line: combinedAddress,
         address: combinedAddress,
         landmark: regLandmark.trim(),
-        city: regCity.trim() || 'Surat',
-        state: regState.trim() || 'Gujarat',
+        city: regCity.trim(),
+        state: regState.trim(),
         pincode: regPincode.trim(),
         label: regAddressType,
         recipient_name: regRecipientName.trim() || regName.trim(),
@@ -833,23 +848,14 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
   return (
     <div className="min-h-[calc(100vh-56px)] sm:min-h-[calc(100vh-64px)] w-full flex flex-col items-center justify-center p-4 sm:p-6 bg-gradient-to-b from-[#F6F9F6] via-white to-[#F8F9FA]">
       <div className="w-full max-w-[440px] bg-white rounded-2xl border border-slate-200/80 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.06)] p-6 sm:p-8 transition-all">
-        {/* ADAB Header with Logo and Continue as guest shortcut */}
-        <div className="flex items-center justify-between mb-2">
+        {/* ADAB Header with Logo */}
+        <div className="flex items-center mb-2">
           <div className="flex items-center gap-2">
             <div className="w-10 h-10 rounded-2xl bg-[#18753C] text-white flex items-center justify-center font-black text-xl shadow-xs">
               A
             </div>
             <span className="font-extrabold text-2xl tracking-tight text-slate-900">ADAB</span>
           </div>
-          <button
-            type="button"
-            onClick={() => onContinueGuest ? onContinueGuest() : (onNavigate && onNavigate('home'))}
-            className="text-xs font-semibold text-slate-500 hover:text-[#18753C] flex items-center gap-1 cursor-pointer transition-colors py-1.5 px-2.5 rounded-xl hover:bg-emerald-50/70"
-            title="Browse as guest"
-          >
-            <span>Continue as guest</span>
-            <i className="fa-solid fa-arrow-right text-[10px]"></i>
-          </button>
         </div>
 
         {/* Short tagline under logo */}
@@ -1884,7 +1890,8 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
               {/* Official Google GSI Button overlay for native 1-click accounts.google.com chooser */}
               <div
                 ref={googleBtnContainerRef}
-                className="absolute inset-0 opacity-[0.001] overflow-hidden cursor-pointer flex items-center justify-center [&_iframe]:w-full [&_iframe]:h-full"
+                onClick={triggerGoogleSignIn}
+                className="absolute inset-0 opacity-[0.001] overflow-hidden cursor-pointer flex items-center justify-center pointer-events-none [&_iframe]:pointer-events-auto [&_iframe]:w-full [&_iframe]:h-full"
                 style={{ minHeight: '48px' }}
               />
             </div>

@@ -530,10 +530,10 @@ exports.getAddresses = async (rawUserId) => {
       address: row.address_line || '',
       address_line: row.address_line || '',
       landmark: row.landmark || '',
-      city: row.city || 'Surat',
-      state: row.state || 'Gujarat',
-      zip: row.pincode || '395003',
-      pincode: row.pincode || '395003',
+      city: row.city || '',
+      state: row.state || '',
+      zip: row.pincode || '',
+      pincode: row.pincode || '',
       latitude: lat,
       longitude: lng,
       isDefault: Boolean(row.is_default),
@@ -591,9 +591,9 @@ exports.addAddress = async (rawUserId, body) => {
   const label = type || bodyLabel || 'Home';
   const recName = recipientName || recipient_name || 'Customer';
   const userPhone = phone || '';
-  const cityName = city || 'Surat';
-  const stateName = state || 'Gujarat';
-  const pin = zip || pincode || '395003';
+  const cityName = city || '';
+  const stateName = state || '';
+  const pin = zip || pincode || '';
 
   // Smart Geocoding
   let lat = body.latitude;
@@ -719,9 +719,9 @@ exports.updateAddress = async (rawUserId, id, body) => {
       address: addrLine,
       address_line: addrLine,
       landmark,
-      city: city || 'Surat',
-      state: state || 'Gujarat',
-      pincode: pin || '395003'
+      city: city || '',
+      state: state || '',
+      pincode: pin || ''
     });
     lat = geo.latitude;
     lng = geo.longitude;
@@ -882,9 +882,9 @@ exports.validateAddress = async (body) => {
     isValid: isPincodeValid && Boolean(address),
     standardizedAddress: {
       addressLine1: address || 'N/A',
-      city: city || 'Surat',
-      state: 'Gujarat',
-      pincode: pincode || '395003',
+      city: city || '',
+      state: body.state || '',
+      pincode: pincode || '',
       country: 'India'
     },
     deliverable: isPincodeValid,

@@ -184,8 +184,8 @@ export default function CategoriesPage({ onAddToCart, onToggleWishlist, wishlist
           </h1>
           <p className="text-xs sm:text-sm text-emerald-100 mt-1 font-medium leading-relaxed">
             {categoriesLoaded
-              ? `Browse through ${categories.length} departments across Surat stores. Pick a department to see live products with express 14–45 minute delivery.`
-              : 'Loading departments across Surat stores with express 14–45 minute delivery.'}
+              ? `Browse through ${categories.length} departments across local neighbourhood stores. Pick a department to see live products with express 14–45 minute delivery.`
+              : 'Loading departments across local neighbourhood stores with express 14–45 minute delivery.'}
           </p>
         </div>
       </div>

@@ -458,7 +458,8 @@ function HomeStoreCard({ shop, onNavigate }) {
 /* =========================================================================
    MAIN HOMEPAGE COMPONENT
    ========================================================================= */
-export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wishlist }) {
+export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wishlist, selectedAddress }) {
+  const cityName = selectedAddress?.city || '';
   const [recommended, setRecommended] = useState(homeDataCache.recommended || []);
   const [categories, setCategories] = useState(homeDataCache.categories || []);
   const [stores, setStores] = useState(homeDataCache.stores || []);
@@ -711,7 +712,7 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
           </div>
           <div className="min-w-0">
             <div className="text-xs font-black text-gray-900">14–45 Min Delivery</div>
-            <div className="text-[10px] text-gray-500 font-medium truncate">Express to your door in Surat</div>
+            <div className="text-[10px] text-gray-500 font-medium truncate">{cityName ? `Express to your door in ${cityName}` : 'Express to your door in minutes'}</div>
           </div>
         </div>
 
@@ -1217,7 +1218,7 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
               Explore Full Local Product Catalog
             </h3>
             <p className="text-xs text-gray-600 mt-0.5">
-              Filter by category, price, discount, or specific neighbourhood store in Surat
+              Filter by category, price, discount, or specific neighbourhood store{cityName ? ` in ${cityName}` : ''}
             </p>
           </div>
         </div>

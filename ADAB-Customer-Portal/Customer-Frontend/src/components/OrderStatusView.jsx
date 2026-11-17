@@ -403,9 +403,9 @@ export default function OrderStatusView({
   const addrObj = typeof rawAddr === 'string' ? { address_line: rawAddr } : rawAddr;
   const recipientName = addrObj.recipient_name || addrObj.full_name || order.customer_name || 'Customer';
   const recipientPhone = addrObj.phone || order.customer_phone || '+91 98765 12340';
-  const fullAddressLine = addrObj.address_line || addrObj.address || order.shipping_address_line || 'Flat 402, Green Valley Apt, Ring Road';
-  const city = addrObj.city || 'Surat';
-  const pincode = addrObj.pincode || addrObj.zip || '395002';
+  const fullAddressLine = addrObj.address_line || addrObj.address || order.shipping_address_line || '';
+  const city = addrObj.city || '';
+  const pincode = addrObj.pincode || addrObj.zip || '';
   const addressLabel = addrObj.label || 'Home';
 
   // Order identifiers & Meta
@@ -992,7 +992,7 @@ export default function OrderStatusView({
             {fullAddressLine}
           </div>
           <div className="text-gray-900 font-bold">
-            {`${city} — ${pincode}`}
+            {[city, pincode].filter(Boolean).join(' — ')}
           </div>
           <div className="pt-2 text-[11px] text-emerald-700 font-semibold flex items-center gap-1.5">
             <i className="fa-solid fa-bolt"></i>
@@ -1072,7 +1072,7 @@ export default function OrderStatusView({
             <div className="text-xs border border-gray-100 p-3 rounded-xl space-y-1">
               <span className="text-[10px] text-gray-400 font-bold uppercase block">Customer Bill-To</span>
               <div className="font-extrabold text-gray-900">{recipientName}</div>
-              <div className="text-gray-600">{fullAddressLine}, {city} - {pincode}</div>
+              <div className="text-gray-600">{[fullAddressLine, [city, pincode].filter(Boolean).join(' - ')].filter(Boolean).join(', ')}</div>
               <div className="text-gray-500">{recipientPhone}</div>
             </div>
 

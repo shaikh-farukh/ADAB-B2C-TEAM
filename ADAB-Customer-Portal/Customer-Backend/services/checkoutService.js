@@ -585,7 +585,7 @@ async function getDeliverySlots({ zoneId = null, storeId = null, date = null } =
       const sid = storeRes.rows[0].id;
       const newZone = await pool.query(
         `INSERT INTO delivery_zones (store_id, zone_name, radius_km, min_order_amount, delivery_fee, estimated_minutes_min, estimated_minutes_max, is_active)
-         VALUES ($1, 'Surat Central & Vesu Zone', 10.00, 0, 29.00, 14, 45, true)
+         VALUES ($1, 'Express Delivery Zone', 10.00, 0, 29.00, 14, 45, true)
          RETURNING id`,
         [sid]
       );
@@ -716,7 +716,7 @@ async function checkServiceability({ pincode = null, addressLine = '', storeId =
 
   const zoneName = store.city
     ? `${store.city} Delivery Hub`
-    : (isAhmedabadHub ? 'Ahmedabad Express Zone' : 'Surat Central & Vesu Zone');
+    : (isAhmedabadHub ? 'Ahmedabad Express Zone' : (isSuratHub ? 'Surat Central & Vesu Zone' : 'Local Express Zone'));
 
   return {
     is_serviceable: isServiceable,
@@ -725,7 +725,7 @@ async function checkServiceability({ pincode = null, addressLine = '', storeId =
     store: {
       id: store.id,
       name: store.store_name,
-      address: `${store.address_line || ''}, ${store.city || 'Surat'} ${store.pincode || ''}`.trim(),
+      address: `${store.address_line || ''}, ${store.city || ''} ${store.pincode || ''}`.trim(),
       radius_km: Number(store.delivery_radius_km || 10)
     },
     zone_name: zoneName,

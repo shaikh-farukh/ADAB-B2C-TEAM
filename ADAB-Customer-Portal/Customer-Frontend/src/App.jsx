@@ -494,7 +494,7 @@ export default function App() {
     } catch (e) {
       console.warn(e);
     }
-    showToast(`✓ Delivering to ${addr.label || addr.type || 'Home'} (${addr.address_line ? addr.address_line.split(',')[0] : (addr.address ? addr.address.split(',')[0] : (addr.city || 'Surat'))})`);
+    showToast(`✓ Delivering to ${addr.label || addr.type || 'Home'} (${addr.address_line ? addr.address_line.split(',')[0] : (addr.address ? addr.address.split(',')[0] : (addr.city || 'your area'))})`);
   };
 
   const handleToggleWishlist = async (listingId) => {
@@ -986,7 +986,7 @@ export default function App() {
                 </div>
                 <div>
                   <div className="font-extrabold text-sm tracking-tight">ADAB</div>
-                  <div className="text-[10px] text-green-100 font-semibold">{storeCount} local stores · {selectedAddress?.city || 'Surat'}</div>
+                  <div className="text-[10px] text-green-100 font-semibold">{storeCount} local stores{selectedAddress?.city ? ` · ${selectedAddress.city}` : ''}</div>
                 </div>
               </div>
 
@@ -1109,7 +1109,7 @@ export default function App() {
                     </div>
                     <div className="font-extrabold text-sm truncate flex items-center gap-1">
                       {currentUser && selectedAddress
-                        ? `${selectedAddress.label || selectedAddress.type || 'Home'} · ${selectedAddress.address_line ? selectedAddress.address_line.split(',')[0] : (selectedAddress.address ? selectedAddress.address.split(',')[0] : 'Surat')}, ${selectedAddress.city || 'Surat'}`
+                        ? `${selectedAddress.label || selectedAddress.type || 'Home'} · ${selectedAddress.address_line ? selectedAddress.address_line.split(',')[0] : (selectedAddress.address ? selectedAddress.address.split(',')[0] : (selectedAddress.area_name || selectedAddress.building_name || 'Delivery Area'))}${selectedAddress.city ? `, ${selectedAddress.city}` : ''}`
                         : currentUser
                         ? 'Select Delivery Address'
                         : 'Login to set address'}
@@ -1127,7 +1127,7 @@ export default function App() {
                     Your neighbourhood shops,<br className="hidden md:block" /> delivered in minutes.
                   </h1>
                   <p>
-                    Groceries, dairy, fashion and more from {storeCount} trusted local stores in {selectedAddress?.city || 'Surat'} — one cart, one delivery.
+                    Groceries, dairy, fashion and more from {storeCount} trusted local stores{selectedAddress?.city ? ` in ${selectedAddress.city}` : ''} — one cart, one delivery.
                   </p>
                 </div>
 
@@ -1229,7 +1229,7 @@ export default function App() {
                   <div className="absolute -top-10 -right-10 w-36 h-36 bg-[#F26E21]/20 rounded-full blur-2xl pointer-events-none"></div>
                   <div className="flex items-center justify-between mb-3.5">
                     <span className="px-3 py-1 rounded-full bg-white/20 text-xs font-black tracking-wide text-amber-300 flex items-center gap-1.5">
-                      <i className="fa-solid fa-bolt text-amber-300"></i> Surat Instant Kirana
+                      <i className="fa-solid fa-bolt text-amber-300"></i> {selectedAddress?.city || 'Local'} Instant Kirana
                     </span>
                     <span className="text-xs text-emerald-200 font-bold">14–45 Min Express</span>
                   </div>
@@ -1350,6 +1350,7 @@ export default function App() {
             onToggleWishlist={handleToggleWishlist}
             wishlist={wishlist}
             currentUser={currentUser}
+            selectedAddress={selectedAddress}
             onNavigate={(tab, extra) => {
               if (tab === 'signup' || tab === 'register') {
                 setAuthMode('register');
@@ -1467,7 +1468,7 @@ export default function App() {
               }}
               onContinueBrowsing={() => setActiveTab('home')}
               features={[
-                { icon: 'fa-heart', text: 'Save items from all 7 Surat neighbourhood stores' },
+                { icon: 'fa-heart', text: 'Save items from your favourite neighbourhood stores' },
                 { icon: 'fa-rotate', text: 'Sync your saved items across your mobile and desktop' },
                 { icon: 'fa-cart-shopping', text: 'Move wishlisted items to your active cart in one click' }
               ]}
@@ -1564,7 +1565,7 @@ export default function App() {
               }}
               onContinueBrowsing={() => setActiveTab('cart')}
               features={[
-                { icon: 'fa-location-dot', text: 'Saved delivery addresses in Surat for 14-45 min delivery' },
+                { icon: 'fa-location-dot', text: 'Saved delivery addresses for 14-45 min express delivery' },
                 { icon: 'fa-ticket', text: 'Exclusive store coupons and member discount codes' },
                 { icon: 'fa-shield-halved', text: '100% secure payment with UPI, Cards, and COD' }
               ]}
@@ -1620,7 +1621,7 @@ export default function App() {
           ) : (
             <GuestAuthGate
               title="Sign in to view your orders"
-              subtitle="Track active deliveries from Surat neighbourhood shops, download tax invoices, and reorder past purchases."
+              subtitle="Track active deliveries from local neighbourhood shops, download tax invoices, and reorder past purchases."
               icon="fa-bag-shopping"
               onLogin={() => {
                 setAuthMode('login');
@@ -1877,7 +1878,7 @@ export default function App() {
             <div>
               <h4 style={{ fontSize: '18px' }}>ADAB</h4>
               <p style={{ fontSize: '13px', lineHeight: '1.7', maxWidth: '320px' }}>
-                Your local stores, one place. Supporting neighbourhood businesses across Surat with fast, reliable delivery.
+                Your local stores, one place. Supporting neighbourhood businesses with fast, reliable delivery.
               </p>
             </div>
             <div>
@@ -1900,7 +1901,7 @@ export default function App() {
               <a onClick={() => showToast('Returns & refund policy')}>Returns</a>
             </div>
             <div className="copy">
-              © 2026 ADAB · Surat, Gujarat · Made for local businesses
+              © 2026 ADAB · {selectedAddress?.city ? `${selectedAddress.city} · ` : ''}Made for local businesses
             </div>
           </div>
         </footer>

@@ -67,8 +67,8 @@ export default function AddressModal({
     area_name: '',
     address_line: '',
     landmark: '',
-    city: 'Surat',
-    state: 'Gujarat',
+    city: '',
+    state: '',
     pincode: '',
     is_default: false
   });
@@ -171,8 +171,8 @@ export default function AddressModal({
       area_name: '',
       address_line: '',
       landmark: '',
-      city: 'Surat',
-      state: 'Gujarat',
+      city: '',
+      state: '',
       pincode: '',
       is_default: savedAddresses.length === 0
     });
@@ -194,9 +194,9 @@ export default function AddressModal({
       area_name: addrToEdit.area_name || '',
       address_line: addrToEdit.address_line || addrToEdit.address || '',
       landmark: addrToEdit.landmark || '',
-      city: addrToEdit.city || 'Surat',
-      state: addrToEdit.state || 'Gujarat',
-      pincode: addrToEdit.pincode || addrToEdit.zip || '395002',
+      city: addrToEdit.city || '',
+      state: addrToEdit.state || '',
+      pincode: addrToEdit.pincode || addrToEdit.zip || '',
       is_default: !!addrToEdit.is_default
     });
     setPinHint('');
@@ -441,9 +441,11 @@ export default function AddressModal({
                         {sa.address_line || sa.address}
                         {sa.landmark && `, near ${sa.landmark}`}
                       </div>
-                      <div className="text-[11px] font-bold text-gray-700 mt-1">
-                        {sa.city || 'Surat'}, {sa.state || 'Gujarat'} — {sa.pincode || sa.zip || '395002'}
-                      </div>
+                      {(sa.city || sa.state || sa.pincode || sa.zip) && (
+                        <div className="text-[11px] font-bold text-gray-700 mt-1">
+                          {[sa.city, sa.state].filter(Boolean).join(', ')}{sa.pincode || sa.zip ? ` — ${sa.pincode || sa.zip}` : ''}
+                        </div>
+                      )}
                     </div>
                   );
                 })

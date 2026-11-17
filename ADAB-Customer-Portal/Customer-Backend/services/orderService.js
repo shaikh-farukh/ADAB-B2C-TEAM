@@ -636,6 +636,39 @@ async function createOrderFromCart({
     order.payment = paymentRecord;
     order.invoice = initialInvoice;
 
+    // Send Order Confirmation Email asynchronously via Brevo SMTP
+    const recipientEmail = (customerEmail || customerUser?.email || finalDeliveryAddress?.email || '').trim();
+    const recipientName = customerUser?.full_name || customerName || finalDeliveryAddress?.recipient_name || finalDeliveryAddress?.full_name || 'Valued Customer';
+    const deliveryAddressString = [
+      finalDeliveryAddress.address_line || finalDeliveryAddress.address,
+      finalDeliveryAddress.landmark && `Near ${finalDeliveryAddress.landmark}`,
+      finalDeliveryAddress.city,
+      finalDeliveryAddress.pincode
+    ].filter(Boolean).join(', ') || 'Delivery Address Provided';
+
+    if (recipientEmail && !recipientEmail.includes('guest_') && !recipientEmail.endsWith('@adabtest.com')) {
+      try {
+        const emailService = require('./emailService');
+        emailService.sendOrderConfirmationEmail({
+          email: recipientEmail,
+          userName: recipientName,
+          order: {
+            orderNumber,
+            grandTotal: finalGrandTotal,
+            deliveryMode: dbDeliveryMode,
+            etaMinutes,
+            address: deliveryAddressString,
+            items: preview.items || [],
+            paymentMethod: dbPaymentMethod || 'Online'
+          }
+        }).catch(mailErr => {
+          console.warn('⚠️ Order confirmation email dispatch warning:', mailErr.message);
+        });
+      } catch (err) {
+        console.warn('Non-blocking order email trigger notice:', err.message);
+      }
+    }
+
     return order;
   } catch (error) {
     if (client) {
@@ -857,6 +890,26 @@ async function cancelOrder(orderId, customerId = null) {
     }
 
     await client.query('COMMIT');
+
+    // Send cancellation email to customer
+    if (order.customer_id) {
+      pool.query(`SELECT email, full_name FROM users WHERE id = $1`, [order.customer_id]).then(uRes => {
+        const u = uRes.rows[0];
+        if (u?.email && !u.email.includes('guest_') && !u.email.endsWith('@adabtest.com')) {
+          try {
+            const emailService = require('./emailService');
+            emailService.sendOrderStatusUpdateEmail({
+              email: u.email,
+              userName: u.full_name || 'Valued Customer',
+              order: { orderNumber: order.order_number },
+              status: 'CANCELLED'
+            }).catch(err => console.warn('⚠️ Non-blocking order cancel email warning:', err.message));
+          } catch (e) {
+            console.warn('Order cancel email trigger notice:', e.message);
+          }
+        }
+      }).catch(err => console.warn('Query customer for cancel email warning:', err.message));
+    }
     return updatedOrder;
   } catch (error) {
     await client.query('ROLLBACK');
@@ -1250,7 +1303,7 @@ async function getOrderTracking(orderId) {
       phone: store.phone
     },
     destination: {
-      address: addr.address_line || addr.address || 'Ring Road, Surat',
+      address: addr.address_line || addr.address || (addr.city ? `${addr.city}, Gujarat` : 'Delivery Destination'),
       building_name: addr.building_name || '',
       house_number: addr.house_number || addr.flat_no || '',
       area_name: addr.area_name || addr.area || '',
@@ -1355,13 +1408,13 @@ async function getOrderInvoice(orderId) {
     },
     seller: {
       store_name: primaryStore.store_name || 'ADAB Verified Store',
-      address: primaryStore.store_address || 'Surat, Gujarat',
+      address: primaryStore.store_address || (primaryStore.city ? `${primaryStore.city}, Gujarat` : 'Local Store Address'),
       gstin: primaryStore.gstin || '24AAACA1234A1Z5'
     },
     buyer: {
       name: deliveryAddr.recipient_name || deliveryAddr.full_name || 'Customer',
       phone: deliveryAddr.phone || '+91 98765 12340',
-      address: deliveryAddr.address_line || deliveryAddr.address || 'Surat, Gujarat'
+      address: deliveryAddr.address_line || deliveryAddr.address || (deliveryAddr.city ? `${deliveryAddr.city}, Gujarat` : 'Customer Delivery Address')
     },
     items: itemsRes.rows,
     seller_orders: sellerOrdersRes.rows
@@ -1575,6 +1628,28 @@ async function updateOrderStatus(orderId, newStatus, options = {}) {
     }
 
     await client.query('COMMIT');
+
+    // Send status update email for key milestones (OUT_FOR_DELIVERY, DELIVERED, CANCELLED)
+    if (['OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'].includes(normalizedNewStatus) && updatedOrder.customer_id) {
+      pool.query(`SELECT email, full_name FROM users WHERE id = $1`, [updatedOrder.customer_id]).then(uRes => {
+        const u = uRes.rows[0];
+        if (u?.email && !u.email.includes('guest_') && !u.email.endsWith('@adabtest.com')) {
+          try {
+            const emailService = require('./emailService');
+            emailService.sendOrderStatusUpdateEmail({
+              email: u.email,
+              userName: u.full_name || 'Valued Customer',
+              order: { orderNumber: updatedOrder.order_number },
+              status: normalizedNewStatus,
+              courierName: options.courierName,
+              trackingNumber: options.trackingNumber
+            }).catch(err => console.warn('⚠️ Non-blocking order status email warning:', err.message));
+          } catch (e) {
+            console.warn('Order status email trigger notice:', e.message);
+          }
+        }
+      }).catch(err => console.warn('Query customer for order status email warning:', err.message));
+    }
 
     const fullOrder = await getOrderById(orderId);
     return fullOrder;

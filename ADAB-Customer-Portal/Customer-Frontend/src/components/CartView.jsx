@@ -74,11 +74,11 @@ export default function CartView({
             full_address: [
               a.address_line || a.address,
               a.landmark,
-              a.city || 'Surat',
+              a.city,
               a.pincode || a.zip
             ].filter(Boolean).join(', '),
-            city: a.city || 'Surat',
-            state: a.state || 'Gujarat',
+            city: a.city || '',
+            state: a.state || '',
             pincode: a.pincode || a.zip || '',
             is_verified: true,
             raw: a
@@ -338,11 +338,11 @@ export default function CartView({
         full_address: selectedDeliveryAddress.full_address || [
           selectedDeliveryAddress.address_line || selectedDeliveryAddress.address,
           selectedDeliveryAddress.landmark,
-          selectedDeliveryAddress.city || 'Surat',
+          selectedDeliveryAddress.city,
           selectedDeliveryAddress.pincode || selectedDeliveryAddress.zip
         ].filter(Boolean).join(', '),
-        city: selectedDeliveryAddress.city || 'Surat',
-        state: selectedDeliveryAddress.state || 'Gujarat',
+        city: selectedDeliveryAddress.city || '',
+        state: selectedDeliveryAddress.state || '',
         pincode: selectedDeliveryAddress.pincode || selectedDeliveryAddress.zip || '',
         is_verified: true,
         raw: selectedDeliveryAddress

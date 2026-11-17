@@ -221,7 +221,7 @@ export default function ShopsPage({ onNavigate }) {
                     <div className="p-4 space-y-2.5">
                       <div className="flex items-start gap-1.5 text-xs text-gray-500">
                         <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
-                        <span className="line-clamp-1">{shop.area || 'Local Market Area, Surat'}</span>
+                        <span className="line-clamp-1">{shop.area || shop.city || 'Local Market Area'}</span>
                       </div>
 
                       <div className="flex flex-wrap gap-1.5">

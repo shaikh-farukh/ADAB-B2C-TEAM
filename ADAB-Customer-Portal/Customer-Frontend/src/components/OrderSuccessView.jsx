@@ -57,9 +57,9 @@ export default function OrderSuccessView({
   const recipientPhone = deliveryAddress.phone || deliveryAddress.mobile || '';
   const addressLine = deliveryAddress.address_line || deliveryAddress.address || 'Delivery Address Provided';
   const landmark = deliveryAddress.landmark || '';
-  const city = deliveryAddress.city || 'Surat';
-  const state = deliveryAddress.state || 'Gujarat';
-  const pincode = deliveryAddress.pincode || deliveryAddress.zip || '395002';
+  const city = deliveryAddress.city || '';
+  const state = deliveryAddress.state || '';
+  const pincode = deliveryAddress.pincode || deliveryAddress.zip || '';
   const addressLabel = deliveryAddress.label || deliveryAddress.type || 'Home';
 
   // Geocoded Coordinates
@@ -290,7 +290,8 @@ export default function OrderSuccessView({
           <p style={{ fontSize: '13px', color: '#475569', margin: '0 0 10px', lineHeight: 1.5 }}>
             {addressLine}
             {landmark && `, Near ${landmark}`}
-            {`, ${city}, ${state} - ${pincode}`}
+            {[city, state].filter(Boolean).length > 0 && `, ${[city, state].filter(Boolean).join(', ')}`}
+            {pincode && ` - ${pincode}`}
           </p>
 
           {/* Live Geocoded Coordinates Verification Pill */}
