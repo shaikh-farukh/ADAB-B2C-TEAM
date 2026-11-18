@@ -5438,13 +5438,13 @@ class SellerRepository {
     // 4. Create Order in manage_b_to_b_orders (for Distributor / Manufacturer)
     const ordRes = await pool.query(`
       INSERT INTO manage_b_to_b_orders (
-        order_number, distributor_id, manufacturer_id, shop_id,
+        order_number, distributor_id, assigned_distributor_id, manufacturer_id, shop_id,
         total_amount, final_amount, status, payment_status,
-        delivery_mode, payment_mode, shipping_address, active, order_date
+        delivery_mode, payment_mode, shipping_address, store_pincode, active, order_date
       ) VALUES (
-        $1, $2, $3, 3,
+        $1, $2, $2, $3, 3,
         $4, $4, 'PENDING', $5,
-        'Local Distributor Delivery Van', $6, $7, true, NOW()
+        'Local Distributor Delivery Van', $6, $7, $8, true, NOW()
       ) RETURNING *;
     `, [
       orderNumber,
@@ -5453,24 +5453,28 @@ class SellerRepository {
       totalAmount,
       poPaymentStatus === 'PAID' ? 'PAID' : 'UNPAID',
       normalizedPaymentMethod,
-      finalAddress
+      finalAddress,
+      storePincode
     ]);
 
     const order = ordRes.rows[0];
 
-    // 5. Insert Item in manage_b_to_b_order_items
+    // 5. Insert Item in manage_b_to_b_order_items with product_id & carton details for live telemetry
     await pool.query(`
       INSERT INTO manage_b_to_b_order_items (
-        order_id, product_name, quantity, unit_price, total_price
+        order_id, product_id, product_name, quantity, unit_price, total_price, carton_quantity, case_price
       ) VALUES (
-        $1, $2, $3, $4, $5
+        $1, $2, $3, $4, $5, $6, $7, $8
       );
     `, [
       order.id,
+      master.id,
       `${master.brand_name} - ${master.product_name} (${caseSize} packs/carton)`,
       numCases,
       casePrice,
-      totalAmount
+      totalAmount,
+      numCases,
+      casePrice
     ]);
 
     // 6. Record status history
@@ -5690,13 +5694,13 @@ class SellerRepository {
       // Create in manage_b_to_b_orders
       const ordRes = await pool.query(`
         INSERT INTO manage_b_to_b_orders (
-          order_number, distributor_id, manufacturer_id, shop_id,
+          order_number, distributor_id, assigned_distributor_id, manufacturer_id, shop_id,
           total_amount, final_amount, status, payment_status,
-          delivery_mode, payment_mode, shipping_address, active, order_date
+          delivery_mode, payment_mode, shipping_address, store_pincode, active, order_date
         ) VALUES (
-          $1, $2, $3, 3,
+          $1, $2, $2, $3, 3,
           $4, $4, 'PENDING', $5,
-          'Local Distributor Delivery Van', $6, $7, true, NOW()
+          'Local Distributor Delivery Van', $6, $7, $8, true, NOW()
         ) RETURNING *;
       `, [
         orderNumber,
@@ -5705,7 +5709,8 @@ class SellerRepository {
         distGroup.totalAmount,
         poPaymentStatus === 'PAID' ? 'PAID' : 'UNPAID',
         normalizedPaymentMethod,
-        finalAddress
+        finalAddress,
+        storePincode
       ]);
 
       const order = ordRes.rows[0];
@@ -5738,19 +5743,22 @@ class SellerRepository {
       }
 
       for (const it of distGroup.items) {
-        // Distributor item
+        // Distributor item with product_id & carton details for live telemetry
         await pool.query(`
           INSERT INTO manage_b_to_b_order_items (
-            order_id, product_name, quantity, unit_price, total_price
+            order_id, product_id, product_name, quantity, unit_price, total_price, carton_quantity, case_price
           ) VALUES (
-            $1, $2, $3, $4, $5
+            $1, $2, $3, $4, $5, $6, $7, $8
           );
         `, [
           order.id,
+          it.master.id,
           `${it.master.brand_name} - ${it.master.product_name} (${it.caseSize} packs/carton)`,
           it.numCases,
           it.casePrice,
-          it.totalAmount
+          it.totalAmount,
+          it.numCases,
+          it.casePrice
         ]);
 
         // Seller purchase item
