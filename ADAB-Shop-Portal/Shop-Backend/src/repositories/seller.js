@@ -1172,7 +1172,17 @@ class SellerRepository {
         SELECT 
           bpo.id,
           bpo.po_number,
-          bpo.status,
+          COALESCE(
+            CASE 
+              WHEN LOWER(mb2b.status) = 'delivered' THEN 'DELIVERED'
+              WHEN LOWER(mb2b.status) IN ('dispatched', 'shipped') THEN 'IN_TRANSIT'
+              WHEN LOWER(mb2b.status) IN ('packed', 'processing') THEN 'PACKING'
+              WHEN LOWER(mb2b.status) = 'accepted' THEN 'CONFIRMED'
+              WHEN LOWER(mb2b.status) IN ('cancelled', 'rejected') THEN 'CANCELLED'
+              ELSE UPPER(mb2b.status)
+            END,
+            bpo.status
+          ) as status,
           bpo.total_amount,
           bpo.payment_terms,
           COALESCE(bpo.payment_status, 'PENDING') as payment_status,
@@ -1196,27 +1206,50 @@ class SellerRepository {
           supp.city as supplier_city,
           supp.latitude as supplier_lat,
           supp.longitude as supplier_lng,
-          (
-            SELECT json_agg(json_build_object(
-              'id', bpi.id,
-              'listing_id', bpi.listing_id,
-              'item_name', bpi.item_name,
-              'quantity', bpi.quantity,
-              'unit_price', bpi.unit_price,
-              'total_price', bpi.total_price,
-              'unit', COALESCE(bpi.unit, 'pcs'),
-              'brand', bpi.brand_tag,
-              'mrp', bpi.mrp,
-              'category_name', bpi.category_name,
-              'resale_sell_price', bpi.resale_sell_price,
-              'image_url', bpi.image_url
-            ))
-            FROM b2b_purchase_items bpi
-            WHERE bpi.purchase_order_id = bpo.id
+          COALESCE(
+            (
+              SELECT json_agg(json_build_object(
+                'id', bpi.id,
+                'listing_id', bpi.listing_id,
+                'item_name', bpi.item_name,
+                'quantity', bpi.quantity,
+                'unit_price', bpi.unit_price,
+                'total_price', bpi.total_price,
+                'unit', COALESCE(bpi.unit, 'pcs'),
+                'brand', bpi.brand_tag,
+                'mrp', bpi.mrp,
+                'category_name', bpi.category_name,
+                'resale_sell_price', bpi.resale_sell_price,
+                'image_url', bpi.image_url
+              ))
+              FROM b2b_purchase_items bpi
+              WHERE bpi.purchase_order_id = bpo.id
+            ),
+            (
+              SELECT json_agg(json_build_object(
+                'id', oi.id::text,
+                'listing_id', NULL,
+                'item_name', oi.product_name,
+                'quantity', COALESCE(oi.carton_quantity, oi.quantity, 1),
+                'unit_price', COALESCE(oi.case_price, oi.unit_price),
+                'total_price', oi.total_price,
+                'unit', 'Carton',
+                'brand', COALESCE(p.brand_name, 'Brand'),
+                'mrp', COALESCE(p.retail_price, p.mrp, oi.unit_price),
+                'category_name', COALESCE(p.category, 'FMCG'),
+                'resale_sell_price', COALESCE(p.retail_price, p.mrp),
+                'image_url', COALESCE(p.product_image, p.image_url, p.image)
+              ))
+              FROM manage_b_to_b_order_items oi
+              LEFT JOIN manage_manufacturer_products p ON oi.product_id = p.id
+              WHERE oi.order_id = mb2b.id
+            ),
+            '[]'::json
           ) as items
         FROM b2b_purchase_orders bpo
         LEFT JOIN stores buyer ON bpo.buyer_store_id = buyer.id
         LEFT JOIN stores supp ON bpo.supplier_store_id = supp.id
+        LEFT JOIN manage_b_to_b_orders mb2b ON (mb2b.order_number = bpo.payment_reference OR mb2b.order_number = REPLACE(bpo.po_number, 'PO-', ''))
         WHERE ($1::uuid IS NULL OR bpo.buyer_store_id = $1::uuid OR bpo.supplier_store_id = $1::uuid)
         ORDER BY bpo.created_at DESC
         LIMIT 100
@@ -1358,6 +1391,26 @@ class SellerRepository {
 
     if ((normalizedStatus === 'DELIVERED' || normalizedStatus === 'RECEIVED') && auto_add_stock) {
       await this.addB2BOrderItemsToInventory(order.id, order.buyer_store_id);
+    }
+
+    if (order.payment_reference || order.po_number) {
+      const b2bStatus = (normalizedStatus === 'DELIVERED' || normalizedStatus === 'RECEIVED') ? 'delivered'
+        : (normalizedStatus === 'IN_TRANSIT' || normalizedStatus === 'DISPATCHED') ? 'dispatched'
+        : (normalizedStatus === 'PACKING' || normalizedStatus === 'PACKED') ? 'packed'
+        : (normalizedStatus === 'CONFIRMED' || normalizedStatus === 'APPROVED') ? 'accepted'
+        : (normalizedStatus === 'CANCELLED' || normalizedStatus === 'DECLINED') ? 'cancelled' : null;
+      if (b2bStatus) {
+        try {
+          await pool.query(
+            `UPDATE manage_b_to_b_orders 
+             SET status = $1, updated_at = NOW() 
+             WHERE order_number = $2 OR order_number = REPLACE($3, 'PO-', '')`,
+            [b2bStatus, order.payment_reference, order.po_number]
+          );
+        } catch (syncErr) {
+          console.warn('Sync to manage_b_to_b_orders error:', syncErr.message);
+        }
+      }
     }
 
     return updateRes.rows[0];
@@ -1785,6 +1838,7 @@ class SellerRepository {
           total_price NUMERIC(10,2) NOT NULL
         );
 
+        ALTER TABLE b2b_purchase_items ALTER COLUMN listing_id DROP NOT NULL;
         ALTER TABLE b2b_purchase_orders ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) DEFAULT 'PENDING';
         ALTER TABLE b2b_purchase_orders ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50);
         ALTER TABLE b2b_purchase_orders ADD COLUMN IF NOT EXISTS payment_reference VARCHAR(150);
@@ -5531,9 +5585,9 @@ class SellerRepository {
         b2bPo.id,
         `${master.brand_name} - ${master.product_name} (${caseSize} packs/carton)`,
         master.standard_unit || 'Piece',
-        master.default_image_url || null,
+        master.default_image_url || master.product_image || master.image_url || null,
         master.brand_name || 'Brand',
-        master.category_name || 'FMCG',
+        master.category || master.category_name || 'FMCG',
         Number(master.retail_price || master.mrp || 0),
         totalUnits,
         unitWholesale,
@@ -5773,9 +5827,9 @@ class SellerRepository {
               b2bPo.id,
               `${it.master.brand_name} - ${it.master.product_name} (${it.caseSize} packs/carton)`,
               it.master.standard_unit || 'Piece',
-              it.master.default_image_url || null,
+              it.master.default_image_url || it.master.product_image || it.master.image_url || null,
               it.master.brand_name || 'Brand',
-              it.master.category_name || 'FMCG',
+              it.master.category || it.master.category_name || 'FMCG',
               Number(it.master.retail_price || it.master.mrp || 0),
               it.totalUnits,
               it.unitWholesale,
