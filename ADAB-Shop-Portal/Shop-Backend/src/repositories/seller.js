@@ -1913,7 +1913,7 @@ class SellerRepository {
           payment_method VARCHAR(50) DEFAULT 'CREDIT',
           payment_reference VARCHAR(150),
           payment_metadata JSONB DEFAULT '{}'::jsonb,
-          delivery_method VARCHAR(50),
+          delivery_method TEXT,
           delivery_fee NUMERIC(10,2) DEFAULT 0,
           notes TEXT,
           status VARCHAR(50) DEFAULT 'PLACED',
