@@ -69,9 +69,9 @@ class SellerRepository {
           pool.query(
             'UPDATE stores SET latitude = $1, longitude = $2 WHERE id = $3 AND (latitude IS NULL OR longitude IS NULL)',
             [coords.latitude, coords.longitude, store.id]
-          ).catch(() => {});
+          ).catch(() => { });
         }
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     // Ensure store.email is synced with users.email if previously empty
@@ -84,9 +84,9 @@ class SellerRepository {
           pool.query(
             'UPDATE stores SET email = $1 WHERE id = $2 AND (email IS NULL OR email = \'\')',
             [userEmail, store.id]
-          ).catch(() => {});
+          ).catch(() => { });
         }
-      } catch (_) {}
+      } catch (_) { }
     }
 
     return store;
@@ -107,7 +107,7 @@ class SellerRepository {
     }
     if (fields.length === 0) return this.getProfile(userId);
     values.push(userId);
-    
+
     // Updates seller_profiles where user_id = userId
     const query = `
       UPDATE seller_profiles
@@ -131,8 +131,8 @@ class SellerRepository {
     const updatePayload = { ...data };
 
     const addressChanged = (updatePayload.address_line !== undefined && updatePayload.address_line !== store.address_line) ||
-                           (updatePayload.city !== undefined && updatePayload.city !== store.city) ||
-                           (updatePayload.pincode !== undefined && updatePayload.pincode !== store.pincode);
+      (updatePayload.city !== undefined && updatePayload.city !== store.city) ||
+      (updatePayload.pincode !== undefined && updatePayload.pincode !== store.pincode);
 
     if (addressChanged && (updatePayload.latitude === undefined || updatePayload.longitude === undefined)) {
       try {
@@ -146,7 +146,7 @@ class SellerRepository {
           updatePayload.latitude = coords.latitude;
           updatePayload.longitude = coords.longitude;
         }
-      } catch (geoErr) {}
+      } catch (geoErr) { }
     }
 
     const fields = [];
@@ -361,8 +361,8 @@ class SellerRepository {
         const dLat = (cLat - sLat) * Math.PI / 180;
         const dLon = (cLng - sLng) * Math.PI / 180;
         const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(sLat * Math.PI / 180) * Math.cos(cLat * Math.PI / 180) *
-                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+          Math.cos(sLat * Math.PI / 180) * Math.cos(cLat * Math.PI / 180) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
         distance = (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1);
       }
 
@@ -398,10 +398,10 @@ class SellerRepository {
         payment_status: r.payment_status || null,
         status: r.seller_order_status ? (
           r.seller_order_status === 'NEW' ? 'new' :
-          r.seller_order_status === 'ACCEPTED' ? 'packing' :
-          r.seller_order_status === 'PACKED' ? 'packed' :
-          r.seller_order_status === 'DISPATCHED' ? 'dispatched' :
-          r.seller_order_status.toLowerCase()
+            r.seller_order_status === 'ACCEPTED' ? 'packing' :
+              r.seller_order_status === 'PACKED' ? 'packed' :
+                r.seller_order_status === 'DISPATCHED' ? 'dispatched' :
+                  r.seller_order_status.toLowerCase()
         ) : 'new',
         created_at: r.seller_order_created_at || r.created_at
       };
@@ -1389,16 +1389,16 @@ class SellerRepository {
       ]
     );
 
-    if ((normalizedStatus === 'DELIVERED' || normalizedStatus === 'RECEIVED') && auto_add_stock) {
-      await this.addB2BOrderItemsToInventory(order.id, order.buyer_store_id);
+    if (normalizedStatus === 'DELIVERED' || normalizedStatus === 'RECEIVED') {
+      await this.fulfillDeliveredB2BOrderStock(order.id);
     }
 
     if (order.payment_reference || order.po_number) {
       const b2bStatus = (normalizedStatus === 'DELIVERED' || normalizedStatus === 'RECEIVED') ? 'delivered'
         : (normalizedStatus === 'IN_TRANSIT' || normalizedStatus === 'DISPATCHED') ? 'dispatched'
-        : (normalizedStatus === 'PACKING' || normalizedStatus === 'PACKED') ? 'packed'
-        : (normalizedStatus === 'CONFIRMED' || normalizedStatus === 'APPROVED') ? 'accepted'
-        : (normalizedStatus === 'CANCELLED' || normalizedStatus === 'DECLINED') ? 'cancelled' : null;
+          : (normalizedStatus === 'PACKING' || normalizedStatus === 'PACKED') ? 'packed'
+            : (normalizedStatus === 'CONFIRMED' || normalizedStatus === 'APPROVED') ? 'accepted'
+              : (normalizedStatus === 'CANCELLED' || normalizedStatus === 'DECLINED') ? 'cancelled' : null;
       if (b2bStatus) {
         try {
           await pool.query(
@@ -1417,74 +1417,157 @@ class SellerRepository {
   }
 
   async addB2BOrderItemsToInventory(orderId, buyerStoreId) {
+    return await this.fulfillDeliveredB2BOrderStock(orderId);
+  }
+
+  async fulfillDeliveredB2BOrderStock(orderIdentifier, externalClient = null) {
+    const client = externalClient || pool;
     try {
-      const itemsRes = await pool.query(
-        `SELECT * FROM b2b_purchase_items WHERE purchase_order_id = $1`,
-        [orderId]
+      let orderNumber = null;
+      let b2bOrderId = null;
+      let buyerStoreId = null;
+
+      // 1. Resolve order details from manage_b_to_b_orders
+      const b2bOrderRes = await client.query(
+        `SELECT id, order_number, shop_id FROM manage_b_to_b_orders 
+         WHERE id::text = $1 OR order_number = $1 OR order_number = REPLACE($1, 'PO-', '') 
+         LIMIT 1`,
+        [orderIdentifier.toString()]
       );
-      for (const item of itemsRes.rows) {
-        const addedQty = Number(item.quantity) || 1;
-        let targetListingId = item.listing_id;
 
-        if (!targetListingId && item.item_name) {
-          const matchRes = await pool.query(
-            `SELECT id FROM seller_listings WHERE store_id = $1 AND LOWER(TRIM(title)) = LOWER(TRIM($2)) LIMIT 1`,
-            [buyerStoreId, item.item_name]
-          );
-          targetListingId = matchRes.rows[0]?.id || null;
-        }
+      if (b2bOrderRes.rows.length > 0) {
+        b2bOrderId = b2bOrderRes.rows[0].id;
+        orderNumber = b2bOrderRes.rows[0].order_number;
+      }
 
-        if (targetListingId) {
-          await pool.query(
-            `UPDATE seller_listings 
-             SET stock_qty = COALESCE(stock_qty, 0) + $1, updated_at = NOW() 
-             WHERE id = $2`,
-            [addedQty, targetListingId]
-          );
-          await pool.query(
-            `INSERT INTO inventory (listing_id, stock_quantity, reserved_quantity, low_stock_threshold, updated_at)
-             VALUES ($1, $2, 0, 5, NOW())
-             ON CONFLICT (listing_id) DO UPDATE 
-             SET stock_quantity = inventory.stock_quantity + EXCLUDED.stock_quantity,
-                 updated_at = NOW()`,
-            [targetListingId, addedQty]
-          );
-        } else if (item.item_name) {
-          const unitPrice = Number(item.unit_price) || 0;
-          const targetSellPrice = Number(item.resale_sell_price) || (unitPrice > 0 ? unitPrice * 1.2 : 50);
-          const effectiveMrp = Number(item.mrp) || targetSellPrice * 1.15;
+      // 2. Resolve buyerStoreId from b2b_purchase_orders (exact store UUID)
+      const poRes = await client.query(
+        `SELECT id, po_number, buyer_store_id FROM b2b_purchase_orders 
+         WHERE id::text = $1 OR po_number = $1 OR payment_reference = $1 OR po_number = ('PO-' || $1) 
+         LIMIT 1`,
+        [(orderNumber || orderIdentifier).toString()]
+      );
 
-          const newListingRes = await pool.query(
-            `INSERT INTO seller_listings (
-              store_id, product_type, title, sku, brand_tag, mrp, sell_price, unit,
-              min_order_qty, allowed_buyers, approval_status, is_active, stock_qty, rating, review_count
+      if (poRes.rows.length > 0) {
+        buyerStoreId = poRes.rows[0].buyer_store_id;
+      }
+
+      if (!buyerStoreId) {
+        const anyStore = await client.query(`SELECT id FROM stores LIMIT 1`);
+        if (anyStore.rows.length > 0) buyerStoreId = anyStore.rows[0].id;
+      }
+
+      if (!buyerStoreId) {
+        console.warn('[B2B Fulfillment] Could not resolve buyer store ID for:', orderIdentifier);
+        return { success: false, reason: 'STORE_NOT_FOUND' };
+      }
+
+      // 3. Fetch items for this order
+      let items = [];
+      if (b2bOrderId) {
+        const b2bItemsRes = await client.query(`
+          SELECT oi.*, p.product_name, p.brand_name, p.barcode, p.category_id, p.retail_price, p.mrp, p.distributor_price, p.unit as prod_unit, p.case_size, p.attributes as prod_attributes
+          FROM manage_b_to_b_order_items oi
+          LEFT JOIN manage_manufacturer_products p ON oi.product_id = p.id
+          WHERE oi.order_id = $1
+        `, [b2bOrderId]);
+        items = b2bItemsRes.rows;
+      }
+
+      if (items.length === 0 && poRes.rows.length > 0) {
+        const poItemsRes = await client.query(`
+          SELECT pi.*, p.id as product_id, p.product_name, p.brand_name, p.barcode, p.category_id, p.retail_price, p.mrp, p.distributor_price, p.unit as prod_unit, p.case_size, p.attributes as prod_attributes
+          FROM b2b_purchase_items pi
+          LEFT JOIN manage_manufacturer_products p ON (p.product_name ILIKE pi.item_name OR pi.item_name ILIKE ('%' || p.product_name || '%'))
+          WHERE pi.purchase_order_id = $1
+        `, [poRes.rows[0].id]);
+        items = poItemsRes.rows;
+      }
+
+      const fulfilledListings = [];
+
+      for (const item of items) {
+        const productId = item.product_id;
+        const barcode = item.barcode || '';
+        const numCases = Number(item.carton_quantity || item.quantity || 1);
+        const unitsPerCase = Number(item.case_size || 1);
+        const deliveredUnits = numCases * unitsPerCase;
+
+        const title = item.product_name || item.item_name || 'Restocked FMCG Item';
+        const brand = item.brand_name || item.brand_tag || 'Brand';
+        const categoryId = Number(item.category_id) || 1;
+        const mrp = Number(item.retail_price || item.mrp || item.unit_price || 0);
+        const wholesalePrice = Number(item.distributor_price || item.unit_price || 0);
+        const sellPrice = mrp > 0 ? mrp : 50;
+        const unit = item.prod_unit || item.unit || 'Piece';
+        const attributes = item.prod_attributes || {};
+
+        // Find existing listing with strict prioritization:
+        // Priority 1: Exact manufacturer_product_id match
+        // Priority 2: Exact title match
+        // Priority 3: Barcode match (only if manufacturer_product_id is null on the listing)
+        const existingListing = await client.query(`
+          SELECT id, stock_qty, title FROM seller_listings
+          WHERE store_id = $1 AND (
+            (manufacturer_product_id IS NOT NULL AND manufacturer_product_id = $2)
+            OR (LOWER(TRIM(title)) = LOWER(TRIM($4)))
+            OR (barcode IS NOT NULL AND barcode = $3 AND barcode <> '' AND manufacturer_product_id IS NULL)
+          )
+          ORDER BY 
+            CASE 
+              WHEN manufacturer_product_id = $2 THEN 1
+              WHEN LOWER(TRIM(title)) = LOWER(TRIM($4)) THEN 2
+              ELSE 3
+            END
+          LIMIT 1
+        `, [buyerStoreId, productId || -1, barcode, title]);
+
+        if (existingListing.rows.length > 0) {
+          const listingId = existingListing.rows[0].id;
+          const updated = await client.query(`
+            UPDATE seller_listings
+            SET stock_qty = stock_qty + $1,
+                is_active = true,
+                approval_status = 'APPROVED',
+                updated_at = NOW()
+            WHERE id = $2
+            RETURNING id, title, stock_qty, is_active
+          `, [deliveredUnits, listingId]);
+          fulfilledListings.push({ action: 'INCREMENTED', listing: updated.rows[0] });
+        } else {
+          const inserted = await client.query(`
+            INSERT INTO seller_listings (
+              store_id, manufacturer_product_id, title, barcode, brand_tag, category_id,
+              mrp, wholesale_price, sell_price, unit, min_order_qty, stock_qty,
+              product_type, allowed_buyers, approval_status, is_active, attributes, rating, review_count
             ) VALUES (
-              $1, 'PACKED', $2, $3, $4, $5, $6, $7, 1, 'CUSTOMERS_AND_STORES', 'APPROVED', true, $8, 5.0, 0
-            ) RETURNING id`,
-            [
-              buyerStoreId,
-              item.item_name,
-              `SKU-B2B-${Date.now().toString().slice(-6)}`,
-              item.brand_tag || null,
-              effectiveMrp,
-              targetSellPrice,
-              item.unit || 'pcs',
-              addedQty
-            ]
-          );
-          const newId = newListingRes.rows[0]?.id;
-          if (newId) {
-            await pool.query(
-              `INSERT INTO inventory (listing_id, stock_quantity, reserved_quantity, low_stock_threshold, updated_at)
-               VALUES ($1, $2, 0, 5, NOW())
-               ON CONFLICT DO NOTHING`,
-              [newId, addedQty]
-            );
-          }
+              $1, $2, $3, $4, $5, $6,
+              $7, $8, $9, $10, 1, $11,
+              'PACKED_ITEM', 'ALL', 'APPROVED', true, $12, 5.0, 0
+            ) RETURNING id, title, stock_qty, is_active
+          `, [
+            buyerStoreId,
+            productId || null,
+            title,
+            barcode || null,
+            brand,
+            categoryId,
+            mrp,
+            wholesalePrice,
+            sellPrice,
+            unit,
+            deliveredUnits,
+            attributes
+          ]);
+          fulfilledListings.push({ action: 'CREATED', listing: inserted.rows[0] });
         }
       }
+
+      console.log(`[B2B Fulfillment] Delivered stock fulfilled for store ${buyerStoreId}: ${fulfilledListings.length} products`);
+      return { success: true, count: fulfilledListings.length, fulfilledListings };
     } catch (err) {
-      console.error('addB2BOrderItemsToInventory error:', err);
+      console.error('[B2B Fulfillment Error]:', err);
+      return { success: false, error: err.message };
     }
   }
 
@@ -1531,7 +1614,7 @@ class SellerRepository {
     `;
     try {
       const res = await pool.query(query, [storeId]);
-      
+
       // Compute aggregates as well for summary
       const totals = res.rows.reduce((acc, row) => {
         acc.total_orders += row.orders;
@@ -2000,17 +2083,17 @@ class SellerRepository {
     }
 
     // Normalizing payment terms to match DB constraints ('CREDIT_14D' or 'ADVANCE_UPI')
-    const isCreditOrder = String(payment_terms || '').toUpperCase().includes('CREDIT') || 
-                          String(payment_method || '').toLowerCase().includes('credit');
+    const isCreditOrder = String(payment_terms || '').toUpperCase().includes('CREDIT') ||
+      String(payment_method || '').toLowerCase().includes('credit');
     const normalizedTerms = isCreditOrder ? 'CREDIT_14D' : 'ADVANCE_UPI';
     const finalPaymentMethod = (payment_method || (isCreditOrder ? 'CREDIT' : 'UPI')).toUpperCase();
 
     // Handle missing Razorpay / Card / UPI details gracefully
-    const paymentRef = payment_details.razorpay_payment_id || 
-                       payment_details.transaction_id || 
-                       payment_details.reference_id || 
-                       payment_details.upi_id || 
-                       null;
+    const paymentRef = payment_details.razorpay_payment_id ||
+      payment_details.transaction_id ||
+      payment_details.reference_id ||
+      payment_details.upi_id ||
+      null;
 
     const paymentStatus = isCreditOrder ? 'PAID_ON_CREDIT' : (paymentRef ? 'PAID' : 'PAID_SIMULATED');
     const paymentMeta = {
@@ -2249,7 +2332,7 @@ class SellerRepository {
             buyerLng = stRes.rows[0].longitude;
             buyerCity = stRes.rows[0].city;
           }
-        } catch (_) {}
+        } catch (_) { }
       }
 
       const params = [buyerStoreId || null, buyerLat, buyerLng, buyerCity];
@@ -2795,7 +2878,7 @@ class SellerRepository {
                ON CONFLICT DO NOTHING`,
               [newChild.id, orig.id]
             );
-          } catch (_) {}
+          } catch (_) { }
 
           publishedListings.push(newChild);
         }
@@ -3125,7 +3208,7 @@ class SellerRepository {
     `;
     const res = await pool.query(msgQuery, [threadId, userId, data.content]);
     const inserted = res.rows[0];
-    
+
     // Return mapped format for frontend
     return {
       id: inserted.id,
@@ -3966,7 +4049,7 @@ class SellerRepository {
           AND (s.email IS NULL OR s.email = '')
           AND u.email IS NOT NULL AND u.email != '';
       `);
-    } catch (_) {}
+    } catch (_) { }
     this._onboardingTableReady = true;
   }
 
@@ -4081,7 +4164,7 @@ class SellerRepository {
       } else if (onboarding.store?.id && (!onboarding.store.email || onboarding.store.email === '') && user.email) {
         await pool.query(`
           UPDATE stores SET email = $1 WHERE id = $2 AND (email IS NULL OR email = '')
-        `, [user.email, onboarding.store.id]).catch(() => {});
+        `, [user.email, onboarding.store.id]).catch(() => { });
       }
       onboarding = await this.getOnboardingData(user.id);
     }
@@ -4218,7 +4301,7 @@ class SellerRepository {
       } else if (onboarding.store?.id && (!onboarding.store.email || onboarding.store.email === '') && user.email) {
         await pool.query(`
           UPDATE stores SET email = $1 WHERE id = $2 AND (email IS NULL OR email = '')
-        `, [user.email, onboarding.store.id]).catch(() => {});
+        `, [user.email, onboarding.store.id]).catch(() => { });
       }
       onboarding = await this.getOnboardingData(user.id);
     }
@@ -4295,7 +4378,7 @@ class SellerRepository {
 
     // Optionally update user's full_name if empty or generic
     if ((!user.full_name || user.full_name === 'Merchant') && fullName) {
-      await pool.query(`UPDATE users SET full_name = $1 WHERE id = $2`, [fullName, user.id]).catch(() => {});
+      await pool.query(`UPDATE users SET full_name = $1 WHERE id = $2`, [fullName, user.id]).catch(() => { });
       user.full_name = fullName;
     }
 
@@ -4659,9 +4742,9 @@ class SellerRepository {
           pool.query(
             'UPDATE stores SET latitude = $1, longitude = $2 WHERE id = $3 AND (latitude IS NULL OR longitude IS NULL)',
             [coords.latitude, coords.longitude, store.id]
-          ).catch(() => {});
+          ).catch(() => { });
         }
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     // Ensure store.email is synced with users.email if store email is missing
@@ -4669,7 +4752,7 @@ class SellerRepository {
       pool.query(
         'UPDATE stores SET email = $1 WHERE id = $2 AND (email IS NULL OR email = \'\')',
         [profile.email, store.id]
-      ).catch(() => {});
+      ).catch(() => { });
       store.email = profile.email;
     }
 
@@ -4885,8 +4968,8 @@ class SellerRepository {
       const radiusKm = Number.isFinite(parsedRadius)
         ? Math.min(20, Math.max(0, parsedRadius))
         : Number.isFinite(fallbackRadius)
-        ? Math.min(20, Math.max(0, fallbackRadius))
-        : 10;
+          ? Math.min(20, Math.max(0, fallbackRadius))
+          : 10;
 
       const parseRate = (val, prevVal, defaultVal) => {
         if (val !== undefined && val !== null && val !== '' && Number.isFinite(Number(val))) {
@@ -5597,49 +5680,8 @@ class SellerRepository {
       console.warn('Failed to insert into b2b_purchase_orders:', b2bPoErr.message);
     }
 
-    // 9. AUTOMATICALLY SYNC / ADOPT PRODUCT TO STORE POS & INVENTORY (seller_listings)
-    try {
-      const finalSellPrice = Number(master.retail_price || master.mrp || 0) || 50;
-      const existingListing = await pool.query(
-        `SELECT id FROM seller_listings WHERE store_id = $1 AND (manufacturer_product_id = $2 OR (barcode IS NOT NULL AND barcode = $3))`,
-        [storeId, master.id, master.barcode || '']
-      );
-
-      if (existingListing.rows.length > 0) {
-        await pool.query(`
-          UPDATE seller_listings
-          SET stock_qty = stock_qty + $1,
-              is_active = true,
-              approval_status = 'APPROVED',
-              updated_at = NOW()
-          WHERE id = $2
-        `, [totalUnits, existingListing.rows[0].id]);
-      } else {
-        await pool.query(`
-          INSERT INTO seller_listings (
-            store_id, manufacturer_product_id, title, barcode, brand_tag, category_id,
-            mrp, wholesale_price, sell_price, unit, min_order_qty, stock_qty, product_type, approval_status, is_active, attributes
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1, $11, 'PACKED_ITEM', 'APPROVED', true, $12
-          )
-        `, [
-          storeId,
-          master.id,
-          master.product_name,
-          master.barcode,
-          master.brand_name,
-          master.category_id || 1,
-          Number(master.retail_price || master.mrp || 0),
-          unitWholesale,
-          finalSellPrice,
-          master.standard_unit || 'Piece',
-          totalUnits,
-          master.attributes || {}
-        ]);
-      }
-    } catch (listingErr) {
-      console.warn('Auto-inventory sync warning:', listingErr.message);
-    }
+    // 9. Kirana stock fulfillment occurs ONLY when order is DELIVERED.
+    // Stock is intentionally NOT added or incremented in seller_listings at checkout/placement time.
 
     return {
       success: true,
@@ -5840,49 +5882,8 @@ class SellerRepository {
           }
         }
 
-        // Inventory sync to seller_listings
-        try {
-          const finalSellPrice = Number(it.master.retail_price || it.master.mrp || 0) || 50;
-          const existingListing = await pool.query(
-            `SELECT id FROM seller_listings WHERE store_id = $1 AND (manufacturer_product_id = $2 OR (barcode IS NOT NULL AND barcode = $3))`,
-            [storeId, it.master.id, it.master.barcode || '']
-          );
-
-          if (existingListing.rows.length > 0) {
-            await pool.query(`
-              UPDATE seller_listings
-              SET stock_qty = stock_qty + $1,
-                  is_active = true,
-                  approval_status = 'APPROVED',
-                  updated_at = NOW()
-            WHERE id = $2
-            `, [it.totalUnits, existingListing.rows[0].id]);
-          } else {
-            await pool.query(`
-              INSERT INTO seller_listings (
-                store_id, manufacturer_product_id, title, barcode, brand_tag, category_id,
-                mrp, wholesale_price, sell_price, unit, min_order_qty, stock_qty, product_type, approval_status, is_active, attributes
-              ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1, $11, 'PACKED_ITEM', 'APPROVED', true, $12
-              )
-            `, [
-              storeId,
-              it.master.id,
-              it.master.product_name,
-              it.master.barcode,
-              it.master.brand_name,
-              it.master.category_id || 1,
-              Number(it.master.retail_price || it.master.mrp || 0),
-              it.unitWholesale,
-              finalSellPrice,
-              it.master.standard_unit || 'Piece',
-              it.totalUnits,
-              it.master.attributes || {}
-            ]);
-          }
-        } catch (syncErr) {
-          console.warn('Auto inventory sync error:', syncErr.message);
-        }
+        // Kirana stock fulfillment occurs ONLY when order is DELIVERED.
+        // Stock is intentionally NOT added or incremented in seller_listings at checkout/placement time.
 
         try {
           await pool.query(`
@@ -6053,6 +6054,7 @@ class SellerRepository {
     const res = await pool.query(`
       SELECT 
         ca.id,
+        
         ca.application_no,
         ca.applicant_name,
         ca.requested_amount,
