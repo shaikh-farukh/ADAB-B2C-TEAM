@@ -3,10 +3,10 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 require('dotenv').config();
 const nodemailer = require('nodemailer');
 
-const smtpHost = process.env.SMTP_HOST || process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com';
-const smtpPort = Number(process.env.SMTP_PORT || process.env.BREVO_SMTP_PORT) || 587;
-const smtpUser = process.env.SMTP_USER || process.env.BREVO_SMTP_USER;
-const smtpPass = process.env.SMTP_PASS || process.env.BREVO_SMTP_KEY;
+const smtpHost = process.env.SMTP_HOST || process.env.BREVO_SMTP_HOST || process.env.MAIL_HOST || process.env.EMAIL_HOST || 'smtp-relay.brevo.com';
+const smtpPort = Number(process.env.SMTP_PORT || process.env.BREVO_SMTP_PORT || process.env.MAIL_PORT || process.env.EMAIL_PORT) || 587;
+const smtpUser = process.env.SMTP_USER || process.env.BREVO_SMTP_USER || process.env.MAIL_USER || process.env.EMAIL_USER || process.env.GMAIL_USER;
+const smtpPass = process.env.SMTP_PASS || process.env.BREVO_SMTP_KEY || process.env.MAIL_PASS || process.env.MAIL_PASSWORD || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD || process.env.GMAIL_PASS || process.env.GMAIL_APP_PASSWORD;
 
 const isConfigured = Boolean(smtpUser && smtpPass);
 
