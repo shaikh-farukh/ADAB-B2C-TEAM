@@ -18,6 +18,7 @@ import ReturnsView from './components/ReturnsView';
 import ReviewsView from './components/ReviewsView';
 import HelpSupportView from './components/HelpSupportView';
 import PointsView from './components/PointsView';
+import AccountSidebar from './components/AccountSidebar';
 import AccountPage, { clearAccountCache } from './pages/AccountPage';
 import ShopsPage from './pages/ShopsPage';
 import LoginPage from './pages/LoginPage';
@@ -31,7 +32,13 @@ export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const activeTab = location.pathname.substring(1) || 'home';
-  const setActiveTab = (tab) => navigate(`/${tab === 'home' ? '' : tab}`);
+  const isFromAccount = Boolean(location.state?.fromAccount);
+  const setActiveTab = (tab, options = {}) => navigate(`/${tab === 'home' ? '' : tab}`, options);
+
+  // Always scroll window to top whenever active tab/route changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [location.pathname]);
   const [userSelectedAuthMode, setUserSelectedAuthMode] = useState(null);
   const authMode = (activeTab === 'signup' || activeTab === 'register')
     ? 'register'
@@ -644,7 +651,7 @@ export default function App() {
       unit_price: item.unit_price || 0,
       quantity: item.quantity || 1
     });
-    setActiveTab('reviews');
+    setActiveTab('reviews', isFromAccount ? { state: { fromAccount: true } } : undefined);
   };
 
   // Add sample item to cart
@@ -786,6 +793,38 @@ export default function App() {
   const displayStoreName = storeNames.length > 1
     ? `${storeNames.length} shops`
     : (storeNames[0] || 'View cart');
+
+  // Solution 1: Wrap shared views with Account Sidebar when accessed from Account section
+  const renderAccountSharedView = (viewComponent) => {
+    if (!isFromAccount) {
+      return viewComponent;
+    }
+    return (
+      <div className="w-full max-w-7xl 2xl:max-w-[1520px] mx-auto flex flex-col lg:flex-row gap-6 xl:gap-8 items-start">
+        <aside className="hidden lg:flex flex-col w-72 xl:w-80 shrink-0 sticky top-24 space-y-4 animate-in fade-in duration-200">
+          <AccountSidebar
+            currentUser={currentUser}
+            ordersCount={currentUser ? ordersList.length : 0}
+            points={points}
+            walletBalance={walletBalance}
+            unreadNotifications={unreadNotifications}
+            activeTab={activeTab}
+            onNavigate={setActiveTab}
+            onLogout={handleLogout}
+            onOpenLogin={() => {
+              setAuthMode('login');
+              setActiveTab('login');
+            }}
+            selectedAddress={selectedAddress}
+            showToast={showToast}
+          />
+        </aside>
+        <div className="flex-1 min-w-0 w-full">
+          {viewComponent}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-[#F6F9F6] text-[#0F172A] flex flex-col font-sans">
@@ -1323,15 +1362,38 @@ export default function App() {
       )}
 
       {/* Subpage Header (Shown on Cart/Checkout/Orders/Track/Other screens) */}
-      {activeTab !== 'home' && activeTab !== 'search' && activeTab !== 'login' && (
+      {activeTab !== 'home' && activeTab !== 'search' && activeTab !== 'login' && activeTab !== 'account' && (
         <div id="subHeader" className="subpage-header">
           <button
             type="button"
             onClick={() => {
-              if (activeTab === 'track') setActiveTab('orders');
-              else if (activeTab === 'orderhistory') setActiveTab('orders');
-              else if (activeTab === 'checkout') setActiveTab('cart');
-              else setActiveTab('home');
+              window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+              if (activeTab === 'track') {
+                setActiveTab('orders', isFromAccount ? { state: { fromAccount: true } } : undefined);
+              } else if (activeTab === 'orderhistory') {
+                setActiveTab('orders', isFromAccount ? { state: { fromAccount: true } } : undefined);
+              } else if (activeTab === 'checkout') {
+                setActiveTab('cart');
+              } else if (
+                activeTab === 'orders' ||
+                activeTab === 'wishlist' ||
+                activeTab === 'notifications' ||
+                activeTab === 'returns' ||
+                activeTab === 'reviews' ||
+                activeTab === 'help' ||
+                activeTab === 'messages' ||
+                activeTab === 'support' ||
+                activeTab === 'points' ||
+                activeTab === 'rewards'
+              ) {
+                if (isFromAccount) {
+                  setActiveTab('account');
+                } else {
+                  setActiveTab('home');
+                }
+              } else {
+                setActiveTab('home');
+              }
             }}
             className="w-8 h-8 flex items-center justify-center -ml-1 text-gray-700 hover:text-black cursor-pointer"
           >
@@ -1477,32 +1539,36 @@ export default function App() {
         {/* Wishlist Page */}
         {activeTab === 'wishlist' && (
           currentUser ? (
-            <WishlistPage
-              onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
-              onToggleWishlist={handleToggleWishlist}
-              onMoveToCart={handleMoveToCart}
-              wishlist={wishlist}
-            />
+            renderAccountSharedView(
+              <WishlistPage
+                onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
+                onToggleWishlist={handleToggleWishlist}
+                onMoveToCart={handleMoveToCart}
+                wishlist={wishlist}
+              />
+            )
           ) : (
-            <GuestAuthGate
-              title="Sign in to view your wishlist"
-              subtitle="Save your favourite groceries, dairy, and local essentials to access and sync across all devices."
-              icon="fa-heart"
-              onLogin={() => {
-                setAuthMode('login');
-                setActiveTab('login');
-              }}
-              onSignUp={() => {
-                setAuthMode('register');
-                setActiveTab('signup');
-              }}
-              onContinueBrowsing={() => setActiveTab('home')}
-              features={[
-                { icon: 'fa-heart', text: 'Save items from your favourite neighbourhood stores' },
-                { icon: 'fa-rotate', text: 'Sync your saved items across your mobile and desktop' },
-                { icon: 'fa-cart-shopping', text: 'Move wishlisted items to your active cart in one click' }
-              ]}
-            />
+            renderAccountSharedView(
+              <GuestAuthGate
+                title="Sign in to view your wishlist"
+                subtitle="Save your favourite groceries, dairy, and local essentials to access and sync across all devices."
+                icon="fa-heart"
+                onLogin={() => {
+                  setAuthMode('login');
+                  setActiveTab('login');
+                }}
+                onSignUp={() => {
+                  setAuthMode('register');
+                  setActiveTab('signup');
+                }}
+                onContinueBrowsing={() => setActiveTab('home')}
+                features={[
+                  { icon: 'fa-heart', text: 'Save items from your favourite neighbourhood stores' },
+                  { icon: 'fa-rotate', text: 'Sync your saved items across your mobile and desktop' },
+                  { icon: 'fa-cart-shopping', text: 'Move wishlisted items to your active cart in one click' }
+                ]}
+              />
+            )
           )
         )}
 
@@ -1621,54 +1687,58 @@ export default function App() {
         {/* Orders Screen (sec-orders) & Order History (sec-orderhistory) */}
         {(activeTab === 'orders' || activeTab === 'orderhistory') && (
           currentUser ? (
-            <OrdersView
-              orders={ordersList}
-              initialView={activeTab === 'orderhistory' ? 'orderhistory' : 'orders'}
-              loading={loadingOrders}
-              onRefresh={refreshOrders}
-              onViewChange={(view) => setActiveTab(view)}
-              onSelectOrder={async (order) => {
-                setActiveOrder(order);
-                setActiveTab('track');
-                try {
-                  if (order?.id) {
-                    const full = await OrderAPI.getOrderById(order.id);
-                    if (full?.data) setActiveOrder(full.data);
+            renderAccountSharedView(
+              <OrdersView
+                orders={ordersList}
+                initialView={activeTab === 'orderhistory' ? 'orderhistory' : 'orders'}
+                loading={loadingOrders}
+                onRefresh={refreshOrders}
+                onViewChange={(view) => setActiveTab(view, isFromAccount ? { state: { fromAccount: true } } : undefined)}
+                onSelectOrder={async (order) => {
+                  setActiveOrder(order);
+                  setActiveTab('track', isFromAccount ? { state: { fromAccount: true } } : undefined);
+                  try {
+                    if (order?.id) {
+                      const full = await OrderAPI.getOrderById(order.id);
+                      if (full?.data) setActiveOrder(full.data);
+                    }
+                  } catch (err) {
+                    console.warn('Could not fetch full order details:', err);
                   }
-                } catch (err) {
-                  console.warn('Could not fetch full order details:', err);
-                }
-              }}
-              onCancelOrder={handleCancelOrder}
-              onReorder={handleReorder}
-              onReviewOrder={handleReviewOrder}
-              onRequestReturn={(ord) => {
-                setReturnTargetOrder(ord);
-                setActiveTab('returns');
-              }}
-              onBrowseShops={() => setActiveTab('stores')}
-              showToast={showToast}
-            />
+                }}
+                onCancelOrder={handleCancelOrder}
+                onReorder={handleReorder}
+                onReviewOrder={handleReviewOrder}
+                onRequestReturn={(ord) => {
+                  setReturnTargetOrder(ord);
+                  setActiveTab('returns', isFromAccount ? { state: { fromAccount: true } } : undefined);
+                }}
+                onBrowseShops={() => setActiveTab('stores')}
+                showToast={showToast}
+              />
+            )
           ) : (
-            <GuestAuthGate
-              title="Sign in to view your orders"
-              subtitle="Track active deliveries from local neighbourhood shops, download tax invoices, and reorder past purchases."
-              icon="fa-bag-shopping"
-              onLogin={() => {
-                setAuthMode('login');
-                setActiveTab('login');
-              }}
-              onSignUp={() => {
-                setAuthMode('register');
-                setActiveTab('signup');
-              }}
-              onContinueBrowsing={() => setActiveTab('home')}
-              features={[
-                { icon: 'fa-map-pin', text: 'Live GPS status and rider contact information' },
-                { icon: 'fa-receipt', text: 'Digital tax invoices and store receipts' },
-                { icon: 'fa-rotate-left', text: 'Hassle-free 24-hr item returns and refunds' }
-              ]}
-            />
+            renderAccountSharedView(
+              <GuestAuthGate
+                title="Sign in to view your orders"
+                subtitle="Track active deliveries from local neighbourhood shops, download tax invoices, and reorder past purchases."
+                icon="fa-bag-shopping"
+                onLogin={() => {
+                  setAuthMode('login');
+                  setActiveTab('login');
+                }}
+                onSignUp={() => {
+                  setAuthMode('register');
+                  setActiveTab('signup');
+                }}
+                onContinueBrowsing={() => setActiveTab('home')}
+                features={[
+                  { icon: 'fa-map-pin', text: 'Live GPS status and rider contact information' },
+                  { icon: 'fa-receipt', text: 'Digital tax invoices and store receipts' },
+                  { icon: 'fa-rotate-left', text: 'Hassle-free 24-hr item returns and refunds' }
+                ]}
+              />
+            )
           )
         )}
 
@@ -1676,11 +1746,11 @@ export default function App() {
         {activeTab === 'track' && (
           <OrderStatusView
             order={activeOrder}
-            onBackToOrders={() => setActiveTab('orders')}
+            onBackToOrders={() => setActiveTab('orders', isFromAccount ? { state: { fromAccount: true } } : undefined)}
             showToast={showToast}
             onRequestReturn={(ord) => {
               setReturnTargetOrder(ord);
-              setActiveTab('returns');
+              setActiveTab('returns', isFromAccount ? { state: { fromAccount: true } } : undefined);
             }}
             onRequestReview={(ord) => handleReviewOrder(ord)}
           />
@@ -1689,176 +1759,195 @@ export default function App() {
         {/* Notifications Screen (Task 3: sec-notifications) */}
         {activeTab === 'notifications' && (
           currentUser ? (
-            <NotificationsView
-              onBack={() => setActiveTab('home')}
-              onNavigate={async (url) => {
-                if (!url) return;
-                const [pathPart, queryString] = url.split('?');
-                const cleanPath = (pathPart.startsWith('/') ? pathPart.substring(1) : pathPart).toLowerCase();
-                const params = new URLSearchParams(queryString || '');
-                const orderId = params.get('orderId') || params.get('id');
+            renderAccountSharedView(
+              <NotificationsView
+                onBack={() => (isFromAccount ? setActiveTab('account') : setActiveTab('home'))}
+                onNavigate={async (url) => {
+                  if (!url) return;
+                  const [pathPart, queryString] = url.split('?');
+                  const cleanPath = (pathPart.startsWith('/') ? pathPart.substring(1) : pathPart).toLowerCase();
+                  const params = new URLSearchParams(queryString || '');
+                  const orderId = params.get('orderId') || params.get('id');
 
-                if (cleanPath === 'track' || cleanPath.startsWith('track') || cleanPath.startsWith('orders/')) {
-                  const targetOrderId = orderId || (cleanPath.startsWith('orders/') ? cleanPath.split('/')[1] : null);
-                  if (targetOrderId) {
-                    try {
-                      const orderRes = await OrderAPI.getOrderById(targetOrderId);
-                      if (orderRes?.data) {
-                        setActiveOrder(orderRes.data);
-                        setActiveTab('track');
-                        return;
+                  if (cleanPath === 'track' || cleanPath.startsWith('track') || cleanPath.startsWith('orders/')) {
+                    const targetOrderId = orderId || (cleanPath.startsWith('orders/') ? cleanPath.split('/')[1] : null);
+                    if (targetOrderId) {
+                      try {
+                        const orderRes = await OrderAPI.getOrderById(targetOrderId);
+                        if (orderRes?.data) {
+                          setActiveOrder(orderRes.data);
+                          setActiveTab('track', isFromAccount ? { state: { fromAccount: true } } : undefined);
+                          return;
+                        }
+                      } catch (e) {
+                        console.warn('Could not fetch target order for tracking:', e);
                       }
-                    } catch (e) {
-                      console.warn('Could not fetch target order for tracking:', e);
+                      setActiveOrder({ id: targetOrderId, order_status: 'CONFIRMED' });
+                      setActiveTab('track', isFromAccount ? { state: { fromAccount: true } } : undefined);
+                      return;
                     }
-                    setActiveOrder({ id: targetOrderId, order_status: 'CONFIRMED' });
-                    setActiveTab('track');
+                    if (ordersList.length > 0) {
+                      setActiveOrder(ordersList[0]);
+                      setActiveTab('track', isFromAccount ? { state: { fromAccount: true } } : undefined);
+                    } else {
+                      setActiveTab('orders', isFromAccount ? { state: { fromAccount: true } } : undefined);
+                    }
                     return;
                   }
-                  if (ordersList.length > 0) {
-                    setActiveOrder(ordersList[0]);
-                    setActiveTab('track');
-                  } else {
-                    setActiveTab('orders');
+
+                  if (cleanPath === 'orderhistory' || cleanPath === 'history') {
+                    setActiveTab('orderhistory', isFromAccount ? { state: { fromAccount: true } } : undefined);
+                    return;
                   }
-                  return;
-                }
 
-                if (cleanPath === 'orderhistory' || cleanPath === 'history') {
-                  setActiveTab('orderhistory');
-                  return;
-                }
+                  const tabMap = {
+                    orders: 'orders',
+                    returns: 'returns',
+                    refunds: 'returns',
+                    rewards: 'points',
+                    points: 'points',
+                    wallet: 'wallet',
+                    addresses: 'addresses',
+                    account: 'account',
+                    cart: 'cart',
+                    checkout: 'checkout',
+                    home: 'home',
+                    stores: 'stores',
+                    help: 'help'
+                  };
 
-                const tabMap = {
-                  orders: 'orders',
-                  returns: 'returns',
-                  refunds: 'returns',
-                  rewards: 'points',
-                  points: 'points',
-                  wallet: 'wallet',
-                  addresses: 'addresses',
-                  account: 'account',
-                  cart: 'cart',
-                  checkout: 'checkout',
-                  home: 'home',
-                  stores: 'stores',
-                  help: 'help'
-                };
-
-                setActiveTab(tabMap[cleanPath] || cleanPath || 'home');
-              }}
-              showToast={showToast}
-              onUnreadCountChange={(count) => setUnreadNotifications(count)}
-            />
+                  const targetTab = tabMap[cleanPath] || cleanPath || 'home';
+                  setActiveTab(targetTab, isFromAccount ? { state: { fromAccount: true } } : undefined);
+                }}
+                showToast={showToast}
+                onUnreadCountChange={(count) => setUnreadNotifications(count)}
+              />
+            )
           ) : (
-            <GuestAuthGate
-              title="Sign in to view notifications"
-              subtitle="Get real-time alerts about your orders, out-for-delivery updates, and exclusive neighbourhood discounts."
-              icon="fa-bell"
-              onLogin={() => {
-                setAuthMode('login');
-                setActiveTab('login');
-              }}
-              onSignUp={() => {
-                setAuthMode('register');
-                setActiveTab('signup');
-              }}
-              onContinueBrowsing={() => setActiveTab('home')}
-            />
+            renderAccountSharedView(
+              <GuestAuthGate
+                title="Sign in to view notifications"
+                subtitle="Get real-time alerts about your orders, out-for-delivery updates, and exclusive neighbourhood discounts."
+                icon="fa-bell"
+                onLogin={() => {
+                  setAuthMode('login');
+                  setActiveTab('login');
+                }}
+                onSignUp={() => {
+                  setAuthMode('register');
+                  setActiveTab('signup');
+                }}
+                onContinueBrowsing={() => setActiveTab('home')}
+              />
+            )
           )
         )}
 
         {/* Returns & Replacements Screen (Day 5 Task 1: sec-returns) */}
         {activeTab === 'returns' && (
           currentUser ? (
-            <ReturnsView
-              onBack={() => setActiveTab('account')}
-              onNavigate={setActiveTab}
-              showToast={showToast}
-              preselectedOrder={returnTargetOrder}
-            />
+            renderAccountSharedView(
+              <ReturnsView
+                onBack={() => (isFromAccount ? setActiveTab('account') : setActiveTab('home'))}
+                onNavigate={(tab, opts) => setActiveTab(tab, isFromAccount ? { state: { fromAccount: true }, ...opts } : opts)}
+                showToast={showToast}
+                preselectedOrder={returnTargetOrder}
+              />
+            )
           ) : (
-            <GuestAuthGate
-              title="Sign in to manage returns"
-              subtitle="Request instant replacements, return damaged items, and check your refund statuses."
-              icon="fa-rotate-left"
-              onLogin={() => {
-                setAuthMode('login');
-                setActiveTab('login');
-              }}
-              onSignUp={() => {
-                setAuthMode('register');
-                setActiveTab('signup');
-              }}
-              onContinueBrowsing={() => setActiveTab('home')}
-            />
+            renderAccountSharedView(
+              <GuestAuthGate
+                title="Sign in to manage returns"
+                subtitle="Request instant replacements, return damaged items, and check your refund statuses."
+                icon="fa-rotate-left"
+                onLogin={() => {
+                  setAuthMode('login');
+                  setActiveTab('login');
+                }}
+                onSignUp={() => {
+                  setAuthMode('register');
+                  setActiveTab('signup');
+                }}
+                onContinueBrowsing={() => setActiveTab('home')}
+              />
+            )
           )
         )}
 
         {/* Verified Customer Reviews Screen (Day 5 Task 2: sec-reviews) */}
         {activeTab === 'reviews' && (
           currentUser ? (
-            <ReviewsView
-              onBack={() => setActiveTab('account')}
-              onNavigate={setActiveTab}
-              showToast={showToast}
-              preselectedPendingItem={reviewTargetItem}
-            />
+            renderAccountSharedView(
+              <ReviewsView
+                onBack={() => (isFromAccount ? setActiveTab('account') : setActiveTab('home'))}
+                onNavigate={(tab, opts) => setActiveTab(tab, isFromAccount ? { state: { fromAccount: true }, ...opts } : opts)}
+                showToast={showToast}
+                preselectedPendingItem={reviewTargetItem}
+              />
+            )
           ) : (
-            <GuestAuthGate
-              title="Sign in to rate & review items"
-              subtitle="Share your experience and photos of items purchased from local neighbourhood kiranas."
-              icon="fa-star"
-              onLogin={() => {
-                setAuthMode('login');
-                setActiveTab('login');
-              }}
-              onSignUp={() => {
-                setAuthMode('register');
-                setActiveTab('signup');
-              }}
-              onContinueBrowsing={() => setActiveTab('home')}
-            />
+            renderAccountSharedView(
+              <GuestAuthGate
+                title="Sign in to rate & review items"
+                subtitle="Share your experience and photos of items purchased from local neighbourhood kiranas."
+                icon="fa-star"
+                onLogin={() => {
+                  setAuthMode('login');
+                  setActiveTab('login');
+                }}
+                onSignUp={() => {
+                  setAuthMode('register');
+                  setActiveTab('signup');
+                }}
+                onContinueBrowsing={() => setActiveTab('home')}
+              />
+            )
           )
         )}
 
         {/* Help & Customer Support Screen (Day 5 Task 3: sec-help, sec-messages) */}
         {(activeTab === 'help' || activeTab === 'messages' || activeTab === 'support') && (
-          <HelpSupportView
-            onBack={() => setActiveTab('account')}
-            onNavigate={setActiveTab}
-            showToast={showToast}
-            preselectedOrder={supportTargetOrder}
-            initialView={activeTab === 'messages' ? 'chat' : 'hub'}
-            orders={ordersList}
-          />
+          renderAccountSharedView(
+            <HelpSupportView
+              onBack={() => (isFromAccount ? setActiveTab('account') : setActiveTab('home'))}
+              onNavigate={(tab, opts) => setActiveTab(tab, isFromAccount ? { state: { fromAccount: true }, ...opts } : opts)}
+              showToast={showToast}
+              preselectedOrder={supportTargetOrder}
+              initialView={activeTab === 'messages' ? 'chat' : 'hub'}
+              orders={ordersList}
+            />
+          )
         )}
 
         {/* Reward Points & Loyalty Ledger Screen (Day 5 Task 4: sec-points) */}
         {(activeTab === 'points' || activeTab === 'rewards') && (
           currentUser ? (
-            <PointsView
-              onBack={() => setActiveTab('account')}
-              onNavigate={setActiveTab}
-              showToast={showToast}
-              pointsBalance={points}
-              onPointsChange={(newBal) => setPoints(newBal)}
-            />
+            renderAccountSharedView(
+              <PointsView
+                onBack={() => (isFromAccount ? setActiveTab('account') : setActiveTab('home'))}
+                onNavigate={(tab, opts) => setActiveTab(tab, isFromAccount ? { state: { fromAccount: true }, ...opts } : opts)}
+                showToast={showToast}
+                pointsBalance={points}
+                onPointsChange={(newBal) => setPoints(newBal)}
+              />
+            )
           ) : (
-            <GuestAuthGate
-              title="Sign in to view reward coins"
-              subtitle="Earn ADAB coins on every order and redeem them for direct discounts at local neighbourhood stores."
-              icon="fa-coins"
-              onLogin={() => {
-                setAuthMode('login');
-                setActiveTab('login');
-              }}
-              onSignUp={() => {
-                setAuthMode('register');
-                setActiveTab('signup');
-              }}
-              onContinueBrowsing={() => setActiveTab('home')}
-            />
+            renderAccountSharedView(
+              <GuestAuthGate
+                title="Sign in to view reward coins"
+                subtitle="Earn ADAB coins on every order and redeem them for direct discounts at local neighbourhood stores."
+                icon="fa-coins"
+                onLogin={() => {
+                  setAuthMode('login');
+                  setActiveTab('login');
+                }}
+                onSignUp={() => {
+                  setAuthMode('register');
+                  setActiveTab('signup');
+                }}
+                onContinueBrowsing={() => setActiveTab('home')}
+              />
+            )
           )
         )}
 

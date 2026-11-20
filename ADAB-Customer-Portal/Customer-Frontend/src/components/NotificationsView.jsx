@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { CustomerAPI } from '../services/api';
 
 /**
@@ -51,6 +51,35 @@ export default function NotificationsView({
   const unreadCount = useMemo(() => {
     return notifications.filter((n) => !n.is_read).length;
   }, [notifications]);
+
+  const autoMarkedRef = useRef(false);
+
+  // Automatically mark notifications as read when the user views the notifications page
+  useEffect(() => {
+    const unread = notifications.filter((n) => !n.is_read);
+    if (unread.length === 0 || autoMarkedRef.current) return;
+
+    autoMarkedRef.current = true;
+
+    // After a brief 1-second view delay so the user sees what was new, automatically mark as read
+    const timer = setTimeout(async () => {
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      onUnreadCountChange(0);
+
+      try {
+        await CustomerAPI.markAllNotificationsRead();
+      } catch (err) {
+        console.warn('Auto-mark notifications read failed on backend:', err.message);
+      }
+    }, 1000);
+
+    return () => {
+      clearTimeout(timer);
+      // Ensure backend and parent unread state are cleared when leaving the page
+      onUnreadCountChange(0);
+      CustomerAPI.markAllNotificationsRead().catch(() => {});
+    };
+  }, [notifications, onUnreadCountChange]);
 
   // Mark single notification as read / unread toggle
   const handleToggleRead = async (notifId, currentStatus, e) => {
