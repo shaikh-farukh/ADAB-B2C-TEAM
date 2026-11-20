@@ -58,6 +58,27 @@ export default function App() {
     }
   });
 
+  // Auto-prompt login popup after 1 second for unauthenticated visitors viewing the home page
+  const hasAutoPromptedLoginRef = useRef(false);
+
+  useEffect(() => {
+    // Only auto-prompt for non-logged-in users
+    if (currentUser || hasAutoPromptedLoginRef.current) return;
+    // Only prompt when user is viewing the home/landing page
+    if (activeTab !== 'home' && activeTab !== '') return;
+
+    const timer = setTimeout(() => {
+      if (!currentUser && !hasAutoPromptedLoginRef.current) {
+        hasAutoPromptedLoginRef.current = true;
+        setAuthMode('login');
+        setActiveTab('login');
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, activeTab]);
+
   const mockUserId = "11111111-1111-1111-1111-111111111111"; // Fallback UUID
   const currentUserId = currentUser?.id || mockUserId;
 
@@ -836,38 +857,17 @@ export default function App() {
       )}
 
       {/* Website Top Navigation */}
-      {isAuthPage ? (
-        <header className="site-nav !block border-b border-slate-100 bg-white sticky top-0 z-40" id="siteNav">
-          <div className="site-nav-inner !flex items-center justify-between !h-14 sm:!h-16 px-4 sm:px-6">
-            <button
-              type="button"
-              className="site-logo !m-0 !p-0 cursor-pointer"
-              onClick={() => setActiveTab('home')}
-            >
-              <i>A</i>ADAB
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('home')}
-              className="text-xs sm:text-sm font-semibold text-slate-600 hover:text-[#18753C] flex items-center gap-1.5 transition-colors cursor-pointer py-1.5 px-3 rounded-lg hover:bg-slate-50"
-            >
-              <i className="fa-solid fa-arrow-left text-xs"></i>
-              <span>Back to shop</span>
-            </button>
-          </div>
-        </header>
-      ) : (
-        <header className="site-nav" id="siteNav">
-          <div className="site-nav-inner">
-            <button type="button" className="site-logo" onClick={() => setActiveTab('home')}>
-              <i>A</i>ADAB
-            </button>
-            <nav className="site-links">
-            <button
-              type="button"
-              className={`site-link ${activeTab === 'home' ? 'on' : ''}`}
-              onClick={() => setActiveTab('home')}
-            >
+      <header className="site-nav" id="siteNav">
+        <div className="site-nav-inner">
+          <button type="button" className="site-logo" onClick={() => setActiveTab('home')}>
+            <i>A</i>ADAB
+          </button>
+          <nav className="site-links">
+          <button
+            type="button"
+            className={`site-link ${activeTab === 'home' || isAuthPage ? 'on' : ''}`}
+            onClick={() => setActiveTab('home')}
+          >
               Explore
             </button>
             <button
@@ -1029,10 +1029,9 @@ export default function App() {
           </div>
         </div>
       </header>
-      )}
 
-      {/* Main App Header (Shown on Home) */}
-      {activeTab === 'home' && (
+      {/* Main App Header (Shown on Home & Background Explore) */}
+      {(activeTab === 'home' || isAuthPage) && (
         <header id="appHeader" className="app-header sticky top-0 z-40 text-white">
           <div className="page px-4 pt-4 pb-5">
             {/* Top Bar: Brand + Action Buttons (hidden on >=900px by CSS) */}
@@ -1362,8 +1361,15 @@ export default function App() {
       )}
 
       {/* Subpage Header (Shown on Cart/Checkout/Orders/Track/Other screens) */}
-      {activeTab !== 'home' && activeTab !== 'search' && activeTab !== 'login' && activeTab !== 'account' && (
-        <div id="subHeader" className="subpage-header">
+      {activeTab !== 'home' && activeTab !== 'search' && !isAuthPage && activeTab !== 'account' && (
+        <div
+          id="subHeader"
+          className={`subpage-header ${
+            activeTab === 'browse'
+              ? '!py-1.5 !px-3 sm:!px-6 !min-h-[38px] !max-h-[40px] border-b border-gray-200/80 bg-white/95'
+              : ''
+          }`}
+        >
           <button
             type="button"
             onClick={() => {
@@ -1395,11 +1401,11 @@ export default function App() {
                 setActiveTab('home');
               }
             }}
-            className="w-8 h-8 flex items-center justify-center -ml-1 text-gray-700 hover:text-black cursor-pointer"
+            className={`${activeTab === 'browse' ? 'w-6 h-6' : 'w-8 h-8'} flex items-center justify-center -ml-1 text-gray-700 hover:text-black cursor-pointer rounded-lg hover:bg-gray-100 transition`}
           >
-            <i className="fa-solid fa-arrow-left text-lg"></i>
+            <i className={`fa-solid fa-arrow-left ${activeTab === 'browse' ? 'text-sm' : 'text-lg'}`}></i>
           </button>
-          <h1 id="subHeaderTitle" className="font-extrabold text-base flex-1 capitalize">
+          <h1 id="subHeaderTitle" className={`font-extrabold flex-1 capitalize ${activeTab === 'browse' ? 'text-xs sm:text-sm text-slate-800' : 'text-base'}`}>
             {activeTab === 'login' || activeTab === 'signup' || activeTab === 'register'
               ? (activeTab === 'signup' || activeTab === 'register' || authMode === 'register' ? 'Create Account' : 'Login / Register')
               : activeTab === 'cart'
@@ -1434,9 +1440,9 @@ export default function App() {
       )}
 
       {/* Main Dynamic Content Area */}
-      <main className={`page flex-1 ${isAuthPage ? '!p-0 !pb-0 !max-w-full' : 'px-4 pt-4 pb-28'}`}>
+      <main className={`page flex-1 ${activeTab === 'browse' ? '!p-2 sm:!p-3 md:!p-3.5 md:!max-w-[1600px] pb-6' : 'px-4 pt-4 pb-20 md:pb-4'}`}>
         {/* Home Screen (Catalog, Deals, Stores, Trending by Mahi) */}
-        {activeTab === 'home' && (
+        {(activeTab === 'home' || isAuthPage) && (
           <HomePage
             onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
             onToggleWishlist={handleToggleWishlist}
@@ -1511,6 +1517,7 @@ export default function App() {
             onAddToCart={(listingId, name) => handleAddSampleItem(listingId, name)}
             onToggleWishlist={handleToggleWishlist}
             wishlist={wishlist}
+            onNavigate={(tab) => setActiveTab(tab)}
           />
         )}
 
@@ -1572,12 +1579,13 @@ export default function App() {
           )
         )}
 
-        {/* Login / Authentication Page */}
-        {(activeTab === 'login' || activeTab === 'signup' || activeTab === 'register') && (
+        {/* Login / Authentication Pop-up Window */}
+        {isAuthPage && (
           <LoginPage
             initialMode={activeTab === 'signup' || activeTab === 'register' ? 'register' : authMode}
             onLoginSuccess={handleLoginSuccess}
             onContinueGuest={handleContinueGuest}
+            onClose={() => setActiveTab('home')}
             onNavigate={(tab) => {
               if (tab === 'signup' || tab === 'register') {
                 setAuthMode('register');
@@ -1992,40 +2000,38 @@ export default function App() {
       </main>
 
       {/* Website Footer (Desktop >= 900px matching unified-customer-portal-demo.html) */}
-      {!isAuthPage && (
-        <footer className="site-footer">
-          <div className="site-footer-inner">
-            <div>
-              <h4 style={{ fontSize: '18px' }}>ADAB</h4>
-              <p style={{ fontSize: '13px', lineHeight: '1.7', maxWidth: '320px' }}>
-                Your local stores, one place. Supporting neighbourhood businesses with fast, reliable delivery.
-              </p>
-            </div>
-            <div>
-              <h4>Shop</h4>
-              <a onClick={() => setActiveTab('stores')}>All shops</a>
-              <a onClick={() => setActiveTab('categories')}>Categories</a>
-              <a onClick={() => setActiveTab('offers')}>Offers</a>
-            </div>
-            <div>
-              <h4>Account</h4>
-              <a onClick={() => setActiveTab('orders')}>My orders</a>
-              <a onClick={() => setActiveTab('orderhistory')}>Order history</a>
-              <a onClick={() => showToast('Wallet balance: ₹0')}>Wallet</a>
-              <a onClick={() => showToast(`Rewards Points: ${points}`)}>Rewards</a>
-            </div>
-            <div>
-              <h4>Support</h4>
-              <a onClick={() => showToast('Help centre: support@adab.shop')}>Help centre</a>
-              <a onClick={() => showToast('Frequently asked questions')}>FAQs</a>
-              <a onClick={() => showToast('Returns & refund policy')}>Returns</a>
-            </div>
-            <div className="copy">
-              © 2026 ADAB · {selectedAddress?.city ? `${selectedAddress.city} · ` : ''}Made for local businesses
-            </div>
+      <footer className="site-footer">
+        <div className="site-footer-inner">
+          <div>
+            <h4 style={{ fontSize: '18px' }}>ADAB</h4>
+            <p style={{ fontSize: '13px', lineHeight: '1.7', maxWidth: '320px' }}>
+              Your local stores, one place. Supporting neighbourhood businesses with fast, reliable delivery.
+            </p>
           </div>
-        </footer>
-      )}
+          <div>
+            <h4>Shop</h4>
+            <a onClick={() => setActiveTab('stores')}>All shops</a>
+            <a onClick={() => setActiveTab('categories')}>Categories</a>
+            <a onClick={() => setActiveTab('offers')}>Offers</a>
+          </div>
+          <div>
+            <h4>Account</h4>
+            <a onClick={() => setActiveTab('orders')}>My orders</a>
+            <a onClick={() => setActiveTab('orderhistory')}>Order history</a>
+            <a onClick={() => showToast('Wallet balance: ₹0')}>Wallet</a>
+            <a onClick={() => showToast(`Rewards Points: ${points}`)}>Rewards</a>
+          </div>
+          <div>
+            <h4>Support</h4>
+            <a onClick={() => showToast('Help centre: support@adab.shop')}>Help centre</a>
+            <a onClick={() => showToast('Frequently asked questions')}>FAQs</a>
+            <a onClick={() => showToast('Returns & refund policy')}>Returns</a>
+          </div>
+          <div className="copy">
+            © 2026 ADAB · {selectedAddress?.city ? `${selectedAddress.city} · ` : ''}Made for local businesses
+          </div>
+        </div>
+      </footer>
 
       {/* Floating Cart Bar (Task 2) */}
       {activeTab !== 'cart' && activeTab !== 'checkout' && activeTab !== 'order-success' && activeTab !== 'ordersuccess' && !isAuthPage && (
@@ -2038,16 +2044,15 @@ export default function App() {
       )}
 
       {/* Bottom Navigation matching unified-customer-portal-demo.html */}
-      {!isAuthPage && (
-        <nav className="bottom-nav">
-          <div className="page flex justify-around py-1.5">
-            <button
-              type="button"
-              onClick={() => setActiveTab('home')}
-              className={`nav-tab flex flex-col items-center gap-0.5 py-1.5 px-3 cursor-pointer ${
-                activeTab === 'home' ? 'nav-tab-on' : 'nav-tab-off'
-              }`}
-            >
+      <nav className="bottom-nav">
+        <div className="page flex justify-around py-1.5">
+          <button
+            type="button"
+            onClick={() => setActiveTab('home')}
+            className={`nav-tab flex flex-col items-center gap-0.5 py-1.5 px-3 cursor-pointer ${
+              activeTab === 'home' || isAuthPage ? 'nav-tab-on' : 'nav-tab-off'
+            }`}
+          >
               <i className="fa-solid fa-compass text-[22px]"></i>
               <span className="text-[10px] font-bold">Explore</span>
               <span className="nav-dot"></span>
@@ -2112,9 +2117,8 @@ export default function App() {
             </button>
           </div>
         </nav>
-      )}
 
-      {/* Global Delivery Address Selector Modal */}
+        {/* Global Delivery Address Selector Modal */}
       <AddressModal
         isOpen={isAddressModalOpen}
         onClose={() => setIsAddressModalOpen(false)}

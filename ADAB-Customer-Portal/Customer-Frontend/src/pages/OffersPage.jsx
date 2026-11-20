@@ -345,7 +345,7 @@ export default function OffersPage({ onAddToCart, onToggleWishlist, wishlist = [
   };
 
   return (
-    <div className="animate-fade-in pb-16 max-w-7xl mx-auto px-3 sm:px-6">
+    <div className="animate-fade-in pb-4 md:pb-2 max-w-7xl mx-auto px-3 sm:px-6">
       {/* Toast Notification Popup */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-gray-900/95 text-white backdrop-blur-md px-4 py-3 rounded-2xl shadow-xl border border-gray-700/50 flex items-center gap-2.5 animate-bounce-short">

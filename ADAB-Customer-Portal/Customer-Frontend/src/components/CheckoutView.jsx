@@ -1076,999 +1076,1031 @@ export default function CheckoutView({
   };
 
   return (
-    <div id="sec-checkout" className="space-y-4">
+    <div id="sec-checkout" className="w-full max-w-7xl 2xl:max-w-[1400px] mx-auto pb-2 sm:pb-3">
       {errorMessage && (
-        <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-2xl flex items-center gap-2">
+        <div className="mb-4 p-3.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-2xl flex items-center gap-2">
           <i className="fa-solid fa-triangle-exclamation text-base shrink-0"></i>
           <span>{errorMessage}</span>
         </div>
       )}
 
-      {/* Delivery Destination Card */}
-      <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-3">
-        <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-          <div className="font-extrabold text-sm text-gray-900 flex items-center gap-2">
-            <i className="fa-solid fa-location-dot text-brand-coral"></i>
-            <span>Delivery Destination</span>
-          </div>
-          {savedAddresses.length > 0 ? (
-            <button
-              type="button"
-              onClick={() => {
-                setModalView('list');
-                setIsAddressModalOpen(true);
-              }}
-              className="text-xs font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition"
-            >
-              <span>Change</span>
-              <i className="fa-solid fa-chevron-right text-[10px]"></i>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleOpenAddAddress}
-              className="text-xs font-bold text-brand-green hover:underline cursor-pointer flex items-center gap-1"
-            >
-              <i className="fa-solid fa-plus text-[10px]"></i>
-              <span>Add Address</span>
-            </button>
-          )}
-        </div>
+      {/* Responsive 2-Column Checkout Grid (Left: Steps 1 & 2; Right: Sticky Order Summary & CTA) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 xl:gap-7 items-start">
+        {/* ========================================================================= */}
+        {/* LEFT COLUMN: FULFILLMENT & PAYMENT STEPS (lg:col-span-7 xl:col-span-7)   */}
+        {/* ========================================================================= */}
+        <div className="lg:col-span-7 xl:col-span-7 space-y-4">
+          {/* Card 1: Delivery Destination & Serviceability Unified */}
+          <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-3.5">
+            <div className="flex justify-between items-center pb-2.5 border-b border-gray-100">
+              <div className="font-extrabold text-sm sm:text-base text-gray-900 flex items-center gap-2">
+                <i className="fa-solid fa-location-dot text-brand-coral"></i>
+                <span>Delivery Destination</span>
+              </div>
+              {savedAddresses.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalView('list');
+                    setIsAddressModalOpen(true);
+                  }}
+                  className="text-xs font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition"
+                >
+                  <span>Change Address</span>
+                  <i className="fa-solid fa-chevron-right text-[10px]"></i>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleOpenAddAddress}
+                  className="text-xs font-bold text-brand-green hover:underline cursor-pointer flex items-center gap-1"
+                >
+                  <i className="fa-solid fa-plus text-[10px]"></i>
+                  <span>Add Address</span>
+                </button>
+              )}
+            </div>
 
-        {/* Loading state skeleton */}
-        {loadingAddresses ? (
-          <div className="animate-pulse flex items-start gap-3 pt-1">
-            <div className="w-10 h-10 rounded-2xl bg-gray-200 shrink-0"></div>
-            <div className="flex-1 space-y-2">
-              <div className="h-4 bg-gray-200 rounded w-1/3"></div>
-              <div className="h-3 bg-gray-100 rounded w-3/4"></div>
-              <div className="h-3 bg-gray-100 rounded w-1/4"></div>
-            </div>
-          </div>
-        ) : address && address.address_line ? (
-          /* Active Address Preview */
-          <div
-            onClick={() => {
-              setModalView('list');
-              setIsAddressModalOpen(true);
-            }}
-            className="flex items-start gap-3 pt-1 cursor-pointer group"
-          >
-            <div
-              className={`w-11 h-11 rounded-2xl flex items-center justify-center text-lg shrink-0 transition group-hover:scale-105 ${
-                address.label?.toLowerCase() === 'work' || address.label?.toLowerCase() === 'office'
-                  ? 'bg-blue-50 text-blue-600'
-                  : address.label?.toLowerCase() === 'other'
-                  ? 'bg-purple-50 text-purple-600'
-                  : 'bg-emerald-50 text-brand-green'
-              }`}
-            >
-              <i
-                className={
-                  address.label?.toLowerCase() === 'work' || address.label?.toLowerCase() === 'office'
-                    ? 'fa-solid fa-briefcase'
-                    : address.label?.toLowerCase() === 'other'
-                    ? 'fa-solid fa-location-dot'
-                    : 'fa-solid fa-house'
-                }
-              ></i>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-extrabold text-sm text-gray-900">
-                  {address.full_name}
-                </span>
-                {renderLabelBadge(address.label)}
-                {address.is_default && (
-                  <span className="text-[9px] font-extrabold bg-gray-900 text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
-                    Default
-                  </span>
-                )}
+            {/* Loading state skeleton */}
+            {loadingAddresses ? (
+              <div className="animate-pulse flex items-start gap-3 pt-1">
+                <div className="w-10 h-10 rounded-2xl bg-gray-200 shrink-0"></div>
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+                  <div className="h-3 bg-gray-100 rounded w-3/4"></div>
+                  <div className="h-3 bg-gray-100 rounded w-1/4"></div>
+                </div>
               </div>
-              <div className="text-xs text-gray-600 mt-1 line-clamp-2 leading-relaxed">
-                {address.address_line}
-                {address.landmark ? `, Near ${address.landmark}` : ''}, {address.city} {address.pincode}
+            ) : address && address.address_line ? (
+              /* Active Address Preview */
+              <div
+                onClick={() => {
+                  setModalView('list');
+                  setIsAddressModalOpen(true);
+                }}
+                className="flex items-start gap-3.5 pt-1 cursor-pointer group"
+              >
+                <div
+                  className={`w-11 h-11 rounded-2xl flex items-center justify-center text-lg shrink-0 transition group-hover:scale-105 ${
+                    address.label?.toLowerCase() === 'work' || address.label?.toLowerCase() === 'office'
+                      ? 'bg-blue-50 text-blue-600'
+                      : address.label?.toLowerCase() === 'other'
+                      ? 'bg-purple-50 text-purple-600'
+                      : 'bg-emerald-50 text-brand-green'
+                  }`}
+                >
+                  <i
+                    className={
+                      address.label?.toLowerCase() === 'work' || address.label?.toLowerCase() === 'office'
+                        ? 'fa-solid fa-briefcase'
+                        : address.label?.toLowerCase() === 'other'
+                        ? 'fa-solid fa-location-dot'
+                        : 'fa-solid fa-house'
+                    }
+                  ></i>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-extrabold text-sm sm:text-base text-gray-900">
+                      {address.full_name}
+                    </span>
+                    {renderLabelBadge(address.label)}
+                    {address.is_default && (
+                      <span className="text-[9px] font-extrabold bg-gray-900 text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        Default
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs sm:text-sm text-gray-600 mt-1 line-clamp-2 leading-relaxed">
+                    {address.address_line}
+                    {address.landmark ? `, Near ${address.landmark}` : ''}, {address.city} {address.pincode}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1 flex items-center gap-1.5 font-medium">
+                    <i className="fa-solid fa-phone text-[10px] text-gray-400"></i>
+                    <span>{address.phone}</span>
+                  </div>
+                </div>
               </div>
-              <div className="text-[11px] text-gray-500 mt-1 flex items-center gap-1.5">
-                <i className="fa-solid fa-phone text-[10px] text-gray-400"></i>
-                <span>{address.phone}</span>
-              </div>
-            </div>
-          </div>
-        ) : (
-          /* Empty State */
-          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-center space-y-2">
-            <div className="text-xs font-bold text-amber-900">
-              No delivery address selected for this order.
-            </div>
-            <button
-              type="button"
-              onClick={handleOpenAddAddress}
-              className="px-4 py-2 bg-emerald-700 text-white rounded-xl text-xs font-bold hover:bg-emerald-800 transition cursor-pointer inline-flex items-center gap-1.5 shadow-sm"
-            >
-              <i className="fa-solid fa-plus text-xs"></i>
-              <span>Add Delivery Address</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Serviceability Status Card (Day 3 Frontend Task 2) */}
-      <div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {loadingServiceability ? (
-              <div className="w-5 h-5 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin"></div>
-            ) : serviceability?.is_serviceable ? (
-              <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-xs">
-                <i className="fa-solid fa-circle-check"></i>
-              </span>
             ) : (
-              <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-xs">
-                <i className="fa-solid fa-triangle-exclamation"></i>
-              </span>
-            )}
-            <div>
-              <div className="font-extrabold text-xs text-gray-900 flex items-center gap-1.5">
-                <span>Checkout Serviceability</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700">
-                  PIN: {address.pincode || '395002'}
-                </span>
+              /* Empty State */
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-center space-y-2">
+                <div className="text-xs font-bold text-amber-900">
+                  No delivery address selected for this order.
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenAddAddress}
+                  className="px-4 py-2 bg-emerald-700 text-white rounded-xl text-xs font-bold hover:bg-emerald-800 transition cursor-pointer inline-flex items-center gap-1.5 shadow-sm"
+                >
+                  <i className="fa-solid fa-plus text-xs"></i>
+                  <span>Add Delivery Address</span>
+                </button>
               </div>
-              <div className="text-[11px] text-gray-500 mt-0.5">
+            )}
+
+            {/* Seamless Serviceability Verification Strip */}
+            <div className="pt-2.5 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs">
                 {loadingServiceability ? (
-                  'Verifying delivery zone coverage...'
+                  <div className="w-4 h-4 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin shrink-0"></div>
                 ) : serviceability?.is_serviceable ? (
-                  <span className="text-emerald-700 font-semibold">
-                    ✓ Serviceable by {serviceability.store?.name || 'Local Store'} (within {serviceability.store?.radius_km || 10} km)
+                  <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px] shrink-0">
+                    <i className="fa-solid fa-circle-check"></i>
                   </span>
                 ) : (
-                  <span className="text-amber-700 font-semibold">
-                    ⚠️ Beyond 10 km rider radius. Express &amp; Same-Day delivery unavailable.
+                  <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-[10px] shrink-0">
+                    <i className="fa-solid fa-triangle-exclamation"></i>
+                  </span>
+                )}
+                <div className="text-xs text-gray-700 flex items-center gap-1.5 flex-wrap">
+                  <span className="font-bold">
+                    {loadingServiceability ? (
+                      'Checking pincode coverage...'
+                    ) : serviceability?.is_serviceable ? (
+                      <span className="text-emerald-800 font-semibold">
+                        ✓ Serviceable by {serviceability.store?.name || 'Local Store'} ({serviceability.store?.radius_km || 10} km)
+                      </span>
+                    ) : (
+                      <span className="text-amber-800 font-semibold">
+                        ⚠️ Beyond 10 km rider radius. Express/Same-Day delivery unavailable.
+                      </span>
+                    )}
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-gray-100 text-gray-600">
+                    PIN {address.pincode || '395002'}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowPincodeChecker(!showPincodeChecker)}
+                className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer self-start sm:self-auto hover:underline"
+              >
+                {showPincodeChecker ? 'Hide PIN Check' : 'Check Other PIN'}
+              </button>
+            </div>
+
+            {/* Inline Pincode Coverage Inspector (when toggled) */}
+            {showPincodeChecker && (
+              <div className="pt-2 border-t border-gray-100 space-y-2">
+                <form onSubmit={handleCheckCustomPincode} className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter 6-digit pincode (e.g. 395007, 400001)"
+                    value={customPincodeInput}
+                    onChange={(e) => setCustomPincodeInput(e.target.value)}
+                    maxLength={6}
+                    className="flex-1 px-3 py-1.5 rounded-xl border border-gray-200 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                  />
+                  <button
+                    type="submit"
+                    className="px-3.5 py-1.5 bg-emerald-700 text-white rounded-xl text-xs font-bold hover:bg-emerald-800 transition cursor-pointer"
+                  >
+                    Inspect
+                  </button>
+                </form>
+
+                {customPincodeResult && (
+                  <div
+                    className={`p-2.5 rounded-xl text-xs flex items-start gap-2 ${
+                      customPincodeResult.is_serviceable
+                        ? 'bg-emerald-50 text-emerald-900 border border-emerald-200'
+                        : 'bg-amber-50 text-amber-900 border border-amber-200'
+                    }`}
+                  >
+                    <i
+                      className={`mt-0.5 text-xs ${
+                        customPincodeResult.is_serviceable
+                          ? 'fa-solid fa-circle-check text-emerald-600'
+                          : 'fa-solid fa-triangle-exclamation text-amber-600'
+                      }`}
+                    ></i>
+                    <div className="flex-1">
+                      <div className="font-extrabold">
+                        {customPincodeResult.is_serviceable
+                          ? 'Pincode Serviceable!'
+                          : 'Limited Serviceability'}
+                      </div>
+                      <div className="text-[11px] mt-0.5">{customPincodeResult.message}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Card 2: Step 1 - Choose Delivery Speed */}
+          <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-3.5">
+            <div className="font-extrabold text-sm sm:text-base text-gray-900 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 text-xs flex items-center justify-center font-bold">
+                  1
+                </span>
+                <span>Choose Delivery Speed</span>
+              </div>
+              {loadingPreview && (
+                <span className="text-xs text-gray-400 flex items-center gap-1 font-normal">
+                  <i className="fa-solid fa-spinner fa-spin text-emerald-600"></i> Calculating fees...
+                </span>
+              )}
+            </div>
+
+            {subtotal >= 499 && (
+              <div className="px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-bold flex items-center gap-2">
+                <i className="fa-solid fa-gift text-brand-coral"></i>
+                <span>🎉 Free Delivery unlocked! Your order is over ₹499.</span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Fast Express (14–45 min) */}
+              <button
+                type="button"
+                disabled={serviceability && !serviceability.is_serviceable}
+                onClick={() => setDeliverySpeed('fast')}
+                className={`p-3.5 rounded-2xl text-left flex justify-between items-center transition cursor-pointer relative ${
+                  serviceability && !serviceability.is_serviceable
+                    ? 'opacity-50 cursor-not-allowed border border-gray-200 bg-gray-50'
+                    : deliverySpeed === 'fast'
+                    ? 'border-2 border-brand-green bg-green-50/70 shadow-sm ring-1 ring-emerald-500'
+                    : 'border border-gray-200 bg-white hover:border-gray-300'
+                }`}
+              >
+                <div>
+                  <div className="font-extrabold text-xs sm:text-sm text-gray-900 flex items-center">
+                    <i className="fa-solid fa-bolt text-amber-500 mr-1.5"></i>
+                    Express (14–45 min)
+                  </div>
+                  <div className="text-[11px] text-gray-500 mt-0.5">
+                    {serviceability && !serviceability.is_serviceable
+                      ? 'Unavailable for this pincode'
+                      : 'Dispatched instantly by store rider'}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  {subtotal >= 499 ? (
+                    <div className="flex items-center gap-1">
+                      <span className="line-through text-gray-400 text-xs">₹29</span>
+                      <span className="font-extrabold text-xs text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded-md">
+                        FREE
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="font-extrabold text-xs sm:text-sm text-emerald-800">₹29</span>
+                  )}
+                </div>
+              </button>
+
+              {/* Same Day (Flexible Slot) */}
+              <button
+                type="button"
+                disabled={serviceability && !serviceability.is_serviceable}
+                onClick={() => setDeliverySpeed('same')}
+                className={`p-3.5 rounded-2xl text-left flex justify-between items-center transition cursor-pointer ${
+                  serviceability && !serviceability.is_serviceable
+                    ? 'opacity-50 cursor-not-allowed border border-gray-200 bg-gray-50'
+                    : deliverySpeed === 'same'
+                    ? 'border-2 border-brand-green bg-green-50/70 shadow-sm ring-1 ring-emerald-500'
+                    : 'border border-gray-200 bg-white hover:border-gray-300'
+                }`}
+              >
+                <div>
+                  <div className="font-extrabold text-xs sm:text-sm text-gray-900 flex items-center">
+                    <i className="fa-solid fa-clock text-blue-500 mr-1.5"></i>
+                    Same Day (by 8 PM)
+                  </div>
+                  <div className="text-[11px] text-gray-500 mt-0.5">
+                    {selectedSlot
+                      ? `${selectedSlot.date_label} · ${selectedSlot.label}`
+                      : 'Flexible scheduled slot'}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  {subtotal >= 499 ? (
+                    <div className="flex items-center gap-1">
+                      <span className="line-through text-gray-400 text-xs">₹19</span>
+                      <span className="font-extrabold text-xs text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded-md">
+                        FREE
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="font-extrabold text-xs sm:text-sm text-gray-700">₹19</span>
+                  )}
+                </div>
+              </button>
+
+              {/* Self Pickup */}
+              <button
+                type="button"
+                onClick={() => setDeliverySpeed('pickup')}
+                className={`p-3.5 rounded-2xl text-left flex justify-between items-center transition cursor-pointer sm:col-span-2 ${
+                  deliverySpeed === 'pickup'
+                    ? 'border-2 border-brand-green bg-green-50/70 shadow-sm ring-1 ring-emerald-500'
+                    : 'border border-gray-200 bg-white hover:border-gray-300'
+                }`}
+              >
+                <div>
+                  <div className="font-extrabold text-xs sm:text-sm text-gray-900 flex items-center">
+                    <i className="fa-solid fa-store text-emerald-600 mr-1.5"></i>
+                    Self Pickup from Shop
+                  </div>
+                  <div className="text-[11px] text-gray-500 mt-0.5">
+                    Ready in 10 mins · Zero queue at counter
+                  </div>
+                </div>
+                <span className="font-extrabold text-xs text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                  FREE
+                </span>
+              </button>
+            </div>
+
+            {/* Delivery Slot Inspection & Picker (when Same-Day speed is chosen) */}
+            {deliverySpeed === 'same' && (
+              <div className="pt-3 border-t border-gray-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="font-extrabold text-xs sm:text-sm text-gray-900 flex items-center gap-1.5">
+                    <i className="fa-solid fa-calendar-days text-emerald-700"></i>
+                    <span>Inspect &amp; Select Delivery Slot</span>
+                  </div>
+                  <div className="flex gap-1 bg-gray-100 p-0.5 rounded-xl text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setSlotDateFilter('today')}
+                      className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                        slotDateFilter === 'today'
+                          ? 'bg-white text-emerald-800 shadow-xs'
+                          : 'text-gray-500 hover:text-gray-800'
+                      }`}
+                    >
+                      Today
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSlotDateFilter('tomorrow')}
+                      className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                        slotDateFilter === 'tomorrow'
+                          ? 'bg-white text-emerald-800 shadow-xs'
+                          : 'text-gray-500 hover:text-gray-800'
+                      }`}
+                    >
+                      Tomorrow
+                    </button>
+                  </div>
+                </div>
+
+                {loadingSlots ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {[1, 2, 3, 4].map((n) => (
+                      <div key={n} className="animate-pulse p-3 rounded-2xl bg-gray-100 h-16"></div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {deliverySlots
+                      .filter((s) => (slotDateFilter === 'today' ? s.is_today : s.is_tomorrow))
+                      .map((slot) => {
+                        const isSelected = selectedSlot && selectedSlot.id === slot.id;
+                        return (
+                          <button
+                            key={slot.id}
+                            type="button"
+                            disabled={!slot.is_available}
+                            onClick={() => setSelectedSlot(slot)}
+                            className={`p-3 rounded-2xl text-left border transition cursor-pointer flex justify-between items-center ${
+                              !slot.is_available
+                                ? 'opacity-40 cursor-not-allowed bg-gray-50 border-gray-200'
+                                : isSelected
+                                ? 'border-2 border-brand-green bg-emerald-50/70 shadow-xs ring-1 ring-emerald-500'
+                                : 'border-gray-200 bg-white hover:border-gray-300'
+                            }`}
+                          >
+                            <div>
+                              <div className="font-extrabold text-xs text-gray-900 flex items-center gap-1.5">
+                                <span>{slot.label}</span>
+                                {isSelected && (
+                                  <i className="fa-solid fa-circle-check text-emerald-600 text-xs"></i>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-gray-500 mt-0.5 flex items-center gap-2">
+                                <span>{slot.date_label}</span>
+                                <span>•</span>
+                                <span
+                                  className={`font-semibold ${
+                                    slot.is_filling_fast ? 'text-amber-600' : 'text-emerald-700'
+                                  }`}
+                                >
+                                  {slot.is_filling_fast ? 'Filling Fast' : 'Available'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                isSelected
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'bg-gray-100 text-gray-600'
+                              }`}
+                            >
+                              {isSelected ? 'Selected' : 'Select'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
+
+                {selectedSlot && (
+                  <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900 flex items-center gap-2">
+                    <i className="fa-solid fa-truck-fast text-blue-600"></i>
+                    <span>
+                      Confirmed delivery window: <strong>{selectedSlot.date_label} ({selectedSlot.label})</strong>. Dispatch rider assigned at slot start.
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Card 3: Step 2 - Payment Method */}
+          <div id="sec-payment-method" className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-3.5">
+            <div className="font-extrabold text-sm sm:text-base text-gray-900 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 text-xs flex items-center justify-center font-bold">
+                  2
+                </span>
+                <span>Payment Method</span>
+              </div>
+              <span className="text-xs text-purple-700 font-bold flex items-center gap-1">
+                <i className="fa-solid fa-shield-halved"></i>
+                <span>100% Secure</span>
+              </span>
+            </div>
+
+            {/* Non-blocking Failure / Cancellation Alert Banner */}
+            {paymentNotice && (
+              <div
+                className={`p-3.5 rounded-2xl text-xs flex items-start justify-between gap-3 animate-fade-in ${
+                  paymentNotice.type === 'warning'
+                    ? 'bg-amber-50 border border-amber-200 text-amber-900'
+                    : 'bg-blue-50 border border-blue-200 text-blue-900'
+                }`}
+              >
+                <div className="flex items-start gap-2.5">
+                  <i
+                    className={`fa-solid ${
+                      paymentNotice.type === 'warning'
+                        ? 'fa-triangle-exclamation text-amber-600'
+                        : 'fa-circle-info text-blue-600'
+                    } text-base mt-0.5 shrink-0`}
+                  ></i>
+                  <div>
+                    <div className="font-black">
+                      {paymentNotice.type === 'warning' ? 'Payment Not Completed' : 'Payment Status'}
+                    </div>
+                    <div className="text-[11px] leading-relaxed mt-0.5">
+                      {paymentNotice.message}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPaymentNotice(null)}
+                  className="text-gray-400 hover:text-gray-700 text-xs cursor-pointer p-1"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+            )}
+
+            {/* 2 Primary Methods (Pay Online vs COD) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* 1. Pay Online: Cards / NetBanking / Wallets / UPI */}
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('card')}
+                className={`p-3.5 rounded-2xl font-bold text-xs sm:text-sm text-left transition flex items-center gap-3 cursor-pointer ${
+                  paymentMethod === 'card'
+                    ? 'border-2 border-emerald-600 bg-emerald-50/60 shadow-sm ring-1 ring-emerald-500'
+                    : 'border border-gray-200 bg-white hover:border-gray-300'
+                }`}
+              >
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-lg shrink-0">
+                  <i className="fa-solid fa-globe"></i>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-gray-900 font-extrabold flex items-center gap-1.5">
+                    <span>Pay Online</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-600 text-white font-extrabold tracking-wide">
+                      Razorpay
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-gray-500 font-normal truncate mt-0.5">
+                    Credit/Debit Cards, UPI, NetBanking, Wallets
+                  </div>
+                </div>
+              </button>
+
+              {/* 2. Cash on Delivery */}
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('cod')}
+                className={`p-3.5 rounded-2xl font-bold text-xs sm:text-sm text-left transition flex items-center gap-3 cursor-pointer ${
+                  paymentMethod === 'cod'
+                    ? 'border-2 border-emerald-600 bg-emerald-50/60 shadow-sm ring-1 ring-emerald-500'
+                    : 'border border-gray-200 bg-white hover:border-gray-300'
+                }`}
+              >
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-lg shrink-0">
+                  <i className="fa-solid fa-money-bill-wave"></i>
+                </div>
+                <div>
+                  <div className="text-gray-900 font-extrabold">Cash on Delivery</div>
+                  <div className="text-[11px] text-gray-500 font-normal mt-0.5">Pay rider at door (Cash or UPI)</div>
+                </div>
+              </button>
+            </div>
+
+            {/* --- EXPANDED PAYMENT METHOD SUB-PANELS --- */}
+
+            {/* 1. Pay Online Sub-panel (Cards, NetBanking, Wallets, UPI via Razorpay) */}
+            {paymentMethod === 'card' && (
+              <div className="pt-3 border-t border-gray-100 space-y-3.5 animate-fade-in">
+                {/* Header / Brand reassurance */}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-black text-gray-900 flex items-center gap-1.5">
+                      <span>Pay Online via Razorpay</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-extrabold">
+                        100% Secure
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-gray-500 mt-0.5">
+                      Choose a payment channel below to open Razorpay directly.
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-gray-600 font-bold bg-gray-50 px-2.5 py-1 rounded-xl border border-gray-200">
+                    <i className="fa-solid fa-shield-halved text-emerald-600"></i>
+                    <span>PCI-DSS Level 1 · 256-bit SSL</span>
+                  </div>
+                </div>
+
+                {/* Interactive Payment Options Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* UPI Instant & QR */}
+                  <button
+                    type="button"
+                    onClick={() => handleInitiateOnlinePayment('upi')}
+                    className={`p-3.5 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer group ${
+                      selectedOnlineChannel === 'upi'
+                        ? 'border-2 border-emerald-600 bg-emerald-50/70 shadow-sm ring-1 ring-emerald-500'
+                        : 'border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/20'
+                    }`}
+                  >
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0 transition ${
+                      selectedOnlineChannel === 'upi' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-700'
+                    }`}>
+                      <i className="fa-solid fa-qrcode"></i>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-black text-gray-900 flex items-center justify-between">
+                        <span>UPI Instant &amp; QR Code</span>
+                        <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-extrabold">Zero Fee</span>
+                      </div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">
+                        Google Pay, PhonePe, Paytm, CRED &amp; Scan QR
+                      </div>
+                      <div className="mt-2 text-[10px] font-extrabold text-emerald-700 flex items-center gap-1 group-hover:underline">
+                        <span>Pay with UPI via Razorpay</span>
+                        <i className="fa-solid fa-arrow-right text-[9px]"></i>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Cards */}
+                  <button
+                    type="button"
+                    onClick={() => handleInitiateOnlinePayment('card')}
+                    className={`p-3.5 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer group ${
+                      selectedOnlineChannel === 'card'
+                        ? 'border-2 border-emerald-600 bg-emerald-50/70 shadow-sm ring-1 ring-emerald-500'
+                        : 'border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/20'
+                    }`}
+                  >
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0 transition ${
+                      selectedOnlineChannel === 'card' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-blue-50 text-blue-700'
+                    }`}>
+                      <i className="fa-solid fa-credit-card"></i>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-black text-gray-900 flex items-center justify-between">
+                        <span>Credit / Debit Card</span>
+                        <span className="text-[9px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-extrabold">Instant OTP</span>
+                      </div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">
+                        Visa, Mastercard, RuPay, Maestro &amp; Diners Club
+                      </div>
+                      <div className="mt-2 text-[10px] font-extrabold text-emerald-700 flex items-center gap-1 group-hover:underline">
+                        <span>Pay with Card via Razorpay</span>
+                        <i className="fa-solid fa-arrow-right text-[9px]"></i>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* NetBanking */}
+                  <button
+                    type="button"
+                    onClick={() => handleInitiateOnlinePayment('netbanking')}
+                    className={`p-3.5 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer group ${
+                      selectedOnlineChannel === 'netbanking'
+                        ? 'border-2 border-emerald-600 bg-emerald-50/70 shadow-sm ring-1 ring-emerald-500'
+                        : 'border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/20'
+                    }`}
+                  >
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0 transition ${
+                      selectedOnlineChannel === 'netbanking' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-purple-50 text-purple-700'
+                    }`}>
+                      <i className="fa-solid fa-building-columns"></i>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-black text-gray-900 flex items-center justify-between">
+                        <span>NetBanking</span>
+                        <span className="text-[9px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-extrabold">50+ Banks</span>
+                      </div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">
+                        HDFC, ICICI, SBI, Axis, Kotak &amp; all major banks
+                      </div>
+                      <div className="mt-2 text-[10px] font-extrabold text-emerald-700 flex items-center gap-1 group-hover:underline">
+                        <span>Pay via NetBanking (Razorpay)</span>
+                        <i className="fa-solid fa-arrow-right text-[9px]"></i>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Wallets */}
+                  <button
+                    type="button"
+                    onClick={() => handleInitiateOnlinePayment('wallet')}
+                    className={`p-3.5 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer group ${
+                      selectedOnlineChannel === 'wallet'
+                        ? 'border-2 border-emerald-600 bg-emerald-50/70 shadow-sm ring-1 ring-emerald-500'
+                        : 'border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/20'
+                    }`}
+                  >
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0 transition ${
+                      selectedOnlineChannel === 'wallet' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-amber-50 text-amber-700'
+                    }`}>
+                      <i className="fa-solid fa-wallet"></i>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-black text-gray-900 flex items-center justify-between">
+                        <span>Digital Wallets</span>
+                        <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-extrabold">1-Click</span>
+                      </div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">
+                        PhonePe, Paytm, Mobikwik, Freecharge, Airtel
+                      </div>
+                      <div className="mt-2 text-[10px] font-extrabold text-emerald-700 flex items-center gap-1 group-hover:underline">
+                        <span>Pay with Wallet via Razorpay</span>
+                        <i className="fa-solid fa-arrow-right text-[9px]"></i>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Seamless Flow Instruction Callout */}
+                <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-50/60 to-blue-50/60 border border-emerald-200/80 text-xs text-gray-700 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs shrink-0 font-bold">
+                      <i className="fa-solid fa-lock"></i>
+                    </div>
+                    <div className="text-[11px] leading-tight">
+                      <strong className="text-gray-900">Zero Card/Bank Details Stored:</strong> Your sensitive financial details are encrypted and processed directly by Razorpay's certified banking gateway.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 2. Cash on Delivery Sub-panel */}
+            {paymentMethod === 'cod' && (
+              <div className="pt-3 border-t border-gray-100 space-y-2 animate-fade-in">
+                <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200 text-amber-950 text-xs space-y-1.5">
+                  <div className="font-extrabold flex items-center gap-2 text-amber-900 text-sm">
+                    <i className="fa-solid fa-hand-holding-dollar text-base"></i>
+                    <span>Pay ₹{totalPayable} at Your Doorstep</span>
+                  </div>
+                  <div className="text-xs text-amber-800 leading-relaxed">
+                    Our verified delivery partner will collect the exact amount. You can pay via <strong>Cash</strong> or scan the rider's <strong>Doorstep UPI QR</strong> code upon delivery.
+                  </div>
+                  <div className="pt-1 flex items-center gap-2 text-[10px] text-amber-700 font-bold">
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-amber-200">
+                      <i className="fa-solid fa-shield-halved mr-1 text-emerald-600"></i> Zero Handling Fee
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-amber-200">
+                      <i className="fa-solid fa-receipt mr-1 text-blue-600"></i> Instant Digital Receipt
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* QA Gateway Simulation Bar (Dev & Test Feature - Placed unobtrusively at footer) */}
+            <div className="pt-2 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+              <div className="flex items-center gap-1.5 text-gray-600 font-bold text-[11px]">
+                <i className="fa-solid fa-flask text-purple-600 text-xs"></i>
+                <span>Payment Simulation:</span>
+              </div>
+              <div className="flex items-center gap-3 text-[11px]">
+                <label className="flex items-center gap-1.5 cursor-pointer text-gray-600 hover:text-gray-900">
+                  <input
+                    type="checkbox"
+                    checked={simulateFailure}
+                    onChange={(e) => {
+                      setSimulateFailure(e.target.checked);
+                      if (e.target.checked) setSimulateCancellation(false);
+                    }}
+                    className="w-3.5 h-3.5 text-red-600 rounded border-gray-300 focus:ring-red-500"
+                  />
+                  <span className="font-bold text-red-700">Simulate Failure</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer text-gray-600 hover:text-gray-900">
+                  <input
+                    type="checkbox"
+                    checked={simulateCancellation}
+                    onChange={(e) => {
+                      setSimulateCancellation(e.target.checked);
+                      if (e.target.checked) setSimulateFailure(false);
+                    }}
+                    className="w-3.5 h-3.5 text-amber-600 rounded border-gray-300 focus:ring-amber-500"
+                  />
+                  <span className="font-bold text-amber-700">Simulate Cancel</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* RIGHT COLUMN: STICKY ORDER SUMMARY, BILL & CTA (lg:col-span-5 xl:col-5)   */}
+        {/* ========================================================================= */}
+        <div className="lg:col-span-5 xl:col-span-5 lg:sticky lg:top-20 space-y-4">
+          {/* Card: Step 3 - Order Review & Final Bill */}
+          <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-3.5">
+            <div className="font-extrabold text-sm sm:text-base text-gray-900 flex items-center justify-between pb-2.5 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 text-xs flex items-center justify-center font-bold">
+                  3
+                </span>
+                <span>Review Items &amp; Total</span>
+              </div>
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                {items.length} {items.length === 1 ? 'item' : 'items'}
+              </span>
+            </div>
+
+            {/* Items List Preview */}
+            <div className="space-y-2 text-xs divide-y divide-gray-50 max-h-44 overflow-y-auto hide-scroll pr-1">
+              {items.map((it) => (
+                <div key={it.cart_item_id || it.id} className="flex justify-between items-center py-2 text-xs">
+                  <div className="min-w-0 pr-2">
+                    <div className="font-extrabold text-gray-900 truncate">
+                      {it.product_name || it.name}
+                    </div>
+                    <div className="text-[11px] text-gray-500">
+                      {it.store_name || it.store || 'Store'} · Qty: {it.quantity} × ₹{it.sell_price || it.price}
+                    </div>
+                  </div>
+                  <span className="font-extrabold text-gray-900 shrink-0">
+                    ₹{Number(it.sell_price || it.price) * Number(it.quantity)}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* ============================================================== */}
+            {/* ADAB REWARD POINTS REDEMPTION (Day 6 Frontend Task 5: sec-points) */}
+            {/* ============================================================== */}
+            <div
+              id="checkoutRewardsSection"
+              data-testid="checkout-rewards-section"
+              className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-50 via-orange-50/40 to-amber-50/30 border border-amber-200/80 shadow-2xs space-y-2.5"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center text-sm shadow-xs shrink-0">
+                    <i className="fa-solid fa-star"></i>
+                  </div>
+                  <div>
+                    <div className="text-xs font-black text-amber-950 flex items-center gap-1.5">
+                      <span>ADAB Loyalty Points</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200/80 text-amber-900 font-extrabold uppercase">
+                        {rewardsAccount.tier || 'BRONZE'} TIER
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-amber-800">
+                      Balance: <strong id="checkoutAvailablePoints" data-testid="checkout-available-points" className="font-bold">{availablePoints.toLocaleString('en-IN')}</strong> pts (Worth ₹{availablePoints.toFixed(2)})
+                    </div>
+                  </div>
+                </div>
+
+                {availablePoints > 0 && maxEligiblePoints > 0 ? (
+                  <label className="flex items-center gap-2 cursor-pointer select-none bg-white px-3 py-1.5 rounded-xl border border-amber-300 shadow-2xs hover:bg-amber-50/50 transition">
+                    <input
+                      type="checkbox"
+                      id="useRewardPointsToggle"
+                      data-testid="use-reward-points-toggle"
+                      checked={useRewardPoints}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setUseRewardPoints(checked);
+                        if (checked && appliedRewardPoints === 0) {
+                          setAppliedRewardPoints(maxEligiblePoints);
+                        }
+                      }}
+                      className="w-4 h-4 text-emerald-600 rounded border-gray-300 focus:ring-emerald-500 cursor-pointer accent-[#18753C]"
+                    />
+                    <span className="text-xs font-extrabold text-amber-950">
+                      Apply Points
+                    </span>
+                  </label>
+                ) : (
+                  <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
+                    {availablePoints === 0 ? '0 Points Available' : 'Max 50% Met'}
                   </span>
                 )}
               </div>
-            </div>
-          </div>
 
-          <button
-            type="button"
-            onClick={() => setShowPincodeChecker(!showPincodeChecker)}
-            className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition"
-          >
-            {showPincodeChecker ? 'Hide Checker' : 'Check PIN'}
-          </button>
-        </div>
+              {useRewardPoints && maxEligiblePoints > 0 && (
+                <div className="pt-2 border-t border-amber-200/60 space-y-2 animate-fade-in text-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white/70 p-2.5 rounded-xl border border-amber-200/50">
+                    <div className="text-[11px] text-amber-900">
+                      <span>Applying </span>
+                      <strong className="font-extrabold text-amber-950">{effectivePointsToRedeem} pts</strong>
+                      <span> = </span>
+                      <strong className="font-extrabold text-emerald-700">₹{rewardPointsDeduction.toFixed(2)} off</strong>
+                      <div className="text-[10px] text-amber-700/80 mt-0.5">
+                        1 pt = ₹1 off · Max {maxEligiblePoints} pts on this order (50% max)
+                      </div>
+                    </div>
 
-        {/* Inline Pincode Coverage Inspector */}
-        {showPincodeChecker && (
-          <div className="pt-2 border-t border-gray-100 mt-2 space-y-2">
-            <form onSubmit={handleCheckCustomPincode} className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Enter 6-digit pincode (e.g. 395007, 400001)"
-                value={customPincodeInput}
-                onChange={(e) => setCustomPincodeInput(e.target.value)}
-                maxLength={6}
-                className="flex-1 px-3 py-1.5 rounded-xl border border-gray-200 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
-              />
-              <button
-                type="submit"
-                className="px-3 py-1.5 bg-emerald-700 text-white rounded-xl text-xs font-bold hover:bg-emerald-800 transition cursor-pointer"
-              >
-                Inspect
-              </button>
-            </form>
-
-            {customPincodeResult && (
-              <div
-                className={`p-2.5 rounded-xl text-xs flex items-start gap-2 ${
-                  customPincodeResult.is_serviceable
-                    ? 'bg-emerald-50 text-emerald-900 border border-emerald-200'
-                    : 'bg-amber-50 text-amber-900 border border-amber-200'
-                }`}
-              >
-                <i
-                  className={`mt-0.5 text-xs ${
-                    customPincodeResult.is_serviceable
-                      ? 'fa-solid fa-circle-check text-emerald-600'
-                      : 'fa-solid fa-triangle-exclamation text-amber-600'
-                  }`}
-                ></i>
-                <div className="flex-1">
-                  <div className="font-extrabold">
-                    {customPincodeResult.is_serviceable
-                      ? 'Pincode Serviceable!'
-                      : 'Limited Serviceability'}
-                  </div>
-                  <div className="text-[11px] mt-0.5">{customPincodeResult.message}</div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Step 1: Choose Delivery Speed (Day 3 Frontend Task 2) */}
-      <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-3">
-        <div className="font-extrabold text-sm text-gray-900 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 text-xs flex items-center justify-center font-bold">
-              1
-            </span>
-            <span>Choose Delivery Speed</span>
-          </div>
-          {loadingPreview && (
-            <span className="text-[10px] text-gray-400 flex items-center gap-1 font-normal">
-              <i className="fa-solid fa-spinner fa-spin text-emerald-600"></i> Calculating fees...
-            </span>
-          )}
-        </div>
-
-        {subtotal >= 499 && (
-          <div className="px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-800 font-bold flex items-center gap-1.5">
-            <i className="fa-solid fa-gift text-brand-coral"></i>
-            <span>🎉 Free Delivery unlocked! Your order is over ₹499.</span>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          {/* Fast Express (14–45 min) */}
-          <button
-            type="button"
-            disabled={serviceability && !serviceability.is_serviceable}
-            onClick={() => setDeliverySpeed('fast')}
-            className={`p-3.5 rounded-2xl text-left flex justify-between items-center transition cursor-pointer relative ${
-              serviceability && !serviceability.is_serviceable
-                ? 'opacity-50 cursor-not-allowed border border-gray-200 bg-gray-50'
-                : deliverySpeed === 'fast'
-                ? 'border-2 border-brand-green bg-green-50 shadow-sm'
-                : 'border border-gray-200 bg-white hover:border-gray-300'
-            }`}
-          >
-            <div>
-              <div className="font-extrabold text-xs text-gray-900 flex items-center">
-                <i className="fa-solid fa-bolt text-amber-500 mr-1.5"></i>
-                Express (14–45 min)
-              </div>
-              <div className="text-[11px] text-gray-500 mt-0.5">
-                {serviceability && !serviceability.is_serviceable
-                  ? 'Unavailable for this pincode'
-                  : 'Dispatched instantly by store rider'}
-              </div>
-            </div>
-            <div className="text-right shrink-0">
-              {subtotal >= 499 ? (
-                <div className="flex items-center gap-1">
-                  <span className="line-through text-gray-400 text-[10px]">₹29</span>
-                  <span className="font-extrabold text-xs text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded-md">
-                    FREE
-                  </span>
-                </div>
-              ) : (
-                <span className="font-extrabold text-xs text-emerald-800">₹29</span>
-              )}
-            </div>
-          </button>
-
-          {/* Same Day (Flexible Slot) */}
-          <button
-            type="button"
-            disabled={serviceability && !serviceability.is_serviceable}
-            onClick={() => setDeliverySpeed('same')}
-            className={`p-3.5 rounded-2xl text-left flex justify-between items-center transition cursor-pointer ${
-              serviceability && !serviceability.is_serviceable
-                ? 'opacity-50 cursor-not-allowed border border-gray-200 bg-gray-50'
-                : deliverySpeed === 'same'
-                ? 'border-2 border-brand-green bg-green-50 shadow-sm'
-                : 'border border-gray-200 bg-white hover:border-gray-300'
-            }`}
-          >
-            <div>
-              <div className="font-extrabold text-xs text-gray-900 flex items-center">
-                <i className="fa-solid fa-clock text-blue-500 mr-1.5"></i>
-                Same Day (by 8 PM)
-              </div>
-              <div className="text-[11px] text-gray-500 mt-0.5">
-                {selectedSlot
-                  ? `${selectedSlot.date_label} · ${selectedSlot.label}`
-                  : 'Flexible scheduled slot'}
-              </div>
-            </div>
-            <div className="text-right shrink-0">
-              {subtotal >= 499 ? (
-                <div className="flex items-center gap-1">
-                  <span className="line-through text-gray-400 text-[10px]">₹19</span>
-                  <span className="font-extrabold text-xs text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded-md">
-                    FREE
-                  </span>
-                </div>
-              ) : (
-                <span className="font-extrabold text-xs text-gray-700">₹19</span>
-              )}
-            </div>
-          </button>
-
-          {/* Self Pickup */}
-          <button
-            type="button"
-            onClick={() => setDeliverySpeed('pickup')}
-            className={`p-3.5 rounded-2xl text-left flex justify-between items-center transition cursor-pointer sm:col-span-2 ${
-              deliverySpeed === 'pickup'
-                ? 'border-2 border-brand-green bg-green-50 shadow-sm'
-                : 'border border-gray-200 bg-white hover:border-gray-300'
-            }`}
-          >
-            <div>
-              <div className="font-extrabold text-xs text-gray-900 flex items-center">
-                <i className="fa-solid fa-store text-emerald-600 mr-1.5"></i>
-                Self Pickup from Shop
-              </div>
-              <div className="text-[11px] text-gray-500 mt-0.5">
-                Ready in 10 mins · Zero queue at counter
-              </div>
-            </div>
-            <span className="font-extrabold text-xs text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">
-              FREE
-            </span>
-          </button>
-        </div>
-
-        {/* Delivery Slot Inspection & Picker (when Same-Day speed is chosen) */}
-        {deliverySpeed === 'same' && (
-          <div className="pt-3 border-t border-gray-100 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="font-extrabold text-xs text-gray-900 flex items-center gap-1.5">
-                <i className="fa-solid fa-calendar-days text-emerald-700"></i>
-                <span>Inspect &amp; Select Delivery Slot</span>
-              </div>
-              <div className="flex gap-1 bg-gray-100 p-0.5 rounded-xl text-[11px] font-bold">
-                <button
-                  type="button"
-                  onClick={() => setSlotDateFilter('today')}
-                  className={`px-3 py-1 rounded-lg transition cursor-pointer ${
-                    slotDateFilter === 'today'
-                      ? 'bg-white text-emerald-800 shadow-xs'
-                      : 'text-gray-500 hover:text-gray-800'
-                  }`}
-                >
-                  Today
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSlotDateFilter('tomorrow')}
-                  className={`px-3 py-1 rounded-lg transition cursor-pointer ${
-                    slotDateFilter === 'tomorrow'
-                      ? 'bg-white text-emerald-800 shadow-xs'
-                      : 'text-gray-500 hover:text-gray-800'
-                  }`}
-                >
-                  Tomorrow
-                </button>
-              </div>
-            </div>
-
-            {loadingSlots ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {[1, 2, 3, 4].map((n) => (
-                  <div key={n} className="animate-pulse p-3 rounded-2xl bg-gray-100 h-16"></div>
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {deliverySlots
-                  .filter((s) => (slotDateFilter === 'today' ? s.is_today : s.is_tomorrow))
-                  .map((slot) => {
-                    const isSelected = selectedSlot && selectedSlot.id === slot.id;
-                    return (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <input
+                        type="number"
+                        id="rewardPointsInput"
+                        data-testid="reward-points-input"
+                        min="1"
+                        max={maxEligiblePoints}
+                        value={appliedRewardPoints > 0 ? appliedRewardPoints : maxEligiblePoints}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          if (isNaN(val) || val <= 0) {
+                            setAppliedRewardPoints(0);
+                          } else {
+                            setAppliedRewardPoints(Math.min(val, maxEligiblePoints));
+                          }
+                        }}
+                        className="w-20 px-2 py-1 text-xs font-mono font-bold border border-amber-300 rounded-lg text-center bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      />
                       <button
-                        key={slot.id}
                         type="button"
-                        disabled={!slot.is_available}
-                        onClick={() => setSelectedSlot(slot)}
-                        className={`p-3 rounded-2xl text-left border transition cursor-pointer flex justify-between items-center ${
-                          !slot.is_available
-                            ? 'opacity-40 cursor-not-allowed bg-gray-50 border-gray-200'
-                            : isSelected
-                            ? 'border-2 border-brand-green bg-emerald-50/70 shadow-xs'
-                            : 'border-gray-200 bg-white hover:border-gray-300'
-                        }`}
+                        onClick={() => setAppliedRewardPoints(maxEligiblePoints)}
+                        className="px-2.5 py-1 text-[10px] font-extrabold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition cursor-pointer"
                       >
-                        <div>
-                          <div className="font-extrabold text-xs text-gray-900 flex items-center gap-1.5">
-                            <span>{slot.label}</span>
-                            {isSelected && (
-                              <i className="fa-solid fa-circle-check text-emerald-600 text-xs"></i>
-                            )}
-                          </div>
-                          <div className="text-[10px] text-gray-500 mt-0.5 flex items-center gap-2">
-                            <span>{slot.date_label}</span>
-                            <span>•</span>
-                            <span
-                              className={`font-semibold ${
-                                slot.is_filling_fast ? 'text-amber-600' : 'text-emerald-700'
-                              }`}
-                            >
-                              {slot.is_filling_fast ? 'Filling Fast' : 'Available'}
-                            </span>
-                          </div>
-                        </div>
-
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            isSelected
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-gray-100 text-gray-600'
-                          }`}
-                        >
-                          {isSelected ? 'Selected' : 'Select'}
-                        </span>
+                        Max
                       </button>
-                    );
-                  })}
-              </div>
-            )}
-
-            {selectedSlot && (
-              <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-[11px] text-blue-900 flex items-center gap-2">
-                <i className="fa-solid fa-truck-fast text-blue-600"></i>
-                <span>
-                  Confirmed delivery window: <strong>{selectedSlot.date_label} ({selectedSlot.label})</strong>. Dispatch rider assigned at slot start.
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-
-      {/* Step 2: Payment Method */}
-      <div id="sec-payment-method" className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-3">
-        <div className="font-extrabold text-sm text-gray-900 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 text-xs flex items-center justify-center font-bold">
-              2
-            </span>
-            Payment Method
-          </div>
-          <span className="text-[11px] text-purple-700 font-bold">
-            <i className="fa-solid fa-shield-halved mr-1"></i> 100% Secure
-          </span>
-        </div>
-
-        {/* Non-blocking Failure / Cancellation Alert Banner */}
-        {paymentNotice && (
-          <div
-            className={`p-3.5 rounded-2xl text-xs flex items-start justify-between gap-3 animate-fade-in ${
-              paymentNotice.type === 'warning'
-                ? 'bg-amber-50 border border-amber-200 text-amber-900'
-                : 'bg-blue-50 border border-blue-200 text-blue-900'
-            }`}
-          >
-            <div className="flex items-start gap-2.5">
-              <i
-                className={`fa-solid ${
-                  paymentNotice.type === 'warning'
-                    ? 'fa-triangle-exclamation text-amber-600'
-                    : 'fa-circle-info text-blue-600'
-                } text-base mt-0.5 shrink-0`}
-              ></i>
-              <div>
-                <div className="font-black">
-                  {paymentNotice.type === 'warning' ? 'Payment Not Completed' : 'Payment Status'}
-                </div>
-                <div className="text-[11px] leading-relaxed mt-0.5">
-                  {paymentNotice.message}
-                </div>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setPaymentNotice(null)}
-              className="text-gray-400 hover:text-gray-700 text-xs cursor-pointer p-1"
-            >
-              <i className="fa-solid fa-xmark"></i>
-            </button>
-          </div>
-        )}
-
-        {/* QA Gateway Simulation Bar (Dev & Test Feature) */}
-        <div className="p-2.5 bg-gray-50 border border-gray-200 rounded-2xl flex flex-wrap items-center justify-between gap-2 text-[11px]">
-          <div className="flex items-center gap-1.5 text-gray-700 font-bold">
-            <i className="fa-solid fa-flask text-purple-600"></i>
-            <span>Payment Simulation:</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-1.5 cursor-pointer text-gray-600 hover:text-gray-900">
-              <input
-                type="checkbox"
-                checked={simulateFailure}
-                onChange={(e) => {
-                  setSimulateFailure(e.target.checked);
-                  if (e.target.checked) setSimulateCancellation(false);
-                }}
-                className="w-3.5 h-3.5 text-red-600 rounded border-gray-300 focus:ring-red-500"
-              />
-              <span className="font-bold text-red-700">Simulate Failure</span>
-            </label>
-            <label className="flex items-center gap-1.5 cursor-pointer text-gray-600 hover:text-gray-900">
-              <input
-                type="checkbox"
-                checked={simulateCancellation}
-                onChange={(e) => {
-                  setSimulateCancellation(e.target.checked);
-                  if (e.target.checked) setSimulateFailure(false);
-                }}
-                className="w-3.5 h-3.5 text-amber-600 rounded border-gray-300 focus:ring-amber-500"
-              />
-              <span className="font-bold text-amber-700">Simulate Cancel</span>
-            </label>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          {/* 1. Pay Online: Cards / NetBanking / Wallets / UPI */}
-          <button
-            type="button"
-            onClick={() => setPaymentMethod('card')}
-            className={`p-3.5 rounded-2xl font-bold text-xs text-left transition flex items-center gap-3 cursor-pointer ${
-              paymentMethod === 'card'
-                ? 'border-2 border-emerald-600 bg-emerald-50/60 shadow-sm'
-                : 'border border-gray-200 bg-white hover:border-gray-300'
-            }`}
-          >
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-lg shrink-0">
-              <i className="fa-solid fa-globe"></i>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-gray-900 font-extrabold flex items-center gap-1.5">
-                <span>Pay Online</span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-600 text-white font-extrabold tracking-wide">
-                  Razorpay
-                </span>
-              </div>
-              <div className="text-[10px] text-gray-500 font-normal truncate">
-                Credit / Debit Card · NetBanking · Wallets · UPI
-              </div>
-            </div>
-          </button>
-
-          {/* 2. Cash on Delivery */}
-          <button
-            type="button"
-            onClick={() => setPaymentMethod('cod')}
-            className={`p-3.5 rounded-2xl font-bold text-xs text-left transition flex items-center gap-3 cursor-pointer ${
-              paymentMethod === 'cod'
-                ? 'border-2 border-emerald-600 bg-emerald-50/60 shadow-sm'
-                : 'border border-gray-200 bg-white hover:border-gray-300'
-            }`}
-          >
-            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-lg shrink-0">
-              <i className="fa-solid fa-money-bill-wave"></i>
-            </div>
-            <div>
-              <div className="text-gray-900 font-extrabold">Cash on Delivery</div>
-              <div className="text-[10px] text-gray-500 font-normal">Pay rider at door</div>
-            </div>
-          </button>
-        </div>
-
-        {/* --- EXPANDED PAYMENT METHOD SUB-PANELS --- */}
-
-        {/* 1. Pay Online Sub-panel (Cards, NetBanking, Wallets, UPI via Razorpay) */}
-        {paymentMethod === 'card' && (
-          <div className="pt-3 border-t border-gray-100 space-y-3.5 animate-fade-in">
-            {/* Header / Brand reassurance */}
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <div className="text-xs font-black text-gray-900 flex items-center gap-1.5">
-                  <span>Pay Online via Razorpay</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-extrabold">
-                    100% Secure
-                  </span>
-                </div>
-                <div className="text-[11px] text-gray-500 mt-0.5">
-                  Choose a payment channel below to open Razorpay directly.
-                </div>
-              </div>
-              <div className="flex items-center gap-2 text-[10px] text-gray-600 font-bold bg-gray-50 px-2.5 py-1 rounded-xl border border-gray-200">
-                <i className="fa-solid fa-shield-halved text-emerald-600"></i>
-                <span>PCI-DSS Level 1 · 256-bit SSL</span>
-              </div>
-            </div>
-
-            {/* Interactive Payment Options Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {/* Cards */}
-              <button
-                type="button"
-                onClick={() => handleInitiateOnlinePayment('card')}
-                className={`p-3.5 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer group ${
-                  selectedOnlineChannel === 'card'
-                    ? 'border-2 border-emerald-600 bg-emerald-50/70 shadow-sm ring-1 ring-emerald-500'
-                    : 'border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/20'
-                }`}
-              >
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0 transition ${
-                  selectedOnlineChannel === 'card' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-blue-50 text-blue-700'
-                }`}>
-                  <i className="fa-solid fa-credit-card"></i>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-black text-gray-900 flex items-center justify-between">
-                    <span>Credit / Debit Card</span>
-                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-extrabold">Instant OTP</span>
-                  </div>
-                  <div className="text-[10px] text-gray-500 mt-0.5">
-                    Visa, Mastercard, RuPay, Maestro &amp; Diners Club
-                  </div>
-                  <div className="mt-2 text-[10px] font-extrabold text-emerald-700 flex items-center gap-1 group-hover:underline">
-                    <span>Pay with Card via Razorpay</span>
-                    <i className="fa-solid fa-arrow-right text-[9px]"></i>
+                    </div>
                   </div>
                 </div>
-              </button>
-
-              {/* NetBanking */}
-              <button
-                type="button"
-                onClick={() => handleInitiateOnlinePayment('netbanking')}
-                className={`p-3.5 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer group ${
-                  selectedOnlineChannel === 'netbanking'
-                    ? 'border-2 border-emerald-600 bg-emerald-50/70 shadow-sm ring-1 ring-emerald-500'
-                    : 'border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/20'
-                }`}
-              >
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0 transition ${
-                  selectedOnlineChannel === 'netbanking' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-purple-50 text-purple-700'
-                }`}>
-                  <i className="fa-solid fa-building-columns"></i>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-black text-gray-900 flex items-center justify-between">
-                    <span>NetBanking</span>
-                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-extrabold">50+ Banks</span>
-                  </div>
-                  <div className="text-[10px] text-gray-500 mt-0.5">
-                    HDFC, ICICI, SBI, Axis, Kotak &amp; all major banks
-                  </div>
-                  <div className="mt-2 text-[10px] font-extrabold text-emerald-700 flex items-center gap-1 group-hover:underline">
-                    <span>Pay via NetBanking (Razorpay)</span>
-                    <i className="fa-solid fa-arrow-right text-[9px]"></i>
-                  </div>
-                </div>
-              </button>
-
-              {/* Wallets */}
-              <button
-                type="button"
-                onClick={() => handleInitiateOnlinePayment('wallet')}
-                className={`p-3.5 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer group ${
-                  selectedOnlineChannel === 'wallet'
-                    ? 'border-2 border-emerald-600 bg-emerald-50/70 shadow-sm ring-1 ring-emerald-500'
-                    : 'border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/20'
-                }`}
-              >
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0 transition ${
-                  selectedOnlineChannel === 'wallet' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-amber-50 text-amber-700'
-                }`}>
-                  <i className="fa-solid fa-wallet"></i>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-black text-gray-900 flex items-center justify-between">
-                    <span>Digital Wallets</span>
-                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-extrabold">1-Click</span>
-                  </div>
-                  <div className="text-[10px] text-gray-500 mt-0.5">
-                    PhonePe, Paytm, Mobikwik, Freecharge, Airtel
-                  </div>
-                  <div className="mt-2 text-[10px] font-extrabold text-emerald-700 flex items-center gap-1 group-hover:underline">
-                    <span>Pay with Wallet via Razorpay</span>
-                    <i className="fa-solid fa-arrow-right text-[9px]"></i>
-                  </div>
-                </div>
-              </button>
-
-              {/* UPI Instant & QR */}
-              <button
-                type="button"
-                onClick={() => handleInitiateOnlinePayment('upi')}
-                className={`p-3.5 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer group ${
-                  selectedOnlineChannel === 'upi'
-                    ? 'border-2 border-emerald-600 bg-emerald-50/70 shadow-sm ring-1 ring-emerald-500'
-                    : 'border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/20'
-                }`}
-              >
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0 transition ${
-                  selectedOnlineChannel === 'upi' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-50 text-emerald-700'
-                }`}>
-                  <i className="fa-solid fa-qrcode"></i>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-black text-gray-900 flex items-center justify-between">
-                    <span>UPI Instant &amp; QR Code</span>
-                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-extrabold">Zero Fee</span>
-                  </div>
-                  <div className="text-[10px] text-gray-500 mt-0.5">
-                    Google Pay, PhonePe, Paytm, CRED &amp; Scan QR
-                  </div>
-                  <div className="mt-2 text-[10px] font-extrabold text-emerald-700 flex items-center gap-1 group-hover:underline">
-                    <span>Pay with UPI via Razorpay</span>
-                    <i className="fa-solid fa-arrow-right text-[9px]"></i>
-                  </div>
-                </div>
-              </button>
-            </div>
-
-            {/* Seamless Flow Instruction Callout */}
-            <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-50/60 to-blue-50/60 border border-emerald-200/80 text-xs text-gray-700 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs shrink-0 font-bold">
-                  <i className="fa-solid fa-lock"></i>
-                </div>
-                <div className="text-[11px] leading-tight">
-                  <strong className="text-gray-900">Zero Card/Bank Details Stored:</strong> Your sensitive financial details are encrypted and processed directly by Razorpay's certified banking gateway.
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 4. Cash on Delivery Sub-panel */}
-        {paymentMethod === 'cod' && (
-          <div className="pt-3 border-t border-gray-100 space-y-2 animate-fade-in">
-            <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200 text-amber-950 text-xs space-y-1.5">
-              <div className="font-extrabold flex items-center gap-2 text-amber-900">
-                <i className="fa-solid fa-hand-holding-dollar text-base"></i>
-                <span>Pay ₹{totalPayable} at Your Doorstep</span>
-              </div>
-              <div className="text-[11px] text-amber-800 leading-relaxed">
-                Our verified delivery partner will collect the exact amount. You can pay via <strong>Cash</strong> or scan the rider's <strong>Doorstep UPI QR</strong> code upon delivery.
-              </div>
-              <div className="pt-1 flex items-center gap-2 text-[10px] text-amber-700 font-bold">
-                <span className="px-1.5 py-0.5 rounded-md bg-white border border-amber-200">
-                  <i className="fa-solid fa-shield-halved mr-1 text-emerald-600"></i> Zero Handling Fee
-                </span>
-                <span className="px-1.5 py-0.5 rounded-md bg-white border border-amber-200">
-                  <i className="fa-solid fa-receipt mr-1 text-blue-600"></i> Instant Digital Receipt
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Step 3: Order Review & Final Bill */}
-      <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-3">
-        <div className="font-extrabold text-sm text-gray-900 flex items-center gap-2 pb-2 border-b border-gray-100">
-          <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 text-xs flex items-center justify-center font-bold">
-            3
-          </span>
-          Review Items &amp; Total
-        </div>
-
-        {/* Final Items List */}
-        <div className="space-y-2 text-xs divide-y divide-gray-50 max-h-48 overflow-y-auto hide-scroll">
-          {items.map((it) => (
-            <div key={it.cart_item_id || it.id} className="flex justify-between items-center py-2 text-xs">
-              <div className="min-w-0 pr-2">
-                <div className="font-extrabold text-gray-900 truncate">
-                  {it.product_name || it.name}
-                </div>
-                <div className="text-[10px] text-gray-500">
-                  {it.store_name || it.store || 'Store'} · Qty: {it.quantity} × ₹{it.sell_price || it.price}
-                </div>
-              </div>
-              <span className="font-extrabold text-gray-900 shrink-0">
-                ₹{Number(it.sell_price || it.price) * Number(it.quantity)}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* ============================================================== */}
-        {/* ADAB REWARD POINTS REDEMPTION (Day 6 Frontend Task 5: sec-points) */}
-        {/* ============================================================== */}
-        <div
-          id="checkoutRewardsSection"
-          data-testid="checkout-rewards-section"
-          className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-50 via-orange-50/40 to-amber-50/30 border border-amber-200/80 shadow-xs space-y-2.5 my-2"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center text-sm shadow-xs shrink-0">
-                <i className="fa-solid fa-star"></i>
-              </div>
-              <div>
-                <div className="text-xs font-black text-amber-950 flex items-center gap-1.5">
-                  <span>ADAB Loyalty Points</span>
-                  <span className="text-[10px] px-2 py-0.2 rounded-full bg-amber-200/80 text-amber-900 font-extrabold uppercase">
-                    {rewardsAccount.tier || 'BRONZE'} TIER
-                  </span>
-                </div>
-                <div className="text-[11px] text-amber-800">
-                  Balance: <strong id="checkoutAvailablePoints" data-testid="checkout-available-points" className="font-bold">{availablePoints.toLocaleString('en-IN')}</strong> pts (Worth ₹{availablePoints.toFixed(2)})
-                </div>
-              </div>
-            </div>
-
-            {availablePoints > 0 && maxEligiblePoints > 0 ? (
-              <label className="flex items-center gap-2 cursor-pointer select-none bg-white px-3 py-1.5 rounded-xl border border-amber-300 shadow-2xs hover:bg-amber-50/50 transition">
-                <input
-                  type="checkbox"
-                  id="useRewardPointsToggle"
-                  data-testid="use-reward-points-toggle"
-                  checked={useRewardPoints}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setUseRewardPoints(checked);
-                    if (checked && appliedRewardPoints === 0) {
-                      setAppliedRewardPoints(maxEligiblePoints);
-                    }
-                  }}
-                  className="w-4 h-4 text-emerald-600 rounded border-gray-300 focus:ring-emerald-500 cursor-pointer accent-[#18753C]"
-                />
-                <span className="text-xs font-extrabold text-amber-950">
-                  Apply Points
-                </span>
-              </label>
-            ) : (
-              <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
-                {availablePoints === 0 ? '0 Points Available' : 'Max 50% Met'}
-              </span>
-            )}
-          </div>
-
-          {useRewardPoints && maxEligiblePoints > 0 && (
-            <div className="pt-2 border-t border-amber-200/60 space-y-2 animate-fade-in text-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white/70 p-2.5 rounded-xl border border-amber-200/50">
-                <div className="text-[11px] text-amber-900">
-                  <span>Applying </span>
-                  <strong className="font-extrabold text-amber-950">{effectivePointsToRedeem} pts</strong>
-                  <span> = </span>
-                  <strong className="font-extrabold text-emerald-700">₹{rewardPointsDeduction.toFixed(2)} off order total</strong>
-                  <div className="text-[10px] text-amber-700/80 mt-0.5">
-                    1 pt = ₹1 off · Max {maxEligiblePoints} pts eligible on this order (50% max)
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <input
-                    type="number"
-                    id="rewardPointsInput"
-                    data-testid="reward-points-input"
-                    min="1"
-                    max={maxEligiblePoints}
-                    value={appliedRewardPoints > 0 ? appliedRewardPoints : maxEligiblePoints}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value, 10);
-                      if (isNaN(val) || val <= 0) {
-                        setAppliedRewardPoints(0);
-                      } else {
-                        setAppliedRewardPoints(Math.min(val, maxEligiblePoints));
-                      }
-                    }}
-                    className="w-20 px-2 py-1 text-xs font-mono font-bold border border-amber-300 rounded-lg text-center bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setAppliedRewardPoints(maxEligiblePoints)}
-                    className="px-2 py-1 text-[10px] font-extrabold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition cursor-pointer"
-                  >
-                    Max
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Breakdown Rows */}
-        <div className="pt-2 space-y-1.5 text-xs text-gray-600 border-t border-gray-100">
-          <div className="bill-row">
-            <span>Items Subtotal</span>
-            <span className="font-bold text-gray-900">₹{subtotal}</span>
-          </div>
-          <div className="bill-row">
-            <span className="flex items-center gap-1.5">
-              <span>
-                Delivery Fee ({deliverySpeed === 'fast' ? 'Express 14–45m' : deliverySpeed === 'same' ? 'Same-Day Van' : 'Store Pickup'})
-              </span>
-              {fee === 0 && deliverySpeed !== 'pickup' && (
-                <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded-md font-bold">
-                  ₹499+ Free
-                </span>
               )}
-            </span>
-            <span className="font-bold text-gray-900">
-              {fee === 0 ? <span className="text-emerald-600 font-bold">FREE</span> : `₹${fee}`}
-            </span>
-          </div>
-          {deliverySpeed === 'same' && selectedSlot && (
-            <div className="bill-row text-[11px] text-blue-800 bg-blue-50/60 p-1.5 rounded-lg">
+            </div>
+
+            {/* Breakdown Rows */}
+            <div className="pt-2 space-y-2 text-xs text-gray-600 border-t border-gray-100">
+              <div className="bill-row">
+                <span>Items Subtotal</span>
+                <span className="font-bold text-gray-900">₹{subtotal}</span>
+              </div>
+              <div className="bill-row">
+                <span className="flex items-center gap-1.5">
+                  <span>
+                    Delivery Fee ({deliverySpeed === 'fast' ? 'Express 14–45m' : deliverySpeed === 'same' ? 'Same-Day' : 'Store Pickup'})
+                  </span>
+                  {fee === 0 && deliverySpeed !== 'pickup' && (
+                    <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded-md font-bold">
+                      ₹499+ Free
+                    </span>
+                  )}
+                </span>
+                <span className="font-bold text-gray-900">
+                  {fee === 0 ? <span className="text-emerald-600 font-bold">FREE</span> : `₹${fee}`}
+                </span>
+              </div>
+              {deliverySpeed === 'same' && selectedSlot && (
+                <div className="bill-row text-[11px] text-blue-800 bg-blue-50/60 p-1.5 rounded-lg">
+                  <span className="flex items-center gap-1">
+                    <i className="fa-solid fa-clock text-blue-600"></i>
+                    <span>Scheduled Slot Window</span>
+                  </span>
+                  <span className="font-extrabold text-blue-900">
+                    {selectedSlot.date_label} ({selectedSlot.label})
+                  </span>
+                </div>
+              )}
+              {discount > 0 && (
+                <div className="bill-row text-emerald-700 font-medium">
+                  <span className="flex items-center gap-1.5">
+                    <i className="fa-solid fa-tag text-xs text-emerald-600"></i>
+                    <span>Coupon Savings {appliedCouponCode ? `(${appliedCouponCode})` : ''}</span>
+                  </span>
+                  <span className="font-bold">-₹{discount}</span>
+                </div>
+              )}
+              {rewardPointsDeduction > 0 && (
+                <div
+                  id="rewardPointsBillRow"
+                  data-testid="reward-points-bill-row"
+                  className="bill-row text-amber-900 bg-amber-50/80 p-1.5 rounded-lg border border-amber-200/60"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <i className="fa-solid fa-star text-amber-500 text-xs"></i>
+                    <span>Reward Points Applied (-{effectivePointsToRedeem} pts)</span>
+                  </span>
+                  <span className="font-extrabold text-amber-800">-₹{rewardPointsDeduction.toFixed(2)}</span>
+                </div>
+              )}
+              {walletDeduction > 0 && (
+                <div className="bill-row text-purple-700 bg-purple-50/70 p-1.5 rounded-lg">
+                  <span className="flex items-center gap-1.5">
+                    <i className="fa-solid fa-wallet text-purple-600"></i>
+                    <span>ADAB Wallet Balance Applied</span>
+                  </span>
+                  <span className="font-extrabold">-₹{walletDeduction.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="bill-row border-t border-dashed pt-2.5">
+                <span className="font-black text-gray-900 text-sm sm:text-base">Total Payable</span>
+                <span className="font-black text-emerald-800 text-xl">₹{totalPayable}</span>
+              </div>
+            </div>
+
+            {/* Reward Points Banner */}
+            <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
+              <i className="fa-solid fa-star text-amber-500 text-xs shrink-0"></i>
+              <span>
+                You will earn <strong className="font-bold">{pointsEarned}</strong> ADAB reward points on this order!
+              </span>
+            </div>
+
+            {/* Action Buttons with Double-Click Guard */}
+            <div className="space-y-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => handlePlaceOrderSubmit()}
+                disabled={loading || items.length === 0 || isSubmittingRef.current || paymentProcessing.isOpen}
+                className="w-full bg-[#18753C] hover:bg-[#156030] text-white text-base font-extrabold py-3.5 px-4 rounded-2xl shadow-lg transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading || paymentProcessing.isOpen ? (
+                  <>
+                    <i className="fa-solid fa-spinner fa-spin"></i>
+                    <span>Processing Order...</span>
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-lock text-sm"></i>
+                    <span>Place Order · Pay ₹{totalPayable}</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={onBackToCart}
+                className="w-full text-center text-xs font-bold text-gray-500 hover:text-gray-800 py-1.5 cursor-pointer transition"
+              >
+                ← Return to Basket
+              </button>
+            </div>
+
+            {/* Security Guarantee Strip */}
+            <div className="pt-2 border-t border-gray-100 flex items-center justify-center gap-3 text-[10px] text-gray-400 font-semibold">
               <span className="flex items-center gap-1">
-                <i className="fa-solid fa-clock text-blue-600"></i>
-                <span>Scheduled Slot Window</span>
+                <i className="fa-solid fa-shield-halved text-emerald-600"></i>
+                <span>256-Bit SSL</span>
               </span>
-              <span className="font-extrabold text-blue-900">
-                {selectedSlot.date_label} ({selectedSlot.label})
+              <span>•</span>
+              <span className="flex items-center gap-1">
+                <i className="fa-solid fa-bolt text-amber-500"></i>
+                <span>Instant Dispatch</span>
+              </span>
+              <span>•</span>
+              <span className="flex items-center gap-1">
+                <i className="fa-solid fa-certificate text-blue-500"></i>
+                <span>100% Genuine</span>
               </span>
             </div>
-          )}
-          {discount > 0 && (
-            <div className="bill-row text-emerald-700 font-medium">
-              <span className="flex items-center gap-1.5">
-                <i className="fa-solid fa-tag text-xs text-emerald-600"></i>
-                <span>Coupon Savings {appliedCouponCode ? `(${appliedCouponCode})` : ''}</span>
-              </span>
-              <span className="font-bold">-₹{discount}</span>
-            </div>
-          )}
-          {rewardPointsDeduction > 0 && (
-            <div
-              id="rewardPointsBillRow"
-              data-testid="reward-points-bill-row"
-              className="bill-row text-amber-900 bg-amber-50/80 p-1.5 rounded-lg border border-amber-200/60"
-            >
-              <span className="flex items-center gap-1.5">
-                <i className="fa-solid fa-star text-amber-500 text-xs"></i>
-                <span>Reward Points Applied (-{effectivePointsToRedeem} pts)</span>
-              </span>
-              <span className="font-extrabold text-amber-800">-₹{rewardPointsDeduction.toFixed(2)}</span>
-            </div>
-          )}
-          {walletDeduction > 0 && (
-            <div className="bill-row text-purple-700 bg-purple-50/70 p-1.5 rounded-lg">
-              <span className="flex items-center gap-1.5">
-                <i className="fa-solid fa-wallet text-purple-600"></i>
-                <span>ADAB Wallet Balance Applied</span>
-              </span>
-              <span className="font-extrabold">-₹{walletDeduction.toFixed(2)}</span>
-            </div>
-          )}
-          <div className="bill-row border-t border-dashed pt-2.5">
-            <span className="font-black text-gray-900 text-sm">Total Payable</span>
-            <span className="font-black text-emerald-800 text-lg">₹{totalPayable}</span>
           </div>
         </div>
-
-        {/* Reward Points Banner */}
-        <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 flex items-center gap-2">
-          <i className="fa-solid fa-star text-amber-500"></i>
-          <span>
-            You will earn <strong className="font-bold">{pointsEarned}</strong> ADAB reward points on this order!
-          </span>
-        </div>
-      </div>
-
-      {/* Action Buttons with Double-Click Guard (Day 3 Frontend Task 5) */}
-      <div className="space-y-2">
-        <button
-          type="button"
-          onClick={() => handlePlaceOrderSubmit()}
-          disabled={loading || items.length === 0 || isSubmittingRef.current || paymentProcessing.isOpen}
-          className="green-btn text-base font-extrabold py-4 shadow-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading || paymentProcessing.isOpen ? (
-            <>
-              <i className="fa-solid fa-spinner fa-spin"></i>
-              <span>Processing Order...</span>
-            </>
-          ) : (
-            <>
-              <i className="fa-solid fa-lock"></i>
-              <span>Place Order · Pay ₹{totalPayable}</span>
-            </>
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={onBackToCart}
-          className="w-full text-center text-xs font-bold text-gray-500 hover:text-gray-800 py-2 cursor-pointer"
-        >
-          ← Return to Basket
-        </button>
       </div>
 
       {/* Address Selector Drawer / Modal */}

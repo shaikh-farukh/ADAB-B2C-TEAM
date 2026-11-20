@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { AuthAPI } from '../services/api';
 import { lookupPincode, getOfflinePincodeHint } from '../utils/pincode';
 
 /**
  * LoginPage Component - ADAB Customer Portal
- * Clean, minimal, premium single-card authentication
+ * Clean, minimal, premium pop-up modal authentication
  *
  * Preserves ALL functionalities:
  * - Email OTP (Brevo SMTP 6-digit verification code) & Password login
@@ -21,13 +22,34 @@ import { lookupPincode, getOfflinePincodeHint } from '../utils/pincode';
  *             - Pincode auto-detection for Surat/Gujarat
  * - Forgot & Reset Password flows
  */
-export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest, initialMode = 'login' }) {
+export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest, onClose, initialMode = 'login' }) {
   // Modes: 'login' | 'register' | 'forgot' | 'reset'
   const [prevInitialMode, setPrevInitialMode] = useState(initialMode);
   const [mode, setMode] = useState(initialMode === 'signup' ? 'register' : (initialMode || 'login'));
 
   // Multi-step Registration Wizard: 1 (Details) | 2 (OTP) | 3 (Address)
   const [signupStep, setSignupStep] = useState(1);
+
+  const handleClose = useCallback(() => {
+    if (onClose) {
+      onClose();
+    } else if (onContinueGuest) {
+      onContinueGuest();
+    } else if (onNavigate) {
+      onNavigate('home');
+    }
+  }, [onClose, onContinueGuest, onNavigate]);
+
+  // Handle ESC key to dismiss modal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        handleClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleClose]);
 
   // Synchronize mode if initialMode changes dynamically from parent navigation
   if (initialMode !== prevInitialMode) {
@@ -845,57 +867,93 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
     }
   };
 
-  return (
-    <div className="min-h-[calc(100vh-56px)] sm:min-h-[calc(100vh-64px)] w-full flex flex-col items-center justify-center p-4 sm:p-6 bg-gradient-to-b from-[#F6F9F6] via-white to-[#F8F9FA]">
-      <div className="w-full max-w-[440px] bg-white rounded-2xl border border-slate-200/80 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.06)] p-6 sm:p-8 transition-all">
-        {/* ADAB Header with Logo */}
-        <div className="flex items-center mb-2">
+  const modalContent = (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="authModalHeading"
+      id="loginModalOverlay"
+      className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 9999,
+        backgroundColor: 'rgba(15, 23, 42, 0.45)',
+        backdropFilter: 'blur(3px)',
+        WebkitBackdropFilter: 'blur(3px)'
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          handleClose();
+        }
+      }}
+    >
+      <div
+        className="relative w-full max-w-[460px] my-auto bg-white rounded-[28px] border border-slate-200/90 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.28)] p-5 sm:p-6 transition-all max-h-[96vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header with ADAB Logo and Close button */}
+        <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-2xl bg-[#18753C] text-white flex items-center justify-center font-black text-xl shadow-xs">
+            <div className="w-8 h-8 rounded-xl bg-[#18753C] text-white flex items-center justify-center font-black text-base shadow-xs">
               A
             </div>
-            <span className="font-extrabold text-2xl tracking-tight text-slate-900">ADAB</span>
+            <div>
+              <span className="font-extrabold text-xl tracking-tight text-slate-900 leading-none">ADAB</span>
+              <p className="text-[10px] text-slate-500 font-normal leading-tight">
+                Neighbourhood shops delivered in minutes
+              </p>
+            </div>
           </div>
+
+          <button
+            type="button"
+            onClick={handleClose}
+            aria-label="Close"
+            className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <i className="fa-solid fa-xmark text-xs"></i>
+          </button>
         </div>
 
-        {/* Short tagline under logo */}
-        <p className="text-xs text-slate-500 font-normal mb-3">
-          Neighbourhood shops delivered in minutes
-        </p>
-
         {/* Heading */}
-        <h1 className="text-[26px] sm:text-[28px] font-semibold text-slate-900 text-center tracking-tight leading-tight">
-          {mode === 'register'
-            ? (signupStep === 1 ? 'Create an account' : signupStep === 2 ? 'Verify your contact' : 'Delivery address')
-            : mode === 'forgot'
-            ? 'Reset password'
-            : mode === 'reset'
-            ? 'Set new password'
-            : 'Welcome back'}
-        </h1>
-
-        {/* Subtext */}
-        <p className="text-sm text-slate-500 font-normal text-center mt-1 mb-5">
-          {mode === 'register'
-            ? (signupStep === 1
-                ? 'Sign up to start shopping local'
-                : signupStep === 2
-                ? `Enter 6-digit code sent to ${regEmail || regPhone}`
-                : 'Set your address for 14-45 min local delivery')
-            : mode === 'forgot'
-            ? 'Enter your email to receive a recovery code'
-            : mode === 'reset'
-            ? 'Enter your OTP and choose a new password'
-            : 'Log in to continue shopping'}
-        </p>
+        <div className="text-center my-1.5">
+          <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight leading-snug">
+            {mode === 'register'
+              ? (signupStep === 1 ? 'Create an account' : signupStep === 2 ? 'Verify your contact' : 'Delivery address')
+              : mode === 'forgot'
+              ? 'Reset password'
+              : mode === 'reset'
+              ? 'Set new password'
+              : 'Welcome back'}
+          </h1>
+          <p className="text-[11px] text-slate-500 font-normal mt-0.5">
+            {mode === 'register'
+              ? (signupStep === 1
+                  ? 'Sign up to start shopping local'
+                  : signupStep === 2
+                  ? `Enter 6-digit code sent to ${regEmail || regPhone}`
+                  : 'Set your address for 14-45 min local delivery')
+              : mode === 'forgot'
+              ? 'Enter your email to receive a recovery code'
+              : mode === 'reset'
+              ? 'Enter your OTP and choose a new password'
+              : 'Log in to continue shopping'}
+          </p>
+        </div>
 
         {/* Segmented Toggle: Login | Create Account */}
         {(mode === 'login' || mode === 'register') && (
-          <div className="relative bg-slate-100 p-1 rounded-xl flex items-center mb-5" role="tablist">
+          <div className="relative bg-slate-100 p-0.5 rounded-lg flex items-center mb-2" role="tablist">
             <div
-              className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-lg shadow-xs transition-all duration-200 ease-out"
+              className="absolute top-0.5 bottom-0.5 w-[calc(50%-2px)] bg-white rounded-md shadow-xs transition-all duration-200 ease-out"
               style={{
-                left: mode === 'register' ? 'calc(50% + 2px)' : '4px'
+                left: mode === 'register' ? 'calc(50% + 1px)' : '2px'
               }}
               aria-hidden="true"
             />
@@ -904,8 +962,8 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
               role="tab"
               aria-selected={mode === 'login'}
               onClick={() => switchMode('login')}
-              className={`relative z-10 w-1/2 py-2 text-center text-sm transition-colors duration-150 cursor-pointer ${
-                mode === 'login' ? 'text-slate-900 font-semibold' : 'text-slate-500 font-normal hover:text-slate-800'
+              className={`relative z-10 w-1/2 py-1 text-center text-xs transition-colors duration-150 cursor-pointer ${
+                mode === 'login' ? 'text-slate-900 font-bold' : 'text-slate-500 font-normal hover:text-slate-800'
               }`}
             >
               Login
@@ -915,8 +973,8 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
               role="tab"
               aria-selected={mode === 'register'}
               onClick={() => switchMode('register')}
-              className={`relative z-10 w-1/2 py-2 text-center text-sm transition-colors duration-150 cursor-pointer ${
-                mode === 'register' ? 'text-slate-900 font-semibold' : 'text-slate-500 font-normal hover:text-slate-800'
+              className={`relative z-10 w-1/2 py-1 text-center text-xs transition-colors duration-150 cursor-pointer ${
+                mode === 'register' ? 'text-slate-900 font-bold' : 'text-slate-500 font-normal hover:text-slate-800'
               }`}
             >
               Create Account
@@ -926,32 +984,32 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
 
         {/* Multi-step Stepper Indicator for Sign Up */}
         {mode === 'register' && (
-          <div className="flex items-center justify-between mb-5 px-1">
+          <div className="flex items-center justify-between mb-2 px-1">
             {[
               { step: 1, label: 'Details' },
               { step: 2, label: 'Verify' },
               { step: 3, label: 'Address' }
             ].map((item, idx) => (
-              <div key={item.step} className="flex items-center gap-1.5">
+              <div key={item.step} className="flex items-center gap-1">
                 <div
-                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${
+                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
                     signupStep > item.step
                       ? 'bg-[#18753C] text-white'
                       : signupStep === item.step
-                      ? 'bg-[#18753C] text-white shadow-xs ring-2 ring-[#18753C]/20'
+                      ? 'bg-[#18753C] text-white shadow-xs'
                       : 'bg-slate-100 text-slate-400'
                   }`}
                 >
-                  {signupStep > item.step ? <i className="fa-solid fa-check text-[10px]"></i> : item.step}
+                  {signupStep > item.step ? <i className="fa-solid fa-check text-[8px]"></i> : item.step}
                 </div>
                 <span
-                  className={`text-xs ${
-                    signupStep === item.step ? 'font-semibold text-slate-900' : 'text-slate-400 font-normal'
+                  className={`text-[11px] ${
+                    signupStep === item.step ? 'font-bold text-slate-900' : 'text-slate-400 font-normal'
                   }`}
                 >
                   {item.label}
                 </span>
-                {idx < 2 && <div className="w-5 sm:w-8 h-[1px] bg-slate-200 mx-1"></div>}
+                {idx < 2 && <div className="w-6 sm:w-10 h-[1px] bg-slate-200 mx-1"></div>}
               </div>
             ))}
           </div>
@@ -961,7 +1019,7 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
         {errorMsg && (
           <div
             role="alert"
-            className="mb-4 p-3 rounded-xl bg-red-50/80 border border-red-100 text-red-700 text-xs font-normal flex items-start gap-2"
+            className="mb-2 p-2 rounded-lg bg-red-50/80 border border-red-100 text-red-700 text-xs font-normal flex items-start gap-1.5"
           >
             <i className="fa-solid fa-circle-exclamation text-red-500 mt-0.5 shrink-0 text-xs"></i>
             <span className="flex-1 leading-relaxed">{errorMsg}</span>
@@ -970,7 +1028,7 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
         {successMsg && (
           <div
             role="status"
-            className="mb-4 p-3 rounded-xl bg-emerald-50/80 border border-emerald-100 text-[#18753C] text-xs font-normal flex items-start gap-2"
+            className="mb-2 p-2 rounded-lg bg-emerald-50/80 border border-emerald-100 text-[#18753C] text-xs font-normal flex items-start gap-1.5"
           >
             <i className="fa-solid fa-circle-check text-[#18753C] mt-0.5 shrink-0 text-xs"></i>
             <span className="flex-1 leading-relaxed">{successMsg}</span>
@@ -981,22 +1039,22 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
             VIEW 1: LOGIN (SIGN IN) - EMAIL OTP & PASSWORD
         ======================================================== */}
         {mode === 'login' && (
-          <div className="space-y-4">
+          <div className="space-y-2">
             {/* Sub-toggle: Email OTP vs Password */}
-            <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-medium">
+            <div className="flex bg-slate-100 p-0.5 rounded-lg text-xs font-medium">
               <button
                 type="button"
                 onClick={() => {
                   setLoginMethod('otp');
                   clearFeedback();
                 }}
-                className={`flex-1 py-1.5 text-center rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                className={`flex-1 py-1 text-center rounded-md transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                   loginMethod === 'otp'
                     ? 'bg-white text-[#18753C] font-semibold shadow-xs'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <i className="fa-solid fa-envelope-open-text text-[11px]"></i>
+                <i className="fa-solid fa-envelope-open-text text-[10px]"></i>
                 <span>Email OTP</span>
               </button>
               <button
@@ -1005,13 +1063,13 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
                   setLoginMethod('password');
                   clearFeedback();
                 }}
-                className={`flex-1 py-1.5 text-center rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                className={`flex-1 py-1 text-center rounded-md transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                   loginMethod === 'password'
                     ? 'bg-white text-[#18753C] font-semibold shadow-xs'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <i className="fa-solid fa-lock text-[11px]"></i>
+                <i className="fa-solid fa-lock text-[10px]"></i>
                 <span>Password</span>
               </button>
             </div>
@@ -1020,9 +1078,9 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
             {loginMethod === 'otp' && (
               <div>
                 {loginOtpStep === 1 ? (
-                  <form onSubmit={handleSendLoginOtp} className="space-y-3.5">
+                  <form onSubmit={handleSendLoginOtp} className="space-y-2">
                     <div>
-                      <label htmlFor="loginEmailOtp" className="block text-[13px] font-semibold text-slate-700 mb-1.5">
+                      <label htmlFor="loginEmailOtp" className="block text-[11px] font-semibold text-slate-700 mb-0.5">
                         Registered Email
                       </label>
                       <input
@@ -1035,44 +1093,44 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
                           if (errorMsg) clearFeedback();
                         }}
                         placeholder="you@example.com"
-                        className="w-full h-[48px] px-3.5 bg-white border border-slate-200 rounded-xl text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-2 focus:ring-[#18753C]/10 transition-all font-normal"
+                        className="w-full h-[36px] px-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-1 focus:ring-[#18753C]/20 transition-all font-normal"
                       />
-                      <p className="text-[11px] text-slate-400 mt-1">We'll send a 6-digit login code to your email inbox</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">We'll send a 6-digit login code to your email inbox</p>
                     </div>
 
                     <button
                       type="submit"
                       disabled={loading || googleLoading}
-                      className="w-full h-[48px] bg-[#18753C] hover:bg-[#135d30] text-white font-semibold text-[15px] rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+                      className="w-full h-[38px] bg-[#18753C] hover:bg-[#135d30] text-white font-semibold text-xs rounded-lg shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed mt-1"
                     >
                       {loading ? (
                         <>
-                          <i className="fa-solid fa-circle-notch fa-spin text-sm"></i>
+                          <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
                           <span>Sending code...</span>
                         </>
                       ) : (
                         <>
                           <span>Send Login Code</span>
-                          <i className="fa-solid fa-arrow-right text-xs"></i>
+                          <i className="fa-solid fa-arrow-right text-[10px]"></i>
                         </>
                       )}
                     </button>
                   </form>
                 ) : (
-                  <form onSubmit={handleVerifyLoginOtp} className="space-y-3.5">
-                    <div className="p-3 bg-emerald-50/80 border border-emerald-100 rounded-xl text-xs text-[#18753C] flex items-center justify-between">
+                  <form onSubmit={handleVerifyLoginOtp} className="space-y-2">
+                    <div className="p-2 bg-emerald-50/80 border border-emerald-100 rounded-lg text-xs text-[#18753C] flex items-center justify-between">
                       <div className="truncate">Code sent to <strong>{loginEmail}</strong></div>
                       <button
                         type="button"
                         onClick={() => setLoginOtpStep(1)}
-                        className="text-[11px] font-bold underline ml-2 shrink-0 cursor-pointer"
+                        className="text-[10px] font-bold underline ml-2 shrink-0 cursor-pointer"
                       >
                         Change
                       </button>
                     </div>
 
                     <div>
-                      <label htmlFor="loginOtpInput" className="block text-[13px] font-semibold text-slate-700 mb-1.5 text-center">
+                      <label htmlFor="loginOtpInput" className="block text-xs font-semibold text-slate-700 mb-1 text-center">
                         Enter 6-Digit Code
                       </label>
                       <input
@@ -1084,11 +1142,11 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
                         value={loginOtp}
                         onChange={(e) => setLoginOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                         placeholder="------"
-                        className="w-full h-[52px] text-center bg-slate-50 border-2 border-[#18753C] rounded-xl text-2xl font-mono tracking-[0.4em] font-black text-slate-900 focus:outline-none focus:bg-white transition-all shadow-xs"
+                        className="w-full h-[42px] text-center bg-slate-50 border-2 border-[#18753C] rounded-lg text-xl font-mono tracking-[0.3em] font-black text-slate-900 focus:outline-none focus:bg-white transition-all shadow-xs"
                       />
                     </div>
 
-                    <div className="flex items-center justify-between text-xs pt-1">
+                    <div className="flex items-center justify-between text-[11px] pt-0.5">
                       <span className="text-slate-400">Didn't receive code?</span>
                       {loginOtpTimer > 0 ? (
                         <span className="font-semibold text-slate-400">Resend in {loginOtpTimer}s</span>
@@ -1104,14 +1162,14 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2.5 pt-1">
+                    <div className="flex items-center gap-2 pt-1">
                       <button
                         type="button"
                         onClick={() => {
                           clearFeedback();
                           setLoginOtpStep(1);
                         }}
-                        className="w-1/3 h-[48px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition cursor-pointer flex items-center justify-center gap-1"
+                        className="w-1/3 h-[38px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition cursor-pointer flex items-center justify-center gap-1"
                       >
                         <i className="fa-solid fa-arrow-left text-[10px]"></i>
                         <span>Back</span>
@@ -1120,17 +1178,17 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
                       <button
                         type="submit"
                         disabled={loading || loginOtp.length < 4}
-                        className="flex-1 h-[48px] bg-[#18753C] hover:bg-[#135d30] text-white font-semibold text-[15px] rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="flex-1 h-[38px] bg-[#18753C] hover:bg-[#135d30] text-white font-semibold text-xs rounded-lg shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {loading ? (
                           <>
-                            <i className="fa-solid fa-circle-notch fa-spin text-sm"></i>
+                            <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
                             <span>Verifying...</span>
                           </>
                         ) : (
                           <>
                             <span>Verify &amp; Log In</span>
-                            <i className="fa-solid fa-arrow-right text-xs"></i>
+                            <i className="fa-solid fa-arrow-right text-[10px]"></i>
                           </>
                         )}
                       </button>
@@ -1142,9 +1200,9 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
 
             {/* B: Password Login */}
             {loginMethod === 'password' && (
-              <form onSubmit={handleLoginSubmit} className="space-y-4">
+              <form onSubmit={handleLoginSubmit} className="space-y-2">
                 <div>
-                  <label htmlFor="loginEmail" className="block text-[13px] sm:text-[14px] font-semibold text-slate-700 mb-1.5">
+                  <label htmlFor="loginEmail" className="block text-[11px] font-semibold text-slate-700 mb-0.5">
                     Email Address
                   </label>
                   <input
@@ -1159,14 +1217,23 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
                       if (errorMsg) clearFeedback();
                     }}
                     placeholder="you@example.com"
-                    className="w-full h-[48px] px-3.5 bg-white border border-slate-200 rounded-xl text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-2 focus:ring-[#18753C]/10 transition-all font-normal"
+                    className="w-full h-[36px] px-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-1 focus:ring-[#18753C]/20 transition-all font-normal"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="loginPassword" className="block text-[13px] sm:text-[14px] font-semibold text-slate-700 mb-1.5">
-                    Password
-                  </label>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <label htmlFor="loginPassword" className="block text-[11px] font-semibold text-slate-700">
+                      Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => switchMode('forgot')}
+                      className="text-[11px] font-semibold text-[#18753C] hover:underline cursor-pointer"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
                   <div className="relative">
                     <input
                       id="loginPassword"
@@ -1180,24 +1247,15 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
                         if (errorMsg) clearFeedback();
                       }}
                       placeholder="Enter your password"
-                      className="w-full h-[48px] pl-3.5 pr-11 bg-white border border-slate-200 rounded-xl text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-2 focus:ring-[#18753C]/10 transition-all font-normal"
+                      className="w-full h-[36px] pl-2.5 pr-8 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-1 focus:ring-[#18753C]/20 transition-all font-normal"
                     />
                     <button
                       type="button"
                       onClick={() => setShowLoginPassword(!showLoginPassword)}
                       aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
-                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                      className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
                     >
-                      <i className={`fa-solid ${showLoginPassword ? 'fa-eye-slash' : 'fa-eye'} text-sm`}></i>
-                    </button>
-                  </div>
-                  <div className="flex justify-end mt-1.5">
-                    <button
-                      type="button"
-                      onClick={() => switchMode('forgot')}
-                      className="text-[13px] font-semibold text-[#18753C] hover:underline cursor-pointer"
-                    >
-                      Forgot password?
+                      <i className={`fa-solid ${showLoginPassword ? 'fa-eye-slash' : 'fa-eye'} text-xs`}></i>
                     </button>
                   </div>
                 </div>
@@ -1205,11 +1263,11 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
                 <button
                   type="submit"
                   disabled={loading || googleLoading}
-                  className="w-full h-[48px] bg-[#18753C] hover:bg-[#135d30] text-white font-semibold text-[15px] rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+                  className="w-full h-[38px] bg-[#18753C] hover:bg-[#135d30] text-white font-semibold text-xs rounded-lg shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed mt-1"
                 >
                   {loading ? (
                     <>
-                      <i className="fa-solid fa-circle-notch fa-spin text-sm"></i>
+                      <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
                       <span>Logging in...</span>
                     </>
                   ) : (
@@ -1225,29 +1283,57 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
             VIEW 2: SIGN UP - STEP 1: PERSONAL DETAILS
         ======================================================== */}
         {mode === 'register' && signupStep === 1 && (
-          <form onSubmit={handleStep1Submit} className="space-y-3.5">
-            <div>
-              <label htmlFor="regName" className="block text-[13px] sm:text-[14px] font-semibold text-slate-700 mb-1.5">
-                Full Name
-              </label>
-              <input
-                id="regName"
-                name="name"
-                type="text"
-                autoComplete="name"
-                required
-                value={regName}
-                onChange={(e) => {
-                  setRegName(e.target.value);
-                  if (errorMsg) clearFeedback();
-                }}
-                placeholder="e.g. Priya Sharma"
-                className="w-full h-[48px] px-3.5 bg-white border border-slate-200 rounded-xl text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-2 focus:ring-[#18753C]/10 transition-all font-normal"
-              />
+          <form onSubmit={handleStep1Submit} className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label htmlFor="regName" className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                  Full Name
+                </label>
+                <input
+                  id="regName"
+                  name="name"
+                  type="text"
+                  autoComplete="name"
+                  required
+                  value={regName}
+                  onChange={(e) => {
+                    setRegName(e.target.value);
+                    if (errorMsg) clearFeedback();
+                  }}
+                  placeholder="e.g. Priya Sharma"
+                  className="w-full h-[36px] px-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-1 focus:ring-[#18753C]/20 transition-all font-normal"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="regPhone" className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                  Mobile Number
+                </label>
+                <div className="relative flex items-center">
+                  <span className="absolute left-2.5 text-[11px] font-semibold text-slate-500 pointer-events-none">
+                    +91
+                  </span>
+                  <input
+                    id="regPhone"
+                    name="phone"
+                    type="tel"
+                    autoComplete="tel"
+                    required
+                    maxLength={10}
+                    value={regPhone}
+                    onChange={(e) => {
+                      setRegPhone(e.target.value.replace(/\D/g, '').slice(0, 10));
+                      if (errorMsg) clearFeedback();
+                    }}
+                    placeholder="98765 12340"
+                    className="w-full h-[36px] pl-9 pr-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-1 focus:ring-[#18753C]/20 transition-all font-normal"
+                  />
+                </div>
+              </div>
             </div>
 
             <div>
-              <label htmlFor="regEmail" className="block text-[13px] sm:text-[14px] font-semibold text-slate-700 mb-1.5">
+              <label htmlFor="regEmail" className="block text-[11px] font-semibold text-slate-700 mb-0.5">
                 Email Address
               </label>
               <input
@@ -1262,110 +1348,86 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
                   if (errorMsg) clearFeedback();
                 }}
                 placeholder="you@example.com"
-                className="w-full h-[48px] px-3.5 bg-white border border-slate-200 rounded-xl text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-2 focus:ring-[#18753C]/10 transition-all font-normal"
+                className="w-full h-[36px] px-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-1 focus:ring-[#18753C]/20 transition-all font-normal"
               />
             </div>
 
-            <div>
-              <label htmlFor="regPhone" className="block text-[13px] sm:text-[14px] font-semibold text-slate-700 mb-1.5">
-                Mobile Number
-              </label>
-              <div className="relative flex items-center">
-                <span className="absolute left-3.5 text-xs font-semibold text-slate-500 pointer-events-none">
-                  +91
-                </span>
-                <input
-                  id="regPhone"
-                  name="phone"
-                  type="tel"
-                  autoComplete="tel"
-                  required
-                  maxLength={10}
-                  value={regPhone}
-                  onChange={(e) => {
-                    setRegPhone(e.target.value.replace(/\D/g, '').slice(0, 10));
-                    if (errorMsg) clearFeedback();
-                  }}
-                  placeholder="98765 12340"
-                  className="w-full h-[48px] pl-11 pr-3.5 bg-white border border-slate-200 rounded-xl text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-2 focus:ring-[#18753C]/10 transition-all font-normal"
-                />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label htmlFor="regPassword" className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                  Password
+                </label>
+                <div className="relative">
+                  <input
+                    id="regPassword"
+                    name="password"
+                    type={showRegPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    required
+                    value={regPassword}
+                    onChange={(e) => {
+                      setRegPassword(e.target.value);
+                      if (errorMsg) clearFeedback();
+                    }}
+                    placeholder="Min 6 chars"
+                    className="w-full h-[36px] pl-2.5 pr-8 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-1 focus:ring-[#18753C]/20 transition-all font-normal"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowRegPassword(!showRegPassword)}
+                    aria-label={showRegPassword ? 'Hide password' : 'Show password'}
+                    className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                  >
+                    <i className={`fa-solid ${showRegPassword ? 'fa-eye-slash' : 'fa-eye'} text-xs`}></i>
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label htmlFor="regPassword" className="block text-[13px] sm:text-[14px] font-semibold text-slate-700 mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="regPassword"
-                  name="password"
-                  type={showRegPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  required
-                  value={regPassword}
-                  onChange={(e) => {
-                    setRegPassword(e.target.value);
-                    if (errorMsg) clearFeedback();
-                  }}
-                  placeholder="At least 6 characters"
-                  className="w-full h-[48px] pl-3.5 pr-11 bg-white border border-slate-200 rounded-xl text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-2 focus:ring-[#18753C]/10 transition-all font-normal"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowRegPassword(!showRegPassword)}
-                  aria-label={showRegPassword ? 'Hide password' : 'Show password'}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-                >
-                  <i className={`fa-solid ${showRegPassword ? 'fa-eye-slash' : 'fa-eye'} text-sm`}></i>
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="regConfirmPassword" className="block text-[13px] sm:text-[14px] font-semibold text-slate-700 mb-1.5">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <input
-                  id="regConfirmPassword"
-                  name="confirmPassword"
-                  type={showRegConfirmPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  required
-                  value={regConfirmPassword}
-                  onChange={(e) => {
-                    setRegConfirmPassword(e.target.value);
-                    if (errorMsg) clearFeedback();
-                  }}
-                  placeholder="Re-enter password"
-                  className="w-full h-[48px] pl-3.5 pr-11 bg-white border border-slate-200 rounded-xl text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-2 focus:ring-[#18753C]/10 transition-all font-normal"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowRegConfirmPassword(!showRegConfirmPassword)}
-                  aria-label={showRegConfirmPassword ? 'Hide password' : 'Show password'}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-                >
-                  <i className={`fa-solid ${showRegConfirmPassword ? 'fa-eye-slash' : 'fa-eye'} text-sm`}></i>
-                </button>
+              <div>
+                <label htmlFor="regConfirmPassword" className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                  Confirm Password
+                </label>
+                <div className="relative">
+                  <input
+                    id="regConfirmPassword"
+                    name="confirmPassword"
+                    type={showRegConfirmPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    required
+                    value={regConfirmPassword}
+                    onChange={(e) => {
+                      setRegConfirmPassword(e.target.value);
+                      if (errorMsg) clearFeedback();
+                    }}
+                    placeholder="Re-enter password"
+                    className="w-full h-[36px] pl-2.5 pr-8 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-1 focus:ring-[#18753C]/20 transition-all font-normal"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowRegConfirmPassword(!showRegConfirmPassword)}
+                    aria-label={showRegConfirmPassword ? 'Hide password' : 'Show password'}
+                    className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                  >
+                    <i className={`fa-solid ${showRegConfirmPassword ? 'fa-eye-slash' : 'fa-eye'} text-xs`}></i>
+                  </button>
+                </div>
               </div>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-[48px] bg-[#18753C] hover:bg-[#135d30] text-white font-semibold text-[15px] rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+              className="w-full h-[38px] bg-[#18753C] hover:bg-[#135d30] text-white font-semibold text-xs rounded-lg shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed mt-1"
             >
               {loading ? (
                 <>
-                  <i className="fa-solid fa-circle-notch fa-spin text-sm"></i>
+                  <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
                   <span>Sending code...</span>
                 </>
               ) : (
                 <>
                   <span>Continue to Verification</span>
-                  <i className="fa-solid fa-arrow-right text-xs"></i>
+                  <i className="fa-solid fa-arrow-right text-[10px]"></i>
                 </>
               )}
             </button>
@@ -1376,20 +1438,20 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
             VIEW 3: SIGN UP - STEP 2: OTP VERIFICATION
         ======================================================== */}
         {mode === 'register' && signupStep === 2 && (
-          <form onSubmit={handleStep2Submit} className="space-y-4">
-            <div className="p-3 bg-emerald-50/80 border border-emerald-100 rounded-xl text-xs text-[#18753C] flex items-center justify-between">
+          <form onSubmit={handleStep2Submit} className="space-y-2.5">
+            <div className="p-2 bg-emerald-50/80 border border-emerald-100 rounded-lg text-xs text-[#18753C] flex items-center justify-between">
               <div className="truncate">Code sent to <strong>{regEmail}</strong></div>
               <button
                 type="button"
                 onClick={() => setSignupStep(1)}
-                className="text-[11px] font-bold underline ml-2 shrink-0 cursor-pointer"
+                className="text-[10px] font-bold underline ml-2 shrink-0 cursor-pointer"
               >
                 Change
               </button>
             </div>
 
             <div>
-              <label htmlFor="regOtpInput" className="block text-[13px] font-semibold text-slate-700 mb-1.5 text-center">
+              <label htmlFor="regOtpInput" className="block text-xs font-semibold text-slate-700 mb-1 text-center">
                 Enter 6-Digit Code
               </label>
               <input
@@ -1404,11 +1466,11 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
                   if (errorMsg) clearFeedback();
                 }}
                 placeholder="------"
-                className="w-full h-[52px] text-center bg-slate-50 border-2 border-[#18753C] rounded-xl text-2xl font-mono tracking-[0.4em] font-black text-slate-900 focus:outline-none focus:bg-white transition-all shadow-xs"
+                className="w-full h-[42px] text-center bg-slate-50 border-2 border-[#18753C] rounded-lg text-xl font-mono tracking-[0.3em] font-black text-slate-900 focus:outline-none focus:bg-white transition-all shadow-xs"
               />
             </div>
 
-            <div className="flex items-center justify-between text-xs pt-1">
+            <div className="flex items-center justify-between text-[11px] pt-0.5">
               <span className="text-slate-400">Didn't receive code?</span>
               {otpResendTimer > 0 ? (
                 <span className="font-semibold text-slate-400">Resend in {otpResendTimer}s</span>
@@ -1424,14 +1486,14 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
               )}
             </div>
 
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex items-center gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => {
                   clearFeedback();
                   setSignupStep(1);
                 }}
-                className="w-1/3 h-[48px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5"
+                className="w-1/3 h-[38px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition cursor-pointer flex items-center justify-center gap-1"
               >
                 <i className="fa-solid fa-arrow-left text-[10px]"></i>
                 <span>Back</span>
@@ -1440,17 +1502,17 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
               <button
                 type="submit"
                 disabled={loading || regOtp.length < 4}
-                className="flex-1 h-[48px] bg-[#18753C] hover:bg-[#135d30] text-white font-semibold text-[15px] rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex-1 h-[38px] bg-[#18753C] hover:bg-[#135d30] text-white font-semibold text-xs rounded-lg shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <>
-                    <i className="fa-solid fa-circle-notch fa-spin text-sm"></i>
+                    <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
                     <span>Verifying...</span>
                   </>
                 ) : (
                   <>
                     <span>Verify & Continue</span>
-                    <i className="fa-solid fa-arrow-right text-xs"></i>
+                    <i className="fa-solid fa-arrow-right text-[10px]"></i>
                   </>
                 )}
               </button>
@@ -1462,13 +1524,10 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
             VIEW 4: SIGN UP - STEP 3: DELIVERY ADDRESS
         ======================================================== */}
         {mode === 'register' && signupStep === 3 && (
-          <form onSubmit={handleStep3Submit} className="space-y-3.5">
+          <form onSubmit={handleStep3Submit} className="space-y-2">
             {/* Address Type Selection */}
             <div>
-              <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">
-                Address Type
-              </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-1.5">
                 {[
                   { key: 'Home', icon: 'fa-house' },
                   { key: 'Work', icon: 'fa-briefcase' },
@@ -1478,13 +1537,13 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
                     key={t.key}
                     type="button"
                     onClick={() => setRegAddressType(t.key)}
-                    className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                    className={`py-1 px-2 rounded-lg border text-[11px] font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer ${
                       regAddressType === t.key
                         ? 'border-[#18753C] bg-emerald-50 text-[#18753C] shadow-xs'
                         : 'border-slate-200 text-slate-600 hover:border-slate-300'
                     }`}
                   >
-                    <i className={`fa-solid ${t.icon} text-[11px]`}></i>
+                    <i className={`fa-solid ${t.icon} text-[10px]`}></i>
                     <span>{t.key}</span>
                   </button>
                 ))}
@@ -1492,9 +1551,9 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
             </div>
 
             {/* Recipient Name & Phone */}
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
                   Recipient Name
                 </label>
                 <input
@@ -1503,11 +1562,11 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
                   value={regRecipientName}
                   onChange={(e) => setRegRecipientName(e.target.value)}
                   placeholder="Full Name"
-                  className="w-full h-[44px] px-3 bg-white border border-slate-200 rounded-xl text-xs font-normal text-slate-900 focus:outline-none focus:border-[#18753C]"
+                  className="w-full h-[34px] px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-normal text-slate-900 focus:outline-none focus:border-[#18753C]"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
                   Contact Phone
                 </label>
                 <input
@@ -1516,87 +1575,74 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
                   value={regRecipientPhone}
                   onChange={(e) => setRegRecipientPhone(e.target.value)}
                   placeholder="Mobile Phone"
-                  className="w-full h-[44px] px-3 bg-white border border-slate-200 rounded-xl text-xs font-normal text-slate-900 focus:outline-none focus:border-[#18753C]"
+                  className="w-full h-[34px] px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-normal text-slate-900 focus:outline-none focus:border-[#18753C]"
                 />
               </div>
             </div>
 
-            {/* House / Flat / Block No */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                House / Flat / Block No <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <i className="fa-solid fa-house-chimney text-xs"></i>
-                </span>
+            {/* House / Flat & Building in 2 cols */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                  Flat / House No <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
                   value={regHouseNumber}
                   onChange={(e) => setRegHouseNumber(e.target.value)}
-                  placeholder="e.g. Flat 502, 5th Floor / House 12"
-                  className="w-full h-[44px] pl-8 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-normal text-slate-900 focus:outline-none focus:border-[#18753C]"
+                  placeholder="Flat 502 / House 12"
+                  className="w-full h-[34px] px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-normal text-slate-900 focus:outline-none focus:border-[#18753C]"
                 />
               </div>
-            </div>
-
-            {/* Building / Society / Apartment Name */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Building / Society / Apartment Name <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <i className="fa-solid fa-building text-xs"></i>
-                </span>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                  Building / Society <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
                   value={regBuildingName}
                   onChange={(e) => setRegBuildingName(e.target.value)}
-                  placeholder="e.g. Orchid Heights / Shivalik Residency"
-                  className="w-full h-[44px] pl-8 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-normal text-slate-900 focus:outline-none focus:border-[#18753C]"
+                  placeholder="Shivalik Residency"
+                  className="w-full h-[34px] px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-normal text-slate-900 focus:outline-none focus:border-[#18753C]"
                 />
               </div>
             </div>
 
-            {/* Area / Street / Locality Name */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Area / Street / Locality Name <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <i className="fa-solid fa-road text-xs"></i>
-                </span>
+            {/* Area & Landmark in 2 cols */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                  Area / Locality <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
                   value={regAreaName}
                   onChange={(e) => setRegAreaName(e.target.value)}
-                  placeholder="e.g. VIP Road, Vesu / Adajan Gam"
-                  className="w-full h-[44px] pl-8 pr-3 bg-white border border-slate-200 rounded-xl text-xs font-normal text-slate-900 focus:outline-none focus:border-[#18753C]"
+                  placeholder="VIP Road, Vesu"
+                  className="w-full h-[34px] px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-normal text-slate-900 focus:outline-none focus:border-[#18753C]"
                 />
               </div>
-            </div>
-
-            {/* Landmark & Pincode */}
-            <div className="grid grid-cols-2 gap-2.5">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  Landmark <span className="text-slate-400 font-normal">(optional)</span>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                  Landmark <span className="text-slate-400 font-normal">(opt)</span>
                 </label>
                 <input
                   type="text"
                   value={regLandmark}
                   onChange={(e) => setRegLandmark(e.target.value)}
                   placeholder="Near City Mall"
-                  className="w-full h-[44px] px-3 bg-white border border-slate-200 rounded-xl text-xs font-normal text-slate-900 focus:outline-none focus:border-[#18753C]"
+                  className="w-full h-[34px] px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-normal text-slate-900 focus:outline-none focus:border-[#18753C]"
                 />
               </div>
+            </div>
+
+            {/* Pincode & City */}
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
                   Pincode (6-digit) <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
@@ -1607,62 +1653,62 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
                     value={regPincode}
                     onChange={(e) => handleRegPincodeChange(e.target.value)}
                     placeholder="395007"
-                    className="w-full h-[44px] px-3 bg-white border border-slate-200 rounded-xl text-xs font-normal text-slate-900 focus:outline-none focus:border-[#18753C]"
+                    className="w-full h-[34px] px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-normal text-slate-900 focus:outline-none focus:border-[#18753C]"
                   />
                   {isDetectingRegPin && (
-                    <i className="fa-solid fa-circle-notch fa-spin absolute right-3 top-3.5 text-xs text-slate-400"></i>
+                    <i className="fa-solid fa-circle-notch fa-spin absolute right-2.5 top-2.5 text-xs text-slate-400"></i>
                   )}
                 </div>
               </div>
-            </div>
-
-            {regPinHint && (
-              <p className="text-[11px] text-[#18753C] font-semibold">{regPinHint}</p>
-            )}
-
-            {/* City & State */}
-            <div className="grid grid-cols-2 gap-2.5">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">City</label>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">City</label>
                 <input
                   type="text"
                   required
                   value={regCity}
                   onChange={(e) => setRegCity(e.target.value)}
-                  className="w-full h-[44px] px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-normal text-slate-800 focus:outline-none"
+                  className="w-full h-[34px] px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-normal text-slate-800 focus:outline-none"
                 />
               </div>
+            </div>
+
+            {regPinHint && (
+              <p className="text-[10px] text-[#18753C] font-semibold">{regPinHint}</p>
+            )}
+
+            {/* State & Default address checkbox */}
+            <div className="grid grid-cols-2 gap-2 items-center">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">State</label>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">State</label>
                 <input
                   type="text"
                   required
                   value={regState}
                   onChange={(e) => setRegState(e.target.value)}
-                  className="w-full h-[44px] px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-normal text-slate-800 focus:outline-none"
+                  className="w-full h-[34px] px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-normal text-slate-800 focus:outline-none"
                 />
+              </div>
+              <div className="pt-4">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={regIsDefault}
+                    onChange={(e) => setRegIsDefault(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded text-[#18753C] focus:ring-[#18753C] border-slate-300"
+                  />
+                  <span className="text-[11px] text-slate-600 font-normal">Default address</span>
+                </label>
               </div>
             </div>
 
-            {/* Default address checkbox */}
-            <label className="flex items-center gap-2 cursor-pointer pt-1">
-              <input
-                type="checkbox"
-                checked={regIsDefault}
-                onChange={(e) => setRegIsDefault(e.target.checked)}
-                className="w-4 h-4 rounded text-[#18753C] focus:ring-[#18753C] border-slate-300"
-              />
-              <span className="text-xs text-slate-600 font-normal">Set as default delivery address</span>
-            </label>
-
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex items-center gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => {
                   clearFeedback();
                   setSignupStep(2);
                 }}
-                className="w-1/3 h-[48px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5"
+                className="w-1/3 h-[38px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition cursor-pointer flex items-center justify-center gap-1"
               >
                 <i className="fa-solid fa-arrow-left text-[10px]"></i>
                 <span>Back</span>
@@ -1671,11 +1717,11 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 h-[48px] bg-[#18753C] hover:bg-[#135d30] text-white font-semibold text-sm rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex-1 h-[38px] bg-[#18753C] hover:bg-[#135d30] text-white font-semibold text-xs rounded-lg shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <>
-                    <i className="fa-solid fa-circle-notch fa-spin text-sm"></i>
+                    <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
                     <span>Saving...</span>
                   </>
                 ) : (
@@ -1693,9 +1739,9 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
             VIEW 5: FORGOT PASSWORD
         ======================================================== */}
         {mode === 'forgot' && (
-          <form onSubmit={handleForgotSubmit} className="space-y-4">
+          <form onSubmit={handleForgotSubmit} className="space-y-2">
             <div>
-              <label htmlFor="forgotEmail" className="block text-[13px] sm:text-[14px] font-semibold text-slate-700 mb-1.5">
+              <label htmlFor="forgotEmail" className="block text-[11px] font-semibold text-slate-700 mb-0.5">
                 Email Address
               </label>
               <input
@@ -1710,18 +1756,18 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
                   if (errorMsg) clearFeedback();
                 }}
                 placeholder="you@example.com"
-                className="w-full h-[48px] px-3.5 bg-white border border-slate-200 rounded-xl text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-2 focus:ring-[#18753C]/10 transition-all font-normal"
+                className="w-full h-[36px] px-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-1 focus:ring-[#18753C]/20 transition-all font-normal"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-[48px] bg-[#18753C] hover:bg-[#135d30] text-white font-semibold text-[15px] rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 mt-2"
+              className="w-full h-[38px] bg-[#18753C] hover:bg-[#135d30] text-white font-semibold text-xs rounded-lg shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60 mt-1"
             >
               {loading ? (
                 <>
-                  <i className="fa-solid fa-circle-notch fa-spin text-sm"></i>
+                  <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
                   <span>Sending code...</span>
                 </>
               ) : (
@@ -1729,7 +1775,7 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
               )}
             </button>
 
-            <div className="text-center pt-2">
+            <div className="text-center pt-1">
               <button
                 type="button"
                 onClick={() => switchMode('login')}
@@ -1745,14 +1791,14 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
             VIEW 6: RESET PASSWORD
         ======================================================== */}
         {mode === 'reset' && (
-          <form onSubmit={handleResetSubmit} className="space-y-4">
+          <form onSubmit={handleResetSubmit} className="space-y-2">
             {generatedOtpHint && (
-              <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-100 text-xs text-[#18753C] font-normal">
+              <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-100 text-xs text-[#18753C] font-normal">
                 {generatedOtpHint}
               </div>
             )}
             <div>
-              <label htmlFor="resetOtp" className="block text-[13px] sm:text-[14px] font-semibold text-slate-700 mb-1.5">
+              <label htmlFor="resetOtp" className="block text-[11px] font-semibold text-slate-700 mb-0.5">
                 Verification Code
               </label>
               <input
@@ -1766,78 +1812,80 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
                   if (errorMsg) clearFeedback();
                 }}
                 placeholder="Enter 6-digit code"
-                className="w-full h-[48px] px-3.5 bg-white border border-slate-200 rounded-xl text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-2 focus:ring-[#18753C]/10 transition-all font-normal tracking-widest text-center"
+                className="w-full h-[36px] px-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-1 focus:ring-[#18753C]/20 transition-all font-normal tracking-widest text-center"
               />
             </div>
 
-            <div>
-              <label htmlFor="newPassword" className="block text-[13px] sm:text-[14px] font-semibold text-slate-700 mb-1.5">
-                New Password
-              </label>
-              <div className="relative">
-                <input
-                  id="newPassword"
-                  name="newPassword"
-                  type={showNewPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  required
-                  value={newPassword}
-                  onChange={(e) => {
-                    setNewPassword(e.target.value);
-                    if (errorMsg) clearFeedback();
-                  }}
-                  placeholder="Min 6 characters"
-                  className="w-full h-[48px] pl-3.5 pr-11 bg-white border border-slate-200 rounded-xl text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-2 focus:ring-[#18753C]/10 transition-all font-normal"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowNewPassword(!showNewPassword)}
-                  aria-label={showNewPassword ? 'Hide password' : 'Show password'}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-                >
-                  <i className={`fa-solid ${showNewPassword ? 'fa-eye-slash' : 'fa-eye'} text-sm`}></i>
-                </button>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label htmlFor="newPassword" className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                  New Password
+                </label>
+                <div className="relative">
+                  <input
+                    id="newPassword"
+                    name="newPassword"
+                    type={showNewPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    required
+                    value={newPassword}
+                    onChange={(e) => {
+                      setNewPassword(e.target.value);
+                      if (errorMsg) clearFeedback();
+                    }}
+                    placeholder="Min 6 chars"
+                    className="w-full h-[36px] pl-2.5 pr-8 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-1 focus:ring-[#18753C]/20 transition-all font-normal"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                    className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                  >
+                    <i className={`fa-solid ${showNewPassword ? 'fa-eye-slash' : 'fa-eye'} text-xs`}></i>
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label htmlFor="confirmNewPassword" className="block text-[13px] sm:text-[14px] font-semibold text-slate-700 mb-1.5">
-                Confirm New Password
-              </label>
-              <div className="relative">
-                <input
-                  id="confirmNewPassword"
-                  name="confirmNewPassword"
-                  type={showConfirmNewPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  required
-                  value={confirmNewPassword}
-                  onChange={(e) => {
-                    setConfirmNewPassword(e.target.value);
-                    if (errorMsg) clearFeedback();
-                  }}
-                  placeholder="Re-enter new password"
-                  className="w-full h-[48px] pl-3.5 pr-11 bg-white border border-slate-200 rounded-xl text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-2 focus:ring-[#18753C]/10 transition-all font-normal"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
-                  aria-label={showConfirmNewPassword ? 'Hide password' : 'Show password'}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-                >
-                  <i className={`fa-solid ${showConfirmNewPassword ? 'fa-eye-slash' : 'fa-eye'} text-sm`}></i>
-                </button>
+              <div>
+                <label htmlFor="confirmNewPassword" className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                  Confirm Password
+                </label>
+                <div className="relative">
+                  <input
+                    id="confirmNewPassword"
+                    name="confirmNewPassword"
+                    type={showConfirmNewPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    required
+                    value={confirmNewPassword}
+                    onChange={(e) => {
+                      setConfirmNewPassword(e.target.value);
+                      if (errorMsg) clearFeedback();
+                    }}
+                    placeholder="Re-enter password"
+                    className="w-full h-[36px] pl-2.5 pr-8 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#18753C] focus:ring-1 focus:ring-[#18753C]/20 transition-all font-normal"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                    aria-label={showConfirmNewPassword ? 'Hide password' : 'Show password'}
+                    className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                  >
+                    <i className={`fa-solid ${showConfirmNewPassword ? 'fa-eye-slash' : 'fa-eye'} text-xs`}></i>
+                  </button>
+                </div>
               </div>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-[48px] bg-[#18753C] hover:bg-[#135d30] text-white font-semibold text-[15px] rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 mt-2"
+              className="w-full h-[38px] bg-[#18753C] hover:bg-[#135d30] text-white font-semibold text-xs rounded-lg shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60 mt-1"
             >
               {loading ? (
                 <>
-                  <i className="fa-solid fa-circle-notch fa-spin text-sm"></i>
+                  <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
                   <span>Updating password...</span>
                 </>
               ) : (
@@ -1845,7 +1893,7 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
               )}
             </button>
 
-            <div className="text-center pt-2">
+            <div className="text-center pt-1">
               <button
                 type="button"
                 onClick={() => switchMode('login')}
@@ -1860,24 +1908,24 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
         {/* Divider & Google Sign In (for login & register step 1) */}
         {(mode === 'login' || (mode === 'register' && signupStep === 1)) && (
           <>
-            <div className="relative my-4 flex items-center justify-center">
+            <div className="relative my-2 flex items-center justify-center">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-slate-200"></div>
               </div>
-              <span className="relative bg-white px-3 text-xs text-slate-400 font-normal">or</span>
+              <span className="relative bg-white px-2 text-[10px] text-slate-400 font-medium">or</span>
             </div>
 
-            <div className="relative w-full h-[48px]">
+            <div className="relative w-full h-[36px]">
               <button
                 type="button"
                 onClick={triggerGoogleSignIn}
                 disabled={googleLoading || loading}
-                className="w-full h-[48px] bg-white hover:bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-700 text-[14px] flex items-center justify-center gap-3 transition-all shadow-xs cursor-pointer disabled:opacity-60"
+                className="w-full h-[36px] bg-white hover:bg-slate-50 border border-slate-200 rounded-lg font-semibold text-slate-700 text-xs flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer disabled:opacity-60"
               >
                 {googleLoading ? (
-                  <i className="fa-solid fa-circle-notch fa-spin text-slate-400 text-sm"></i>
+                  <i className="fa-solid fa-circle-notch fa-spin text-slate-400 text-xs"></i>
                 ) : (
-                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
@@ -1892,27 +1940,23 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
                 ref={googleBtnContainerRef}
                 onClick={triggerGoogleSignIn}
                 className="absolute inset-0 opacity-[0.001] overflow-hidden cursor-pointer flex items-center justify-center pointer-events-none [&_iframe]:pointer-events-auto [&_iframe]:w-full [&_iframe]:h-full"
-                style={{ minHeight: '48px' }}
+                style={{ minHeight: '36px' }}
               />
             </div>
 
             {/* Continue as Guest option */}
-            <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-col items-center">
+            <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
               <button
                 type="button"
-                onClick={() => onContinueGuest ? onContinueGuest() : (onNavigate && onNavigate('home'))}
-                className="w-full h-11 bg-slate-50 hover:bg-slate-100/90 text-slate-700 hover:text-slate-900 border border-slate-200/80 rounded-xl font-medium text-xs sm:text-sm flex items-center justify-center gap-2 transition-all duration-150 cursor-pointer shadow-2xs"
+                onClick={handleClose}
+                className="w-full h-8 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200/80 rounded-lg font-medium text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
               >
                 <i className="fa-regular fa-compass text-slate-400 text-xs"></i>
                 <span>Continue as Guest</span>
-                <i className="fa-solid fa-arrow-right text-[10px] text-slate-400"></i>
               </button>
-              <span className="text-[11px] text-slate-400 font-normal mt-1.5 text-center">
-                Browse shops, search items &amp; build cart before signing in
-              </span>
             </div>
 
-            <p className="text-center text-[11px] text-slate-400 font-normal mt-4 leading-relaxed">
+            <p className="text-center text-[10px] text-slate-400 font-normal mt-1.5 leading-tight">
               By continuing you agree to our Terms &amp; Privacy Policy
             </p>
           </>
@@ -1925,4 +1969,8 @@ export default function LoginPage({ onLoginSuccess, onNavigate, onContinueGuest,
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined'
+    ? createPortal(modalContent, document.body)
+    : modalContent;
 }

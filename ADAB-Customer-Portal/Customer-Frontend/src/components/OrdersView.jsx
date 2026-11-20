@@ -235,7 +235,7 @@ export default function OrdersView({
       {/* 1. ACTIVE ORDERS VIEW (sec-orders)                             */}
       {/* ============================================================== */}
       {!loading && currentView === 'orders' && (
-        <section id="sec-orders" className="pt-2 pb-4 space-y-3">
+        <section id="sec-orders" className="pt-2 pb-3 md:pb-2 space-y-3">
           {activeOrders.length === 0 ? (
             <div className="bg-white border border-gray-200 rounded-3xl p-8 text-center space-y-3">
               <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center text-brand-green mx-auto text-2xl">
@@ -407,7 +407,7 @@ export default function OrdersView({
       {/* 2. ORDER HISTORY VIEW (sec-orderhistory)                       */}
       {/* ============================================================== */}
       {!loading && currentView === 'orderhistory' && (
-        <section id="sec-orderhistory" className="pt-2 pb-4 space-y-3">
+        <section id="sec-orderhistory" className="pt-2 pb-3 md:pb-2 space-y-3">
           {/* Live Search Input (#ohSearch) */}
           <div className="relative">
             <input

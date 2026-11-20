@@ -753,37 +753,32 @@ export default function AccountPage({
   // Loading skeleton - desktop-first responsive
   if (loading) {
     return (
-      <div className="w-full max-w-7xl 2xl:max-w-[1520px] mx-auto py-4 animate-pulse">
-        <div className="flex flex-col lg:flex-row gap-6 xl:gap-8 items-start">
+      <div className="w-full max-w-7xl 2xl:max-w-[1520px] mx-auto py-2 animate-pulse">
+        <div className="flex flex-col lg:flex-row gap-4 xl:gap-6 items-start">
           {/* Sidebar Skeleton */}
-          <div className="hidden lg:flex flex-col w-72 xl:w-80 shrink-0 space-y-4">
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4 shadow-xs">
+          <div className="hidden lg:flex flex-col w-64 xl:w-72 shrink-0 space-y-3">
+            <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3 shadow-2xs">
               <div className="flex items-center gap-3">
-                <div className="w-14 h-14 bg-gray-200 rounded-2xl shrink-0"></div>
-                <div className="space-y-2 flex-1">
-                  <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                  <div className="h-3 bg-gray-100 rounded w-1/2"></div>
+                <div className="w-11 h-11 bg-gray-200 rounded-xl shrink-0"></div>
+                <div className="space-y-1.5 flex-1">
+                  <div className="h-3.5 bg-gray-200 rounded w-3/4"></div>
+                  <div className="h-2.5 bg-gray-100 rounded w-1/2"></div>
                 </div>
               </div>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2.5 shadow-xs">
-              {[...Array(8)].map((_, i) => (
-                <div key={i} className="h-10 bg-gray-100 rounded-xl"></div>
+            <div className="bg-white rounded-xl border border-gray-100 p-3 space-y-2 shadow-2xs">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-8 bg-gray-100 rounded-lg"></div>
               ))}
             </div>
           </div>
 
           {/* Main Content Skeleton */}
-          <div className="flex-1 min-w-0 w-full space-y-6">
-            <div className="h-48 bg-gray-200 rounded-3xl"></div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-24 bg-gray-200 rounded-2xl"></div>
-              ))}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-28 bg-gray-200 rounded-2xl"></div>
+          <div className="flex-1 min-w-0 w-full space-y-4">
+            <div className="h-36 bg-gray-200 rounded-2xl"></div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
+              {[...Array(12)].map((_, i) => (
+                <div key={i} className="h-16 bg-gray-100 rounded-xl"></div>
               ))}
             </div>
           </div>
@@ -845,523 +840,338 @@ export default function AccountPage({
   );
 
   // Render Dashboard Overview
-  const renderDashboard = () => (
-    <div className="space-y-6 w-full">
-      {/* 1. Guest Sign In Callout (if unauthenticated) */}
-      {!isLoggedIn && (
-        <div className="bg-gradient-to-r from-emerald-50 via-green-50 to-emerald-100/60 border border-emerald-200/80 rounded-2xl p-5 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xs">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-[#18753C] text-white flex items-center justify-center text-xl shrink-0 shadow-sm">
-              <i className="fa-solid fa-user-lock"></i>
-            </div>
-            <div>
-              <h3 className="font-extrabold text-gray-900 text-sm sm:text-base">Log in to your ADAB account</h3>
-              <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">
-                Save delivery addresses, track live 14–45 min orders, redeem reward points, and unlock 0% interest credit.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => onOpenLogin ? onOpenLogin() : (onNavigate && onNavigate('login'))}
-            className="w-full md:w-auto px-6 py-2.5 bg-[#18753C] hover:bg-[#156030] text-white font-extrabold text-xs rounded-xl shadow-xs transition-all shrink-0 cursor-pointer flex items-center justify-center gap-2"
-          >
-            <span>Login / Register</span>
-            <i className="fa-solid fa-arrow-right text-[10px]"></i>
-          </button>
-        </div>
-      )}
+  const renderDashboard = () => {
+    const allFeatures = [
+      {
+        id: 'addresses',
+        title: 'Delivery Addresses',
+        subtitle: 'Saved doorstep locations with PIN geocoding',
+        badge: `${addresses.length} Saved`,
+        badgeColor: 'bg-red-50 text-red-600 border border-red-200',
+        icon: 'fa-location-dot',
+        iconColor: 'text-red-500',
+        iconBg: 'bg-red-50',
+        onClick: () => setActiveView('addresses')
+      },
+      {
+        id: 'profile',
+        title: 'Profile & Security',
+        subtitle: 'Personal details, avatar & account password',
+        badge: 'Photo & PW',
+        badgeColor: 'bg-indigo-50 text-indigo-700 border border-indigo-200',
+        icon: 'fa-user-shield',
+        iconColor: 'text-indigo-600',
+        iconBg: 'bg-indigo-50',
+        onClick: () => setActiveView('profile')
+      },
+      {
+        id: 'orders',
+        title: 'My Orders',
+        subtitle: 'Live 14–45 min orders & digital tax invoices',
+        badge: displayOrders > 0 ? `${displayOrders} Placed` : null,
+        badgeColor: 'bg-blue-50 text-blue-700 border border-blue-200',
+        icon: 'fa-box',
+        iconColor: 'text-blue-600',
+        iconBg: 'bg-blue-50',
+        onClick: () => onNavigate && onNavigate('orders', { state: { fromAccount: true } })
+      },
+      {
+        id: 'rewards',
+        title: 'ADAB Rewards',
+        subtitle: 'Earn coins & redeem for direct rupee discounts',
+        badge: `${Number(displayPoints).toLocaleString('en-IN')} Coins`,
+        badgeColor: 'bg-amber-50 text-amber-800 border border-amber-200',
+        icon: 'fa-star',
+        iconColor: 'text-amber-500',
+        iconBg: 'bg-amber-50',
+        onClick: () => onNavigate && onNavigate('points', { state: { fromAccount: true } })
+      },
+      {
+        id: 'wallet',
+        title: 'ADAB Wallet',
+        subtitle: 'Pre-funded balance for 1-click checkout & refunds',
+        badge: `₹${Number(displayWallet).toLocaleString('en-IN')}`,
+        badgeColor: 'bg-emerald-50 text-emerald-800 border border-emerald-200',
+        icon: 'fa-wallet',
+        iconColor: 'text-[#18753C]',
+        iconBg: 'bg-emerald-50',
+        onClick: () => showPlaceholder('ADAB Wallet: Instant checkout balance & transaction history.', 'ADAB Wallet')
+      },
+      {
+        id: 'payments',
+        title: 'Payment Methods',
+        subtitle: 'Manage saved credit/debit cards & UPI IDs',
+        badge: 'Cards & UPI',
+        badgeColor: 'bg-blue-50 text-blue-700 border border-blue-200',
+        icon: 'fa-credit-card',
+        iconColor: 'text-blue-600',
+        iconBg: 'bg-blue-50',
+        onClick: () => showPlaceholder('Payment Methods: Manage your saved credit/debit cards, UPI IDs, and preferred payment gateways.', 'Payment Methods')
+      },
+      {
+        id: 'coupons',
+        title: 'Coupons & Pay Later',
+        subtitle: 'Store promo codes & 0% EMI partner credit',
+        badge: '0% EMI Deals',
+        badgeColor: 'bg-orange-50 text-orange-700 border border-orange-200',
+        icon: 'fa-tag',
+        iconColor: 'text-orange-500',
+        iconBg: 'bg-orange-50',
+        onClick: () => showPlaceholder('Coupons & Credit Line: View available store discount codes and instant credit limit.', 'Coupons & Credit')
+      },
+      {
+        id: 'wishlist',
+        title: 'Saved Wishlist',
+        subtitle: 'Curated favourite groceries, dairy & bakery staples',
+        badge: null,
+        badgeColor: '',
+        icon: 'fa-heart',
+        iconColor: 'text-pink-500',
+        iconBg: 'bg-pink-50',
+        onClick: () => onNavigate && onNavigate('wishlist', { state: { fromAccount: true } })
+      },
+      {
+        id: 'returns',
+        title: 'Returns & Refunds',
+        subtitle: 'Instant replacements & doorstep refund tracking',
+        badge: null,
+        badgeColor: '',
+        icon: 'fa-rotate-left',
+        iconColor: 'text-purple-600',
+        iconBg: 'bg-purple-50',
+        onClick: () => onNavigate && onNavigate('returns', { state: { fromAccount: true } })
+      },
+      {
+        id: 'reviews',
+        title: 'My Reviews',
+        subtitle: 'Rate purchases, review stores & share feedback',
+        badge: 'Ratings & Photos',
+        badgeColor: 'bg-amber-50 text-amber-700 border border-amber-200',
+        icon: 'fa-star-half-stroke',
+        iconColor: 'text-amber-600',
+        iconBg: 'bg-amber-50',
+        onClick: () => onNavigate && onNavigate('reviews', { state: { fromAccount: true } })
+      },
+      {
+        id: 'support',
+        title: 'Help & Support',
+        subtitle: '24/7 dedicated support team, chat & FAQs',
+        badge: '24/7 Active',
+        badgeColor: 'bg-teal-50 text-teal-700 border border-teal-200',
+        icon: 'fa-headset',
+        iconColor: 'text-teal-600',
+        iconBg: 'bg-teal-50',
+        onClick: () => onNavigate && onNavigate('help', { state: { fromAccount: true } })
+      },
+      {
+        id: 'merchant',
+        title: 'Sell on ADAB',
+        subtitle: 'Connect your neighbourhood store with 10k+ shoppers',
+        badge: 'Merchant Portal',
+        badgeColor: 'bg-[#18753C] text-white',
+        icon: 'fa-store',
+        iconColor: 'text-[#18753C]',
+        iconBg: 'bg-emerald-50',
+        onClick: () => showToast('Redirecting to ADAB Seller Portal...')
+      }
+    ];
 
-      {/* 2. Executive Hero Welcome Banner */}
-      <div className="bg-gradient-to-br from-[#064E3B] via-[#0E6C3B] to-[#15803D] rounded-3xl p-6 sm:p-7 text-white shadow-md relative overflow-hidden">
-        {/* Subtle decorative background accents */}
-        <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full blur-2xl pointer-events-none -mr-20 -mt-20"></div>
-        <div className="absolute bottom-0 right-1/4 w-40 h-40 bg-emerald-400/10 rounded-full blur-xl pointer-events-none"></div>
-
-        <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5">
-          <div className="flex items-center gap-4.5">
-            <div
-              onClick={() => setActiveView('profile')}
-              title="Click to edit avatar"
-              className="w-16 h-16 sm:w-18 sm:h-18 bg-white/15 hover:bg-white/25 rounded-2xl flex items-center justify-center text-3xl font-black text-white overflow-hidden shadow-inner shrink-0 cursor-pointer border border-white/20 transition-all hover:scale-105"
-            >
-              {activeAvatarUrl ? (
-                <img
-                  src={activeAvatarUrl}
-                  alt=""
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.style.display = 'none';
-                  }}
-                />
-              ) : (
-                displayInitial
-              )}
-            </div>
-            <div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h2 className="text-xl sm:text-2xl font-black tracking-tight">{displayName}</h2>
-                {effectiveUser?.loyalty_tier && (
-                  <span className="bg-white/20 backdrop-blur-md border border-white/30 text-emerald-100 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-xs">
-                    <i className="fa-solid fa-sparkles text-[9px] text-amber-300"></i>
-                    {effectiveUser.loyalty_tier} MEMBER
-                  </span>
-                )}
-                <span className="bg-emerald-500/20 text-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-400/20 hidden sm:inline-flex items-center gap-1">
-                  <i className="fa-solid fa-circle-check text-[9px] text-emerald-300"></i>
-                  {activeAddress?.city ? `Verified ${activeAddress.city} Account` : 'Verified Account'}
-                </span>
+    return (
+      <div className="space-y-5 w-full">
+        {/* 1. Guest Sign In Callout (if unauthenticated) */}
+        {!isLoggedIn && (
+          <div className="bg-gradient-to-r from-emerald-50 via-green-50 to-emerald-100/60 border border-emerald-200/80 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row items-center justify-between gap-3.5 shadow-2xs">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-xl bg-[#18753C] text-white flex items-center justify-center text-xl shrink-0 shadow-2xs">
+                <i className="fa-solid fa-user-lock"></i>
               </div>
-              <p className="text-xs text-emerald-100/90 mt-1 font-medium">
-                {displayPhone ? `${displayPhone} • ` : ''}{displayEmail || 'ADAB Customer Account'}
-              </p>
+              <div>
+                <h3 className="font-extrabold text-gray-900 text-sm sm:text-base">Log in to your ADAB account</h3>
+                <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">
+                  Save delivery addresses, track live orders, redeem reward points & unlock 0% credit.
+                </p>
+              </div>
             </div>
-          </div>
-
-          <div className="flex items-center gap-2.5 self-stretch sm:self-auto justify-end">
             <button
               type="button"
-              onClick={() => setActiveView('profile')}
-              className="bg-white/15 hover:bg-white/25 transition-all text-white text-xs font-extrabold py-2.5 px-4 rounded-xl border border-white/25 cursor-pointer backdrop-blur-md flex items-center gap-2 shadow-xs"
+              onClick={() => onOpenLogin ? onOpenLogin() : (onNavigate && onNavigate('login'))}
+              className="w-full md:w-auto px-5 py-2.5 bg-[#18753C] hover:bg-[#156030] text-white font-extrabold text-xs rounded-xl shadow-2xs transition-all shrink-0 cursor-pointer flex items-center justify-center gap-2"
             >
-              <i className="fa-solid fa-pen-to-square text-[11px]"></i>
-              <span>Edit Profile</span>
+              <span>Login / Register</span>
+              <i className="fa-solid fa-arrow-right text-[10px]"></i>
             </button>
-            {isLoggedIn && onLogout && (
+          </div>
+        )}
+
+        {/* 2. Executive Hero Welcome Banner */}
+        <div className="bg-gradient-to-br from-[#064E3B] via-[#0E6C3B] to-[#15803D] rounded-2xl sm:rounded-3xl p-5 sm:p-6 text-white shadow-md relative overflow-hidden">
+          {/* Decorative background accents */}
+          <div className="absolute top-0 right-0 w-72 h-72 bg-white/5 rounded-full blur-2xl pointer-events-none -mr-16 -mt-16"></div>
+          <div className="absolute bottom-0 right-1/4 w-36 h-36 bg-emerald-400/10 rounded-full blur-xl pointer-events-none"></div>
+
+          <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-5">
+            <div className="flex items-center gap-3.5 sm:gap-4.5">
+              <div
+                onClick={() => setActiveView('profile')}
+                title="Click to edit avatar"
+                className="w-15 h-15 sm:w-18 sm:h-18 bg-white/15 hover:bg-white/25 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl font-black text-white overflow-hidden shadow-inner shrink-0 cursor-pointer border border-white/20 transition-all hover:scale-105"
+              >
+                {activeAvatarUrl ? (
+                  <img
+                    src={activeAvatarUrl}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  displayInitial
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-xl sm:text-2xl font-black tracking-tight truncate">{displayName}</h2>
+                  {effectiveUser?.loyalty_tier && (
+                    <span className="bg-white/20 backdrop-blur-md border border-white/30 text-emerald-100 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-2xs">
+                      <i className="fa-solid fa-sparkles text-[8px] text-amber-300"></i>
+                      {effectiveUser.loyalty_tier} MEMBER
+                    </span>
+                  )}
+                  <span className="bg-emerald-500/20 text-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-400/20 hidden sm:inline-flex items-center gap-1">
+                    <i className="fa-solid fa-circle-check text-[9px] text-emerald-300"></i>
+                    {activeAddress?.city ? `${activeAddress.city} Account` : 'Verified Account'}
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-emerald-100/90 mt-0.5 font-medium truncate">
+                  {displayPhone ? `${displayPhone} • ` : ''}{displayEmail || 'ADAB Customer Account'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 self-stretch sm:self-auto justify-end shrink-0">
               <button
                 type="button"
-                onClick={onLogout}
-                className="bg-black/20 hover:bg-black/30 transition-all text-white text-xs font-bold py-2.5 px-4 rounded-xl border border-white/15 cursor-pointer flex items-center gap-2 shadow-xs"
-                title="Sign Out"
+                onClick={() => setActiveView('profile')}
+                className="bg-white/15 hover:bg-white/25 transition-all text-white text-xs sm:text-sm font-extrabold py-2 px-3.5 rounded-xl border border-white/25 cursor-pointer backdrop-blur-md flex items-center gap-2 shadow-2xs"
               >
-                <i className="fa-solid fa-arrow-right-from-bracket text-[11px]"></i>
-                <span className="hidden sm:inline">Sign Out</span>
+                <i className="fa-solid fa-pen-to-square text-xs"></i>
+                <span>Edit Profile</span>
               </button>
-            )}
-          </div>
-        </div>
-
-        {/* Executive Metric Cards Strip */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-5 mt-6 pt-5 border-t border-white/15 relative z-10">
-          {/* 1. Orders */}
-          <div
-            onClick={() => onNavigate && onNavigate('orders', { state: { fromAccount: true } })}
-            className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-2xl p-4 sm:p-5 transition-all cursor-pointer group hover:-translate-y-0.5"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] sm:text-xs text-emerald-100 font-extrabold uppercase tracking-wider">Orders Placed</span>
-              <i className="fa-solid fa-arrow-up-right-from-square text-xs text-emerald-200/80 group-hover:text-white transition-colors"></i>
-            </div>
-            <div className="text-3xl sm:text-4xl font-black mt-2">{displayOrders}</div>
-            <div className="text-xs text-emerald-200 mt-1.5 font-medium truncate">
-              {displayOrders > 0 ? 'Track live shipments' : 'Start your first order'}
+              {isLoggedIn && onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="bg-black/20 hover:bg-black/30 transition-all text-white text-xs sm:text-sm font-bold py-2 px-3.5 rounded-xl border border-white/15 cursor-pointer flex items-center gap-2 shadow-2xs"
+                  title="Sign Out"
+                >
+                  <i className="fa-solid fa-arrow-right-from-bracket text-xs"></i>
+                  <span className="hidden sm:inline">Sign Out</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* 2. Points */}
-          <div
-            onClick={() => onNavigate && onNavigate('points', { state: { fromAccount: true } })}
-            className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-2xl p-4 sm:p-5 transition-all cursor-pointer group hover:-translate-y-0.5"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] sm:text-xs text-emerald-100 font-extrabold uppercase tracking-wider">Reward Points</span>
-              <i className="fa-solid fa-sparkles text-xs text-amber-300"></i>
-            </div>
-            <div className="text-3xl sm:text-4xl font-black mt-2">{Number(displayPoints).toLocaleString('en-IN')}</div>
-            <div className="text-xs text-emerald-200 mt-1.5 font-medium truncate">
-              Worth ₹{Math.floor(displayPoints / 10)} • Redeem coins
-            </div>
-          </div>
-
-          {/* 3. Wallet */}
-          <div
-            onClick={() => showPlaceholder('ADAB Wallet: Instant checkout balance & transaction history.', 'ADAB Wallet')}
-            className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-2xl p-4 sm:p-5 transition-all cursor-pointer group hover:-translate-y-0.5"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] sm:text-xs text-emerald-100 font-extrabold uppercase tracking-wider">ADAB Wallet</span>
-              <i className="fa-solid fa-wallet text-xs text-emerald-200/80 group-hover:text-white transition-colors"></i>
-            </div>
-            <div className="text-3xl sm:text-4xl font-black mt-2">₹{Number(displayWallet).toLocaleString('en-IN')}</div>
-            <div className="text-xs text-emerald-200 mt-1.5 font-medium truncate">
-              Instant 1-click checkout
-            </div>
-          </div>
-
-          {/* 4. Notifications */}
-          <div
-            onClick={() => onNavigate && onNavigate('notifications', { state: { fromAccount: true } })}
-            className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-2xl p-4 sm:p-5 transition-all cursor-pointer group hover:-translate-y-0.5"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] sm:text-xs text-emerald-100 font-extrabold uppercase tracking-wider">Alerts</span>
-              <i className="fa-solid fa-bell text-xs text-emerald-200/80 group-hover:text-white transition-colors"></i>
-            </div>
-            <div className="text-3xl sm:text-4xl font-black mt-2">{displayUnreadNotifications}</div>
-            <div className="text-xs text-emerald-200 mt-1.5 font-medium truncate">
-              {displayUnreadNotifications > 0 ? `${displayUnreadNotifications} unread updates` : 'All caught up'}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Spacious Account Tabs Grid */}
-      <div className="space-y-8 pt-2">
-        {/* Hub 1: Account Essentials & Orders */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-1">
-            <div>
-              <h3 className="text-lg sm:text-xl font-black text-gray-900 tracking-tight">Account Essentials</h3>
-              <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Manage delivery addresses, profile security, and live orders</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6">
-            {/* Delivery Addresses Tab */}
-            <div
-              onClick={() => setActiveView('addresses')}
-              className="bg-white border border-gray-200/80 hover:border-[#18753C]/50 p-6 sm:p-7 rounded-3xl shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group hover:-translate-y-1 min-h-[190px]"
-            >
-              <div className="flex items-start gap-5">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl shrink-0 group-hover:scale-110 transition-transform shadow-xs">
-                  <i className="fa-solid fa-location-dot"></i>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="font-black text-gray-900 text-base sm:text-lg">Delivery Addresses</h4>
-                    <span className="bg-red-50 text-red-600 border border-red-200 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
-                      {addresses.length} Saved
-                    </span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-2 leading-relaxed">
-                    Doorstep shipping locations with smart pincode geocoding and default delivery settings.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-5 pt-3.5 border-t border-gray-100 flex items-center justify-between text-xs sm:text-sm font-extrabold text-red-600 group-hover:text-red-700">
-                <span>Manage Addresses</span>
-                <i className="fa-solid fa-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
-              </div>
-            </div>
-
-            {/* Profile & Security Tab */}
-            <div
-              onClick={() => setActiveView('profile')}
-              className="bg-white border border-gray-200/80 hover:border-[#18753C]/50 p-6 sm:p-7 rounded-3xl shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group hover:-translate-y-1 min-h-[190px]"
-            >
-              <div className="flex items-start gap-5">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl shrink-0 group-hover:scale-110 transition-transform shadow-xs">
-                  <i className="fa-solid fa-user-shield"></i>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="font-black text-gray-900 text-base sm:text-lg">Profile &amp; Security</h4>
-                    <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
-                      Photo &amp; Password
-                    </span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-2 leading-relaxed">
-                    Update Cloudinary avatar photo, personal details, phone verification, and change account password.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-5 pt-3.5 border-t border-gray-100 flex items-center justify-between text-xs sm:text-sm font-extrabold text-indigo-600 group-hover:text-indigo-700">
-                <span>Edit Profile &amp; Password</span>
-                <i className="fa-solid fa-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
-              </div>
-            </div>
-
-            {/* My Orders Tab */}
+          {/* Metric Cards Strip */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-4 pt-4 border-t border-white/20 relative z-10">
+            {/* 1. Orders */}
             <div
               onClick={() => onNavigate && onNavigate('orders', { state: { fromAccount: true } })}
-              className="bg-white border border-gray-200/80 hover:border-[#18753C]/50 p-6 sm:p-7 rounded-3xl shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group hover:-translate-y-1 min-h-[190px]"
+              className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 sm:p-4 transition-all cursor-pointer group hover:-translate-y-0.5"
             >
-              <div className="flex items-start gap-5">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl shrink-0 group-hover:scale-110 transition-transform shadow-xs">
-                  <i className="fa-solid fa-box"></i>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] sm:text-xs text-emerald-100 font-extrabold uppercase tracking-wider">Orders</span>
+                <i className="fa-solid fa-arrow-up-right-from-square text-xs text-emerald-200/80 group-hover:text-white transition-colors"></i>
+              </div>
+              <div className="text-2xl sm:text-3xl font-black mt-1">{displayOrders}</div>
+              <div className="text-xs text-emerald-200 mt-1 font-medium truncate">
+                {displayOrders > 0 ? 'Track live shipments' : 'Start your first order'}
+              </div>
+            </div>
+
+            {/* 2. Points */}
+            <div
+              onClick={() => onNavigate && onNavigate('points', { state: { fromAccount: true } })}
+              className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 sm:p-4 transition-all cursor-pointer group hover:-translate-y-0.5"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] sm:text-xs text-emerald-100 font-extrabold uppercase tracking-wider">Reward Points</span>
+                <i className="fa-solid fa-sparkles text-xs text-amber-300"></i>
+              </div>
+              <div className="text-2xl sm:text-3xl font-black mt-1">{Number(displayPoints).toLocaleString('en-IN')}</div>
+              <div className="text-xs text-emerald-200 mt-1 font-medium truncate">
+                Worth ₹{Math.floor(displayPoints / 10)} • Redeem
+              </div>
+            </div>
+
+            {/* 3. Wallet */}
+            <div
+              onClick={() => showPlaceholder('ADAB Wallet: Instant checkout balance & transaction history.', 'ADAB Wallet')}
+              className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 sm:p-4 transition-all cursor-pointer group hover:-translate-y-0.5"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] sm:text-xs text-emerald-100 font-extrabold uppercase tracking-wider">ADAB Wallet</span>
+                <i className="fa-solid fa-wallet text-xs text-emerald-200/80 group-hover:text-white transition-colors"></i>
+              </div>
+              <div className="text-2xl sm:text-3xl font-black mt-1">₹{Number(displayWallet).toLocaleString('en-IN')}</div>
+              <div className="text-xs text-emerald-200 mt-1 font-medium truncate">
+                Instant 1-click checkout
+              </div>
+            </div>
+
+            {/* 4. Notifications */}
+            <div
+              onClick={() => onNavigate && onNavigate('notifications', { state: { fromAccount: true } })}
+              className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-2xl p-3.5 sm:p-4 transition-all cursor-pointer group hover:-translate-y-0.5"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] sm:text-xs text-emerald-100 font-extrabold uppercase tracking-wider">Alerts</span>
+                <i className="fa-solid fa-bell text-xs text-emerald-200/80 group-hover:text-white transition-colors"></i>
+              </div>
+              <div className="text-2xl sm:text-3xl font-black mt-1">{displayUnreadNotifications}</div>
+              <div className="text-xs text-emerald-200 mt-1 font-medium truncate">
+                {displayUnreadNotifications > 0 ? `${displayUnreadNotifications} unread updates` : 'All caught up'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Clean, Spacious 12-Service Grid (3 Columns on Desktop, Comfortable & Readable) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4.5 pt-1">
+          {allFeatures.map(item => (
+            <div
+              key={item.id}
+              onClick={item.onClick}
+              className="bg-white border border-gray-200/90 hover:border-[#18753C] hover:shadow-md p-4.5 sm:p-5 rounded-2xl transition-all cursor-pointer flex items-center justify-between gap-3.5 group hover:-translate-y-0.5"
+            >
+              <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                <div className={`w-12 h-12 sm:w-13 sm:h-13 rounded-2xl flex items-center justify-center text-xl sm:text-2xl shrink-0 group-hover:scale-105 transition-transform ${item.iconBg} ${item.iconColor}`}>
+                  <i className={`fa-solid ${item.icon}`}></i>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="font-black text-gray-900 text-base sm:text-lg">My Orders</h4>
-                    {displayOrders > 0 && (
-                      <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
-                        {displayOrders} Placed
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-black text-gray-900 text-sm sm:text-base group-hover:text-[#18753C] transition-colors truncate">
+                      {item.title}
+                    </span>
+                    {item.badge && (
+                      <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${item.badgeColor}`}>
+                        {item.badge}
                       </span>
                     )}
                   </div>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-2 leading-relaxed">
-                    Track live 14–45 min shipments, view past order history, and download digital tax invoices.
+                  <p className="text-xs text-gray-500 mt-1 line-clamp-1 leading-snug">
+                    {item.subtitle}
                   </p>
                 </div>
               </div>
-              <div className="mt-5 pt-3.5 border-t border-gray-100 flex items-center justify-between text-xs sm:text-sm font-extrabold text-blue-600 group-hover:text-blue-700">
-                <span>View Orders</span>
-                <i className="fa-solid fa-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
-              </div>
+              <i className="fa-solid fa-arrow-right text-gray-300 text-xs group-hover:text-[#18753C] group-hover:translate-x-1 transition-transform shrink-0"></i>
             </div>
-          </div>
-        </div>
-
-        {/* Hub 2: Wallet, Rewards & Payment Suite */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-1">
-            <div>
-              <h3 className="text-lg sm:text-xl font-black text-gray-900 tracking-tight">Wallet &amp; Rewards</h3>
-              <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Manage loyalty points, digital wallet balance, and discount codes</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6">
-            {/* ADAB Rewards Tab */}
-            <div
-              onClick={() => onNavigate && onNavigate('points', { state: { fromAccount: true } })}
-              className="bg-white border border-gray-200/80 hover:border-[#18753C]/50 p-6 sm:p-7 rounded-3xl shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group hover:-translate-y-1 min-h-[190px]"
-            >
-              <div className="flex items-start gap-5">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl shrink-0 group-hover:scale-110 transition-transform shadow-xs">
-                  <i className="fa-solid fa-star"></i>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="font-black text-gray-900 text-base sm:text-lg">ADAB Rewards</h4>
-                    <span className="bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
-                      {Number(displayPoints).toLocaleString('en-IN')} Coins
-                    </span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-2 leading-relaxed">
-                    Earn coins on every order and redeem them for direct rupee discounts on groceries and essentials.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-5 pt-3.5 border-t border-gray-100 flex items-center justify-between text-xs sm:text-sm font-extrabold text-amber-600 group-hover:text-amber-700">
-                <span>Redeem Coins</span>
-                <i className="fa-solid fa-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
-              </div>
-            </div>
-
-            {/* ADAB Wallet Tab */}
-            <div
-              onClick={() => showPlaceholder('ADAB Wallet: Instant checkout balance & transaction history.', 'ADAB Wallet')}
-              className="bg-white border border-gray-200/80 hover:border-[#18753C]/50 p-6 sm:p-7 rounded-3xl shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group hover:-translate-y-1 min-h-[190px]"
-            >
-              <div className="flex items-start gap-5">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-emerald-50 text-[#18753C] rounded-2xl flex items-center justify-center text-2xl sm:text-3xl shrink-0 group-hover:scale-110 transition-transform shadow-xs">
-                  <i className="fa-solid fa-wallet"></i>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="font-black text-gray-900 text-base sm:text-lg">ADAB Wallet</h4>
-                    <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
-                      ₹{Number(displayWallet).toLocaleString('en-IN')} Balance
-                    </span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-2 leading-relaxed">
-                    Pre-funded store balance for instant 1-click checkout, refunds, and cashback deposits.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-5 pt-3.5 border-t border-gray-100 flex items-center justify-between text-xs sm:text-sm font-extrabold text-[#18753C] group-hover:text-emerald-800">
-                <span>Manage Wallet</span>
-                <i className="fa-solid fa-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
-              </div>
-            </div>
-
-            {/* Payment Methods Tab */}
-            <div
-              onClick={() => showPlaceholder('Payment Methods: Manage your saved credit/debit cards, UPI IDs, and preferred payment gateways.', 'Payment Methods')}
-              className="bg-white border border-gray-200/80 hover:border-[#18753C]/50 p-6 sm:p-7 rounded-3xl shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group hover:-translate-y-1 min-h-[190px]"
-            >
-              <div className="flex items-start gap-5">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl shrink-0 group-hover:scale-110 transition-transform shadow-xs">
-                  <i className="fa-solid fa-credit-card"></i>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="font-black text-gray-900 text-base sm:text-lg">Payment Methods</h4>
-                    <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
-                      Cards &amp; UPI
-                    </span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-2 leading-relaxed">
-                    Manage saved credit/debit cards, linked UPI handles, and one-click checkout preferences.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-5 pt-3.5 border-t border-gray-100 flex items-center justify-between text-xs sm:text-sm font-extrabold text-blue-600 group-hover:text-blue-700">
-                <span>Manage Cards &amp; UPI</span>
-                <i className="fa-solid fa-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
-              </div>
-            </div>
-
-            {/* Coupons & Pay Later Tab */}
-            <div
-              onClick={() => showPlaceholder('Coupons & Credit Line: View available store discount codes and instant credit limit.', 'Coupons & Credit')}
-              className="bg-white border border-gray-200/80 hover:border-[#18753C]/50 p-6 sm:p-7 rounded-3xl shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group hover:-translate-y-1 min-h-[190px]"
-            >
-              <div className="flex items-start gap-5">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-orange-50 text-orange-500 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl shrink-0 group-hover:scale-110 transition-transform shadow-xs">
-                  <i className="fa-solid fa-tag"></i>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="font-black text-gray-900 text-base sm:text-lg">Coupons &amp; Pay Later</h4>
-                    <span className="bg-orange-50 text-orange-700 border border-orange-200 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
-                      0% EMI Deals
-                    </span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-2 leading-relaxed">
-                    Exclusive store promotional codes, seasonal offers, and partner credit line up to ₹50,000.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-5 pt-3.5 border-t border-gray-100 flex items-center justify-between text-xs sm:text-sm font-extrabold text-orange-600 group-hover:text-orange-700">
-                <span>View Offers &amp; Credit</span>
-                <i className="fa-solid fa-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Hub 3: Shopping Activity & Support */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-1">
-            <div>
-              <h3 className="text-lg sm:text-xl font-black text-gray-900 tracking-tight">Shopping &amp; Community</h3>
-              <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Quick access to saved items, replacements, reviews, and 24/7 resolution</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6">
-            {/* Wishlist Tab */}
-            <div
-              onClick={() => onNavigate && onNavigate('wishlist', { state: { fromAccount: true } })}
-              className="bg-white border border-gray-200/80 hover:border-[#18753C]/50 p-6 sm:p-7 rounded-3xl shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group hover:-translate-y-1 min-h-[190px]"
-            >
-              <div className="flex items-start gap-5">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-pink-50 text-pink-500 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl shrink-0 group-hover:scale-110 transition-transform shadow-xs">
-                  <i className="fa-solid fa-heart"></i>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-black text-gray-900 text-base sm:text-lg">Saved Wishlist</h4>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-2 leading-relaxed">
-                    Your curated list of favourite pantry staples, dairy, fresh bakery, and personal care products.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-5 pt-3.5 border-t border-gray-100 flex items-center justify-between text-xs sm:text-sm font-extrabold text-pink-600 group-hover:text-pink-700">
-                <span>Open Wishlist</span>
-                <i className="fa-solid fa-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
-              </div>
-            </div>
-
-            {/* Returns & Replacements Tab */}
-            <div
-              onClick={() => onNavigate && onNavigate('returns', { state: { fromAccount: true } })}
-              className="bg-white border border-gray-200/80 hover:border-[#18753C]/50 p-6 sm:p-7 rounded-3xl shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group hover:-translate-y-1 min-h-[190px]"
-            >
-              <div className="flex items-start gap-5">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl shrink-0 group-hover:scale-110 transition-transform shadow-xs">
-                  <i className="fa-solid fa-rotate-left"></i>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-black text-gray-900 text-base sm:text-lg">Returns &amp; Refunds</h4>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-2 leading-relaxed">
-                    Instant 24-hr replacements, doorstep return pickup status, and direct bank refund tracking.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-5 pt-3.5 border-t border-gray-100 flex items-center justify-between text-xs sm:text-sm font-extrabold text-purple-600 group-hover:text-purple-700">
-                <span>Track Returns</span>
-                <i className="fa-solid fa-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
-              </div>
-            </div>
-
-            {/* My Reviews Tab */}
-            <div
-              onClick={() => onNavigate && onNavigate('reviews', { state: { fromAccount: true } })}
-              className="bg-white border border-gray-200/80 hover:border-[#18753C]/50 p-6 sm:p-7 rounded-3xl shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group hover:-translate-y-1 min-h-[190px]"
-            >
-              <div className="flex items-start gap-5">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl shrink-0 group-hover:scale-110 transition-transform shadow-xs">
-                  <i className="fa-solid fa-star-half-stroke"></i>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="font-black text-gray-900 text-base sm:text-lg">My Reviews</h4>
-                    <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
-                      Ratings &amp; Photos
-                    </span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-2 leading-relaxed">
-                    Rate past grocery purchases, review neighbourhood stores, and share feedback with the community.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-5 pt-3.5 border-t border-gray-100 flex items-center justify-between text-xs sm:text-sm font-extrabold text-amber-600 group-hover:text-amber-700">
-                <span>View &amp; Write Reviews</span>
-                <i className="fa-solid fa-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
-              </div>
-            </div>
-
-            {/* 24/7 Help & Support Tab */}
-            <div
-              onClick={() => onNavigate && onNavigate('help', { state: { fromAccount: true } })}
-              className="bg-white border border-gray-200/80 hover:border-[#18753C]/50 p-6 sm:p-7 rounded-3xl shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group hover:-translate-y-1 min-h-[190px]"
-            >
-              <div className="flex items-start gap-5">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-teal-50 text-teal-600 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl shrink-0 group-hover:scale-110 transition-transform shadow-xs">
-                  <i className="fa-solid fa-headset"></i>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="font-black text-gray-900 text-base sm:text-lg">Help &amp; Support</h4>
-                    <span className="bg-teal-50 text-teal-700 border border-teal-200 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
-                      24/7 Active
-                    </span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-2 leading-relaxed">
-                    Chat live with our dedicated support team, review frequently asked questions, or raise a ticket.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-5 pt-3.5 border-t border-gray-100 flex items-center justify-between text-xs sm:text-sm font-extrabold text-teal-700 group-hover:text-teal-800">
-                <span>Get Help</span>
-                <i className="fa-solid fa-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Sell on ADAB Merchant Banner */}
-        <div
-          onClick={() => showToast('Redirecting to ADAB Seller Portal...')}
-          className="bg-gradient-to-r from-emerald-50 via-green-50 to-emerald-100/70 border border-emerald-200/90 hover:border-emerald-400 p-6 sm:p-8 rounded-3xl shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col md:flex-row items-start md:items-center justify-between gap-5 group"
-        >
-          <div className="flex items-start sm:items-center gap-5">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 bg-[#18753C] text-white rounded-2xl flex items-center justify-center text-2xl sm:text-3xl shrink-0 shadow-sm group-hover:scale-105 transition-transform">
-              <i className="fa-solid fa-store"></i>
-            </div>
-            <div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h4 className="font-black text-gray-900 text-base sm:text-lg">Partner With Us · Sell on ADAB</h4>
-                <span className="bg-[#18753C] text-white text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                  Merchants
-                </span>
-              </div>
-              <p className="text-xs sm:text-sm text-gray-600 mt-1.5 leading-relaxed max-w-2xl">
-                Register your neighbourhood grocery, dairy, or bakery. Connect with 10,000+ local customers with guaranteed 15-minute express delivery.
-              </p>
-            </div>
-          </div>
-          <div className="px-5 py-2.5 bg-[#18753C] text-white rounded-xl text-xs sm:text-sm font-extrabold shadow-xs group-hover:bg-[#156030] transition flex items-center gap-2 shrink-0 self-stretch sm:self-auto justify-center">
-            <span>Merchant Portal</span>
-            <i className="fa-solid fa-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
-          </div>
+          ))}
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Render Addresses View (Full-width responsive grid)
   const renderAddresses = () => {
@@ -1387,11 +1197,11 @@ export default function AccountPage({
     }
 
     return (
-      <div className="w-full space-y-6">
+      <div className="w-full space-y-4">
         {/* Addresses View Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-gray-200/60">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-gray-200/60">
           <div>
-            <div className="flex items-center gap-2 text-xs font-bold text-gray-400 mb-1">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-gray-400 mb-0.5">
               <button
                 type="button"
                 onClick={() => setActiveView('dashboard')}
@@ -1402,15 +1212,16 @@ export default function AccountPage({
               <span>/</span>
               <span className="text-gray-700">Delivery Addresses</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-gray-900">Delivery Addresses</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Manage your saved shipping addresses for 14–45 min local delivery</p>
+            <h2 className="text-lg sm:text-xl font-black text-gray-900">
+              Delivery Addresses <span className="text-xs text-gray-500 font-semibold">({addresses.length} saved)</span>
+            </h2>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => { setActiveView('dashboard'); setIsAddingAddress(false); setEditingAddressId(null); }}
-              className="text-xs font-bold text-gray-600 hover:text-gray-900 bg-white border border-gray-200 px-3.5 py-2 rounded-xl transition cursor-pointer"
+              className="text-xs sm:text-sm font-bold text-gray-700 hover:text-gray-950 bg-white border border-gray-200 px-3.5 py-2 rounded-xl transition cursor-pointer"
             >
               ← Back to Dashboard
             </button>
@@ -1436,9 +1247,9 @@ export default function AccountPage({
                     isDefault: false
                   });
                 }}
-                className="px-4 py-2 bg-[#18753C] hover:bg-[#156030] text-white font-extrabold text-xs rounded-xl shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                className="px-4 py-2 bg-[#18753C] hover:bg-[#156030] text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-xs transition cursor-pointer flex items-center gap-2"
               >
-                <i className="fa-solid fa-plus text-[10px]"></i>
+                <i className="fa-solid fa-plus text-xs"></i>
                 <span>Add Address</span>
               </button>
             )}
@@ -1447,28 +1258,29 @@ export default function AccountPage({
 
         {/* Add / Edit Address Form Modal/Card */}
         {isAddingAddress && (
-          <form onSubmit={handleSaveAddress} className="bg-white p-6 sm:p-7 rounded-3xl border-2 border-[#18753C] shadow-lg space-y-4 animate-fade-in">
+          <form onSubmit={handleSaveAddress} className="bg-white p-5 sm:p-6 rounded-2xl sm:rounded-3xl border-2 border-[#18753C] shadow-sm space-y-4 animate-fade-in">
             <div className="flex justify-between items-center pb-3 border-b border-gray-100">
               <div>
-                <h3 className="font-black text-lg text-gray-900">{editingAddressId ? 'Edit Delivery Address' : 'Add New Delivery Address'}</h3>
+                <h3 className="font-black text-base sm:text-lg text-gray-900">{editingAddressId ? 'Edit Delivery Address' : 'Add New Delivery Address'}</h3>
                 <p className="text-xs text-gray-500 mt-0.5">Enter accurate recipient and landmark details for fast delivery</p>
               </div>
               <button
                 type="button"
                 onClick={() => { setIsAddingAddress(false); setEditingAddressId(null); }}
-                className="text-gray-400 hover:text-gray-700 text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-gray-100 transition"
+                className="text-gray-400 hover:text-gray-700 text-xs sm:text-sm font-bold px-3 py-1.5 rounded-xl hover:bg-gray-100 transition cursor-pointer"
               >
                 ✕ Cancel
               </button>
             </div>
 
+            {/* 2-Column Responsive Form Layout */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-[11px] font-black text-gray-500 uppercase tracking-wider block mb-1.5">Address Type</label>
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1.5">Address Type</label>
                 <select
                   value={addressForm.type}
                   onChange={e => setAddressForm({ ...addressForm, type: e.target.value })}
-                  className="w-full border border-gray-200 p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none bg-white font-semibold"
+                  className="w-full border border-gray-200 p-2.5 sm:p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none bg-white font-semibold"
                 >
                   <option value="Home">Home (Personal)</option>
                   <option value="Office">Office / Business</option>
@@ -1476,203 +1288,176 @@ export default function AccountPage({
                 </select>
               </div>
               <div>
-                <label className="text-[11px] font-black text-gray-500 uppercase tracking-wider block mb-1.5">Recipient Name</label>
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1.5">Recipient Name</label>
                 <input
                   type="text"
                   value={addressForm.recipientName}
                   onChange={e => setAddressForm({ ...addressForm, recipientName: e.target.value })}
-                  className="w-full border border-gray-200 p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-medium"
+                  className="w-full border border-gray-200 p-2.5 sm:p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-medium"
                   placeholder="Full Name"
                   required
                 />
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-[11px] font-black text-gray-500 uppercase tracking-wider block mb-1.5">Mobile Number</label>
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1.5">Mobile Number</label>
                 <input
                   type="tel"
                   value={addressForm.phone}
                   onChange={e => setAddressForm({ ...addressForm, phone: e.target.value })}
-                  className="w-full border border-gray-200 p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-medium"
+                  className="w-full border border-gray-200 p-2.5 sm:p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-medium"
                   placeholder="10-digit Phone Number"
                   required
                 />
               </div>
               <div>
-                <label className="text-[11px] font-black text-gray-500 uppercase tracking-wider block mb-1.5">Pincode</label>
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1.5">Pincode</label>
                 <input
                   type="text"
                   maxLength={6}
                   value={addressForm.zip}
                   onChange={e => handleAddressPincodeChange(e.target.value)}
-                  className="w-full border border-gray-200 p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-mono font-bold"
-                  placeholder="6-digit Pincode (e.g. 395007)"
+                  className="w-full border border-gray-200 p-2.5 sm:p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-mono font-bold"
+                  placeholder="6-digit PIN"
                   required
                 />
                 {pinHint && (
-                  <p className="text-xs text-[#18753C] font-semibold mt-1.5 flex items-center gap-1">
+                  <p className="text-xs text-[#18753C] font-semibold mt-1.5 flex items-center gap-1.5 truncate">
                     <i className="fa-solid fa-location-dot"></i> {pinHint}
                   </p>
                 )}
               </div>
-            </div>
 
-            {/* House / Flat / Block No */}
-            <div>
-              <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
-                House / Flat / Block No <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                  <i className="fa-solid fa-house-chimney text-xs"></i>
-                </span>
+              <div>
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1.5">City</label>
+                <input
+                  type="text"
+                  value={addressForm.city}
+                  onChange={e => setAddressForm({ ...addressForm, city: e.target.value })}
+                  className="w-full border border-gray-200 p-2.5 sm:p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-medium"
+                  placeholder="City"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1.5">State</label>
+                <input
+                  type="text"
+                  value={addressForm.state}
+                  onChange={e => setAddressForm({ ...addressForm, state: e.target.value })}
+                  className="w-full border border-gray-200 p-2.5 sm:p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-medium"
+                  placeholder="State"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1.5">
+                  House / Flat / Block No <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
                   value={addressForm.house_number || ''}
                   onChange={e => setAddressForm({...addressForm, house_number: e.target.value})}
-                  className="w-full border border-gray-200 pl-9 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium"
+                  className="w-full border border-gray-200 p-2.5 sm:p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-medium"
                   placeholder="e.g. Flat 502, 5th Floor / House 12"
                 />
               </div>
-            </div>
-
-            {/* Building / Society / Apartment Name */}
-            <div>
-              <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
-                Building / Society / Apartment Name <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                  <i className="fa-solid fa-building text-xs"></i>
-                </span>
+              <div>
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1.5">
+                  Building / Society / Apartment Name <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
                   value={addressForm.building_name || ''}
                   onChange={e => setAddressForm({...addressForm, building_name: e.target.value})}
-                  className="w-full border border-gray-200 pl-9 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium"
+                  className="w-full border border-gray-200 p-2.5 sm:p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-medium"
                   placeholder="e.g. Orchid Heights / Shivalik Residency"
                 />
               </div>
-            </div>
 
-            {/* Area / Street / Locality Name */}
-            <div>
-              <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
-                Area / Street / Locality Name <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                  <i className="fa-solid fa-road text-xs"></i>
-                </span>
+              <div>
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1.5">
+                  Area / Locality / Street <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
                   value={addressForm.area_name || ''}
                   onChange={e => setAddressForm({...addressForm, area_name: e.target.value})}
-                  className="w-full border border-gray-200 pl-9 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium"
+                  className="w-full border border-gray-200 p-2.5 sm:p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-medium"
                   placeholder="e.g. VIP Road, Vesu / Adajan Gam"
                 />
               </div>
-            </div>
-
-            {/* Landmark (Optional) */}
-            <div>
-              <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
-                Landmark <span className="text-gray-400 font-normal">(optional)</span>
-              </label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                  <i className="fa-solid fa-location-crosshairs text-xs"></i>
-                </span>
+              <div>
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1.5">
+                  Landmark <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
                 <input
                   type="text"
                   value={addressForm.landmark || ''}
                   onChange={e => setAddressForm({...addressForm, landmark: e.target.value})}
-                  className="w-full border border-gray-200 pl-9 p-3 rounded-xl text-sm focus:border-brand-green outline-none font-medium"
-                  placeholder="e.g. Near Textile Market / Opposite Central Mall"
+                  className="w-full border border-gray-200 p-2.5 sm:p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-medium"
+                  placeholder="e.g. Near Market / Opp. Mall"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-[11px] font-black text-gray-500 uppercase tracking-wider block mb-1.5">City</label>
+            {/* Actions & Default Checkbox */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-gray-100">
+              <label className="flex items-center gap-2.5 text-xs sm:text-sm cursor-pointer font-bold text-gray-700 select-none">
                 <input
-                  type="text"
-                  value={addressForm.city}
-                  onChange={e => setAddressForm({ ...addressForm, city: e.target.value })}
-                  className="w-full border border-gray-200 p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-medium"
-                  placeholder="City (e.g. Ahmedabad)"
-                  required
+                  type="checkbox"
+                  checked={addressForm.isDefault}
+                  onChange={e => setAddressForm({ ...addressForm, isDefault: e.target.checked })}
+                  className="w-4 h-4 accent-[#18753C] rounded"
                 />
-              </div>
-              <div>
-                <label className="text-[11px] font-black text-gray-500 uppercase tracking-wider block mb-1.5">State</label>
-                <input
-                  type="text"
-                  value={addressForm.state}
-                  onChange={e => setAddressForm({ ...addressForm, state: e.target.value })}
-                  className="w-full border border-gray-200 p-3 rounded-xl text-xs sm:text-sm focus:border-[#18753C] outline-none font-medium"
-                  placeholder="State (e.g. Gujarat)"
-                  required
-                />
-              </div>
-            </div>
+                <span>Set as default delivery address</span>
+              </label>
 
-            <label className="flex items-center gap-2.5 text-xs pt-1 cursor-pointer font-bold text-gray-700 select-none">
-              <input
-                type="checkbox"
-                checked={addressForm.isDefault}
-                onChange={e => setAddressForm({ ...addressForm, isDefault: e.target.checked })}
-                className="w-4 h-4 accent-[#18753C] rounded"
-              />
-              <span>Set as my default shipping address</span>
-            </label>
-
-            <div className="flex gap-3 justify-end pt-3 border-t border-gray-100">
-              <button
-                type="button"
-                onClick={() => { setIsAddingAddress(false); setEditingAddressId(null); }}
-                className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-xs text-gray-700 transition cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={savingAddress}
-                className="px-6 py-2.5 bg-[#18753C] hover:bg-[#156030] text-white rounded-xl font-extrabold text-xs shadow-md transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {savingAddress ? 'Saving...' : 'Save Address'}
-              </button>
+              <div className="flex gap-2.5 justify-end">
+                <button
+                  type="button"
+                  onClick={() => { setIsAddingAddress(false); setEditingAddressId(null); }}
+                  className="px-4 py-2 sm:px-5 sm:py-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-xs sm:text-sm text-gray-700 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingAddress}
+                  className="px-6 py-2.5 bg-[#18753C] hover:bg-[#156030] text-white rounded-xl font-extrabold text-xs sm:text-sm shadow-xs transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {savingAddress ? 'Saving...' : 'Save Address'}
+                </button>
+              </div>
             </div>
           </form>
         )}
 
         {/* Addresses Grid (2-column on desktop for optimal reading width) */}
         {addresses.length === 0 ? (
-          <div className="bg-white rounded-3xl border border-gray-200/80 p-12 text-center text-gray-500 shadow-xs">
+          <div className="bg-white rounded-2xl border border-gray-200/80 p-8 sm:p-10 text-center text-gray-500 shadow-2xs">
             <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-[#18753C] flex items-center justify-center text-2xl mx-auto mb-3">
               <i className="fa-solid fa-location-dot"></i>
             </div>
             <h3 className="font-extrabold text-base text-gray-900">No addresses saved yet</h3>
-            <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto leading-relaxed">
+            <p className="text-xs sm:text-sm text-gray-500 mt-1 max-w-sm mx-auto leading-relaxed">
               Add your delivery address for 14–45 min doorstep delivery.
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {addresses.map(addr => {
               const serviceInfo = serviceabilityResults[addr.id];
               return (
                 <div
                   key={addr.id}
-                  className={`border rounded-2xl p-5 flex flex-col justify-between transition-all ${
+                  className={`border rounded-2xl p-4.5 sm:p-5 flex flex-col justify-between transition-all ${
                     addr.isDefault
-                      ? 'border-[#18753C] bg-[#F5FBF7] shadow-xs'
+                      ? 'border-[#18753C] bg-[#F5FBF7] shadow-xs ring-1 ring-[#18753C]/20'
                       : 'border-gray-200 bg-white shadow-xs hover:border-gray-300'
                   }`}
                 >
@@ -1692,7 +1477,7 @@ export default function AccountPage({
                           type="button"
                           disabled={settingDefaultId === addr.id || deletingAddressId === addr.id}
                           onClick={() => handleSetDefaultAddress(addr)}
-                          className="text-[11px] text-gray-500 hover:text-[#18753C] font-bold underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-xs text-gray-500 hover:text-[#18753C] font-bold underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {settingDefaultId === addr.id ? 'Updating...' : 'Set as Default'}
                         </button>
@@ -1706,19 +1491,19 @@ export default function AccountPage({
 
                     {/* Contact Person */}
                     <p className="text-gray-500 text-xs font-medium">
-                      <i className="fa-solid fa-user text-[10px] mr-1.5 text-gray-400"></i>
+                      <i className="fa-solid fa-user text-[10px] mr-1 text-gray-400"></i>
                       {addr.recipientName || profile?.name || 'Customer'} &bull; {addr.phone || profile?.phone || '+91 98765 12340'}
                     </p>
 
                     {/* Serviceability Check Result / Button */}
-                    <div className="pt-1">
+                    <div className="pt-0.5">
                       {serviceInfo ? (
-                        <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-emerald-200">
+                        <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 text-xs font-semibold px-2.5 py-1 rounded-lg border border-emerald-200">
                           <i className="fa-solid fa-bolt text-emerald-600"></i>
-                          <span>{serviceInfo.deliverySpeed} (Pincode {serviceInfo.pincode})</span>
+                          <span>{serviceInfo.deliverySpeed} (PIN {serviceInfo.pincode})</span>
                         </div>
                       ) : serviceabilityErrors[addr.id] ? (
-                        <div className="inline-flex items-center gap-2 text-[11px] text-red-600 font-semibold">
+                        <div className="inline-flex items-center gap-1.5 text-xs text-red-600 font-semibold">
                           <span>{serviceabilityErrors[addr.id]}</span>
                           <button
                             type="button"
@@ -1734,7 +1519,7 @@ export default function AccountPage({
                           type="button"
                           disabled={checkingServiceabilityId === addr.id}
                           onClick={() => checkServiceability(addr.id)}
-                          className="text-[11px] font-bold text-[#18753C] hover:underline flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-xs font-bold text-[#18753C] hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <i className="fa-solid fa-location-crosshairs text-[10px]"></i>
                           <span>{checkingServiceabilityId === addr.id ? 'Checking...' : 'Check Delivery Serviceability'}</span>
@@ -1788,13 +1573,13 @@ export default function AccountPage({
     );
   };
 
-  // Render Settings & Profile View (Full-width structured layout)
+  // Render Settings & Profile View (Desktop 2-column layout to fit user screen)
   const renderProfile = () => (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-4">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-gray-200/60">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-gray-200/60">
         <div>
-          <div className="flex items-center gap-2 text-xs font-bold text-gray-400 mb-1">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-gray-400 mb-0.5">
             <button
               type="button"
               onClick={() => setActiveView('dashboard')}
@@ -1805,290 +1590,293 @@ export default function AccountPage({
             <span>/</span>
             <span className="text-gray-700">Settings &amp; Profile</span>
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-gray-900">Settings &amp; Profile</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Manage your personal credentials, communication alerts and security</p>
+          <h2 className="text-lg sm:text-xl font-black text-gray-900">Settings &amp; Profile</h2>
         </div>
         <button
           type="button"
           onClick={() => setActiveView('dashboard')}
-          className="text-xs font-bold text-gray-600 hover:text-gray-900 bg-white border border-gray-200 px-3.5 py-2 rounded-xl transition cursor-pointer self-start sm:self-auto"
+          className="text-xs sm:text-sm font-bold text-gray-700 hover:text-gray-950 bg-white border border-gray-200 px-3.5 py-2 rounded-xl transition cursor-pointer self-start sm:self-auto"
         >
           ← Back to Dashboard
         </button>
       </div>
 
-      {/* Profile Photo & Avatar Card */}
-      <div className="bg-white rounded-2xl shadow-xs border border-gray-200/80 p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 mb-5 border-b border-gray-100">
-          <div>
-            <h3 className="text-base font-extrabold text-gray-900">Profile Photo &amp; Avatar</h3>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Upload your personal photo or select a preset avatar. Changes will only be saved when you click &quot;Save Changes&quot; below.
-            </p>
-          </div>
-          {pendingAvatar && (
-            <span className="self-start sm:self-auto bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-extrabold px-3 py-1 rounded-full flex items-center gap-1.5 animate-pulse">
-              <i className="fa-solid fa-clock-rotate-left text-[10px]"></i>
-              <span>Unsaved preview</span>
-            </span>
-          )}
-        </div>
+      {/* Hidden File Input for Image Upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/jpeg,image/png,image/webp"
+        onChange={handleFileSelect}
+        className="hidden"
+        data-testid="profile-photo-input"
+      />
 
-        {/* Hidden File Input for Image Upload */}
-        <input
-          type="file"
-          ref={fileInputRef}
-          accept="image/jpeg,image/png,image/webp"
-          onChange={handleFileSelect}
-          className="hidden"
-          data-testid="profile-photo-input"
-        />
-
-        <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-          {/* Avatar Preview & Direct Actions */}
-          <div className="flex items-center gap-4.5">
-            <div className="relative group shrink-0">
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-[#18753C] text-white flex items-center justify-center text-3xl font-black overflow-hidden border-2 border-[#18753C] shadow-sm">
-                {activeAvatarUrl ? (
-                  <img
-                    src={activeAvatarUrl}
-                    alt="Active Avatar Preview"
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  displayInitial
-                )}
+      {/* 2-Column Responsive Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
+        {/* Left Column: Photo & Personal Info */}
+        <div className="space-y-4">
+          {/* Profile Photo & Avatar Card */}
+          <div className="bg-white rounded-2xl shadow-xs border border-gray-200/90 p-5 sm:p-6 space-y-4">
+            <div className="flex items-center justify-between pb-2.5 border-b border-gray-100">
+              <div>
+                <h3 className="text-base font-extrabold text-gray-900">Profile Photo</h3>
+                <p className="text-xs text-gray-500">Upload photo or select avatar</p>
               </div>
-              {savingProfile && (
-                <div className="absolute inset-0 bg-black/50 rounded-2xl flex flex-col items-center justify-center text-white text-xs font-bold gap-1">
-                  <i className="fa-solid fa-spinner animate-spin text-lg"></i>
-                  <span className="text-[10px]">Saving...</span>
-                </div>
+              {pendingAvatar && (
+                <span className="bg-amber-50 text-amber-800 border border-amber-200 text-xs font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1.5 animate-pulse">
+                  <i className="fa-solid fa-clock-rotate-left text-[10px]"></i>
+                  <span>Unsaved preview</span>
+                </span>
               )}
             </div>
 
-            {/* Upload, Change, Remove, Reset Controls */}
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  disabled={savingProfile}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-3.5 py-2 bg-[#18753C] hover:bg-[#156030] text-white rounded-xl text-xs font-extrabold transition flex items-center gap-2 shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <i className="fa-solid fa-camera text-xs"></i>
-                  <span>{activeAvatarUrl ? 'Change Photo' : 'Upload Photo'}</span>
-                </button>
-
-                {activeAvatarUrl && (
-                  <button
-                    type="button"
-                    disabled={savingProfile}
-                    onClick={handleRemovePhoto}
-                    className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <i className="fa-solid fa-trash-can text-[11px]"></i>
-                    <span>Remove</span>
-                  </button>
-                )}
-
-                {pendingAvatar && (
-                  <button
-                    type="button"
-                    disabled={savingProfile}
-                    onClick={handleResetAvatar}
-                    className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Revert preview to currently saved profile picture"
-                  >
-                    <i className="fa-solid fa-rotate-left text-[11px]"></i>
-                    <span>Reset</span>
-                  </button>
+            <div className="flex items-center gap-4">
+              {/* Avatar Preview */}
+              <div className="relative group shrink-0">
+                <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl bg-[#18753C] text-white flex items-center justify-center text-2xl font-black overflow-hidden border-2 border-[#18753C] shadow-xs">
+                  {activeAvatarUrl ? (
+                    <img
+                      src={activeAvatarUrl}
+                      alt="Active Avatar Preview"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    displayInitial
+                  )}
+                </div>
+                {savingProfile && (
+                  <div className="absolute inset-0 bg-black/50 rounded-2xl flex flex-col items-center justify-center text-white text-xs font-bold gap-1">
+                    <i className="fa-solid fa-spinner animate-spin text-base"></i>
+                  </div>
                 )}
               </div>
-              <p className="text-[11px] text-gray-500">
-                JPG, JPEG, PNG, or WebP. Max 2 MB. Stored securely on Cloudinary.
-              </p>
-            </div>
-          </div>
 
-          {/* Desktop divider */}
-          <div className="hidden lg:block w-px h-16 bg-gray-200"></div>
-
-          {/* Preset Avatar Selection */}
-          <div className="flex-1">
-            <span className="text-xs font-bold text-gray-700 block mb-2">Or choose a preset avatar:</span>
-            <div className="flex flex-wrap items-center gap-2.5">
-              {PRESET_AVATARS.map((url, idx) => {
-                const isSelected = activeAvatarUrl === url;
-                return (
+              {/* Upload & Preset Avatar Controls */}
+              <div className="flex-1 min-w-0 space-y-2.5">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
-                    key={idx}
                     type="button"
                     disabled={savingProfile}
-                    onClick={() => handleSelectPreset(url)}
-                    className={`w-11 h-11 rounded-xl overflow-hidden border-2 transition-all hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isSelected
-                        ? 'border-[#18753C] ring-2 ring-[#18753C]/30 scale-105 shadow-xs'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                    title={`Select preset avatar ${idx + 1}`}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-3.5 py-2 bg-[#18753C] hover:bg-[#156030] text-white rounded-xl text-xs sm:text-sm font-extrabold transition flex items-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
                   >
-                    <img src={url} alt={`Preset ${idx + 1}`} className="w-full h-full object-cover" />
+                    <i className="fa-solid fa-camera text-xs"></i>
+                    <span>{activeAvatarUrl ? 'Change Photo' : 'Upload Photo'}</span>
                   </button>
-                );
-              })}
+
+                  {activeAvatarUrl && (
+                    <button
+                      type="button"
+                      disabled={savingProfile}
+                      onClick={handleRemovePhoto}
+                      className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <i className="fa-solid fa-trash-can text-xs"></i>
+                      <span>Remove</span>
+                    </button>
+                  )}
+
+                  {pendingAvatar && (
+                    <button
+                      type="button"
+                      disabled={savingProfile}
+                      onClick={handleResetAvatar}
+                      className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      title="Revert preview to current saved photo"
+                    >
+                      <i className="fa-solid fa-rotate-left text-xs"></i>
+                      <span>Reset</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Preset Avatars */}
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="text-xs text-gray-500 font-bold shrink-0">Presets:</span>
+                  <div className="flex items-center gap-1.5">
+                    {PRESET_AVATARS.map((url, idx) => {
+                      const isSelected = activeAvatarUrl === url;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          disabled={savingProfile}
+                          onClick={() => handleSelectPreset(url)}
+                          className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl overflow-hidden border transition-all hover:scale-105 cursor-pointer disabled:opacity-50 ${
+                            isSelected
+                              ? 'border-[#18753C] ring-2 ring-[#18753C]/30 scale-105'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          title={`Select avatar preset ${idx + 1}`}
+                        >
+                          <img src={url} alt={`Preset ${idx + 1}`} className="w-full h-full object-cover" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Personal Information Form Card */}
+          <div className="bg-white rounded-2xl shadow-xs border border-gray-200/90 p-5 sm:p-6 space-y-4">
+            <div className="pb-2 border-b border-gray-100">
+              <h3 className="text-base font-extrabold text-gray-900">Personal Information</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Identity used for invoices and order tracking</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Full Name</label>
+                <input
+                  type="text"
+                  value={profileForm.name}
+                  onChange={e => setProfileForm({ ...profileForm, name: e.target.value })}
+                  className="border border-gray-200 p-2.5 sm:p-3 rounded-xl focus:border-[#18753C] outline-none text-xs sm:text-sm text-gray-800 font-medium"
+                  placeholder="Full Name"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Mobile Phone</label>
+                <input
+                  type="text"
+                  value={profileForm.phone}
+                  onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
+                  className="border border-gray-200 p-2.5 sm:p-3 rounded-xl focus:border-[#18753C] outline-none text-xs sm:text-sm text-gray-800 font-medium"
+                  placeholder="Phone Number"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Email Address</label>
+                <input
+                  type="email"
+                  value={profileForm.email}
+                  onChange={e => setProfileForm({ ...profileForm, email: e.target.value })}
+                  className="border border-gray-200 p-2.5 sm:p-3 rounded-xl focus:border-[#18753C] outline-none text-xs sm:text-sm text-gray-800 font-medium"
+                  placeholder="Email Address"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Preferred Language</label>
+                <select className="border border-gray-200 p-2.5 sm:p-3 rounded-xl bg-gray-50 text-xs sm:text-sm text-gray-800 outline-none font-medium">
+                  <option>English</option>
+                  <option>Gujarati</option>
+                  <option>Hindi</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Personal Information Form Card */}
-      <div className="bg-white rounded-2xl shadow-xs border border-gray-200/80 p-6">
-        <h3 className="text-base font-extrabold text-gray-900 mb-1">Personal Information</h3>
-        <p className="text-xs text-gray-500 mb-5">Primary customer identity used for invoices and SMS tracking</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-gray-600">Full Name</label>
-            <input
-              type="text"
-              value={profileForm.name}
-              onChange={e => setProfileForm({ ...profileForm, name: e.target.value })}
-              className="border border-gray-200 p-3 rounded-xl focus:border-[#18753C] outline-none text-xs sm:text-sm text-gray-800 font-medium"
-              placeholder="Full Name"
-            />
+        {/* Right Column: Preferences & Security */}
+        <div className="space-y-4">
+          {/* Notification Preferences Card */}
+          <div className="bg-white rounded-2xl shadow-xs border border-gray-200/90 p-5 sm:p-6 space-y-3.5">
+            <div className="pb-2 border-b border-gray-100">
+              <h3 className="text-base font-extrabold text-gray-900">Notification Preferences</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Dispatch alerts, soundbox and deals</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50/70 transition cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={notificationPrefs.order_updates_sms}
+                  onChange={() => setNotificationPrefs(p => ({ ...p, order_updates_sms: !p.order_updates_sms }))}
+                  className="w-4 h-4 mt-0.5 accent-[#18753C] rounded"
+                />
+                <div>
+                  <div className="text-xs sm:text-sm font-bold text-gray-800">Order Updates</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Live rider &amp; dispatch notices</div>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50/70 transition cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={notificationPrefs.promotional_sms}
+                  onChange={() => setNotificationPrefs(p => ({ ...p, promotional_sms: !p.promotional_sms }))}
+                  className="w-4 h-4 mt-0.5 accent-[#18753C] rounded"
+                />
+                <div>
+                  <div className="text-xs sm:text-sm font-bold text-gray-800">Promo Offers</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Deals &amp; store coupons</div>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50/70 transition cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={notificationPrefs.soundbox_alerts}
+                  onChange={() => setNotificationPrefs(p => ({ ...p, soundbox_alerts: !p.soundbox_alerts }))}
+                  className="w-4 h-4 mt-0.5 accent-[#18753C] rounded"
+                />
+                <div>
+                  <div className="text-xs sm:text-sm font-bold text-gray-800">Soundbox Alerts</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Chime upon order arrival</div>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50/70 transition cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={notificationPrefs.order_updates_email}
+                  onChange={() => setNotificationPrefs(p => ({ ...p, order_updates_email: !p.order_updates_email }))}
+                  className="w-4 h-4 mt-0.5 accent-[#18753C] rounded"
+                />
+                <div>
+                  <div className="text-xs sm:text-sm font-bold text-gray-800">Email Invoices</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Itemized bills and receipts</div>
+                </div>
+              </label>
+            </div>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-gray-600">Mobile Phone</label>
-            <input
-              type="text"
-              value={profileForm.phone}
-              onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
-              className="border border-gray-200 p-3 rounded-xl focus:border-[#18753C] outline-none text-xs sm:text-sm text-gray-800 font-medium"
-              placeholder="Phone Number"
-            />
+
+          {/* Security Actions Card */}
+          <div className="bg-white rounded-2xl shadow-xs border border-gray-200/90 p-5 sm:p-6 space-y-3.5">
+            <div className="pb-2 border-b border-gray-100">
+              <h3 className="text-base font-extrabold text-gray-900">Security &amp; Sessions</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Password and authentication settings</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <button
+                type="button"
+                onClick={handleOpenPasswordModal}
+                className="flex items-center gap-3 text-xs sm:text-sm text-gray-700 bg-gray-50 hover:bg-gray-100 p-3 rounded-xl transition text-left font-bold cursor-pointer border border-gray-200/70"
+              >
+                <i className="fa-solid fa-key text-[#18753C] text-sm shrink-0"></i>
+                <div className="min-w-0">
+                  <div className="text-xs sm:text-sm truncate">Password</div>
+                  <div className="text-xs text-gray-400 font-normal">Change PIN/PW</div>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => showToast('Two-factor authentication is currently enabled via SMS')}
+                className="flex items-center gap-3 text-xs sm:text-sm text-gray-700 bg-gray-50 hover:bg-gray-100 p-3 rounded-xl transition text-left font-bold cursor-pointer border border-gray-200/70"
+              >
+                <i className="fa-solid fa-shield-halved text-emerald-600 text-sm shrink-0"></i>
+                <div className="min-w-0">
+                  <div className="text-xs sm:text-sm truncate">2-Factor Auth</div>
+                  <div className="text-xs text-emerald-600 font-normal">Active (SMS)</div>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => showToast('All active sessions are verified on this device')}
+                className="flex items-center gap-3 text-xs sm:text-sm text-gray-700 bg-gray-50 hover:bg-gray-100 p-3 rounded-xl transition text-left font-bold cursor-pointer border border-gray-200/70"
+              >
+                <i className="fa-solid fa-laptop text-blue-600 text-sm shrink-0"></i>
+                <div className="min-w-0">
+                  <div className="text-xs sm:text-sm truncate">Sessions</div>
+                  <div className="text-xs text-gray-400 font-normal">Verified Device</div>
+                </div>
+              </button>
+            </div>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-gray-600">Email Address</label>
-            <input
-              type="email"
-              value={profileForm.email}
-              onChange={e => setProfileForm({ ...profileForm, email: e.target.value })}
-              className="border border-gray-200 p-3 rounded-xl focus:border-[#18753C] outline-none text-xs sm:text-sm text-gray-800 font-medium"
-              placeholder="Email Address"
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-gray-600">Preferred Language</label>
-            <select className="border border-gray-200 p-3 rounded-xl bg-gray-50 text-xs sm:text-sm text-gray-800 outline-none font-medium">
-              <option>English</option>
-              <option>Gujarati</option>
-              <option>Hindi</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Notification Preferences Card */}
-      <div className="bg-white rounded-2xl shadow-xs border border-gray-200/80 p-6">
-        <h3 className="text-base font-extrabold text-gray-900 mb-1">Notification Preferences</h3>
-        <p className="text-xs text-gray-500 mb-4">Configure channels for dispatch updates, soundbox and deals</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50/70 transition cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={notificationPrefs.order_updates_sms}
-              onChange={() => setNotificationPrefs(p => ({ ...p, order_updates_sms: !p.order_updates_sms }))}
-              className="w-4 h-4 mt-0.5 accent-[#18753C] rounded"
-            />
-            <div>
-              <div className="text-xs font-bold text-gray-800">Order Updates (SMS &amp; Push)</div>
-              <div className="text-[11px] text-gray-500 mt-0.5">Live rider tracking &amp; doorstep delivery notices</div>
-            </div>
-          </label>
-
-          <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50/70 transition cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={notificationPrefs.promotional_sms}
-              onChange={() => setNotificationPrefs(p => ({ ...p, promotional_sms: !p.promotional_sms }))}
-              className="w-4 h-4 mt-0.5 accent-[#18753C] rounded"
-            />
-            <div>
-              <div className="text-xs font-bold text-gray-800">Promotional Offers</div>
-              <div className="text-[11px] text-gray-500 mt-0.5">Flash deals &amp; weekend coupons from local neighbourhood stores</div>
-            </div>
-          </label>
-
-          <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50/70 transition cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={notificationPrefs.soundbox_alerts}
-              onChange={() => setNotificationPrefs(p => ({ ...p, soundbox_alerts: !p.soundbox_alerts }))}
-              className="w-4 h-4 mt-0.5 accent-[#18753C] rounded"
-            />
-            <div>
-              <div className="text-xs font-bold text-gray-800">Soundbox &amp; In-app Alerts</div>
-              <div className="text-[11px] text-gray-500 mt-0.5">Audio and popup chime upon payment and delivery</div>
-            </div>
-          </label>
-
-          <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50/70 transition cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={notificationPrefs.order_updates_email}
-              onChange={() => setNotificationPrefs(p => ({ ...p, order_updates_email: !p.order_updates_email }))}
-              className="w-4 h-4 mt-0.5 accent-[#18753C] rounded"
-            />
-            <div>
-              <div className="text-xs font-bold text-gray-800">Email Tax Invoices</div>
-              <div className="text-[11px] text-gray-500 mt-0.5">Monthly itemized receipts and order bills</div>
-            </div>
-          </label>
-        </div>
-      </div>
-
-      {/* Security Actions Card */}
-      <div className="bg-white rounded-2xl shadow-xs border border-gray-200/80 p-6">
-        <h3 className="text-base font-extrabold text-gray-900 mb-1">Security &amp; Device Sessions</h3>
-        <p className="text-xs text-gray-500 mb-4">Protect your account access and saved payment instruments</p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <button
-            type="button"
-            onClick={handleOpenPasswordModal}
-            className="flex items-center gap-3 text-xs text-gray-700 bg-gray-50 hover:bg-gray-100 p-3.5 rounded-xl transition text-left font-bold cursor-pointer border border-gray-200/60"
-          >
-            <i className="fa-solid fa-key text-[#18753C] text-sm"></i>
-            <div>
-              <div>Change Password</div>
-              <div className="text-[10px] text-gray-400 font-normal">Sent to registered email</div>
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={() => showToast('Two-factor authentication is currently enabled via SMS')}
-            className="flex items-center gap-3 text-xs text-gray-700 bg-gray-50 hover:bg-gray-100 p-3.5 rounded-xl transition text-left font-bold cursor-pointer border border-gray-200/60"
-          >
-            <i className="fa-solid fa-shield-halved text-emerald-600 text-sm"></i>
-            <div>
-              <div>Two-Factor Auth</div>
-              <div className="text-[10px] text-emerald-600 font-normal">Enabled via SMS OTP</div>
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={() => showToast('All active sessions are verified on this device')}
-            className="flex items-center gap-3 text-xs text-gray-700 bg-gray-50 hover:bg-gray-100 p-3.5 rounded-xl transition text-left font-bold cursor-pointer border border-gray-200/60"
-          >
-            <i className="fa-solid fa-laptop text-blue-600 text-sm"></i>
-            <div>
-              <div>Active Sessions</div>
-              <div className="text-[10px] text-gray-400 font-normal">This desktop browser</div>
-            </div>
-          </button>
         </div>
       </div>
 
@@ -2105,7 +1893,7 @@ export default function AccountPage({
             });
             setActiveView('dashboard');
           }}
-          className="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-xs text-gray-700 transition cursor-pointer"
+          className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-xs sm:text-sm text-gray-700 transition cursor-pointer"
         >
           Cancel
         </button>
@@ -2116,11 +1904,11 @@ export default function AccountPage({
             const ok = await handleUpdateProfile(e);
             if (ok) setActiveView('dashboard');
           }}
-          className="bg-[#18753C] hover:bg-[#156030] text-white px-7 py-2.5 rounded-xl font-extrabold text-xs shadow-sm transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          className="bg-[#18753C] hover:bg-[#156030] text-white px-6 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm shadow-xs transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
           {savingProfile ? (
             <>
-              <i className="fa-solid fa-spinner animate-spin text-xs"></i>
+              <i className="fa-solid fa-spinner animate-spin text-sm"></i>
               <span>Saving...</span>
             </>
           ) : (
@@ -2133,10 +1921,10 @@ export default function AccountPage({
 
   // Render Placeholder / Coming Soon View
   const renderPlaceholder = () => (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-4">
       <div className="flex items-center justify-between pb-2 border-b border-gray-200/60">
         <div>
-          <div className="flex items-center gap-2 text-xs font-bold text-gray-400 mb-1">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-gray-400 mb-0.5">
             <button
               type="button"
               onClick={() => setActiveView('dashboard')}
@@ -2147,27 +1935,27 @@ export default function AccountPage({
             <span>/</span>
             <span className="text-gray-700">{placeholderTitle}</span>
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-gray-900">{placeholderTitle}</h2>
+          <h2 className="text-lg sm:text-xl font-black text-gray-900">{placeholderTitle}</h2>
         </div>
         <button
           type="button"
           onClick={() => setActiveView('dashboard')}
-          className="text-xs font-bold text-gray-600 hover:text-gray-900 bg-white border border-gray-200 px-3.5 py-2 rounded-xl transition cursor-pointer"
+          className="text-xs sm:text-sm font-bold text-gray-700 hover:text-gray-950 bg-white border border-gray-200 px-3.5 py-2 rounded-xl transition cursor-pointer"
         >
           ← Return to Dashboard
         </button>
       </div>
 
-      <div className="bg-white rounded-3xl shadow-xs border border-gray-200/80 p-12 text-center">
-        <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center text-[#18753C] mx-auto mb-4 text-2xl">
+      <div className="bg-white rounded-2xl shadow-xs border border-gray-200/80 p-8 sm:p-12 text-center">
+        <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-[#18753C] mx-auto mb-3.5 text-2xl">
           <i className="fa-solid fa-clock-rotate-left"></i>
         </div>
-        <h3 className="text-lg font-black text-gray-900 mb-2">{placeholderTitle}</h3>
+        <h3 className="text-base sm:text-lg font-black text-gray-900 mb-1.5">{placeholderTitle}</h3>
         <p className="text-gray-500 text-xs sm:text-sm max-w-md mx-auto leading-relaxed">{placeholderText}</p>
         <button
           type="button"
           onClick={() => setActiveView('dashboard')}
-          className="mt-6 px-6 py-2.5 bg-[#18753C] hover:bg-[#156030] text-white text-xs font-extrabold rounded-xl transition cursor-pointer"
+          className="mt-5 px-6 py-2.5 bg-[#18753C] hover:bg-[#156030] text-white text-xs sm:text-sm font-extrabold rounded-xl transition cursor-pointer shadow-xs"
         >
           Back to Overview
         </button>
@@ -2176,11 +1964,11 @@ export default function AccountPage({
   );
 
   return (
-    <div className="w-full relative pb-12">
+    <div className="w-full relative pb-2 sm:pb-3">
       {/* Top Breadcrumb & Actions Bar */}
-      <div className="w-full max-w-7xl 2xl:max-w-[1520px] mx-auto mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="w-full max-w-7xl 2xl:max-w-[1520px] mx-auto mb-3 sm:mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
-          <div className="flex items-center gap-2 text-xs font-bold text-gray-400 mb-1">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-gray-400 mb-0.5">
             <span className="text-[#18753C]">Account</span>
             {activeView !== 'dashboard' && (
               <>
@@ -2191,12 +1979,12 @@ export default function AccountPage({
               </>
             )}
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
             {activeView === 'dashboard' ? 'Customer Account' : (activeView === 'addresses' ? 'Delivery Addresses' : (activeView === 'profile' ? 'Profile & Security' : placeholderTitle))}
           </h1>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           {activeView !== 'dashboard' && (
             <button
               type="button"
@@ -2204,9 +1992,9 @@ export default function AccountPage({
                 window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
                 setActiveView('dashboard');
               }}
-              className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:text-gray-950 hover:bg-gray-50 shadow-xs transition cursor-pointer flex items-center gap-1.5"
+              className="px-3.5 py-2 bg-white border border-gray-200 rounded-xl text-xs sm:text-sm font-bold text-gray-700 hover:text-gray-950 hover:bg-gray-50 shadow-2xs transition cursor-pointer flex items-center gap-2"
             >
-              <i className="fa-solid fa-arrow-left text-[11px]"></i>
+              <i className="fa-solid fa-arrow-left text-xs"></i>
               <span>Back to Overview</span>
             </button>
           )}
@@ -2216,7 +2004,7 @@ export default function AccountPage({
             <button
               type="button"
               onClick={() => setShowSidebarOnDashboard(prev => !prev)}
-              className="hidden lg:flex px-4 py-2 bg-white border border-gray-200 rounded-xl items-center gap-2 text-xs font-bold text-gray-700 shadow-xs hover:bg-gray-50 transition cursor-pointer"
+              className="hidden lg:flex px-3.5 py-2 bg-white border border-gray-200 rounded-xl items-center gap-2 text-xs sm:text-sm font-bold text-gray-700 shadow-2xs hover:bg-gray-50 transition cursor-pointer"
               title={showSidebarOnDashboard ? "Hide Navigation Sidebar" : "Show Navigation Sidebar"}
             >
               <i className={`fa-solid ${showSidebarOnDashboard ? 'fa-xmark' : 'fa-bars'} text-[#18753C]`}></i>
@@ -2228,21 +2016,21 @@ export default function AccountPage({
           <button
             type="button"
             onClick={() => setIsSidebarOpen(true)}
-            className="lg:hidden px-3.5 py-2 bg-white border border-gray-200 rounded-xl flex items-center gap-2 text-xs font-bold text-gray-700 shadow-xs hover:bg-gray-50 transition cursor-pointer"
+            className="lg:hidden px-3.5 py-2 bg-white border border-gray-200 rounded-xl flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-700 shadow-2xs hover:bg-gray-50 transition cursor-pointer"
             title="Account Menu"
             aria-label="Account Menu"
           >
-            <i className="fa-solid fa-bars text-sm text-[#18753C]"></i>
+            <i className="fa-solid fa-bars text-xs text-[#18753C]"></i>
             <span>Menu</span>
           </button>
         </div>
       </div>
 
       {/* Main Full-Width Dashboard Composition */}
-      <div className="w-full max-w-7xl 2xl:max-w-[1520px] mx-auto flex flex-col lg:flex-row gap-6 xl:gap-8 items-start">
+      <div className="w-full max-w-7xl 2xl:max-w-[1520px] mx-auto flex flex-col lg:flex-row gap-4 xl:gap-6 items-start">
         {/* Left Column: Navigation Sidebar - Hidden on Dashboard unless toggled, automatically visible on any active tab */}
         {(activeView !== 'dashboard' || showSidebarOnDashboard) && (
-          <aside className="hidden lg:flex flex-col w-72 xl:w-80 shrink-0 sticky top-24 space-y-4 animate-in fade-in duration-200">
+          <aside className="hidden lg:flex flex-col w-64 xl:w-72 shrink-0 sticky top-20 animate-in fade-in duration-200">
             {renderSidebar()}
           </aside>
         )}

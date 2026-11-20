@@ -489,7 +489,7 @@ export default function ReturnsView({
   };
 
   return (
-    <section id="sec-returns" className="pt-2 pb-6 space-y-4 max-w-3xl mx-auto w-full">
+    <section id="sec-returns" className="pt-2 pb-3 md:pb-2 space-y-4 max-w-3xl mx-auto w-full">
       {/* Top Header with Back Navigation */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">

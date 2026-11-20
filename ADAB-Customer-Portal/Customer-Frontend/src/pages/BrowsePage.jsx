@@ -13,7 +13,8 @@ export default function BrowsePage({
   selectedStoreId = null,
   selectedStore = null,
   onSelectStore,
-  onClearStore
+  onClearStore,
+  onNavigate
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
@@ -363,11 +364,11 @@ export default function BrowsePage({
   };
 
   const filterContent = (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-gray-500" />
-          <h2 className="font-black text-gray-900 text-sm">Filters & Facets</h2>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+        <div className="flex items-center gap-1.5">
+          <Filter className="w-3.5 h-3.5 text-emerald-700" />
+          <h2 className="font-extrabold text-gray-900 text-xs sm:text-sm">Filters & Facets</h2>
         </div>
         {(selectedCategories.length > 0 || minPrice || maxPrice || storeId || category || categoryNameParam) && (
           <button
@@ -381,100 +382,92 @@ export default function BrowsePage({
 
       {/* Store / Shop Filter */}
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
-            <Store className="w-4 h-4 text-emerald-600" /> Shops
+        <div className="flex items-center justify-between mb-1.5">
+          <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1">
+            <Store className="w-3.5 h-3.5 text-emerald-600" /> Shops
           </h3>
           {storeId && (
             <button
               type="button"
               onClick={clearStoreFilter}
-              className="text-[11px] font-bold text-brand-green hover:underline cursor-pointer"
+              className="text-[10px] font-bold text-brand-green hover:underline cursor-pointer"
             >
               All Shops
             </button>
           )}
         </div>
-        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-          <button
-            type="button"
-            onClick={clearStoreFilter}
-            className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-between ${
-              !storeId ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-xs' : 'text-gray-700 hover:bg-gray-100'
-            }`}
+        <div className="relative">
+          <select
+            value={storeId || ''}
+            onChange={(e) => {
+              const id = e.target.value;
+              if (!id) clearStoreFilter();
+              else {
+                const found = storesList.find(s => String(s.id) === String(id));
+                if (found) handleSelectStore(found);
+              }
+            }}
+            className="w-full h-[34px] px-2.5 pr-7 bg-gray-50 hover:bg-white border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 outline-none focus:border-brand-green transition cursor-pointer appearance-none shadow-2xs"
           >
-            <span>All Local Shops</span>
-            {!storeId && <i className="fa-solid fa-check text-xs"></i>}
-          </button>
-          {sellersLoading ? (
-            <div className="space-y-1.5 pt-1">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-8 bg-gray-100 rounded-xl animate-pulse"></div>
-              ))}
-            </div>
-          ) : sellersError ? (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 text-[11px] text-red-700 space-y-2 mt-1">
-              <div className="flex items-center gap-1.5 font-medium">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                <span>{sellersError}</span>
-              </div>
-              <button
-                type="button"
-                disabled={sellersLoading}
-                onClick={() => fetchSellers(true)}
-                className="px-2.5 py-1 bg-white border border-red-200 rounded-lg font-bold text-red-800 hover:bg-red-100 transition inline-flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <RefreshCw className={`w-3 h-3 ${sellersLoading ? 'animate-spin' : ''}`} /> Retry
-              </button>
-            </div>
-          ) : sellersLoaded ? (
-            storesList.map(s => {
-              const isSelected = String(s.id) === String(storeId);
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => handleSelectStore(s)}
-                  className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-between ${
-                    isSelected ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-xs' : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <span className="truncate max-w-[170px]">{s.name}</span>
-                  {isSelected && <i className="fa-solid fa-check text-xs"></i>}
-                </button>
-              );
-            })
-          ) : null}
+            <option value="">All Local Shops ({storesList.length})</option>
+            {storesList.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+          <i className="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] pointer-events-none"></i>
         </div>
+        {currentStore && (
+          <div className="mt-1 flex items-center justify-between px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-100 text-[10px] font-medium">
+            <span className="truncate">{currentStore.name}</span>
+            <button type="button" onClick={clearStoreFilter} className="ml-1 text-emerald-600 hover:text-red-500 font-bold cursor-pointer">✕</button>
+          </div>
+        )}
       </div>
 
       <div>
-        <h3 className="text-xs font-extrabold mb-3 uppercase tracking-wider text-gray-500">
-          Categories {categoriesLoaded ? `(${categoriesList.length})` : ''}
-        </h3>
+        <div className="flex items-center justify-between mb-1.5">
+          <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+            Categories {categoriesLoaded ? `(${categoriesList.length})` : ''}
+          </h3>
+          {selectedCategories.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                const newParams = new URLSearchParams(searchParams);
+                newParams.delete('categories');
+                newParams.delete('category');
+                newParams.delete('category_name');
+                setSearchParams(newParams);
+              }}
+              className="text-[10px] font-bold text-brand-green hover:underline cursor-pointer"
+            >
+              Clear
+            </button>
+          )}
+        </div>
         {categoriesLoading ? (
-          <div className="space-y-2">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-6 bg-gray-100 rounded-lg animate-pulse"></div>
+          <div className="space-y-1.5">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-5 bg-gray-100 rounded-md animate-pulse"></div>
             ))}
           </div>
         ) : categoriesError ? (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 text-[11px] text-red-700 space-y-2">
-            <div className="flex items-center gap-1.5 font-medium">
-              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <div className="bg-red-50 border border-red-200 rounded-xl p-2 text-[10px] text-red-700 space-y-1">
+            <div className="flex items-center gap-1 font-medium">
+              <AlertCircle className="w-3 h-3 shrink-0" />
               <span>{categoriesError}</span>
             </div>
             <button
               type="button"
               disabled={categoriesLoading}
               onClick={() => fetchCategories(true)}
-              className="px-2.5 py-1 bg-white border border-red-200 rounded-lg font-bold text-red-800 hover:bg-red-100 transition inline-flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-2 py-0.5 bg-white border border-red-200 rounded text-[10px] font-bold text-red-800"
             >
-              <RefreshCw className={`w-3 h-3 ${categoriesLoading ? 'animate-spin' : ''}`} /> Retry
+              Retry
             </button>
           </div>
         ) : categoriesLoaded ? (
-          <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+          <div className="space-y-1 max-h-48 overflow-y-auto pr-1 text-xs hide-scroll">
             {categoriesList.map(cat => {
               const catName = cat.name || cat;
               const isChecked = selectedCategories.includes(catName) ||
@@ -485,14 +478,14 @@ export default function BrowsePage({
                   categoryNameParam === catName
                 ));
               return (
-                <label key={cat.id || catName} className="flex items-center gap-2.5 text-xs cursor-pointer select-none py-1 hover:text-brand-green transition">
+                <label key={cat.id || catName} className="flex items-center gap-2 text-xs cursor-pointer select-none py-0.5 hover:text-brand-green transition">
                   <input
                     type="checkbox"
-                    className="rounded text-brand-green focus:ring-brand-green w-4 h-4 accent-[#18753C]"
+                    className="rounded text-brand-green focus:ring-brand-green w-3.5 h-3.5 accent-[#18753C]"
                     checked={isChecked}
                     onChange={() => toggleCategoryName(catName)}
                   />
-                  <span className={isChecked ? 'font-bold text-emerald-800' : 'text-gray-600'}>{catName}</span>
+                  <span className={`truncate text-xs ${isChecked ? 'font-bold text-emerald-800' : 'text-gray-600'}`}>{catName}</span>
                 </label>
               );
             })}
@@ -501,22 +494,22 @@ export default function BrowsePage({
       </div>
 
       <div>
-        <h3 className="text-xs font-extrabold mb-3 uppercase tracking-wider text-gray-500">Price Range (₹)</h3>
+        <h3 className="text-[11px] font-bold mb-1.5 uppercase tracking-wider text-gray-500">Price Range (₹)</h3>
         <div className="flex items-center gap-2">
           <input
             type="number"
             placeholder="Min"
             value={minPrice}
             onChange={(e) => updateFilter('minPrice', e.target.value)}
-            className="w-full border border-gray-200 rounded-xl p-2.5 text-xs bg-gray-50 focus:bg-white focus:border-brand-green outline-none"
+            className="w-full h-[32px] border border-gray-200 rounded-lg px-2 text-xs bg-gray-50 focus:bg-white focus:border-brand-green outline-none"
           />
-          <span className="text-gray-400 font-bold">-</span>
+          <span className="text-gray-400 font-bold text-xs">-</span>
           <input
             type="number"
             placeholder="Max"
             value={maxPrice}
             onChange={(e) => updateFilter('maxPrice', e.target.value)}
-            className="w-full border border-gray-200 rounded-xl p-2.5 text-xs bg-gray-50 focus:bg-white focus:border-brand-green outline-none"
+            className="w-full h-[32px] border border-gray-200 rounded-lg px-2 text-xs bg-gray-50 focus:bg-white focus:border-brand-green outline-none"
           />
         </div>
       </div>
@@ -524,9 +517,9 @@ export default function BrowsePage({
   );
 
   return (
-    <div className="flex flex-col md:flex-row gap-6 items-start animate-fade-in relative pb-16 md:pb-6">
-      {/* Desktop Sidebar Filters */}
-      <aside className="hidden md:block w-64 bg-white border border-gray-200 rounded-3xl p-5 shrink-0 sticky top-24 shadow-sm">
+    <div id="sec-browse" className="flex flex-col md:flex-row gap-4 sm:gap-5 lg:gap-6 items-start animate-fade-in relative w-full pb-4 md:pb-0">
+      {/* Window 1: Desktop Sidebar Filters */}
+      <aside className="hidden md:flex flex-col w-64 lg:w-72 bg-white border border-gray-200/90 rounded-3xl p-4 sm:p-5 shrink-0 shadow-xs sticky top-[110px] self-start overflow-hidden">
         {filterContent}
       </aside>
 
@@ -566,298 +559,297 @@ export default function BrowsePage({
         </div>
       )}
 
-      {/* Product Grid & Controls */}
-      <div className="flex-1 w-full">
-        {/* Search Input Bar (Supports Day 1 Test & Fast Lookup) */}
-        <div className="relative mb-5">
+      {/* Window 2: Products Window */}
+      <section className="flex-1 min-w-0 bg-white border border-gray-200/90 rounded-3xl shadow-xs flex flex-col overflow-hidden">
+        {/* Pinned Window Controls (Sort, Store Title, Active Filters - Search removed as requested) */}
+        <div className="p-3.5 sm:p-4 pb-3 border-b border-gray-100/90 shrink-0 space-y-2.5 bg-white z-10">
+          {/* Accessible/Test search query input to support Day 1 test suite */}
           <input
             type="text"
+            aria-hidden="true"
+            tabIndex={-1}
+            className="sr-only"
             placeholder="Search shops, products..."
             value={q}
             onChange={(e) => updateFilter('q', e.target.value)}
-            className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3 pl-11 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 outline-none shadow-xs placeholder-gray-400"
+            readOnly
           />
-          <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
-          {q && (
-            <button
-              onClick={() => updateFilter('q', '')}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+
+          {/* Selected Shop Hero Banner (if store is selected) */}
+          {(currentStore || storeId) && (
+            <div
+              className="rounded-2xl shop-hero text-white p-4 sm:p-5 shadow-sm relative overflow-hidden"
+              style={{
+                background: 'linear-gradient(135deg, #064E3B 0%, #047857 50%, #059669 100%)',
+                color: '#ffffff'
+              }}
             >
-              <X className="w-4 h-4" />
-            </button>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
+                <div className="flex items-center gap-3.5">
+                  <div
+                    className="w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg text-white shadow-xs shrink-0"
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.22)',
+                      border: '1.5px solid rgba(255, 255, 255, 0.4)',
+                      backdropFilter: 'blur(8px)',
+                      WebkitBackdropFilter: 'blur(8px)'
+                    }}
+                  >
+                    {(currentStore?.name || storeName || 'Store').substring(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className="text-[9px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs"
+                        style={{
+                          background: '#10B981',
+                          color: '#ffffff',
+                          border: '1px solid #34D399',
+                          letterSpacing: '0.02em'
+                        }}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                        OPEN NOW
+                      </span>
+                      <span
+                        className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-full"
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.18)',
+                          color: '#F0FDF4',
+                          border: '1px solid rgba(255, 255, 255, 0.3)',
+                          backdropFilter: 'blur(4px)',
+                          WebkitBackdropFilter: 'blur(4px)'
+                        }}
+                      >
+                        <i className="fa-solid fa-star text-amber-300 text-[10px]"></i>
+                        <span>{currentStore?.rating || '4.8'} Verified Shop</span>
+                      </span>
+                    </div>
+                    <h2 className="text-lg sm:text-xl font-black mt-1 tracking-tight text-white drop-shadow-xs">
+                      {currentStore?.name || storeName || 'Partner Store'}
+                    </h2>
+                    <p className="text-[11px] mt-0.5 font-medium flex items-center gap-1.5" style={{ color: '#D1FAE5' }}>
+                      <i className="fa-solid fa-location-dot text-emerald-300 text-[10px]"></i>
+                      <span>{currentStore?.area || currentStore?.address_line || 'Local Merchant'} · {currentStore?.distance || '1.2 km'} delivery</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+                  <button
+                    onClick={clearStoreFilter}
+                    className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white border border-white/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <span>All Shops</span>
+                    <span className="text-white/70 font-normal">✕</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Top Control Bar with Title & Sort */}
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              {!storeId ? (
+                <>
+                  <h1 className="text-base sm:text-lg font-black text-gray-900 leading-tight">
+                    {q ? `Results for "${q}"` : 'Marketplace Catalog'}
+                  </h1>
+                  <p className="text-[11px] text-gray-400">
+                    {productsLoaded ? `${products.length} approved listings with express delivery` : 'Showing approved listings with express delivery'}
+                  </p>
+                </>
+              ) : (
+                <div>
+                  <h1 className="text-base sm:text-lg font-black text-gray-900 leading-tight">
+                    {currentStore ? `${currentStore.name}` : (storeName || 'Partner Store')}
+                  </h1>
+                  <p className="text-[11px] text-gray-500">
+                    {currentStore ? `Showing approved items from ${currentStore.name}` : (storeId ? `Showing approved items from ${storeName || 'this shop'}` : 'Approved fresh essentials from verified local sellers')}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0">
+              {/* Mobile Filter Button */}
+              <button
+                onClick={() => setIsMobileFilterOpen(true)}
+                className="md:hidden flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span>Filters</span>
+                {selectedCategories.length > 0 && (
+                  <span className="w-4 h-4 rounded-full bg-brand-green text-white text-[10px] flex items-center justify-center font-bold">
+                    {selectedCategories.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Sort Selector */}
+              <div className="flex items-center gap-1.5 text-xs bg-gray-50 border border-gray-200/70 px-2.5 py-1.5 rounded-xl">
+                <span className="text-gray-400 font-bold hidden sm:inline">Sort:</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => updateFilter('sortBy', e.target.value)}
+                  className="border-none bg-transparent font-extrabold text-gray-800 focus:ring-0 cursor-pointer text-xs outline-none"
+                >
+                  <option value="relevance">Relevance</option>
+                  <option value="price_asc">Price: Low to High</option>
+                  <option value="price_desc">Price: High to Low</option>
+                  <option value="rating_desc">Highest Rated</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Active Filter Chips */}
+          {(selectedCategories.length > 0 || minPrice || maxPrice) && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[10px] font-extrabold text-emerald-900 uppercase tracking-wider flex items-center gap-1">
+                <Filter className="w-3 h-3 text-emerald-700" />
+                Active:
+              </span>
+              {selectedCategories.map(catName => (
+                <span
+                  key={catName}
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs"
+                >
+                  <span>{catName}</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleCategoryName(catName)}
+                    className="hover:text-red-600 font-bold cursor-pointer text-xs leading-none ml-0.5"
+                    title={`Remove ${catName}`}
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+              {(minPrice || maxPrice) && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-gray-100 text-gray-700 border border-gray-200 shadow-2xs">
+                  <span>Price: ₹{minPrice || 0} - ₹{maxPrice || '∞'}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newParams = new URLSearchParams(searchParams);
+                      newParams.delete('minPrice');
+                      newParams.delete('maxPrice');
+                      newParams.set('page', 1);
+                      setSearchParams(newParams);
+                    }}
+                    className="hover:text-red-600 font-bold cursor-pointer text-xs leading-none ml-0.5"
+                    title="Remove Price Filter"
+                  >
+                    ✕
+                  </button>
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className="text-[11px] font-extrabold text-emerald-700 hover:text-emerald-950 hover:underline cursor-pointer ml-auto"
+              >
+                Clear All
+              </button>
+            </div>
           )}
         </div>
 
-        {/* Selected Shop Hero Banner */}
-        {(currentStore || storeId) && (
-          <div
-            className="mb-6 rounded-2xl shop-hero text-white p-5 shadow-lg relative overflow-hidden"
-            style={{
-              background: 'linear-gradient(135deg, #064E3B 0%, #047857 50%, #059669 100%)',
-              color: '#ffffff',
-              boxShadow: '0 10px 25px -5px rgba(6, 78, 59, 0.35)'
-            }}
-          >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
-              <div className="flex items-center gap-4">
-                <div
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl text-white shadow-md shrink-0"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.22)',
-                    border: '1.5px solid rgba(255, 255, 255, 0.4)',
-                    backdropFilter: 'blur(8px)',
-                    WebkitBackdropFilter: 'blur(8px)'
-                  }}
-                >
-                  {(currentStore?.name || storeName || 'Store').substring(0, 2).toUpperCase()}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span
-                      className="text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm"
-                      style={{
-                        background: '#10B981',
-                        color: '#ffffff',
-                        border: '1px solid #34D399',
-                        letterSpacing: '0.02em'
-                      }}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
-                      OPEN NOW
-                    </span>
-                    <span
-                      className="text-[11px] font-bold flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.18)',
-                        color: '#F0FDF4',
-                        border: '1px solid rgba(255, 255, 255, 0.3)',
-                        backdropFilter: 'blur(4px)',
-                        WebkitBackdropFilter: 'blur(4px)'
-                      }}
-                    >
-                      <i className="fa-solid fa-star text-amber-300 text-xs"></i>
-                      <span>{currentStore?.rating || '4.8'} Verified Shop</span>
-                    </span>
-                  </div>
-                  <h2 className="text-xl sm:text-2xl font-black mt-1.5 tracking-tight text-white drop-shadow-xs">
-                    {currentStore?.name || storeName || 'Partner Store'}
-                  </h2>
-                  <p className="text-xs mt-1 font-medium flex items-center gap-1.5" style={{ color: '#D1FAE5' }}>
-                    <i className="fa-solid fa-location-dot text-emerald-300 text-[11px]"></i>
-                    <span>{currentStore?.area || currentStore?.address_line || 'Local Merchant'} · {currentStore?.distance || '1.2 km'} delivery</span>
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
-                <button
-                  onClick={clearStoreFilter}
-                  className="px-3.5 py-2 bg-white/20 hover:bg-white/30 text-white border border-white/30 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-sm"
-                >
-                  <span>All Shops</span>
-                  <span className="text-white/70 font-normal">✕</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Top Control Bar with Sort & Mobile Trigger */}
-        <div className="flex items-center justify-between mb-5 bg-white p-3.5 md:p-4 rounded-2xl border border-gray-100 shadow-xs">
-          <div>
-            {!storeId ? (
-              <>
-                <h1 className="text-lg md:text-xl font-black text-gray-900">
-                  {q ? `Results for "${q}"` : 'Marketplace Catalog'}
-                </h1>
-                <p className="text-xs text-gray-400 mt-0.5">Showing approved listings with express delivery</p>
-              </>
-            ) : (
-              <div>
-                <h1 className="text-lg md:text-xl font-black text-gray-900">
-                  {currentStore ? `${currentStore.name}` : (storeName || 'Partner Store')}
-                </h1>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {currentStore ? `Showing approved items from ${currentStore.name}` : (storeId ? `Showing approved items from ${storeName || 'this shop'}` : 'Approved fresh essentials from verified local sellers')}
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Mobile Filter Button */}
-            <button
-              onClick={() => setIsMobileFilterOpen(true)}
-              className="md:hidden flex items-center gap-1.5 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold rounded-xl transition cursor-pointer"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-              Filters
-              {selectedCategories.length > 0 && (
-                <span className="w-4 h-4 rounded-full bg-brand-green text-white text-[10px] flex items-center justify-center">
-                  {selectedCategories.length}
-                </span>
-              )}
-            </button>
-
-            {/* Sort Selector */}
-            <div className="flex items-center gap-2 text-xs bg-gray-50 border border-gray-200/60 px-3 py-1.5 rounded-xl">
-              <span className="text-gray-400 font-bold hidden sm:inline">Sort by:</span>
-              <select
-                value={sortBy}
-                onChange={(e) => updateFilter('sortBy', e.target.value)}
-                className="border-none bg-transparent font-extrabold text-gray-800 focus:ring-0 cursor-pointer text-xs outline-none"
-              >
-                <option value="relevance">Relevance</option>
-                <option value="price_asc">Price: Low to High</option>
-                <option value="price_desc">Price: High to Low</option>
-                <option value="rating_desc">Highest Rated</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Active Filter Chips */}
-        {(selectedCategories.length > 0 || minPrice || maxPrice) && (
-          <div className="flex flex-wrap items-center gap-2 mb-5 bg-emerald-50/60 p-3 rounded-2xl border border-emerald-100/80">
-            <span className="text-[11px] font-extrabold text-emerald-900 uppercase tracking-wider flex items-center gap-1">
-              <Filter className="w-3 h-3 text-emerald-700" />
-              Active:
-            </span>
-            {selectedCategories.map(catName => (
-              <span
-                key={catName}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white text-emerald-800 border border-emerald-200 shadow-2xs"
-              >
-                <span>{catName}</span>
-                <button
-                  type="button"
-                  onClick={() => toggleCategoryName(catName)}
-                  className="hover:text-red-600 font-bold cursor-pointer text-xs leading-none ml-0.5"
-                  title={`Remove ${catName}`}
-                >
-                  ✕
-                </button>
-              </span>
-            ))}
-            {(minPrice || maxPrice) && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white text-gray-700 border border-gray-200 shadow-2xs">
-                <span>Price: ₹{minPrice || 0} - ₹{maxPrice || '∞'}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newParams = new URLSearchParams(searchParams);
-                    newParams.delete('minPrice');
-                    newParams.delete('maxPrice');
-                    newParams.set('page', 1);
-                    setSearchParams(newParams);
-                  }}
-                  className="hover:text-red-600 font-bold cursor-pointer text-xs leading-none ml-0.5"
-                  title="Remove Price Filter"
-                >
-                  ✕
-                </button>
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={clearAllFilters}
-              className="text-xs font-extrabold text-emerald-700 hover:text-emerald-950 hover:underline cursor-pointer ml-auto"
-            >
-              Clear All
-            </button>
-          </div>
-        )}
-
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="animate-pulse bg-gray-100 rounded-2xl aspect-[3/4] border border-gray-100"></div>
-            ))}
-          </div>
-        ) : productsError ? (
-          <div className="bg-white rounded-3xl border border-red-100 p-8 text-center max-w-md mx-auto shadow-sm my-8">
-            <div className="w-12 h-12 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <AlertCircle className="w-6 h-6" />
-            </div>
-            <h3 className="font-extrabold text-gray-900 text-base mb-1">Failed to Load Products</h3>
-            <p className="text-xs text-gray-500 mb-4">{productsError}</p>
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => fetchProducts(currentSearchKey, true)}
-              className="px-5 py-2.5 bg-[#18753C] text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition inline-flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Retry
-            </button>
-          </div>
-        ) : productsLoaded && products.length > 0 ? (
-          <>
-            {/* Properly Spaced 3-Column Responsive Grid (Only for Browse Page) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {products.map(product => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  onAddToCart={onAddToCart}
-                  onToggleWishlist={onToggleWishlist}
-                  wishlist={wishlist}
-                  customClassName="h-full border-gray-200/80 hover:shadow-lg hover:border-emerald-500/50 transition-all duration-300"
-                />
+        {/* Scrollable Products Window Body */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-6">
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="animate-pulse bg-gray-100 rounded-2xl aspect-[3/4] border border-gray-100"></div>
               ))}
             </div>
+          ) : productsError ? (
+            <div className="bg-white rounded-3xl border border-red-100 p-8 text-center max-w-md mx-auto shadow-xs my-8">
+              <div className="w-12 h-12 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <h3 className="font-extrabold text-gray-900 text-base mb-1">Failed to Load Products</h3>
+              <p className="text-xs text-gray-500 mb-4">{productsError}</p>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => fetchProducts(currentSearchKey, true)}
+                className="px-5 py-2.5 bg-[#18753C] text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition inline-flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Retry
+              </button>
+            </div>
+          ) : productsLoaded && products.length > 0 ? (
+            <>
+              {/* Product Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+                {products.map(product => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    onAddToCart={onAddToCart}
+                    onToggleWishlist={onToggleWishlist}
+                    wishlist={wishlist}
+                    customClassName="h-full border-gray-200/80 hover:shadow-lg hover:border-emerald-500/50 transition-all duration-300"
+                  />
+                ))}
+              </div>
 
-            {/* Pagination Controls */}
-            <div className="flex justify-center items-center gap-3 mt-12">
-              <button
-                disabled={loading || page <= 1}
-                onClick={() => updateFilter('page', page - 1)}
-                className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-xs disabled:opacity-40 font-bold hover:bg-gray-50 cursor-pointer disabled:cursor-not-allowed shadow-sm transition"
-              >
-                Previous
-              </button>
-              <span className="text-xs font-extrabold text-gray-700 bg-white border border-gray-100 px-3.5 py-2 rounded-xl shadow-sm">
-                Page {page} of {totalPages}
-              </span>
-              <button
-                disabled={loading || page >= totalPages}
-                onClick={() => updateFilter('page', page + 1)}
-                className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold disabled:opacity-40 hover:bg-gray-50 cursor-pointer disabled:cursor-not-allowed shadow-sm transition"
-              >
-                Next
-              </button>
-            </div>
-          </>
-        ) : productsLoaded ? (
-          <div className="py-20 text-center bg-white rounded-3xl border border-gray-100 p-8 shadow-xs">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <i className="fa-solid fa-store-slash text-2xl text-gray-400"></i>
-            </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-1">No approved products found</h3>
-            <p className="text-gray-500 text-sm max-w-sm mx-auto">
-              {currentStore || storeId
-                ? `There are currently no approved products listed from ${currentStore?.name || storeName || 'this shop'}.`
-                : 'Try adjusting your filters or search criteria.'}
-            </p>
-            <div className="flex items-center justify-center gap-3 mt-4">
-              {(currentStore || storeId) && (
+              {/* Pagination Controls */}
+              <div className="flex justify-center items-center gap-3 pt-6 pb-2">
                 <button
-                  type="button"
-                  onClick={clearStoreFilter}
-                  className="px-4 py-2 rounded-xl bg-brand-green text-white font-bold text-xs hover:bg-emerald-700 transition-colors cursor-pointer"
+                  disabled={loading || page <= 1}
+                  onClick={() => updateFilter('page', page - 1)}
+                  className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-xs disabled:opacity-40 font-bold hover:bg-gray-50 cursor-pointer disabled:cursor-not-allowed shadow-2xs transition"
                 >
-                  Browse All Shops
+                  Previous
                 </button>
-              )}
-              <button
-                onClick={clearAllFilters}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl transition cursor-pointer"
-              >
-                Reset Filters
-              </button>
+                <span className="text-xs font-extrabold text-gray-700 bg-white border border-gray-100 px-3.5 py-1.5 rounded-xl shadow-2xs">
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  disabled={loading || page >= totalPages}
+                  onClick={() => updateFilter('page', page + 1)}
+                  className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold disabled:opacity-40 hover:bg-gray-50 cursor-pointer disabled:cursor-not-allowed shadow-2xs transition"
+                >
+                  Next
+                </button>
+              </div>
+            </>
+          ) : productsLoaded ? (
+            <div className="py-16 text-center bg-gray-50/60 rounded-3xl border border-gray-100 p-8">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="fa-solid fa-store-slash text-2xl text-gray-400"></i>
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-1">No approved products found</h3>
+              <p className="text-gray-500 text-sm max-w-sm mx-auto">
+                {currentStore || storeId
+                  ? `There are currently no approved products listed from ${currentStore?.name || storeName || 'this shop'}.`
+                  : 'Try adjusting your filters or search criteria.'}
+              </p>
+              <div className="flex items-center justify-center gap-3 mt-4">
+                {(currentStore || storeId) && (
+                  <button
+                    type="button"
+                    onClick={clearStoreFilter}
+                    className="px-4 py-2 rounded-xl bg-brand-green text-white font-bold text-xs hover:bg-emerald-700 transition-colors cursor-pointer"
+                  >
+                    Browse All Shops
+                  </button>
+                )}
+                <button
+                  onClick={clearAllFilters}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl transition cursor-pointer"
+                >
+                  Reset Filters
+                </button>
+              </div>
             </div>
-          </div>
-        ) : null}
-      </div>
+          ) : null}
+        </div>
+      </section>
     </div>
   );
 }

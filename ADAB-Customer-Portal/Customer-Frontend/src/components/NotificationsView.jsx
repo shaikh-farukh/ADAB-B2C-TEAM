@@ -258,7 +258,7 @@ export default function NotificationsView({
   };
 
   return (
-    <section id="sec-notifications" className="pt-2 pb-6 space-y-3">
+    <section id="sec-notifications" className="pt-2 pb-3 md:pb-2 space-y-3">
       {/* ============================================================== */}
       {/* 1. TOP HEADER & INBOX CONTROLS                                 */}
       {/* ============================================================== */}

@@ -701,7 +701,7 @@ export default function HomePage({ onAddToCart, onNavigate, onToggleWishlist, wi
   };
 
   return (
-    <div className="pt-2 pb-6 space-y-7">
+    <div className="pt-2 pb-3 md:pb-2 space-y-7">
       {/* ========================================================
           1. 4-PILL E-COMMERCE TRUST & VALUE STRIP (Amazon/Blinkit)
       ======================================================== */}

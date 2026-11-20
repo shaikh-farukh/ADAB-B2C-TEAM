@@ -36,7 +36,7 @@ body {
   color: var(--text-main);
   margin: 0;
   padding: 0;
-  padding-bottom: 140px;
+  padding-bottom: 0;
   min-height: 100vh;
 }
 
@@ -757,11 +757,16 @@ img, video, svg {
     padding-left: max(24px, calc((100% - 1384px) / 2));
     padding-right: max(24px, calc((100% - 1384px) / 2));
   }
-  #sec-cart, #sec-checkout, #sec-orders, #sec-track, #sec-orderhistory,
+  #sec-cart, #sec-orders, #sec-track, #sec-orderhistory,
   #sec-returns, #sec-credit, #sec-points, #sec-wallet,
   #sec-favorites, #sec-reviews, #sec-messages, #sec-notifications,
   #sec-addresses, #sec-settings, #sec-help, #sec-faq {
     max-width: 880px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  #sec-checkout {
+    max-width: 1400px;
     margin-left: auto;
     margin-right: auto;
   }
@@ -809,7 +814,7 @@ img, video, svg {
     display: block;
     background: #052E22;
     color: #A7C4B8;
-    margin-top: 56px;
+    margin-top: 24px;
   }
   .site-footer-inner {
     max-width: 1440px;
@@ -958,4 +963,33 @@ img, video, svg {
   background: linear-gradient(135deg, #F59E0B 0%, #D97706 45%, #EA580C 100%) !important;
   color: #ffffff !important;
   box-shadow: 0 10px 25px -5px rgba(245, 158, 11, 0.35), 0 8px 10px -6px rgba(234, 88, 12, 0.25) !important;
+}
+
+/* Browse Page 2-Window Non-Page-Scrolling Architecture */
+#sec-browse {
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#sec-browse aside::-webkit-scrollbar,
+#sec-browse section > div:last-child::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+#sec-browse aside::-webkit-scrollbar-track,
+#sec-browse section > div:last-child::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#sec-browse aside::-webkit-scrollbar-thumb,
+#sec-browse section > div:last-child::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+
+#sec-browse aside::-webkit-scrollbar-thumb:hover,
+#sec-browse section > div:last-child::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
 }

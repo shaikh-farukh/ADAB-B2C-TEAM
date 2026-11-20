@@ -75,7 +75,7 @@ export default function ShopsPage({ onNavigate }) {
   });
 
   return (
-    <div className="animate-fade-in pb-16">
+    <div className="animate-fade-in pb-4 md:pb-2">
       {/* Top Header Banner - Rich Emerald Gradient matching app-header in App.jsx */}
       <div className="mb-6 app-header rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-md text-white">
         {/* Subtle decorative background accents */}

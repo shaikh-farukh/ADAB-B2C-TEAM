@@ -377,7 +377,7 @@ export default function OrderStatusView({
 
   if (!order) {
     return (
-      <section id="sec-track" className="pt-2 pb-6 space-y-4">
+      <section id="sec-track" className="pt-2 pb-3 md:pb-2 space-y-4">
         <div className="bg-white border border-gray-200 rounded-3xl p-8 text-center space-y-3">
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 mx-auto text-2xl">
             <i className="fa-solid fa-receipt"></i>
@@ -630,7 +630,7 @@ export default function OrderStatusView({
   };
 
   return (
-    <section id="sec-track" className="pt-2 pb-6 space-y-4">
+    <section id="sec-track" className="pt-2 pb-3 md:pb-2 space-y-4">
       {/* ============================================================== */}
       {/* 1. HERO ETA HEADER matching unified-customer-portal-demo.html   */}
       {/* ============================================================== */}

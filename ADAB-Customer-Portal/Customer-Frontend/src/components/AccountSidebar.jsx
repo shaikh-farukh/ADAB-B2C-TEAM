@@ -119,22 +119,22 @@ export default function AccountSidebar({
         window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
         if (onClick) onClick();
       }}
-      className={`w-full text-left flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer select-none group ${
+      className={`w-full text-left flex items-center gap-3 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer select-none group ${
         active
-          ? 'bg-[#E8F5E9] text-[#18753C] shadow-xs'
+          ? 'bg-[#E8F5E9] text-[#18753C] shadow-2xs font-extrabold'
           : 'text-gray-600 hover:bg-gray-50 hover:text-gray-950'
       }`}
     >
       <div
         className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs shrink-0 transition-colors ${
-          active ? 'bg-[#18753C] text-white shadow-xs' : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'
+          active ? 'bg-[#18753C] text-white' : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'
         }`}
       >
         <i className={`fa-solid ${icon}`}></i>
       </div>
       <span className="flex-1 truncate">{label}</span>
       {badge && (
-        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full shrink-0 ${badgeColor}`}>
+        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md shrink-0 ${badgeColor}`}>
           {badge}
         </span>
       )}
@@ -142,12 +142,12 @@ export default function AccountSidebar({
   );
 
   return (
-    <div className="space-y-4 w-full">
+    <div className="space-y-3.5 w-full max-h-[calc(100vh-6.5rem)] overflow-y-auto pr-0.5">
       {/* 1. Profile Summary Card */}
-      <div className="bg-white rounded-2xl border border-gray-100/90 p-5 shadow-xs">
-        <div className="flex items-center gap-3.5">
+      <div className="bg-white rounded-2xl border border-gray-100/90 p-4 shadow-2xs">
+        <div className="flex items-center gap-3">
           <div className="relative">
-            <div className="w-13 h-13 rounded-2xl bg-[#18753C] text-white flex items-center justify-center text-xl font-black overflow-hidden shadow-sm shrink-0">
+            <div className="w-12 h-12 rounded-xl bg-[#18753C] text-white flex items-center justify-center text-lg font-black overflow-hidden shadow-2xs shrink-0">
               {activeAvatarUrl ? (
                 <img
                   src={activeAvatarUrl}
@@ -162,36 +162,36 @@ export default function AccountSidebar({
                 displayInitial
               )}
             </div>
-            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full"></div>
+            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full"></div>
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="font-extrabold text-gray-900 text-sm truncate">{displayName}</span>
+              <span className="font-extrabold text-gray-900 text-sm sm:text-base truncate">{displayName}</span>
             </div>
-            <p className="text-[11px] text-gray-500 truncate mt-0.5">
+            <p className="text-xs text-gray-500 truncate mt-0.5">
               {displayPhone || displayEmail || 'ADAB Customer'}
             </p>
             {effectiveUser?.loyalty_tier && (
-              <span className="inline-block mt-1 bg-amber-50 text-amber-700 border border-amber-200 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                <i className="fa-solid fa-crown text-[8px] mr-1 text-amber-500"></i>
+              <span className="inline-block mt-0.5 bg-amber-50 text-amber-700 border border-amber-200 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
+                <i className="fa-solid fa-crown text-[8px] mr-0.5 text-amber-500"></i>
                 {effectiveUser.loyalty_tier}
               </span>
             )}
           </div>
         </div>
 
-        <div className="mt-3.5 pt-3 border-t border-gray-100 flex items-center justify-between text-xs">
+        <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs">
           <button
             type="button"
             onClick={() => handleSelectView('profile')}
-            className="text-[#18753C] hover:text-[#156030] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+            className="text-[#18753C] hover:text-[#156030] font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
           >
             <i className="fa-solid fa-pen-to-square text-[10px]"></i>
             <span>Edit Profile</span>
           </button>
           {displayRegion ? (
             <span
-              className="text-[11px] text-gray-500 font-medium truncate max-w-[150px] flex items-center gap-1"
+              className="text-xs text-gray-500 font-medium truncate max-w-[130px] flex items-center gap-1"
               title={displayRegion}
             >
               <i className="fa-solid fa-location-dot text-[10px] text-[#18753C]"></i>
@@ -201,7 +201,7 @@ export default function AccountSidebar({
             <button
               type="button"
               onClick={() => handleSelectView('addresses')}
-              className="text-[11px] text-gray-400 hover:text-[#18753C] font-medium flex items-center gap-1 cursor-pointer transition-colors"
+              className="text-xs text-gray-400 hover:text-[#18753C] font-medium flex items-center gap-1 cursor-pointer transition-colors"
             >
               <i className="fa-solid fa-plus text-[9px]"></i>
               <span>Add Location</span>
@@ -211,10 +211,10 @@ export default function AccountSidebar({
       </div>
 
       {/* 2. Structured Navigation Menus */}
-      <div className="bg-white rounded-2xl border border-gray-100/90 p-3 shadow-xs space-y-4">
+      <div className="bg-white rounded-2xl border border-gray-100/90 p-3 shadow-2xs space-y-3">
         {/* OVERVIEW */}
         <div>
-          <div className="px-3 pb-1 text-[10px] font-black uppercase tracking-wider text-gray-400">Overview</div>
+          <div className="px-3 pb-1.5 text-[11px] font-black uppercase tracking-wider text-gray-400">Overview</div>
           <SidebarNavItem
             icon="fa-gauge-high"
             label="Dashboard Overview"
@@ -225,8 +225,8 @@ export default function AccountSidebar({
 
         {/* ORDERS & PURCHASES */}
         <div>
-          <div className="px-3 pb-1 text-[10px] font-black uppercase tracking-wider text-gray-400">Orders &amp; Shopping</div>
-          <div className="space-y-0.5">
+          <div className="px-3 pb-1.5 text-[11px] font-black uppercase tracking-wider text-gray-400">Orders &amp; Shopping</div>
+          <div className="space-y-1">
             <SidebarNavItem
               icon="fa-box"
               label="My Orders"
@@ -252,8 +252,8 @@ export default function AccountSidebar({
 
         {/* WALLET & REWARDS */}
         <div>
-          <div className="px-3 pb-1 text-[10px] font-black uppercase tracking-wider text-gray-400">Wallet &amp; Rewards</div>
-          <div className="space-y-0.5">
+          <div className="px-3 pb-1.5 text-[11px] font-black uppercase tracking-wider text-gray-400">Wallet &amp; Rewards</div>
+          <div className="space-y-1">
             <SidebarNavItem
               icon="fa-star"
               label="ADAB Rewards"
@@ -303,8 +303,8 @@ export default function AccountSidebar({
 
         {/* ACCOUNT SETTINGS */}
         <div>
-          <div className="px-3 pb-1 text-[10px] font-black uppercase tracking-wider text-gray-400">Account Settings</div>
-          <div className="space-y-0.5">
+          <div className="px-3 pb-1.5 text-[11px] font-black uppercase tracking-wider text-gray-400">Account Settings</div>
+          <div className="space-y-1">
             <SidebarNavItem
               icon="fa-location-dot"
               label="Delivery Addresses"
@@ -332,8 +332,8 @@ export default function AccountSidebar({
 
         {/* SUPPORT & ECOSYSTEM */}
         <div>
-          <div className="px-3 pb-1 text-[10px] font-black uppercase tracking-wider text-gray-400">Support &amp; Partners</div>
-          <div className="space-y-0.5">
+          <div className="px-3 pb-1.5 text-[11px] font-black uppercase tracking-wider text-gray-400">Support &amp; Partners</div>
+          <div className="space-y-1">
             <SidebarNavItem
               icon="fa-headset"
               label="Help &amp; Support"
@@ -369,7 +369,7 @@ export default function AccountSidebar({
                 if (onCloseSidebar) onCloseSidebar();
                 if (onLogout) onLogout();
               }}
-              className="w-full text-left flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-red-600 hover:bg-red-50 transition-all cursor-pointer"
+              className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold text-red-600 hover:bg-red-50 transition-all cursor-pointer"
             >
               <div className="w-7 h-7 rounded-lg bg-red-50 text-red-600 flex items-center justify-center text-xs shrink-0">
                 <i className="fa-solid fa-arrow-right-from-bracket"></i>
@@ -384,7 +384,7 @@ export default function AccountSidebar({
                 if (onOpenLogin) onOpenLogin();
                 else if (onNavigate) onNavigate('login');
               }}
-              className="w-full text-left flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-[#18753C] hover:bg-emerald-50 transition-all cursor-pointer"
+              className="w-full text-left flex items-center gap-3 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold text-[#18753C] hover:bg-emerald-50 transition-all cursor-pointer"
             >
               <div className="w-7 h-7 rounded-lg bg-emerald-50 text-[#18753C] flex items-center justify-center text-xs shrink-0">
                 <i className="fa-solid fa-arrow-right-to-bracket"></i>

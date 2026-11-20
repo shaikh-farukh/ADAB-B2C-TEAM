@@ -166,7 +166,7 @@ export default function WishlistPage({ onAddToCart, onToggleWishlist, onMoveToCa
   }, [hasLoaded, error, products.length, fetchRecommended]);
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-6 animate-fade-in pb-12">
+    <div className="w-full max-w-6xl mx-auto space-y-6 animate-fade-in pb-4 md:pb-2">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-gray-900">My Wishlist</h1>

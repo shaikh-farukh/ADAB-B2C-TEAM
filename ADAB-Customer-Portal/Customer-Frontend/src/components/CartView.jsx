@@ -358,7 +358,7 @@ export default function CartView({
   // 1. EMPTY CART STATE
   if (isCartEmpty) {
     return (
-      <section id="sec-cart" className="pt-2 pb-6">
+      <section id="sec-cart" className="pt-2 pb-2 sm:pb-3">
         <div id="cartEmpty" className="text-center py-16 bg-white rounded-3xl border border-gray-100 p-6 shadow-sm">
           <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-4 animate-bounce">
             <i className="fa-solid fa-basket-shopping"></i>
@@ -382,7 +382,7 @@ export default function CartView({
 
   // 2. ACTIVE CART STATE
   return (
-    <section id="sec-cart" className="pt-2 pb-6">
+    <section id="sec-cart" className="pt-2 pb-2 sm:pb-3">
       <div id="cartFull" className="space-y-4">
         {/* 2.1 Neighborhood Direct Banner */}
         <div className="flex items-center gap-3 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-3.5 border border-emerald-200/70 text-xs shadow-sm">

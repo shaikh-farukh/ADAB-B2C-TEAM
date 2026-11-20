@@ -321,7 +321,7 @@ export default function HelpSupportView({
       {/* 1. SUPPORT HUB VIEW (sec-help)                                 */}
       {/* ============================================================== */}
       {currentView === 'hub' && (
-        <section id="sec-help" className="pt-2 pb-6 space-y-4">
+        <section id="sec-help" className="pt-2 pb-3 md:pb-2 space-y-4">
           {/* Header */}
           <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -549,7 +549,7 @@ export default function HelpSupportView({
       {/* 2. INTERACTIVE TICKET CHAT / MESSAGING (sec-messages)          */}
       {/* ============================================================== */}
       {currentView === 'chat' && (
-        <section id="sec-messages" className="pt-2 pb-6 space-y-3">
+        <section id="sec-messages" className="pt-2 pb-3 md:pb-2 space-y-3">
           {/* Conversation Header */}
           <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div className="flex items-center gap-3">

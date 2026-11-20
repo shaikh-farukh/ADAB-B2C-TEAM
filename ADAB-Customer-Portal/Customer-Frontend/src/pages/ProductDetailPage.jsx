@@ -244,7 +244,7 @@ export default function ProductDetailPage({ onAddToCart, onToggleWishlist, wishl
   };
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto pb-24 md:pb-12 animate-fade-in">
+    <div className="space-y-8 max-w-6xl mx-auto pb-6 md:pb-2 animate-fade-in">
       {/* Breadcrumb Navigation */}
       <nav className="flex items-center text-xs text-gray-500 space-x-2">
         <button onClick={() => navigate(-1)} className="hover:text-brand-green flex items-center transition-colors font-bold cursor-pointer">

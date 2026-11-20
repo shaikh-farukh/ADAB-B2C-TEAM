@@ -168,7 +168,7 @@ export default function CategoriesPage({ onAddToCart, onToggleWishlist, wishlist
   }) : null;
 
   return (
-    <div className="animate-fade-in pb-16 space-y-6">
+    <div className="animate-fade-in pb-4 md:pb-2 space-y-6">
       {/* Category Explorer Hero Banner matching app-header in App.jsx */}
       <div className="app-header rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-md">
         <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-white/5 -skew-x-12 pointer-events-none"></div>

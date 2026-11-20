@@ -332,7 +332,7 @@ export default function ReviewsView({
   };
 
   return (
-    <section id="sec-reviews" className="pt-2 pb-8 max-w-4xl mx-auto space-y-4">
+    <section id="sec-reviews" className="pt-2 pb-3 md:pb-2 max-w-4xl mx-auto space-y-4">
       {/* 1. Header & Navigation */}
       <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
