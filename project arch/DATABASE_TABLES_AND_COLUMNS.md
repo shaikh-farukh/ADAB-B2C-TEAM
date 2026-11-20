@@ -236,6 +236,7 @@
 | 9 | **`company_name`** | `VARCHAR(150)` | — |
 | 10 | **`created_at`** | `TIMESTAMPTZ` | DEFAULT NOW() |
 | 11 | **`updated_at`** | `TIMESTAMPTZ` | DEFAULT NOW() |
+| 12 | **`profile_picture_public_id`** | `TEXT` | — |
 
 ---
 

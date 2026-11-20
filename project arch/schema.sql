@@ -177,6 +177,7 @@ CREATE TABLE IF NOT EXISTS customer_profiles (
     date_of_birth DATE,
     gender VARCHAR(20),
     profile_picture_url TEXT,
+    profile_picture_public_id TEXT,
     gst_in VARCHAR(15),
     company_name VARCHAR(150),
     created_at TIMESTAMPTZ DEFAULT NOW(),

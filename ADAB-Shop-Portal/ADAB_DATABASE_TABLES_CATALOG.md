@@ -2512,6 +2512,7 @@ The ADAB multi-portal ecosystem shares a unified PostgreSQL schema divided into 
 | 9 | `company_name` | `character varying(150)` | Yes | — |
 | 10 | `created_at` | `timestamp with time zone` | Yes | `now()` |
 | 11 | `updated_at` | `timestamp with time zone` | Yes | `now()` |
+| 12 | `profile_picture_public_id` | `text` | Yes | — |
 
 ---
 
