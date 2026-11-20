@@ -16,11 +16,34 @@ This document provides an exhaustive, field-verified inventory of **every API en
 * 🔴 **Missing / Unimplemented**: Present in frontend API services (`sellerApi.js`, `listingApi.js`) or product architecture specs, but lacks a backend route or controller handler.
 * 🟣 **Cross-Portal API**: Operational in Admin, Customer, or B2B logistics backends.
 
+### Master API Inventory & Major Totals
+
+| Domain / Architecture Section | Endpoints | Status Breakdown | Primary Base Route | Key Functional Scope |
+| :--- | :---: | :---: | :--- | :--- |
+| **1.1 Authentication & Identity** | **7** | 7 🟢 | `/api/v1/seller/auth` | Login, OTP, Signup, Password Reset, Google OAuth |
+| **1.2 Onboarding, KYC & Store Profile** | **10** | 10 🟢 | `/api/v1/seller/onboarding` | 5-step KYC wizard, submit application, profile, store |
+| **1.3 Orders, Returns & Invoices** | **7** | 6 🟢, 1 🔴 | `/api/v1/seller/orders` | Order lifecycle, status updates, returns regulation, PDF invoices |
+| **1.4 POS (Point of Sale)** | **1** | 1 🟢 | `/api/v1/seller/pos` | Barcode checkout, cash/UPI billing, stock decrement |
+| **1.5 Products, Listings & Inventory** | **20** | 20 🟢 | `/api/v1/seller/listings` | Product catalog CRUD, bulk CSV upload, listing issues |
+| **1.6 National FMCG Master Catalog** | **11** | 11 🟢 | `/api/v1/seller/catalog` | Master FMCG catalog, instant SKU adoption, restock cases |
+| **1.7 B2B Resale & Partner Brands** | **17** | 17 🟢 | `/api/v1/seller/other-store-brands` | Kirana-to-Kirana resale, stock requests, partner analytics |
+| **1.8 Finance, Settlements & Khata** | **13** | 13 🟢 | `/api/v1/seller/finance` | Bank withdrawal, Khata digital ledger, credit applications |
+| **1.9 Marketing & Dynamic Pricing** | **16** | 16 🟢 | `/api/v1/seller/pricing` | Pricing schedules, coupons, promotions, profit simulator |
+| **1.10 Notifications & Messaging** | **9** | 9 🟢 | `/api/v1/seller/notifications` | Unread count badges, customer/partner chat threads |
+| **1.11 AI Assistant & MCP Tool Suite** | **2** | 2 🟢 | `/api/v1/assistant` | Gemini 3.5 Copilot chat, tool execution dispatcher |
+| **1.12 Webhooks & Real-Time Sync** | **1** | 1 🟢 | `/api/v1/seller/webhooks` | Payment webhooks, idempotency lock handling |
+| **SUBTOTAL: Shop Portal (Seller Central)** | **114** | **113 🟢, 1 🔴** | — | **Core Merchant & Kirana Platform** |
+| **2.1 Admin Portal Backend** | **13** | 13 🟣 | `/api/v1/admin` | Merchant KYC approval queue, platform audits |
+| **2.2 Customer Portal Backend** | **9** | 9 🟣 | `/api/v1/customer` | Store discovery, customer checkout, order tracking |
+| **2.3 B2B Logistics Backend** | **6** | 6 🟣 | `/api/v1/b2b` | Porter/Delhivery freight dispatches, driver tracking |
+| **GRAND TOTAL (Entire Ecosystem)** | **142** | **113 🟢, 1 🔴, 28 🟣** | — | **Production-Ready Enterprise Parity** |
+
+
 ---
 
 ## 1. Shop Portal (Seller Central) API Surface
 
-### 1.1 Authentication & Identity (Public)
+### 1.1 Authentication & Identity (Public) — [7 Endpoints]
 Base URL: `/api/v1/seller/auth` (mounted in `ADAB-Shop-Portal/Shop-Backend/server.js` $\rightarrow$ `src/routes/seller.js`)
 
 | Method | Active Endpoint Path (with Aliases) | DevTools "Name" | Controller Handler | Status | Purpose & Details |
@@ -35,7 +58,7 @@ Base URL: `/api/v1/seller/auth` (mounted in `ADAB-Shop-Portal/Shop-Backend/serve
 
 ---
 
-### 1.2 Onboarding, KYC & Store Profile
+### 1.2 Onboarding, KYC & Store Profile — [10 Endpoints]
 Base URL: `/api/v1/seller` (requires `requireSellerAuth` JWT middleware)
 
 | Method | Active Endpoint Path (with Aliases) | DevTools "Name" | Controller Handler | Status | Purpose & Details |
@@ -53,7 +76,7 @@ Base URL: `/api/v1/seller` (requires `requireSellerAuth` JWT middleware)
 
 ---
 
-### 1.3 Orders, Returns & Invoices
+### 1.3 Orders, Returns & Invoices — [7 Endpoints]
 Base URL: `/api/v1/seller` (requires `requireSellerAuth`)
 
 | Method | Active Endpoint Path (with Aliases) | DevTools "Name" | Controller Handler | Status | Purpose & Details |
@@ -68,7 +91,7 @@ Base URL: `/api/v1/seller` (requires `requireSellerAuth`)
 
 ---
 
-### 1.4 POS (Point of Sale Walk-in Sales)
+### 1.4 POS (Point of Sale Walk-in Sales) — [1 Endpoint]
 Base URL: `/api/v1/seller/pos`
 
 | Method | Active Endpoint Path (with Aliases) | DevTools "Name" | Controller Handler | Status | Purpose & Details |
@@ -77,7 +100,7 @@ Base URL: `/api/v1/seller/pos`
 
 ---
 
-### 1.5 Products, Listings & Inventory
+### 1.5 Products, Listings & Inventory — [20 Endpoints]
 Base URL: `/api/v1/seller/listings` (mounted in `ADAB-Shop-Portal/Shop-Backend/server.js` $\rightarrow$ `src/routes/listing.js`)
 
 | Method | Active Endpoint Path (with Aliases) | DevTools "Name" | Controller Handler | Status | Purpose & Details |
@@ -105,7 +128,7 @@ Base URL: `/api/v1/seller/listings` (mounted in `ADAB-Shop-Portal/Shop-Backend/s
 
 ---
 
-### 1.6 National FMCG Master Catalog & Dynamic Attributes
+### 1.6 National FMCG Master Catalog & Dynamic Attributes — [11 Endpoints]
 Base URL: `/api/v1/shop/catalog` & `/api/v1/seller/catalog`
 
 | Method | Active Endpoint Path (with Aliases) | DevTools "Name" | Controller Handler | Status | Purpose & Details |
@@ -124,7 +147,7 @@ Base URL: `/api/v1/shop/catalog` & `/api/v1/seller/catalog`
 
 ---
 
-### 1.7 B2B Resale, Store Distribution & Partner Brands
+### 1.7 B2B Resale, Store Distribution & Partner Brands — [17 Endpoints]
 Base URL: `/api/v1/seller` (requires `requireSellerAuth`)
 
 | Method | Active Endpoint Path (with Aliases) | DevTools "Name" | Controller Handler | Status | Purpose & Details |
@@ -149,7 +172,7 @@ Base URL: `/api/v1/seller` (requires `requireSellerAuth`)
 
 ---
 
-### 1.8 Finance, Settlements, Khata & Bank Credit
+### 1.8 Finance, Settlements, Khata & Bank Credit — [13 Endpoints]
 Base URL: `/api/v1/seller` (requires `requireSellerAuth`)
 
 | Method | Active Endpoint Path (with Aliases) | DevTools "Name" | Controller Handler | Status | Purpose & Details |
@@ -170,7 +193,7 @@ Base URL: `/api/v1/seller` (requires `requireSellerAuth`)
 
 ---
 
-### 1.9 Marketing, Promotions & Dynamic Pricing
+### 1.9 Marketing, Promotions & Dynamic Pricing — [16 Endpoints]
 Base URL: `/api/v1/seller` & `/api/v1/seller/pricing`
 
 | Method | Active Endpoint Path (with Aliases) | DevTools "Name" | Controller Handler | Status | Purpose & Details |
@@ -194,7 +217,7 @@ Base URL: `/api/v1/seller` & `/api/v1/seller/pricing`
 
 ---
 
-### 1.10 Notifications, Chat & In-App Messaging
+### 1.10 Notifications, Chat & In-App Messaging — [9 Endpoints]
 Base URL: `/api/v1/seller` (requires `requireSellerAuth`)
 
 | Method | Active Endpoint Path (with Aliases) | DevTools "Name" | Controller Handler | Status | Purpose & Details |
@@ -211,7 +234,7 @@ Base URL: `/api/v1/seller` (requires `requireSellerAuth`)
 
 ---
 
-### 1.11 AI Assistant & MCP Tool Suite
+### 1.11 AI Assistant & MCP Tool Suite — [2 Endpoints]
 Base URL: `/api/v1/assistant` (requires `requireSellerAuth`)
 
 | Method | Active Endpoint Path (with Aliases) | DevTools "Name" | Controller Handler | Status | Purpose & Details |
@@ -235,7 +258,7 @@ Base URL: `/api/v1/assistant` (requires `requireSellerAuth`)
 
 ---
 
-### 1.12 Webhooks & Socket.io Real-Time Events
+### 1.12 Webhooks & Socket.io Real-Time Events — [1 Endpoint]
 
 | Protocol | Route / Event | Handler | Status | Purpose & Details |
 | :--- | :--- | :--- | :---: | :--- |
@@ -249,7 +272,7 @@ Base URL: `/api/v1/assistant` (requires `requireSellerAuth`)
 
 ## 2. Cross-Portal APIs (Admin, Customer & B2B Ecosystem)
 
-### 2.1 Admin Portal Backend (`ADAB-Admin-Portal/Admin-Backend`)
+### 2.1 Admin Portal Backend (`ADAB-Admin-Portal/Admin-Backend`) — [13 Endpoints]
 Base URL: `http://localhost:5001/api/v1/admin`
 
 | Method | Endpoint Path | Status | Purpose |
@@ -270,7 +293,7 @@ Base URL: `http://localhost:5001/api/v1/admin`
 
 ---
 
-### 2.2 Customer Portal Backend (`ADAB-Customer-Portal/Customer-Backend`)
+### 2.2 Customer Portal Backend (`ADAB-Customer-Portal/Customer-Backend`) — [9 Endpoints]
 Base URL: `http://localhost:5002/api/v1`
 
 | Method | Endpoint Path | Status | Purpose |
@@ -287,7 +310,7 @@ Base URL: `http://localhost:5002/api/v1`
 
 ---
 
-### 2.3 B2B Logistics & Delivery Backend (`ADAB-B2B-Portal/backend`)
+### 2.3 B2B Logistics & Delivery Backend (`ADAB-B2B-Portal/backend`) — [6 Endpoints]
 Base URL: `http://localhost:5000/api`
 
 | Method | Endpoint Path | Status | Purpose |
