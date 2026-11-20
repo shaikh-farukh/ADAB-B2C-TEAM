@@ -330,7 +330,46 @@ function B2BOrderDetailModal({ order, onClose, onUpdateStatus, isUpdating }) {
                   </span>
                 </div>
 
-                {order.payment_reference && (
+                {/* Driver & Vehicle Details if Dispatched / In Transit / Delivered */}
+                {(order.driver_name || order.driver_phone || order.vehicle_number || order.tracking_number) && (
+                  <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-100 space-y-2 text-xs">
+                    <div className="font-bold text-[11px] text-blue-900 flex items-center gap-1.5">
+                      <i className="fa-solid fa-id-card text-blue-600"></i>
+                      <span>Assigned Driver &amp; Logistics Details</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      {order.driver_name && (
+                        <div>
+                          <span className="text-gray-500 block text-[10px]">Driver Name:</span>
+                          <strong className="text-gray-900">{order.driver_name}</strong>
+                        </div>
+                      )}
+                      {order.driver_phone && (
+                        <div>
+                          <span className="text-gray-500 block text-[10px]">Driver Contact:</span>
+                          <a href={`tel:${order.driver_phone}`} className="text-blue-700 font-bold hover:underline flex items-center gap-1">
+                            <i className="fa-solid fa-phone text-[10px]"></i>
+                            {order.driver_phone}
+                          </a>
+                        </div>
+                      )}
+                      {order.vehicle_number && (
+                        <div>
+                          <span className="text-gray-500 block text-[10px]">Vehicle No:</span>
+                          <strong className="text-gray-900 uppercase">{order.vehicle_number}</strong>
+                        </div>
+                      )}
+                      {(order.tracking_number || order.payment_reference) && (
+                        <div>
+                          <span className="text-gray-500 block text-[10px]">Tracking / Waybill:</span>
+                          <strong className="text-gray-900 font-mono">{order.tracking_number || order.payment_reference}</strong>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {order.payment_reference && !(order.driver_name || order.driver_phone || order.vehicle_number) && (
                   <div className="p-2 bg-gray-50 rounded-lg text-xs font-mono text-gray-700 flex items-center justify-between">
                     <span>Waybill / LR:</span>
                     <strong className="text-gray-900">{order.payment_reference}</strong>

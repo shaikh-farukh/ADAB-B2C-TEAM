@@ -1196,6 +1196,11 @@ class SellerRepository {
           bpo.updated_at,
           bpo.buyer_store_id,
           bpo.supplier_store_id,
+          COALESCE(mb2b.driver_name, '') as driver_name,
+          COALESCE(mb2b.driver_phone, '') as driver_phone,
+          COALESCE(mb2b.vehicle_number, '') as vehicle_number,
+          COALESCE(mb2b.transporter_name, '') as transporter_name,
+          COALESCE(mb2b.tracking_number, '') as tracking_number,
           buyer.store_name as buyer_store_name,
           buyer.phone as buyer_phone,
           buyer.city as buyer_city,
@@ -1317,13 +1322,15 @@ class SellerRepository {
         }
 
         // Freight transporter
-        let freightPartner = 'Porter Truck';
-        if (distanceTier === 'far') {
-          freightPartner = 'Delhivery Freight';
-        } else if (distanceTier === 'export') {
-          freightPartner = 'Air Cargo / Freight';
-        } else if (row.delivery_method && !row.delivery_method.includes('DIRECT')) {
-          freightPartner = row.delivery_method;
+        let freightPartner = row.transporter_name || 'Porter Truck';
+        if (!row.transporter_name) {
+          if (distanceTier === 'far') {
+            freightPartner = 'Delhivery Freight';
+          } else if (distanceTier === 'export') {
+            freightPartner = 'Air Cargo / Freight';
+          } else if (row.delivery_method && !row.delivery_method.includes('DIRECT')) {
+            freightPartner = row.delivery_method;
+          }
         }
 
         return {
@@ -1338,6 +1345,11 @@ class SellerRepository {
           distance: distanceKm,
           distance_tier: distanceTier,
           freight_partner: freightPartner,
+          driver_name: row.driver_name || null,
+          driver_phone: row.driver_phone || null,
+          vehicle_number: row.vehicle_number || null,
+          tracking_number: row.tracking_number || null,
+          transporter_name: row.transporter_name || null,
           items: Array.isArray(row.items) ? row.items : []
         };
       });
