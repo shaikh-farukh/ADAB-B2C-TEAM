@@ -499,22 +499,27 @@ export default function ProductDetailPage() {
                 <span>Add to Wholesale Cart</span>
               </button>
 
-              {/* Button 2: Buy Now (Amazon Orange) */}
+              {/* Button 2: Buy Cartons / Restock Cartons (Amazon Orange) */}
               <button
                 type="button"
                 onClick={handleBuyNow}
                 className="w-full py-3 px-4 rounded-full bg-gradient-to-b from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-xs uppercase tracking-wider transition-all shadow-md active:scale-[0.99] cursor-pointer border border-orange-600 flex items-center justify-center gap-2 shadow-orange-500/20"
               >
-                <i className="fa-solid fa-bolt"></i>
-                <span>Buy Now (Proceed to Pay)</span>
+                <i className={`fa-solid ${product.already_in_store ? 'fa-rotate' : 'fa-bolt'}`}></i>
+                <span>{product.already_in_store ? 'Restock Cartons (Proceed to Pay)' : 'Buy Cartons (Proceed to Pay)'}</span>
               </button>
             </div>
 
-            {/* Status if already in store */}
-            {product.already_in_store && (
+            {/* Status if already in store vs new */}
+            {product.already_in_store ? (
               <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-800 font-bold flex items-center gap-1.5 justify-center">
                 <i className="fa-solid fa-circle-check text-emerald-600"></i>
-                <span>Active in your Store POS</span>
+                <span>Active in your Store POS Inventory</span>
+              </div>
+            ) : (
+              <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-[11px] text-blue-800 font-bold flex items-center gap-1.5 justify-center">
+                <i className="fa-solid fa-sparkles text-blue-600"></i>
+                <span>New Product: Order first carton for your store</span>
               </div>
             )}
 

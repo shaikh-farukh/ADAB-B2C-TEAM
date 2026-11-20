@@ -22,11 +22,6 @@ export default function CatalogPage() {
   const [selectedCat, setSelectedCat] = useState('all');
   const [toastMessage, setToastMessage] = useState('');
 
-  // Add to Store Inventory Modal State
-  const [adoptModalItem, setAdoptModalItem] = useState(null);
-  const [customSellPrice, setCustomSellPrice] = useState('');
-  const [customStock, setCustomStock] = useState('20');
-  const [isAdopting, setIsAdopting] = useState(false);
 
   // B2B Restock Order Modal State
   const [restockModalItem, setRestockModalItem] = useState(null);
@@ -88,38 +83,6 @@ export default function CatalogPage() {
     loadCatalog();
   };
 
-  const openAdoptModal = (item) => {
-    setAdoptModalItem(item);
-    setCustomSellPrice(item.printed_mrp ? Number(item.printed_mrp).toString() : '50');
-    setCustomStock('20');
-  };
-
-  const handleConfirmAdopt = async (e) => {
-    e.preventDefault();
-    if (!adoptModalItem) return;
-
-    try {
-      setIsAdopting(true);
-      const res = await sellerApi.adoptMasterCatalogItem({
-        masterCatalogId: adoptModalItem.id,
-        sellPrice: Number(customSellPrice),
-        stockQty: Number(customStock)
-      });
-
-      if (res?.success || res?.data?.adopted) {
-        showToast(`✓ Added "${adoptModalItem.product_name}" to your store inventory!`);
-        setProducts(prev => prev.map(p => p.id === adoptModalItem.id ? { ...p, already_in_store: true } : p));
-        setAdoptModalItem(null);
-      } else {
-        showToast('Failed to add product to inventory.');
-      }
-    } catch (err) {
-      console.error('Adopt catalog item error:', err);
-      showToast(err?.response?.data?.error || err.message || 'Error adopting product.');
-    } finally {
-      setIsAdopting(false);
-    }
-  };
 
   const openRestockModal = (item) => {
     setRestockModalItem(item);
@@ -401,10 +364,15 @@ export default function CatalogPage() {
 
                 {/* Amazon / Flipkart Style Actions */}
                 <div className="pt-3 mt-3 border-t border-gray-100 flex flex-col gap-2">
-                  {item.already_in_store && (
+                  {item.already_in_store ? (
                     <div className="text-[11px] font-bold text-emerald-700 flex items-center justify-center gap-1.5 bg-emerald-50 py-1 rounded-xl border border-emerald-200">
                       <i className="fa-solid fa-circle-check text-emerald-600"></i>
                       <span>Active in Your Store POS</span>
+                    </div>
+                  ) : (
+                    <div className="text-[11px] font-bold text-blue-700 flex items-center justify-center gap-1.5 bg-blue-50 py-1 rounded-xl border border-blue-200">
+                      <i className="fa-solid fa-sparkles text-blue-600"></i>
+                      <span>New Product Available</span>
                     </div>
                   )}
 
@@ -429,10 +397,10 @@ export default function CatalogPage() {
                         navigate('/catalog/checkout');
                       }}
                       className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-black transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
-                      title="Buy now and proceed to checkout"
+                      title={item.already_in_store ? "Restock cartons and proceed to checkout" : "Buy cartons and proceed to checkout"}
                     >
-                      <i className="fa-solid fa-bolt text-xs"></i>
-                      <span>Buy Now</span>
+                      <i className={`fa-solid ${item.already_in_store ? 'fa-rotate' : 'fa-bolt'} text-xs`}></i>
+                      <span>{item.already_in_store ? 'Restock Cartons' : 'Buy Cartons'}</span>
                     </button>
                   </div>
                 </div>
@@ -442,96 +410,6 @@ export default function CatalogPage() {
         </div>
       )}
 
-      {/* 1. ADOPT / ADD TO STORE INVENTORY MODAL */}
-      {adoptModalItem && (
-        <div
-          className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-xs flex items-center justify-center p-4"
-          onClick={() => setAdoptModalItem(null)}
-        >
-          <div
-            className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <div>
-                <span className="text-[10px] font-bold text-indigo-600 uppercase bg-indigo-50 px-2 py-0.5 rounded">
-                  {adoptModalItem.brand_name}
-                </span>
-                <h3 className="text-base font-extrabold text-gray-900 mt-1">
-                  1-Click Add to Store Catalog
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAdoptModalItem(null)}
-                className="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center cursor-pointer"
-              >
-                <i className="fa-solid fa-xmark"></i>
-              </button>
-            </div>
-
-            <div>
-              <div className="font-bold text-xs text-gray-800">{adoptModalItem.product_name}</div>
-              <div className="text-[11px] text-gray-400 font-mono mt-0.5">
-                Barcode: {adoptModalItem.barcode || 'Standard Item'} • Printed MRP: ₹{adoptModalItem.printed_mrp}
-              </div>
-            </div>
-
-            <form onSubmit={handleConfirmAdopt} className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-gray-700 block mb-1">
-                  Your Retail Selling Price (₹) *
-                </label>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="1"
-                  value={customSellPrice}
-                  onChange={(e) => setCustomSellPrice(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-gray-200 font-bold text-sm text-gray-900 outline-none focus:border-indigo-500 bg-white"
-                  required
-                />
-                <span className="text-[10px] text-gray-400 mt-0.5 block">
-                  Defaults to printed MRP. You may offer a merchant discount if desired.
-                </span>
-              </div>
-
-              <div>
-                <label className="font-bold text-gray-700 block mb-1">
-                  Initial Opening Stock Quantity ({adoptModalItem.standard_unit || 'units'}) *
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={customStock}
-                  onChange={(e) => setCustomStock(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-gray-200 font-bold text-sm text-gray-900 outline-none focus:border-indigo-500 bg-white"
-                  required
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setAdoptModalItem(null)}
-                  className="flex-1 btn-soft !py-2.5 !text-xs cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isAdopting}
-                  className="flex-1 btn-primary !py-2.5 !text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <i className="fa-solid fa-check"></i>
-                  {isAdopting ? 'Publishing...' : 'Publish to Store'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* 2. RESTOCK SHIPPER CARTONS MODAL (B2B Supply Chain Routing) */}
       {restockModalItem && (
