@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS users (
     user_type VARCHAR(30) NOT NULL CHECK (user_type IN ('CUSTOMER','SELLER','ADMIN','DRIVER','AGENT')),
     status VARCHAR(30) DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','INACTIVE','SUSPENDED','BANNED')),
     avatar_url TEXT,
+    avatar_public_id TEXT,
     is_phone_verified BOOLEAN DEFAULT false,
     is_email_verified BOOLEAN DEFAULT false,
     two_factor_enabled BOOLEAN DEFAULT false,
@@ -275,6 +276,7 @@ CREATE TABLE IF NOT EXISTS seller_documents (
     doc_type VARCHAR(50) NOT NULL CHECK (doc_type IN ('GST_CERTIFICATE','SHOP_IMAGE','FSSAI_DOC','PAN_CARD','CANCELLED_CHEQUE')),
     file_name VARCHAR(255) NOT NULL,
     file_url TEXT NOT NULL,
+    file_public_id TEXT,
     verification_status VARCHAR(30) DEFAULT 'PENDING',
     uploaded_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -525,6 +527,7 @@ CREATE TABLE IF NOT EXISTS categories (
     is_leaf BOOLEAN DEFAULT true,
     icon_class VARCHAR(50),
     image_url TEXT,
+    image_public_id TEXT,
     is_active BOOLEAN DEFAULT true,
     display_order INT DEFAULT 0,
     google_product_category_id INT
@@ -538,6 +541,7 @@ CREATE TABLE IF NOT EXISTS brands (
     slug VARCHAR(100) UNIQUE NOT NULL,
     name VARCHAR(150) NOT NULL,
     logo_url TEXT,
+    logo_public_id TEXT,
     description TEXT,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -568,6 +572,7 @@ CREATE TABLE IF NOT EXISTS master_catalog_items (
     printed_mrp NUMERIC(10,2) NOT NULL,
     standard_unit VARCHAR(20) DEFAULT 'pcs',
     default_image_url TEXT,
+    default_image_public_id TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_mc_barcode ON master_catalog_items(barcode);
@@ -592,6 +597,7 @@ CREATE TABLE IF NOT EXISTS product_images (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     product_id UUID NOT NULL REFERENCES master_catalog_items(id) ON DELETE CASCADE,
     image_url TEXT NOT NULL,
+    image_public_id TEXT,
     thumbnail_url TEXT,
     display_order INT DEFAULT 0,
     is_primary BOOLEAN DEFAULT false,
@@ -1015,6 +1021,7 @@ CREATE TABLE IF NOT EXISTS promotions (
     title VARCHAR(150) NOT NULL,
     promo_type VARCHAR(50) NOT NULL,
     banner_url TEXT,
+    banner_public_id TEXT,
     start_date TIMESTAMPTZ NOT NULL,
     end_date TIMESTAMPTZ NOT NULL,
     is_active BOOLEAN DEFAULT true,
@@ -1027,6 +1034,22 @@ CREATE TABLE IF NOT EXISTS promotion_products (
     promo_price NUMERIC(10,2) NOT NULL,
     PRIMARY KEY (promotion_id, listing_id)
 );
+
+CREATE TABLE IF NOT EXISTS admin_banners (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(150) NOT NULL,
+    target_screen VARCHAR(100),
+    target_url TEXT,
+    image_url TEXT NOT NULL,
+    image_public_id TEXT NOT NULL,
+    display_order INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
+    start_date TIMESTAMPTZ,
+    end_date TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_admin_banners_active ON admin_banners(is_active, display_order);
 
 CREATE TABLE IF NOT EXISTS rewards_accounts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -34,6 +34,7 @@ jest.mock('../../src/controllers/marketingController', () => ({
   getCoupons: (req, res) => res.json([{ id: '1', code: 'CODE1' }]),
   createCoupon: (req, res) => res.status(201).json({ id: '1', code: req.body.code }),
   updateCoupon: (req, res) => res.json({ id: '1', code: req.body.code }),
+  deleteCoupon: (req, res) => res.json({ success: true }),
 }));
 
 app.use('/api/v1/seller', marketingRoutes);

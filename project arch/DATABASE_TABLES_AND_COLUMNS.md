@@ -39,6 +39,7 @@
 | 11 | **`two_factor_enabled`** | `BOOLEAN` | DEFAULT false |
 | 12 | **`created_at`** | `TIMESTAMPTZ` | DEFAULT NOW() |
 | 13 | **`updated_at`** | `TIMESTAMPTZ` | DEFAULT NOW() |
+| 14 | **`avatar_public_id`** | `TEXT` | — |
 
 ---
 
@@ -329,6 +330,7 @@
 | 5 | **`file_url`** | `TEXT` | NOT NULL |
 | 6 | **`verification_status`** | `VARCHAR(30)` | DEFAULT 'PENDING' |
 | 7 | **`uploaded_at`** | `TIMESTAMPTZ` | DEFAULT NOW() |
+| 8 | **`file_public_id`** | `TEXT` | — |
 
 ---
 
@@ -535,6 +537,7 @@
 | 10 | **`is_active`** | `BOOLEAN` | DEFAULT true |
 | 11 | **`display_order`** | `INT` | DEFAULT 0 |
 | 12 | **`google_product_category_id`** | `INT` | — |
+| 13 | **`image_public_id`** | `TEXT` | — |
 
 ---
 
@@ -549,6 +552,7 @@
 | 5 | **`description`** | `TEXT` | — |
 | 6 | **`is_active`** | `BOOLEAN` | DEFAULT true |
 | 7 | **`created_at`** | `TIMESTAMPTZ` | DEFAULT NOW() |
+| 8 | **`logo_public_id`** | `TEXT` | — |
 
 ---
 
@@ -582,6 +586,7 @@
 | 7 | **`standard_unit`** | `VARCHAR(20)` | DEFAULT 'pcs' |
 | 8 | **`default_image_url`** | `TEXT` | — |
 | 9 | **`created_at`** | `TIMESTAMPTZ` | DEFAULT NOW() |
+| 10 | **`default_image_public_id`** | `TEXT` | — |
 
 ---
 
@@ -615,6 +620,7 @@
 | 6 | **`is_primary`** | `BOOLEAN` | DEFAULT false |
 | 7 | **`alt_text`** | `VARCHAR(200)` | — |
 | 8 | **`created_at`** | `TIMESTAMPTZ` | DEFAULT NOW() |
+| 9 | **`image_public_id`** | `TEXT` | — |
 
 ---
 
@@ -1147,6 +1153,7 @@
 | 7 | **`end_date`** | `TIMESTAMPTZ` | NOT NULL |
 | 8 | **`is_active`** | `BOOLEAN` | DEFAULT true |
 | 9 | **`created_at`** | `TIMESTAMPTZ` | DEFAULT NOW() |
+| 10 | **`banner_public_id`** | `TEXT` | — |
 
 ---
 
@@ -1160,6 +1167,25 @@
 
 **Table Constraints:**
 - `PRIMARY KEY (promotion_id, listing_id)`
+
+---
+
+### 70b. `admin_banners`
+
+| # | Column Name | Data Type | Constraints & Modifiers |
+| :---: | :--- | :--- | :--- |
+| 1 | **`id`** | `UUID` | PRIMARY KEY DEFAULT gen_random_uuid() |
+| 2 | **`title`** | `VARCHAR(150)` | NOT NULL |
+| 3 | **`target_screen`** | `VARCHAR(100)` | — |
+| 4 | **`target_url`** | `TEXT` | — |
+| 5 | **`image_url`** | `TEXT` | NOT NULL |
+| 6 | **`image_public_id`** | `TEXT` | NOT NULL |
+| 7 | **`display_order`** | `INT` | DEFAULT 0 |
+| 8 | **`is_active`** | `BOOLEAN` | DEFAULT true |
+| 9 | **`start_date`** | `TIMESTAMPTZ` | — |
+| 10 | **`end_date`** | `TIMESTAMPTZ` | — |
+| 11 | **`created_at`** | `TIMESTAMPTZ` | DEFAULT NOW() |
+| 12 | **`updated_at`** | `TIMESTAMPTZ` | DEFAULT NOW() |
 
 ---
 
