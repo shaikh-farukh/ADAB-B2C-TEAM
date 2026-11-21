@@ -1,5 +1,6 @@
 const ListingService = require('../services/listing');
 const minioService = require('../services/minioService');
+const cloudinaryService = require('../services/cloudinaryService');
 const { getAuthenticatedSellerContext } = require('../middlewares/auth');
 
 function formatErrorMessage(err) {
@@ -45,9 +46,31 @@ class ListingController {
       if (!storeId) return res.status(401).json({ error: 'Missing store context' });
       if (!req.file) return res.status(400).json({ error: 'No image file provided' });
 
-      // upload to minio
-      const url = await minioService.uploadImage(req.file.buffer, req.file.originalname, req.file.mimetype);
-      res.status(201).json({ url });
+      const folder = req.body?.folder || 'adab/products';
+      let uploadResult;
+      if (cloudinaryService.isConfigured()) {
+        try {
+          uploadResult = await cloudinaryService.uploadImage(
+            req.file.buffer,
+            req.file.originalname,
+            req.file.mimetype,
+            { folder }
+          );
+        } catch (cloudErr) {
+          console.warn('[ListingController.uploadImage] Cloudinary upload warning, falling back to MinIO:', cloudErr.message);
+        }
+      }
+
+      if (!uploadResult) {
+        const minioUrl = await minioService.uploadImage(req.file.buffer, req.file.originalname, req.file.mimetype);
+        uploadResult = { url: minioUrl, secure_url: minioUrl, public_id: null };
+      }
+
+      res.status(201).json({
+        url: uploadResult.secure_url || uploadResult.url,
+        secure_url: uploadResult.secure_url || uploadResult.url,
+        public_id: uploadResult.public_id || null
+      });
     } catch (err) {
       console.error('[ListingController.uploadImage] Error:', err);
       res.status(500).json({ error: err.message });

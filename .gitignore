@@ -45,6 +45,7 @@ coverage/
 .env.*
 **/.env
 **/.env.*
+!**/.env.example
 
 # Uploads & Media Files
 uploads/
