@@ -119,5 +119,16 @@ module.exports = {
       const status = err.statusCode || 400;
       res.status(status).json({ error: err.message });
     }
+  },
+
+  deleteCoupon: async (req, res) => {
+    try {
+      const storeId = getAuthorizedStoreId(req);
+      await marketingService.removeCoupon(storeId, req.params.id);
+      res.status(200).json({ success: true, message: 'Coupon deleted' });
+    } catch (err) {
+      const status = err.statusCode || 400;
+      res.status(status).json({ error: err.message });
+    }
   }
 };

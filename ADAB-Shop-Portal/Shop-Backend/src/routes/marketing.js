@@ -16,5 +16,6 @@ router.delete(['/promotions/:id', '/promotions/:id/delete-promotion'], marketing
 router.get('/coupons', marketingController.getCoupons);
 router.post('/coupons', marketingController.createCoupon);
 router.patch(['/coupons/:id', '/coupons/:id/update-coupon'], marketingController.updateCoupon);
+router.delete(['/coupons/:id', '/coupons/:id/delete-coupon'], marketingController.deleteCoupon);
 
 module.exports = router;

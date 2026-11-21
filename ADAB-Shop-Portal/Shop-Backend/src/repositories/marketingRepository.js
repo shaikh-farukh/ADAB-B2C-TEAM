@@ -268,5 +268,20 @@ module.exports = {
     } finally {
       client.release();
     }
+  },
+  deleteCoupon: async (storeId, id) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM coupons WHERE id = $1 AND store_id = $2', [id, storeId]);
+      await eventService.emitEvent('coupon', id, 'PROMOTION_DELETED', { id, storeId }, client);
+      await client.query('COMMIT');
+      return true;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
   }
 };

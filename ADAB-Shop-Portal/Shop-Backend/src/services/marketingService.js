@@ -51,5 +51,9 @@ module.exports = {
 
   editCoupon: async (storeId, id, data) => {
     return await marketingRepo.updateCoupon(storeId, id, data);
+  },
+
+  removeCoupon: async (storeId, id) => {
+    return await marketingRepo.deleteCoupon(storeId, id);
   }
 };
