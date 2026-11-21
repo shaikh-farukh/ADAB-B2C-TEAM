@@ -103,6 +103,12 @@ router.patch(
   auditMiddleware({ action: 'ADMIN_UPDATE_CATEGORY', entityType: 'CATEGORY' }),
   productCtrl.updateCategory
 );
+router.delete(
+  '/categories/:id',
+  adminGuard({ permissions: [PERMISSIONS.CATALOG_WRITE] }),
+  auditMiddleware({ action: 'ADMIN_DELETE_CATEGORY', entityType: 'CATEGORY' }),
+  productCtrl.deleteCategory
+);
 
 // ─── Brands APIs ───
 router.get('/brands', adminGuard({ permissions: [PERMISSIONS.CATALOG_READ] }), productCtrl.getBrands);

@@ -8,6 +8,9 @@ const pool = require('./db');
 const adminRoutes = require('./routes/adminRoutes');
 const legacyAdminRoutes = require('./src/routes/adminRoutes');
 const authRoutes = require('./routes/authRoutes');
+const uploadRoutes = require('./src/routes/uploadRoutes');
+const swaggerUi = require('swagger-ui-express');
+const swaggerDocument = require('./swagger.json');
 
 const app = express();
 const PORT = process.env.PORT || 5005;
@@ -57,6 +60,10 @@ app.use('/api/auth', authRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/admin', legacyAdminRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/v1/admin/uploads', uploadRoutes);
+
+// Swagger Documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Health Route
 app.get('/api/health', async (req, res) => {

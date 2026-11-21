@@ -6,7 +6,17 @@ exports.getCustomers = async (params = {}) => {
     const { search, status, page = 1, pageSize = 10 } = params;
     const offset = (page - 1) * pageSize;
     
-    let query = "SELECT count(*) OVER() as full_count, * FROM users WHERE user_type='CUSTOMER'";
+    let query = `
+      SELECT count(*) OVER() as full_count, 
+             u.*, 
+             COALESCE(cp.profile_picture_url, u.avatar_url) as avatar_url,
+             COALESCE(cp.profile_picture_public_id, u.avatar_public_id) as avatar_public_id,
+             cp.profile_picture_url,
+             cp.profile_picture_public_id
+      FROM users u
+      LEFT JOIN customer_profiles cp ON u.id = cp.user_id
+      WHERE u.user_type='CUSTOMER'
+    `;
     const values = [];
     let paramIdx = 1;
 
@@ -37,7 +47,16 @@ exports.getCustomers = async (params = {}) => {
 
 exports.getCustomerById = async (id) => {
   try {
-    const res = await pool.query("SELECT * FROM users WHERE id=$1 AND user_type='CUSTOMER'", [id]);
+    const res = await pool.query(`
+      SELECT u.*, 
+             COALESCE(cp.profile_picture_url, u.avatar_url) as avatar_url,
+             COALESCE(cp.profile_picture_public_id, u.avatar_public_id) as avatar_public_id,
+             cp.profile_picture_url,
+             cp.profile_picture_public_id
+      FROM users u
+      LEFT JOIN customer_profiles cp ON u.id = cp.user_id
+      WHERE u.id=$1 AND u.user_type='CUSTOMER'
+    `, [id]);
     return res.rows[0] ? mapToCustomerDto(res.rows[0]) : null;
   } catch(e) {
     return null;

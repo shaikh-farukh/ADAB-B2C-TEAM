@@ -6,7 +6,16 @@ exports.getSellers = async (params = {}) => {
     const { search, status, page = 1, pageSize = 10 } = params;
     const offset = (page - 1) * pageSize;
     
-    let query = "SELECT count(*) OVER() as full_count, * FROM users WHERE user_type='SELLER'";
+    let query = `
+      SELECT count(*) OVER() as full_count, 
+             u.*,
+             COALESCE(s.store_name, sp.legal_name) as store_name,
+             u.avatar_url as logo_url
+      FROM users u
+      LEFT JOIN seller_profiles sp ON u.id = sp.user_id
+      LEFT JOIN stores s ON u.id = s.seller_id
+      WHERE u.user_type='SELLER'
+    `;
     const values = [];
     let paramIdx = 1;
 

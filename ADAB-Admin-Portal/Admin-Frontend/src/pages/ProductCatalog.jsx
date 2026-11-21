@@ -44,7 +44,9 @@ export default function ProductCatalog() {
         const mappedProducts = res.data.data.map(item => ({
           id: item.listing_id || item.id,
           name: item.title,
-          seller: item.seller_id || 'Unknown',
+          seller: item.seller_name || item.store_name || item.seller_legal_name || item.seller_user_name || item.seller_id || 'Unknown Store',
+          sellerId: item.seller_id,
+          imageUrl: item.image_url,
           price: item.price || 0,
           submittedTime: item.created_at,
           status: item.current_status,
@@ -96,8 +98,42 @@ export default function ProductCatalog() {
   };
 
   const columns = [
-    { header: 'Product', accessor: 'name' },
-    { header: 'Seller', accessor: 'seller' },
+    {
+      header: 'Product',
+      render: (row) => (
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+            {row.imageUrl ? (
+              <img
+                src={row.imageUrl}
+                alt={row.name}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = 'https://placehold.co/60x60?text=Prod';
+                }}
+              />
+            ) : (
+              <i className="fa-solid fa-box text-slate-300 text-sm"></i>
+            )}
+          </div>
+          <span className="font-bold text-slate-800 text-xs">{row.name}</span>
+        </div>
+      )
+    },
+    { 
+      header: 'Seller', 
+      render: (row) => (
+        <div className="flex flex-col">
+          <span className="font-bold text-slate-800 text-xs">{row.seller}</span>
+          {row.sellerId && (
+            <span className="text-[10px] font-mono text-slate-400">
+              ID: {row.sellerId.substring(0, 8)}
+            </span>
+          )}
+        </div>
+      )
+    },
     { header: 'Price', render: (row) => `₹${row.price}` },
     { header: 'Submitted Time', render: (row) => new Date(row.submittedTime).toLocaleString() },
     { header: 'Status', render: (row) => <StatusBadge status={row.status} /> },

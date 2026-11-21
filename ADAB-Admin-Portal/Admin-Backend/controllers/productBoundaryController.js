@@ -100,6 +100,14 @@ async function updateBrand(req, res) {
   res.status(200).json(result);
 }
 
+async function deleteCategory(req, res) {
+  const result = await productService.deleteCategory(req.params.id);
+  if (!result.success) {
+    return res.status(result.status || 400).json(result);
+  }
+  res.status(200).json(result);
+}
+
 module.exports = {
   getProductsMaster,
   getProductMasterById,
@@ -111,6 +119,7 @@ module.exports = {
   getCategoryById,
   createCategory,
   updateCategory,
+  deleteCategory,
   getBrands,
   getBrandById,
   createBrand,

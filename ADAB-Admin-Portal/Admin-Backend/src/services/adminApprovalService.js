@@ -17,6 +17,7 @@ exports.getPendingApprovals = async (type, params = {}) => {
         query = `
           SELECT count(*) OVER() as full_count, 
                  u.id, u.email, u.phone, u.full_name, u.user_type, u.status, u.created_at, u.updated_at,
+                 u.avatar_url, u.avatar_public_id,
                  sp.legal_name, sp.gstin, sp.pan, sp.kyc_status,
                  s.store_name
           FROM users u
@@ -27,8 +28,13 @@ exports.getPendingApprovals = async (type, params = {}) => {
       } else {
         query = `
           SELECT count(*) OVER() as full_count, 
-                 u.id, u.email, u.phone, u.full_name, u.user_type, u.status, u.created_at, u.updated_at
+                 u.id, u.email, u.phone, u.full_name, u.user_type, u.status, u.created_at, u.updated_at,
+                 COALESCE(cp.profile_picture_url, u.avatar_url) as avatar_url,
+                 COALESCE(cp.profile_picture_public_id, u.avatar_public_id) as avatar_public_id,
+                 cp.profile_picture_url,
+                 cp.profile_picture_public_id
           FROM users u
+          LEFT JOIN customer_profiles cp ON u.id = cp.user_id
           WHERE u.user_type = $1
         `;
       }

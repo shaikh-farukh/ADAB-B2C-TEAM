@@ -61,7 +61,26 @@ export default function Customers() {
 
   const columns = [
     { header: 'ID', render: (row) => <span className="text-xs text-gray-500 font-mono">{row.id?.substring(0,8)}</span> },
-    { header: 'Name', accessor: 'name' },
+    { 
+      header: 'Name', 
+      render: (row) => (
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center text-slate-700 text-xs font-bold">
+            {row.profile_picture_url || row.avatar_url ? (
+              <img
+                src={row.profile_picture_url || row.avatar_url}
+                alt={row.name}
+                className="w-full h-full object-cover"
+                onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
+              />
+            ) : (
+              (row.name || 'C').charAt(0).toUpperCase()
+            )}
+          </div>
+          <span className="font-bold text-slate-800 text-xs">{row.name}</span>
+        </div>
+      )
+    },
     { header: 'Email', accessor: 'email' },
     { header: 'Phone', accessor: 'phone' },
     { header: 'Status', render: (row) => <StatusBadge status={row.status} /> },

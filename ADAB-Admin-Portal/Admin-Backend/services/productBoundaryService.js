@@ -414,7 +414,7 @@ async function getCategoryById(id) {
 }
 
 async function createCategory(payload = {}) {
-  const { name, slug, parent_id, icon_class, image_url, is_active = true, display_order = 0 } = payload;
+  const { name, slug, parent_id, icon_class, image_url, image_public_id, is_active = true, display_order = 0 } = payload;
 
   if (!name || typeof name !== 'string' || !name.trim()) {
     return { success: false, status: 400, error: 'INVALID_INPUT', message: "'name' is required" };
@@ -432,10 +432,10 @@ async function createCategory(payload = {}) {
       }
 
       const res = await pool.query(
-        `INSERT INTO categories (name, slug, parent_id, icon_class, image_url, is_active, display_order)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO categories (name, slug, parent_id, icon_class, image_url, image_public_id, is_active, display_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING *`,
-        [name.trim(), generatedSlug, parent_id || null, icon_class || null, image_url || null, is_active, display_order]
+        [name.trim(), generatedSlug, parent_id || null, icon_class || null, image_url || null, image_public_id || null, is_active, display_order]
       );
 
       return { success: true, status: 201, data: res.rows[0] };
@@ -455,7 +455,7 @@ async function createCategory(payload = {}) {
 }
 
 async function updateCategory(id, payload = {}) {
-  const allowedFields = ['name', 'slug', 'parent_id', 'icon_class', 'image_url', 'is_active', 'display_order'];
+  const allowedFields = ['name', 'slug', 'parent_id', 'icon_class', 'image_url', 'image_public_id', 'is_active', 'display_order'];
   const fields = [];
   const values = [];
 
@@ -508,6 +508,51 @@ async function updateCategory(id, payload = {}) {
     success: true,
     data: { id, ...payload }
   };
+}
+
+async function deleteCategory(id) {
+  try {
+    if (pool && typeof pool.query === 'function') {
+      const catId = parseInt(id, 10);
+      if (isNaN(catId)) {
+        return { success: false, status: 400, error: 'INVALID_ID', message: `Category ID '${id}' must be an integer` };
+      }
+
+      // Check if any subcategories depend on this category
+      const childRes = await pool.query('SELECT id FROM categories WHERE parent_id = $1 LIMIT 1', [catId]);
+      if (childRes.rowCount > 0) {
+        return { 
+          success: false, 
+          status: 400, 
+          error: 'HAS_CHILDREN', 
+          message: 'Cannot delete category that has subcategories. Reassign or delete subcategories first.' 
+        };
+      }
+
+      // Check if products reference this category
+      const prodRes = await pool.query('SELECT id FROM products WHERE category_id = $1 LIMIT 1', [catId]);
+      if (prodRes.rowCount > 0) {
+        return { 
+          success: false, 
+          status: 400, 
+          error: 'HAS_PRODUCTS', 
+          message: 'Cannot delete category assigned to existing products.' 
+        };
+      }
+
+      const res = await pool.query('DELETE FROM categories WHERE id = $1 RETURNING *', [catId]);
+      if (res.rowCount === 0) {
+        return { success: false, status: 404, error: 'NOT_FOUND', message: `Category with ID '${id}' not found` };
+      }
+
+      return { success: true, message: 'Category deleted successfully', data: res.rows[0] };
+    }
+  } catch (err) {
+    console.error('deleteCategory error:', err.message);
+    return { success: false, status: 500, error: 'SERVER_ERROR', message: err.message };
+  }
+
+  return { success: true, message: 'Category deleted successfully' };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -666,6 +711,7 @@ module.exports = {
   getCategoryById,
   createCategory,
   updateCategory,
+  deleteCategory,
   getBrands,
   getBrandById,
   createBrand,

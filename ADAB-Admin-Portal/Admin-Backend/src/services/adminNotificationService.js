@@ -45,3 +45,15 @@ exports.markAsRead = async (id, userId) => {
   }
 };
 
+exports.markAllAsRead = async (userId) => {
+  try {
+    await pool.query("UPDATE notifications SET is_read = true WHERE is_read = false");
+  } catch(e) {
+    try {
+      await pool.query("UPDATE admin_notifications SET is_read = true WHERE is_read = false");
+    } catch(err) {
+      // ignore
+    }
+  }
+};
+

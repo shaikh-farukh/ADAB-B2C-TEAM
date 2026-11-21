@@ -236,13 +236,31 @@ export default function ApprovalQueue() {
     { 
       header: 'Product Title', 
       render: (row) => (
-        <div className="flex flex-col">
-          <span className="font-bold text-slate-900 text-sm">{row.title || row.name || 'Untitled Listing'}</span>
-          {row.price && (
-            <span className="text-xs font-semibold text-emerald-600 mt-0.5">
-              ₹{parseFloat(row.price).toLocaleString()}
-            </span>
-          )}
+        <div className="flex items-center gap-2.5">
+          {/* Normal-sized Product Listing Preview */}
+          <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+            {row.image_url || (row.images && row.images[0]) ? (
+              <img
+                src={row.image_url || (typeof row.images[0] === 'string' ? row.images[0] : row.images[0]?.image_url)}
+                alt="Product Preview"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = 'https://placehold.co/80x80?text=Prod';
+                }}
+              />
+            ) : (
+              <i className="fa-solid fa-box text-slate-300 text-sm"></i>
+            )}
+          </div>
+          <div className="flex flex-col">
+            <span className="font-bold text-slate-900 text-xs">{row.title || row.name || 'Untitled Listing'}</span>
+            {row.price && (
+              <span className="text-[11px] font-semibold text-emerald-600 mt-0.5">
+                ₹{parseFloat(row.price).toLocaleString()}
+              </span>
+            )}
+          </div>
         </div>
       )
     },
@@ -369,15 +387,29 @@ export default function ApprovalQueue() {
     { 
       header: activeTab === 'seller' ? 'Store / Business Name' : 'Customer Name',
       render: (row) => (
-        <div className="flex flex-col">
-          <span className="font-bold text-slate-900 text-xs">
-            {row.entityName || 'Unknown'}
-          </span>
-          {activeTab === 'seller' && row.ownerName && row.ownerName !== row.entityName && (
-            <span className="text-[11px] text-slate-500 font-medium">
-              Owner: {row.ownerName}
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center text-slate-700 text-xs font-bold">
+            {row.avatar_url || row.logo_url || row.image_url ? (
+              <img
+                src={row.avatar_url || row.logo_url || row.image_url}
+                alt="Avatar"
+                className="w-full h-full object-cover"
+                onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
+              />
+            ) : (
+              (row.entityName || 'U').charAt(0).toUpperCase()
+            )}
+          </div>
+          <div className="flex flex-col">
+            <span className="font-bold text-slate-900 text-xs">
+              {row.entityName || 'Unknown'}
             </span>
-          )}
+            {activeTab === 'seller' && row.ownerName && row.ownerName !== row.entityName && (
+              <span className="text-[11px] text-slate-500 font-medium">
+                Owner: {row.ownerName}
+              </span>
+            )}
+          </div>
         </div>
       )
     },

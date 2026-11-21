@@ -71,14 +71,30 @@ async function getApprovalQueue({ status = 'ALL', seller_id, category_id, search
         SELECT COUNT(*) 
         FROM seller_listings sl
         LEFT JOIN stores s ON sl.store_id = s.id
+        LEFT JOIN seller_profiles sp ON s.seller_id = sp.id
+        LEFT JOIN users u ON sp.user_id = u.id
         WHERE 1=1
       `;
       let queryText = `
         SELECT sl.id, sl.store_id AS seller_id, sl.master_catalog_id AS product_id, sl.title, 
                sl.approval_status AS status, sl.sell_price AS price, sl.created_at, sl.updated_at, sl.rejection_reason,
-               s.store_name, s.seller_id AS seller_owner_id
+               s.store_name, s.seller_id AS seller_owner_id,
+               COALESCE(s.store_name, sp.legal_name, u.full_name, 'Unknown Store') AS seller_name,
+               u.full_name AS seller_user_name,
+               sp.legal_name AS seller_legal_name,
+               COALESCE(
+                 mci.default_image_url,
+                 (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = sl.master_catalog_id ORDER BY pi.display_order ASC LIMIT 1)
+               ) as image_url,
+               COALESCE(
+                 mci.default_image_public_id,
+                 (SELECT pi.image_public_id FROM product_images pi WHERE pi.product_id = sl.master_catalog_id ORDER BY pi.display_order ASC LIMIT 1)
+               ) as image_public_id
         FROM seller_listings sl
         LEFT JOIN stores s ON sl.store_id = s.id
+        LEFT JOIN seller_profiles sp ON s.seller_id = sp.id
+        LEFT JOIN users u ON sp.user_id = u.id
+        LEFT JOIN master_catalog_items mci ON sl.master_catalog_id = mci.id
         WHERE 1=1
       `;
       const params = [];

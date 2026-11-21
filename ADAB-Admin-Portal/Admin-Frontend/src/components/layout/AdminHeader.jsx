@@ -49,6 +49,13 @@ export default function AdminHeader() {
 
   useEffect(() => {
     fetchHeaderData();
+
+    // Listen for custom notifications-updated events (e.g. from Dashboard actions)
+    const handleNotifUpdate = () => {
+      fetchHeaderData();
+    };
+    window.addEventListener('admin-notifications-updated', handleNotifUpdate);
+    return () => window.removeEventListener('admin-notifications-updated', handleNotifUpdate);
   }, []);
 
   const openNotifications = () => {
@@ -68,6 +75,17 @@ export default function AdminHeader() {
       .then(() => {
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
         setUnreadCount(prev => Math.max(0, prev - 1));
+        window.dispatchEvent(new CustomEvent('admin-notifications-updated', { detail: { id, readAll: false } }));
+      })
+      .catch(() => { });
+  };
+
+  const markAllAsRead = () => {
+    apiClient.post('/notifications/read-all')
+      .then(() => {
+        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+        setUnreadCount(0);
+        window.dispatchEvent(new CustomEvent('admin-notifications-updated', { detail: { readAll: true } }));
       })
       .catch(() => { });
   };
@@ -147,7 +165,17 @@ export default function AdminHeader() {
                     <i className="fa-solid fa-bell text-indigo-600"></i>
                     <span>Notifications</span>
                   </div>
-                  <span className="text-[10px] font-bold text-slate-400">{unreadCount} unread</span>
+                  <div className="flex items-center gap-2">
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={markAllAsRead}
+                        className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors"
+                      >
+                        Read All
+                      </button>
+                    )}
+                    <span className="text-[10px] font-bold text-slate-400">({unreadCount} unread)</span>
+                  </div>
                 </div>
 
                 <div className="max-h-64 overflow-y-auto space-y-2 text-xs">

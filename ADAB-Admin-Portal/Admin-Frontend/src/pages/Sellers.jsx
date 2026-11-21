@@ -61,7 +61,29 @@ export default function Sellers() {
 
   const columns = [
     { header: 'ID', render: (row) => <span className="text-xs text-gray-500 font-mono">{row.id?.substring(0,8)}</span> },
-    { header: 'Name', accessor: 'name' },
+    { 
+      header: 'Name', 
+      render: (row) => (
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 overflow-hidden shrink-0 flex items-center justify-center text-indigo-700 text-xs font-bold">
+            {row.logo_url || row.avatar_url ? (
+              <img
+                src={row.logo_url || row.avatar_url}
+                alt={row.name}
+                className="w-full h-full object-cover"
+                onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
+              />
+            ) : (
+              (row.name || 'S').charAt(0).toUpperCase()
+            )}
+          </div>
+          <div>
+            <span className="font-bold text-slate-800 block text-xs">{row.name}</span>
+            {row.store_name && <span className="text-[10px] text-slate-400">{row.store_name}</span>}
+          </div>
+        </div>
+      )
+    },
     { header: 'Email', accessor: 'email' },
     { header: 'Phone', accessor: 'phone' },
     { header: 'Type', accessor: 'userType' },
@@ -140,12 +162,21 @@ export default function Sellers() {
             <div className="space-y-2">
               {docsModal.data.map((doc, idx) => (
                 <div key={idx} className="p-3 bg-slate-50 rounded-xl flex justify-between items-center border border-slate-200">
-                  <div>
-                    <div className="font-bold text-slate-800">{doc.document_type || doc.name || 'Business Verification'}</div>
-                    <div className="text-[11px] text-slate-500">Status: {doc.status || 'VERIFIED'}</div>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                      {doc.file_url && (doc.file_url.endsWith('.jpg') || doc.file_url.endsWith('.png') || doc.file_url.endsWith('.webp') || doc.file_url.includes('image')) ? (
+                        <img src={doc.file_url} alt="Doc preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <i className="fa-regular fa-file-pdf text-slate-400 text-base"></i>
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-800 text-xs">{doc.document_type || doc.name || 'Business Verification'}</div>
+                      <div className="text-[11px] text-slate-500">Status: {doc.status || 'VERIFIED'}</div>
+                    </div>
                   </div>
                   {doc.file_url && (
-                    <a href={doc.file_url} target="_blank" rel="noreferrer" className="text-indigo-600 font-bold hover:underline">
+                    <a href={doc.file_url} target="_blank" rel="noreferrer" className="text-indigo-600 font-bold hover:underline text-xs">
                       View File →
                     </a>
                   )}

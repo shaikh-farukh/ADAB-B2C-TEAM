@@ -40,6 +40,7 @@ router.get('/dashboard', dashboardController.getDashboard);
 // Notifications
 router.get('/notifications', notificationController.getNotifications);
 router.get('/notifications/unread-count', notificationController.getUnreadCount);
+router.post('/notifications/read-all', notificationController.markAllAsRead);
 router.post('/notifications/:id/read', notificationController.markAsRead);
 
 // Sellers (Day-1 Skeletons & Oversight)

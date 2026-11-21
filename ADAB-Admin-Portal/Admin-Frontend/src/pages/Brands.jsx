@@ -4,6 +4,7 @@ import AdminTable from '../components/ui/AdminTable';
 import StatusBadge from '../components/ui/StatusBadge';
 import Pagination from '../components/ui/Pagination';
 import Modal from '../components/ui/Modal';
+import ImageUploadWidget from '../components/ui/ImageUploadWidget';
 
 export default function Brands() {
   const [brands, setBrands] = useState([]);
@@ -14,7 +15,14 @@ export default function Brands() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBrand, setEditingBrand] = useState(null);
-  const [form, setForm] = useState({ name: '', slug: '', logo_url: '', description: '', is_active: true });
+  const [form, setForm] = useState({ 
+    name: '', 
+    slug: '', 
+    logo_url: '', 
+    logo_public_id: '', 
+    description: '', 
+    is_active: true 
+  });
 
   const fetchBrands = (p = 1) => {
     setLoading(true);
@@ -37,7 +45,7 @@ export default function Brands() {
 
   const openCreateModal = () => {
     setEditingBrand(null);
-    setForm({ name: '', slug: '', logo_url: '', description: '', is_active: true });
+    setForm({ name: '', slug: '', logo_url: '', logo_public_id: '', description: '', is_active: true });
     setIsModalOpen(true);
   };
 
@@ -47,6 +55,7 @@ export default function Brands() {
       name: brand.name || '',
       slug: brand.slug || '',
       logo_url: brand.logo_url || '',
+      logo_public_id: brand.logo_public_id || '',
       description: brand.description || '',
       is_active: brand.is_active !== undefined ? brand.is_active : true
     });
@@ -77,13 +86,33 @@ export default function Brands() {
   };
 
   const columns = [
-    { header: 'ID', render: (row) => <span className="text-xs font-mono text-slate-500">{row.id?.substring(0,8)}</span> },
-    { header: 'Brand Name', render: (row) => <span className="font-bold text-slate-800">{row.name}</span> },
+    { header: 'ID', render: (row) => <span className="text-xs font-mono text-slate-500 font-semibold">{row.id?.substring(0,8)}</span> },
+    {
+      header: 'Logo',
+      render: (row) => (
+        <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+          {row.logo_url ? (
+            <img
+              src={row.logo_url}
+              alt={row.name}
+              className="w-full h-full object-contain p-0.5"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = 'https://placehold.co/60x60?text=Logo';
+              }}
+            />
+          ) : (
+            <i className="fa-solid fa-tag text-slate-400 text-xs"></i>
+          )}
+        </div>
+      )
+    },
+    { header: 'Brand Name', render: (row) => <span className="font-bold text-slate-800 text-xs">{row.name}</span> },
     { header: 'Slug', render: (row) => <span className="text-xs font-mono text-slate-500">{row.slug}</span> },
     { header: 'Description', render: (row) => <span className="text-xs text-slate-500 truncate max-w-xs">{row.description || 'N/A'}</span> },
     { header: 'Status', render: (row) => <StatusBadge status={row.is_active ? 'ACTIVE' : 'INACTIVE'} /> },
     { header: 'Actions', render: (row) => (
-      <button onClick={() => openEditModal(row)} className="text-xs bg-slate-100 text-slate-700 hover:bg-slate-200 px-3 py-1 rounded-lg font-bold">Edit</button>
+      <button onClick={() => openEditModal(row)} className="text-xs bg-slate-100 text-slate-700 hover:bg-slate-200 px-3 py-1 rounded-lg font-bold transition-colors">Edit</button>
     )}
   ];
 
@@ -126,28 +155,40 @@ export default function Brands() {
         onPrimary={handleSubmit}
         primaryLabel={editingBrand ? 'Save Changes' : 'Create Brand'}
       >
-        <div className="space-y-3">
+        <div className="space-y-3.5">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">Brand Name *</label>
             <input type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Amul" className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs outline-none focus:border-indigo-600" />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2.5">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Custom Slug</label>
-              <input type="text" value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} placeholder="amul" className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs outline-none focus:border-indigo-600" />
+              <input type="text" value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} placeholder="amul" className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs outline-none focus:border-indigo-600 font-mono" />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Status</label>
-              <select value={form.is_active} onChange={e => setForm({ ...form, is_active: e.target.value === 'true' })} className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white outline-none focus:border-indigo-600">
+              <select value={form.is_active ? 'true' : 'false'} onChange={e => setForm({ ...form, is_active: e.target.value === 'true' })} className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white outline-none focus:border-indigo-600">
                 <option value="true">Active</option>
                 <option value="false">Inactive</option>
               </select>
             </div>
           </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Logo Image URL</label>
-            <input type="text" value={form.logo_url} onChange={e => setForm({ ...form, logo_url: e.target.value })} placeholder="https://..." className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs outline-none focus:border-indigo-600" />
-          </div>
+          
+          {/* Normal-sized Brand Logo Upload Widget */}
+          <ImageUploadWidget
+            label="Brand Logo"
+            imageUrl={form.logo_url}
+            imagePublicId={form.logo_public_id}
+            folder="adab/brands"
+            description="Recommended format: Transparent PNG or SVG logo. Normal size max 2MB."
+            onChange={({ imageUrl, imagePublicId }) => {
+              setForm(prev => ({ ...prev, logo_url: imageUrl, logo_public_id: imagePublicId }));
+            }}
+            onRemove={() => {
+              setForm(prev => ({ ...prev, logo_url: '', logo_public_id: '' }));
+            }}
+          />
+
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">Description</label>
             <textarea rows={2} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Brand details..." className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs outline-none focus:border-indigo-600" />

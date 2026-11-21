@@ -1,21 +1,13 @@
-const maskEmail = (email) => {
-  if (!email) return '';
-  const [user, domain] = email.split('@');
-  if (!domain) return email;
-  return `${user.charAt(0)}***${user.charAt(user.length - 1)}@${domain}`;
-};
-
-const maskPhone = (phone) => {
-  if (!phone) return '';
-  return phone.slice(0, 3) + '****' + phone.slice(-3);
-};
-
 exports.mapToCustomerDto = (row) => ({
   id: row.id,
   name: row.full_name || '',
-  email: maskEmail(row.email),
-  phone: maskPhone(row.phone),
+  email: row.email || '',
+  phone: row.phone || '',
   status: row.status || 'ACTIVE',
   userType: row.user_type,
+  avatar_url: row.avatar_url || row.profile_picture_url || null,
+  avatar_public_id: row.avatar_public_id || row.profile_picture_public_id || null,
+  profile_picture_url: row.profile_picture_url || row.avatar_url || null,
+  profile_picture_public_id: row.profile_picture_public_id || row.avatar_public_id || null,
   createdAt: row.created_at
 });
