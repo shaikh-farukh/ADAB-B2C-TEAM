@@ -33,6 +33,10 @@ const catalogRoutes = require('./src/routes/catalog');
 require('./src/jobs/bulkUploadJob');
 require('./src/jobs/pgListener');
 
+// Swagger API Documentation
+const { setupSwagger } = require('./src/docs/swagger');
+setupSwagger(app);
+
 // Health / Sample API Route with DB check
 app.get('/api/health', async (req, res) => {
   try {
