@@ -9,9 +9,18 @@ jest.mock('../../db', () => ({
   end: jest.fn(),
 }));
 
-// Mock minio to avoid errors
+// Mock Cloudinary and legacy MinIO
+jest.mock('../../src/services/cloudinaryService', () => ({
+  uploadImage: jest.fn().mockResolvedValue({
+    url: 'https://res.cloudinary.com/dqjb134t9/image/upload/mock-image.png',
+    secure_url: 'https://res.cloudinary.com/dqjb134t9/image/upload/mock-image.png',
+    public_id: 'adab/products/mock-image'
+  }),
+  deleteImage: jest.fn().mockResolvedValue({ result: 'ok' })
+}));
+
 jest.mock('../../src/services/minioService', () => ({
-  uploadImage: jest.fn().mockResolvedValue('http://mock-minio/image.png')
+  uploadImage: jest.fn().mockResolvedValue('https://res.cloudinary.com/dqjb134t9/image/upload/mock-image.png')
 }));
 
 const listingRoutes = require('../../src/routes/listing');

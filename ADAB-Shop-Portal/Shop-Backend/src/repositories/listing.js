@@ -69,8 +69,8 @@ class ListingRepository {
       // Insert primary image if provided
       if (data.image_url) {
         await client.query(
-          `INSERT INTO product_images (product_id, image_url, is_primary) VALUES ($1, $2, true)`,
-          [listing.id, data.image_url]
+          `INSERT INTO product_images (product_id, image_url, image_public_id, is_primary) VALUES ($1, $2, $3, true)`,
+          [listing.id, data.image_url, data.image_public_id || null]
         );
       }
 
@@ -171,6 +171,7 @@ class ListingRepository {
       SELECT 
         sl.*, 
         pi.image_url, 
+        pi.image_public_id,
         c.name as category_name,
         parent_cat.name as parent_category_name,
         (SELECT COUNT(*) FROM listing_variants lv WHERE lv.listing_id = sl.id AND lv.is_active = true) as variant_count,
@@ -230,6 +231,7 @@ class ListingRepository {
       `SELECT 
         sl.*, 
         pi.image_url, 
+        pi.image_public_id,
         c.name as category_name,
         (
           SELECT json_agg(
@@ -304,21 +306,23 @@ class ListingRepository {
       }
 
       // Update primary image if provided
-      if (data.image_url) {
-        const existingImg = await client.query(
-          'SELECT id FROM product_images WHERE product_id = $1 AND is_primary = true LIMIT 1',
-          [id]
-        );
-        if (existingImg.rows.length > 0) {
-          await client.query(
-            'UPDATE product_images SET image_url = $1, created_at = NOW() WHERE id = $2',
-            [data.image_url, existingImg.rows[0].id]
+      if (data.image_url !== undefined) {
+        if (data.image_url) {
+          const existingImg = await client.query(
+            'SELECT id, image_public_id FROM product_images WHERE product_id = $1 AND is_primary = true LIMIT 1',
+            [id]
           );
-        } else {
-          await client.query(
-            'INSERT INTO product_images (product_id, image_url, is_primary) VALUES ($1, $2, true)',
-            [id, data.image_url]
-          );
+          if (existingImg.rows.length > 0) {
+            await client.query(
+              'UPDATE product_images SET image_url = $1, image_public_id = COALESCE($2, image_public_id), created_at = NOW() WHERE id = $3',
+              [data.image_url, data.image_public_id || null, existingImg.rows[0].id]
+            );
+          } else {
+            await client.query(
+              'INSERT INTO product_images (product_id, image_url, image_public_id, is_primary) VALUES ($1, $2, $3, true)',
+              [id, data.image_url, data.image_public_id || null]
+            );
+          }
         }
       }
 
@@ -373,6 +377,21 @@ class ListingRepository {
   }
 
   async deleteListing(storeId, id) {
+    try {
+      const imgRes = await pool.query('SELECT image_public_id FROM product_images WHERE product_id = $1 AND image_public_id IS NOT NULL', [id]);
+      if (imgRes.rows.length > 0) {
+        const cloudinaryService = require('../services/cloudinaryService');
+        for (const row of imgRes.rows) {
+          try {
+            await cloudinaryService.deleteImage(row.image_public_id);
+          } catch (delErr) {
+            console.warn('[ListingRepository.deleteListing] Cloudinary image cleanup warning:', delErr.message);
+          }
+        }
+      }
+    } catch (cleanErr) {
+      console.warn('[ListingRepository.deleteListing] Cleanup check warning:', cleanErr.message);
+    }
     const query = `DELETE FROM seller_listings WHERE id = $1 AND store_id = $2 RETURNING *;`;
     const result = await pool.query(query, [id, storeId]);
     return result.rows[0];
@@ -405,6 +424,16 @@ class ListingRepository {
   }
 
   async deleteImage(imageId) {
+    try {
+      const selectRes = await pool.query('SELECT image_public_id FROM product_images WHERE id = $1;', [imageId]);
+      const img = selectRes.rows[0];
+      if (img && img.image_public_id) {
+        const cloudinaryService = require('../services/cloudinaryService');
+        await cloudinaryService.deleteImage(img.image_public_id);
+      }
+    } catch (cErr) {
+      console.warn('[ListingRepository.deleteImage] Cloudinary deletion warning:', cErr.message);
+    }
     const query = `DELETE FROM product_images WHERE id = $1 RETURNING *;`;
     const result = await pool.query(query, [imageId]);
     return result.rows[0];

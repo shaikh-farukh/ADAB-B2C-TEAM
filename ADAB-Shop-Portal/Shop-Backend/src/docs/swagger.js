@@ -52,6 +52,9 @@ function setupSwagger(app) {
     swaggerUi.setup(swaggerSpec, swaggerOptions)
   );
 
+  // Aliases for /api-docs and /swagger
+  app.get(['/api-docs', '/swagger'], (req, res) => res.redirect('/api/docs'));
+
   console.log('📖 Swagger API Documentation initialized at /api/docs and /docs');
 }
 

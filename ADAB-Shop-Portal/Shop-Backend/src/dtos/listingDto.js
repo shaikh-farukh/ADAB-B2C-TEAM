@@ -20,6 +20,7 @@ const variantItemSchema = z.object({
   stock_qty: z.coerce.number().nonnegative().default(0),
   variant_attributes: z.record(z.any()).default({}),
   image_url: z.preprocess(emptyStringAsNull, z.string().nullable().optional()),
+  image_public_id: z.preprocess(emptyStringAsNull, z.string().nullable().optional()),
   is_active: z.boolean().optional().default(true)
 });
 
@@ -41,6 +42,7 @@ const baseListingSchema = z.object({
   approval_status: z.preprocess(emptyStringAsNull, z.string().nullable().optional()), // DRAFT, SUBMITTED, PUBLISHED
   is_active: z.boolean().optional(),
   image_url: z.preprocess(emptyStringAsNull, z.string().nullable().optional()),
+  image_public_id: z.preprocess(emptyStringAsNull, z.string().nullable().optional()),
   stock_qty: z.coerce.number().nonnegative().optional(), // Supports lossless decimals (e.g. 0.500 kg)
   category_id: z.preprocess(emptyStringAsNull, z.coerce.number().int().positive().nullable().optional()),
   wholesale_price: z.preprocess(emptyStringAsNull, z.coerce.number().nonnegative().nullable().optional()),

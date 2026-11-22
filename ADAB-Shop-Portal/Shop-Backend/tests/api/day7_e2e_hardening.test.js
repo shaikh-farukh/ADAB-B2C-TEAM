@@ -629,9 +629,19 @@ jest.mock('../../src/services/listing', () => ({
   getListingById: jest.fn(async (storeId, id) => mockDbState.listings.get(id))
 }));
 
+// Mock Cloudinary and legacy MinIO
+jest.mock('../../src/services/cloudinaryService', () => ({
+  uploadImage: jest.fn().mockResolvedValue({
+    url: 'https://res.cloudinary.com/dqjb134t9/image/upload/mock-image.png',
+    secure_url: 'https://res.cloudinary.com/dqjb134t9/image/upload/mock-image.png',
+    public_id: 'adab/products/mock-image'
+  }),
+  deleteImage: jest.fn().mockResolvedValue({ result: 'ok' })
+}));
+
 // Mock minioService to avoid network call in tests
 jest.mock('../../src/services/minioService', () => ({
-  uploadImage: jest.fn().mockResolvedValue('http://mock-minio/image.png')
+  uploadImage: jest.fn().mockResolvedValue('https://res.cloudinary.com/dqjb134t9/image/upload/mock-image.png')
 }));
 
 const sellerRoutes = require('../../src/routes/seller');

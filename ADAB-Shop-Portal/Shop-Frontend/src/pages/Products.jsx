@@ -1973,7 +1973,7 @@ const Products = () => {
                       <img src={formData.image_url} alt="Product" className="w-12 h-12 rounded-lg object-cover border border-gray-200" />
                     )}
                     <label className={`flex-1 py-3 px-4 text-center rounded-xl border border-dashed border-brand-dark/50 bg-green-50 text-brand-dark font-bold text-sm cursor-pointer hover:bg-green-100 transition ${isUploadingImage ? 'opacity-50 cursor-wait' : ''}`}>
-                      {isUploadingImage ? 'Uploading image...' : formData.image_url ? 'Change Image' : 'Upload Image'}
+                      {isUploadingImage ? 'Uploading Image...' : formData.image_url ? 'Change Image' : 'Upload Image'}
                       <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isUploadingImage} />
                     </label>
                   </div>

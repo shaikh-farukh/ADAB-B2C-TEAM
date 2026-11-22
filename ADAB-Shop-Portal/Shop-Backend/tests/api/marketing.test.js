@@ -34,7 +34,7 @@ jest.mock('../../src/controllers/marketingController', () => ({
   getCoupons: (req, res) => res.json([{ id: '1', code: 'CODE1' }]),
   createCoupon: (req, res) => res.status(201).json({ id: '1', code: req.body.code }),
   updateCoupon: (req, res) => res.json({ id: '1', code: req.body.code }),
-  deleteCoupon: (req, res) => res.json({ success: true }),
+  deleteCoupon: (req, res) => res.json({ success: true, message: 'Coupon deleted' }),
 }));
 
 app.use('/api/v1/seller', marketingRoutes);
@@ -72,6 +72,11 @@ describe('Marketing API Routes (Supertest)', () => {
 
   it('PATCH /api/v1/seller/coupons/:id', async () => {
     const res = await request(app).patch('/api/v1/seller/coupons/1').send({ code: 'CODE3' });
+    expect(res.status).toBe(200);
+  });
+
+  it('DELETE /api/v1/seller/coupons/:id', async () => {
+    const res = await request(app).delete('/api/v1/seller/coupons/1');
     expect(res.status).toBe(200);
   });
 });

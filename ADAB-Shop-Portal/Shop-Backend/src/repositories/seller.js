@@ -2548,8 +2548,8 @@ class SellerRepository {
       // Clone product images into product_images for the new child listing
       try {
         await pool.query(
-          `INSERT INTO product_images (product_id, image_url, is_primary, display_order)
-           SELECT $1, image_url, is_primary, display_order
+          `INSERT INTO product_images (product_id, image_url, image_public_id, is_primary, display_order)
+           SELECT $1, image_url, image_public_id, is_primary, display_order
            FROM product_images
            WHERE product_id = $2
            ON CONFLICT DO NOTHING`,
@@ -2883,8 +2883,8 @@ class SellerRepository {
 
           try {
             await client.query(
-              `INSERT INTO product_images (product_id, image_url, is_primary, display_order)
-               SELECT $1, image_url, is_primary, display_order
+              `INSERT INTO product_images (product_id, image_url, image_public_id, is_primary, display_order)
+               SELECT $1, image_url, image_public_id, is_primary, display_order
                FROM product_images
                WHERE product_id = $2
                ON CONFLICT DO NOTHING`,

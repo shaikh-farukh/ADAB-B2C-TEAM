@@ -39,7 +39,7 @@ class CloudinaryService {
       throw new Error('Cloudinary credentials (CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET) are not configured.');
     }
 
-    const folder = options.folder || 'adab/products';
+    const folder = typeof options === 'string' ? options : (options?.folder || 'adab/products');
     const timestamp = Math.floor(Date.now() / 1000);
 
     const paramsToSign = {
@@ -114,6 +114,13 @@ class CloudinaryService {
 
     const data = await res.json();
     return data;
+  }
+
+  /**
+   * Alias for destroyImage to maintain backward compatibility
+   */
+  async deleteImage(publicId) {
+    return this.destroyImage(publicId);
   }
 }
 

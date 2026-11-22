@@ -297,6 +297,7 @@ app.get(['/api/v1/orders/:orderId/invoice/pdf', '/api/v1/seller/orders/:orderId/
 // Start Server
 const server = app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`📖 Swagger API Docs available at http://localhost:${PORT}/api/docs`);
 });
 
 // Initialize Socket.io (with JWT Handshake Authentication & Room Scoping)

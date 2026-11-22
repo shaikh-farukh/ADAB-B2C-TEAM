@@ -69,7 +69,9 @@ class ListingController {
       res.status(201).json({
         url: uploadResult.secure_url || uploadResult.url,
         secure_url: uploadResult.secure_url || uploadResult.url,
-        public_id: uploadResult.public_id || null
+        image_url: uploadResult.secure_url || uploadResult.url,
+        public_id: uploadResult.public_id || null,
+        image_public_id: uploadResult.public_id || null
       });
     } catch (err) {
       console.error('[ListingController.uploadImage] Error:', err);
