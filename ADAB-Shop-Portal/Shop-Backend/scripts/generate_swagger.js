@@ -195,7 +195,7 @@ sections.forEach((section) => {
     };
   } else {
     // Normal JSON Body
-    const reqBodyMatch = section.match(/\*\(Request Body(?:[^\)]*)\)\*:\s*```(?:json)?\s*([\s\S]*?)```/);
+    const reqBodyMatch = section.match(/\*\(Request Body(?:[^\)]*)\)\*:\s*`{1,4}(?:json)?\s*([\s\S]*?)`{1,4}/);
     if (reqBodyMatch && ['post', 'put', 'patch'].includes(method)) {
       try {
         const parsedBody = JSON.parse(reqBodyMatch[1].trim());
@@ -225,7 +225,7 @@ sections.forEach((section) => {
 
   // Response extraction
   let responseExample = { status: 'success' };
-  const respMatch = section.match(/\*\(Expected Response\)\*:\s*```(?:json)?\s*([\s\S]*?)```/);
+  const respMatch = section.match(/\*\(Expected Response\)\*:\s*`{1,4}(?:json)?\s*([\s\S]*?)`{1,4}/);
   if (respMatch) {
     try {
       responseExample = JSON.parse(respMatch[1].trim());

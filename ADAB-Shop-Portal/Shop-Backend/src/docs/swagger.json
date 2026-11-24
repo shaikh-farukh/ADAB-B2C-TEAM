@@ -87,7 +87,12 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": {
+                      "lifetime_sales": "12500.00",
+                      "total_orders": 45,
+                      "active_listings": 12,
+                      "rating": "4.8"
+                    }
                   }
                 }
               }
@@ -100,7 +105,12 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": {
+                      "lifetime_sales": "12500.00",
+                      "total_orders": 45,
+                      "active_listings": 12,
+                      "rating": "4.8"
+                    }
                   }
                 }
               }
@@ -145,7 +155,11 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": {
+                      "id": "00000000-0000-0000-0000-000000000001",
+                      "legal_name": "Shabbir Garbadawala",
+                      "kyc_status": "VERIFIED"
+                    }
                   }
                 }
               }
@@ -158,7 +172,11 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": {
+                      "id": "00000000-0000-0000-0000-000000000001",
+                      "legal_name": "Shabbir Garbadawala",
+                      "kyc_status": "VERIFIED"
+                    }
                   }
                 }
               }
@@ -193,6 +211,19 @@
         "summary": "#3 - Update Seller Profile",
         "description": "**Api Purpose**: Update the seller's profile information.\n\n**Postman Guide Section**: Endpoint #3 (Settings -> Profile)",
         "operationId": "endpoint_3_patch",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "legal_name": "Shabbir Garbadawala Updated"
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -201,7 +232,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Profile updated successfully"
                   }
                 }
               }
@@ -214,7 +246,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Profile updated successfully"
                   }
                 }
               }
@@ -259,7 +292,11 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": {
+                      "id": "00000000-0000-0000-0000-000000000001",
+                      "store_name": "Shri Balaji Store",
+                      "is_online": true
+                    }
                   }
                 }
               }
@@ -272,7 +309,11 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": {
+                      "id": "00000000-0000-0000-0000-000000000001",
+                      "store_name": "Shri Balaji Store",
+                      "is_online": true
+                    }
                   }
                 }
               }
@@ -307,6 +348,19 @@
         "summary": "#5 - Update Store Details",
         "description": "**Api Purpose**: Update store address or configuration.\n\n**Postman Guide Section**: Endpoint #5 (Settings -> Store)",
         "operationId": "endpoint_5_patch",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "store_name": "New Balaji Store"
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -315,7 +369,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Store updated successfully"
                   }
                 }
               }
@@ -328,7 +383,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Store updated successfully"
                   }
                 }
               }
@@ -373,7 +429,10 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": {
+                      "soundbox_enabled": true,
+                      "ui_mode": "pro"
+                    }
                   }
                 }
               }
@@ -386,7 +445,10 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": {
+                      "soundbox_enabled": true,
+                      "ui_mode": "pro"
+                    }
                   }
                 }
               }
@@ -421,6 +483,19 @@
         "summary": "#7 - Update Settings",
         "description": "**Api Purpose**: Update operational settings.\n\n**Postman Guide Section**: Endpoint #7 (Settings -> Config)",
         "operationId": "endpoint_7_patch",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "ui_mode": "easy"
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -429,7 +504,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Settings updated"
                   }
                 }
               }
@@ -442,7 +518,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Settings updated"
                   }
                 }
               }
@@ -507,7 +584,14 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": [
+                      {
+                        "id": "notif-1",
+                        "title": "Welcome",
+                        "is_read": false
+                      }
+                    ],
+                    "total": 1
                   }
                 }
               }
@@ -520,7 +604,14 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": [
+                      {
+                        "id": "notif-1",
+                        "title": "Welcome",
+                        "is_read": false
+                      }
+                    ],
+                    "total": 1
                   }
                 }
               }
@@ -565,7 +656,7 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "count": 5
                   }
                 }
               }
@@ -578,7 +669,7 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "count": 5
                   }
                 }
               }
@@ -623,7 +714,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Notification marked as read"
                   }
                 }
               }
@@ -636,7 +728,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Notification marked as read"
                   }
                 }
               }
@@ -701,7 +794,14 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": [
+                      {
+                        "id": "list-1",
+                        "title": "Product A",
+                        "approval_status": "DRAFT"
+                      }
+                    ],
+                    "total": 1
                   }
                 }
               }
@@ -714,7 +814,14 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": [
+                      {
+                        "id": "list-1",
+                        "title": "Product A",
+                        "approval_status": "DRAFT"
+                      }
+                    ],
+                    "total": 1
                   }
                 }
               }
@@ -855,7 +962,11 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": {
+                      "id": "list-1",
+                      "title": "Product A",
+                      "mrp": "100.00"
+                    }
                   }
                 }
               }
@@ -868,7 +979,11 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": {
+                      "id": "list-1",
+                      "title": "Product A",
+                      "mrp": "100.00"
+                    }
                   }
                 }
               }
@@ -1000,7 +1115,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Listing deleted successfully"
                   }
                 }
               }
@@ -1013,7 +1129,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Listing deleted successfully"
                   }
                 }
               }
@@ -1058,7 +1175,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Listing submitted for review"
                   }
                 }
               }
@@ -1071,7 +1189,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Listing submitted for review"
                   }
                 }
               }
@@ -1116,7 +1235,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Review started"
                   }
                 }
               }
@@ -1129,7 +1249,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Review started"
                   }
                 }
               }
@@ -1166,6 +1287,20 @@
         "summary": "#18 - Admin Review Decision (Simulation)",
         "description": "**Api Purpose**: Transition a listing to APPROVED or REJECTED.\n\n**Postman Guide Section**: Endpoint #18 (Products (Workflow))",
         "operationId": "endpoint_18_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "status": "APPROVED",
+                  "reason": "Looks good"
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1174,7 +1309,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Listing review completed"
                   }
                 }
               }
@@ -1187,7 +1323,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Listing review completed"
                   }
                 }
               }
@@ -1232,7 +1369,12 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": [
+                      {
+                        "old_status": "DRAFT",
+                        "new_status": "SUBMITTED"
+                      }
+                    ]
                   }
                 }
               }
@@ -1245,7 +1387,12 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": [
+                      {
+                        "old_status": "DRAFT",
+                        "new_status": "SUBMITTED"
+                      }
+                    ]
                   }
                 }
               }
@@ -1290,7 +1437,12 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "issues": [
+                      {
+                        "type": "INVENTORY",
+                        "message": "Product is out of stock"
+                      }
+                    ]
                   }
                 }
               }
@@ -1303,7 +1455,12 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "issues": [
+                      {
+                        "type": "INVENTORY",
+                        "message": "Product is out of stock"
+                      }
+                    ]
                   }
                 }
               }
@@ -1368,7 +1525,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "jobId": "1"
                   }
                 }
               }
@@ -1381,7 +1539,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "jobId": "1"
                   }
                 }
               }
@@ -1446,7 +1605,12 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "status": "completed",
+                    "progress": 100,
+                    "result": {
+                      "successful": 5,
+                      "failed": 0
+                    }
                   }
                 }
               }
@@ -1459,7 +1623,12 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "status": "completed",
+                    "progress": 100,
+                    "result": {
+                      "successful": 5,
+                      "failed": 0
+                    }
                   }
                 }
               }
@@ -1496,6 +1665,24 @@
         "summary": "#23 - Bulk Update Pricing",
         "description": "**Api Purpose**: Apply flat or percentage discounts to multiple products and emit PRICE_CHANGED.\n\n**Postman Guide Section**: Endpoint #23 (Pricing (Current Prices))",
         "operationId": "endpoint_23_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "listingIds": [
+                    "list-1",
+                    "list-2"
+                  ],
+                  "discountType": "percentage",
+                  "discountValue": 10
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1504,7 +1691,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "2 prices updated successfully"
                   }
                 }
               }
@@ -1517,7 +1705,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "2 prices updated successfully"
                   }
                 }
               }
@@ -1654,7 +1843,15 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": [
+                      {
+                        "event_type": "PRICE_CHANGED",
+                        "payload": {
+                          "id": "list-1",
+                          "new_price": 400
+                        }
+                      }
+                    ]
                   }
                 }
               }
@@ -1667,7 +1864,15 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": [
+                      {
+                        "event_type": "PRICE_CHANGED",
+                        "payload": {
+                          "id": "list-1",
+                          "new_price": 400
+                        }
+                      }
+                    ]
                   }
                 }
               }
@@ -1974,7 +2179,13 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": [
+                      {
+                        "id": "p-1",
+                        "name": "Diwali Sale",
+                        "is_active": true
+                      }
+                    ]
                   }
                 }
               }
@@ -1987,7 +2198,13 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "data": [
+                      {
+                        "id": "p-1",
+                        "name": "Diwali Sale",
+                        "is_active": true
+                      }
+                    ]
                   }
                 }
               }
@@ -2032,7 +2249,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Listing published successfully"
                   }
                 }
               }
@@ -2045,7 +2263,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Listing published successfully"
                   }
                 }
               }
@@ -2114,7 +2333,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Document uploaded"
                   }
                 }
               }
@@ -2127,7 +2347,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Document uploaded"
                   }
                 }
               }
@@ -2172,7 +2393,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Image deleted"
                   }
                 }
               }
@@ -2185,7 +2407,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Image deleted"
                   }
                 }
               }
@@ -2461,7 +2684,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Coupon deleted"
                   }
                 }
               }
@@ -2474,7 +2698,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Coupon deleted"
                   }
                 }
               }
@@ -2511,6 +2736,19 @@
         "summary": "#37 - Update Promotion",
         "description": "**Api Purpose**: Edit an existing promotion's properties or status.\n\n**Postman Guide Section**: Endpoint #37 (Marketing (Promotions))",
         "operationId": "endpoint_37_patch",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "discount_value": 60
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -2519,7 +2757,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Promotion updated"
                   }
                 }
               }
@@ -2532,7 +2771,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Promotion updated"
                   }
                 }
               }
@@ -2575,7 +2815,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Promotion deleted"
                   }
                 }
               }
@@ -2588,7 +2829,8 @@
                 "schema": {
                   "type": "object",
                   "example": {
-                    "status": "success"
+                    "success": true,
+                    "message": "Promotion deleted"
                   }
                 }
               }
