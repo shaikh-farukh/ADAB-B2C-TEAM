@@ -157,7 +157,7 @@ exports.getSearchSuggestions = async (req, res) => {
 // 13. GET /api/v1/catalog/search/filters
 exports.getSearchFilters = async (req, res) => {
   try {
-    const data = await catalogService.getSearchFilters();
+    const data = await catalogService.getSearchFilters(req.query.q || '');
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

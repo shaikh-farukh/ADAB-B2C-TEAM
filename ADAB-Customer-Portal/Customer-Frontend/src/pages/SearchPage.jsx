@@ -57,6 +57,7 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
   }, [searchParams, query]);
 
   const [filters, setFilters] = useState({
+    category: '',
     brand: '',
     minPrice: '',
     maxPrice: '',
@@ -66,6 +67,47 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
   const [showFilters, setShowFilters] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Dynamic filter facets loaded from GET /api/v1/catalog/search/filters
+  const [facetFilters, setFacetFilters] = useState({
+    categories: [],
+    brands: [],
+    priceRanges: [],
+    ratings: [4, 3, 2, 1],
+    availability: []
+  });
+  const [facetLoading, setFacetLoading] = useState(false);
+
+  const fetchSearchFilters = useCallback(async (searchQuery = '') => {
+    setFacetLoading(true);
+    try {
+      const qParam = searchQuery.trim() ? `?q=${encodeURIComponent(searchQuery.trim())}` : '';
+      const res = await api.get(`/catalog/search/filters${qParam}`);
+      const payload = res.data?.data || res.data;
+      if (payload && isMountedRef.current) {
+        setFacetFilters({
+          categories: Array.isArray(payload.categories) ? payload.categories : [],
+          brands: Array.isArray(payload.brands) ? payload.brands : [],
+          priceRanges: Array.isArray(payload.priceRanges) ? payload.priceRanges : [],
+          ratings: Array.isArray(payload.ratings) ? payload.ratings : [4, 3, 2, 1],
+          availability: Array.isArray(payload.availability) ? payload.availability : []
+        });
+      }
+    } catch (err) {
+      if (isMountedRef.current) {
+        console.warn('Failed to fetch dynamic search filters:', err);
+      }
+    } finally {
+      if (isMountedRef.current) setFacetLoading(false);
+    }
+  }, []);
+
+  // Fetch dynamic search facets whenever the filters panel is opened or query changes
+  useEffect(() => {
+    if (showFilters) {
+      fetchSearchFilters(query);
+    }
+  }, [showFilters, query, fetchSearchFilters]);
 
   const fetchRecommended = useCallback(async (force = false) => {
     if (recInFlightRef.current) return;
@@ -183,6 +225,7 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
     () =>
       JSON.stringify({
         q: query.trim(),
+        category: filters.category,
         brand: filters.brand,
         minPrice: filters.minPrice,
         maxPrice: filters.maxPrice,
@@ -206,6 +249,7 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
       try {
         const queryParams = new URLSearchParams();
         if (query.trim()) queryParams.append('q', query.trim());
+        if (filters.category) queryParams.append('category', filters.category);
         if (filters.brand) queryParams.append('brand', filters.brand);
         if (filters.minPrice) queryParams.append('minPrice', filters.minPrice);
         if (filters.maxPrice) queryParams.append('maxPrice', filters.maxPrice);
@@ -269,9 +313,18 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
             />
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`text-sm font-medium px-3 py-1 rounded-full cursor-pointer ${showFilters ? 'bg-brand-green text-white' : 'bg-gray-100 text-gray-700'}`}
+              className={`text-sm font-semibold px-3.5 py-1.5 rounded-full cursor-pointer transition flex items-center gap-1.5 ${
+                showFilters
+                  ? 'bg-brand-green text-white shadow-sm'
+                  : (filters.category || filters.brand || filters.minPrice || filters.maxPrice || filters.minRating || filters.inStockOnly)
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
             >
-              Filters
+              <span>Filters</span>
+              {(filters.category || filters.brand || filters.minPrice || filters.maxPrice || filters.minRating || filters.inStockOnly) && (
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              )}
             </button>
           </div>
 
@@ -297,50 +350,154 @@ export default function SearchPage({ onAddToCart, onToggleWishlist, wishlist }) 
         </div>
 
         {showFilters && (
-          <div className="bg-white border border-gray-200 rounded-2xl p-4 mt-2 shadow-sm flex flex-col gap-3">
-            <h3 className="font-semibold text-gray-800">Filters</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <input
-                type="text"
-                placeholder="Brand"
-                value={filters.brand}
-                onChange={e => setFilters({...filters, brand: e.target.value})}
-                className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-brand-green"
-              />
-              <select
-                value={filters.minRating}
-                onChange={e => setFilters({...filters, minRating: e.target.value})}
-                className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-brand-green"
-              >
-                <option value="">Any Rating</option>
-                <option value="4">4+ Stars</option>
-                <option value="3">3+ Stars</option>
-                <option value="2">2+ Stars</option>
-              </select>
-              <input
-                type="number"
-                placeholder="Min Price"
-                value={filters.minPrice}
-                onChange={e => setFilters({...filters, minPrice: e.target.value})}
-                className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-brand-green"
-              />
-              <input
-                type="number"
-                placeholder="Max Price"
-                value={filters.maxPrice}
-                onChange={e => setFilters({...filters, maxPrice: e.target.value})}
-                className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-brand-green"
-              />
+          <div className="bg-white border border-gray-200 rounded-2xl p-4 mt-2 shadow-sm flex flex-col gap-3.5">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-sm text-gray-800">Filter Products</h3>
+                {facetLoading && (
+                  <RefreshCw className="w-3.5 h-3.5 text-emerald-600 animate-spin" />
+                )}
+              </div>
+              {(filters.category || filters.brand || filters.minPrice || filters.maxPrice || filters.minRating || filters.inStockOnly) && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFilters({
+                      category: '',
+                      brand: '',
+                      minPrice: '',
+                      maxPrice: '',
+                      minRating: '',
+                      inStockOnly: false
+                    })
+                  }
+                  className="text-xs text-rose-600 hover:underline font-semibold cursor-pointer"
+                >
+                  Reset all filters
+                </button>
+              )}
             </div>
-            <label className="flex items-center gap-2 text-sm text-gray-700 mt-1 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={filters.inStockOnly}
-                onChange={e => setFilters({...filters, inStockOnly: e.target.checked})}
-                className="accent-brand-green"
-              />
-              In Stock Only
-            </label>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* 1. Category Dropdown (Loaded dynamically from database) */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  Category
+                </label>
+                <select
+                  value={filters.category}
+                  onChange={e => setFilters({ ...filters, category: e.target.value })}
+                  className="w-full border border-gray-300 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-brand-green bg-white text-gray-800"
+                >
+                  <option value="">All Categories ({facetFilters.categories.length})</option>
+                  {facetFilters.categories.map((c) => (
+                    <option key={c.id} value={c.slug || c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 2. Brand Dropdown (Loaded dynamically from database) */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  Brand
+                </label>
+                <select
+                  value={filters.brand}
+                  onChange={e => setFilters({ ...filters, brand: e.target.value })}
+                  className="w-full border border-gray-300 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-brand-green bg-white text-gray-800"
+                >
+                  <option value="">All Brands ({facetFilters.brands.length})</option>
+                  {facetFilters.brands.map((b, idx) => (
+                    <option key={idx} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 3. Rating Dropdown (Loaded dynamically from database) */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  Rating
+                </label>
+                <select
+                  value={filters.minRating}
+                  onChange={e => setFilters({ ...filters, minRating: e.target.value })}
+                  className="w-full border border-gray-300 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-brand-green bg-white text-gray-800"
+                >
+                  <option value="">Any Rating</option>
+                  {facetFilters.ratings.map(r => (
+                    <option key={r} value={String(r)}>
+                      {r}★ & above
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* 4. Dynamic Price Ranges (Loaded dynamically from database) */}
+            <div className="pt-1 border-t border-gray-50">
+              <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+                Price Range
+              </label>
+              <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
+                {facetFilters.priceRanges.map((pr, idx) => {
+                  const isSelected = String(filters.minPrice) === String(pr.min) && String(filters.maxPrice) === String(pr.max);
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setFilters(f => ({ ...f, minPrice: '', maxPrice: '' }));
+                        } else {
+                          setFilters(f => ({ ...f, minPrice: String(pr.min), maxPrice: String(pr.max) }));
+                        }
+                      }}
+                      className={`text-xs px-3 py-1 rounded-full border transition cursor-pointer font-medium ${
+                        isSelected
+                          ? 'bg-emerald-700 text-white border-emerald-700 font-bold shadow-2xs'
+                          : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
+                      }`}
+                    >
+                      {pr.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-2 max-w-xs">
+                <input
+                  type="number"
+                  placeholder="Min ₹"
+                  value={filters.minPrice}
+                  onChange={e => setFilters({ ...filters, minPrice: e.target.value })}
+                  className="w-1/2 border border-gray-300 rounded-xl px-2.5 py-1 text-xs focus:outline-none focus:border-brand-green"
+                />
+                <span className="text-gray-400 text-xs">to</span>
+                <input
+                  type="number"
+                  placeholder="Max ₹"
+                  value={filters.maxPrice}
+                  onChange={e => setFilters({ ...filters, maxPrice: e.target.value })}
+                  className="w-1/2 border border-gray-300 rounded-xl px-2.5 py-1 text-xs focus:outline-none focus:border-brand-green"
+                />
+              </div>
+            </div>
+
+            {/* 5. In Stock Checkbox */}
+            <div className="pt-1 flex items-center justify-between">
+              <label className="flex items-center gap-2 text-xs font-semibold text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={filters.inStockOnly}
+                  onChange={e => setFilters({ ...filters, inStockOnly: e.target.checked })}
+                  className="accent-brand-green w-4 h-4 rounded cursor-pointer"
+                />
+                <span>In Stock Items Only</span>
+              </label>
+            </div>
           </div>
         )}
 

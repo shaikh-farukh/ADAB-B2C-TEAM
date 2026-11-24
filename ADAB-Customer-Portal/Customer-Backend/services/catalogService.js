@@ -763,18 +763,57 @@ exports.getSearchSuggestions = async (q = '') => {
  * 13. GET /api/v1/catalog/search/filters
  * Dynamic search facets
  */
-exports.getSearchFilters = async () => {
+exports.getSearchFilters = async (q = '') => {
   const categories = await exports.getCategories();
   const brands = await exports.getBrands();
+  let brandNames = brands.map(b => b.name);
+
+  // Query all active distinct brand tags directly from live database listings
+  try {
+    const listingBrandsRes = await pool.query(`
+      SELECT DISTINCT TRIM(brand_tag) as brand
+      FROM seller_listings
+      WHERE brand_tag IS NOT NULL AND TRIM(brand_tag) <> '' AND is_active = true
+      ORDER BY brand ASC
+    `);
+    const listingBrands = listingBrandsRes.rows.map(r => r.brand);
+    brandNames = Array.from(new Set([...brandNames, ...listingBrands])).filter(Boolean).sort();
+  } catch (err) {
+    console.warn('Could not query listing brand tags:', err.message);
+  }
+
+  // Real database dynamic price ranges
+  let priceRanges = [
+    { label: "Under ₹50", min: 0, max: 50 },
+    { label: "₹50 to ₹100", min: 50, max: 100 },
+    { label: "Above ₹100", min: 100, max: 1000 }
+  ];
+  try {
+    const priceStatsRes = await pool.query(`
+      SELECT MIN(sell_price) as min_p, MAX(sell_price) as max_p
+      FROM seller_listings
+      WHERE is_active = true AND sell_price > 0
+    `);
+    if (priceStatsRes.rows.length > 0 && priceStatsRes.rows[0].min_p !== null) {
+      const minP = Math.floor(parseFloat(priceStatsRes.rows[0].min_p));
+      const maxP = Math.ceil(parseFloat(priceStatsRes.rows[0].max_p));
+      if (maxP > 50) {
+        const midP = Math.round((50 + maxP) / 2);
+        priceRanges = [
+          { label: "Under ₹50", min: 0, max: 50 },
+          { label: `₹50 to ₹${midP}`, min: 50, max: midP },
+          { label: `Above ₹${midP}`, min: midP, max: maxP }
+        ];
+      }
+    }
+  } catch (err) {
+    // fallback to standard ranges
+  }
 
   return {
     categories,
-    brands: brands.map(b => b.name),
-    priceRanges: [
-      { label: "Under ₹50", min: 0, max: 50 },
-      { label: "₹50 to ₹100", min: 50, max: 100 },
-      { label: "Above ₹100", min: 100, max: 1000 }
-    ],
+    brands: brandNames,
+    priceRanges,
     ratings: [4, 3, 2, 1],
     availability: ["In Stock", "All Items"]
   };
@@ -782,17 +821,76 @@ exports.getSearchFilters = async () => {
 
 /**
  * 14. GET /api/v1/catalog/search/popular
- * Get popular searches
+ * Dynamic popular & trending searches from database
  */
 exports.getPopularSearches = async () => {
-  return [
-    "Balaji Kurkure",
-    "Fresh Milk",
-    "Cooking Oil",
-    "Tata Salt",
-    "Basmati Rice",
-    "Chai Tea"
-  ];
+  const terms = new Set();
+
+  // 1. Check recently submitted high-relevance search queries from customers
+  if (Array.isArray(searchFeedbackLog) && searchFeedbackLog.length > 0) {
+    for (let i = searchFeedbackLog.length - 1; i >= 0 && terms.size < 3; i--) {
+      const q = searchFeedbackLog[i]?.query?.trim();
+      if (q && q.length >= 2 && q.length <= 30) {
+        terms.add(q);
+      }
+    }
+  }
+
+  try {
+    // 2. Fetch top active brands directly from seller listings
+    const brandsRes = await pool.query(`
+      SELECT brand_tag, COUNT(*) as cnt
+      FROM seller_listings
+      WHERE brand_tag IS NOT NULL AND TRIM(brand_tag) != '' AND is_active = true
+      GROUP BY brand_tag
+      ORDER BY cnt DESC
+      LIMIT 4
+    `);
+    for (const r of brandsRes.rows) {
+      if (r.brand_tag) terms.add(r.brand_tag.trim());
+    }
+  } catch (err) {
+    console.warn('Failed to query brands for popular searches:', err.message);
+  }
+
+  try {
+    // 3. Fetch top root grocery categories from PostgreSQL
+    const catRes = await pool.query(`
+      SELECT name
+      FROM categories
+      WHERE parent_id IS NULL AND is_active = true
+      ORDER BY id ASC
+      LIMIT 4
+    `);
+    for (const r of catRes.rows) {
+      if (r.name) terms.add(r.name.trim());
+    }
+  } catch (err) {
+    console.warn('Failed to query categories for popular searches:', err.message);
+  }
+
+  try {
+    // 4. Fetch concise top-rated active product names
+    const prodRes = await pool.query(`
+      SELECT title
+      FROM seller_listings
+      WHERE is_active = true AND title IS NOT NULL AND LENGTH(title) <= 28
+      ORDER BY rating DESC NULLS LAST, review_count DESC NULLS LAST
+      LIMIT 3
+    `);
+    for (const r of prodRes.rows) {
+      if (r.title) terms.add(r.title.trim());
+    }
+  } catch (err) {
+    console.warn('Failed to query products for popular searches:', err.message);
+  }
+
+  // Graceful fallback if database returns empty
+  if (terms.size === 0) {
+    return ["Fresh Milk", "Dairy & Eggs", "Amul", "Atta", "Cooking Oil", "Snacks"];
+  }
+
+  return Array.from(terms).slice(0, 8);
 };
 
 /**
