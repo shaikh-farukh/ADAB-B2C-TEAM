@@ -19,10 +19,29 @@ class AdminDay5Service {
     const orderRes = await pool.query("SELECT COUNT(*) as count FROM orders");
     const sellerRes = await pool.query("SELECT COUNT(*) as count FROM seller_profiles WHERE kyc_status = 'APPROVED'");
     
+    let approvalRate = null;
+    try {
+      const approvalRes = await pool.query(`
+        SELECT 
+          COUNT(*) FILTER (WHERE UPPER(approval_status) = 'APPROVED') as approved,
+          COUNT(*) FILTER (WHERE UPPER(approval_status) IN ('APPROVED', 'REJECTED')) as reviewed,
+          COUNT(*) as total
+        FROM seller_listings
+      `);
+      if (approvalRes && approvalRes.rows && approvalRes.rows[0]) {
+        const approved = parseInt(approvalRes.rows[0].approved, 10) || 0;
+        const reviewed = parseInt(approvalRes.rows[0].reviewed, 10) || 0;
+        const total = parseInt(approvalRes.rows[0].total, 10) || 0;
+        approvalRate = reviewed > 0 ? Math.round((approved / reviewed) * 100) : (total > 0 ? Math.round((approved / total) * 100) : 100);
+      }
+    } catch (_) {
+      approvalRate = null;
+    }
+
     return {
       gmv: parseFloat(gmvRes.rows[0].gmv),
       orderCount: parseInt(orderRes.rows[0].count),
-      approvalRate: null, // explicit unavailable value
+      approvalRate,
       activeSellers: parseInt(sellerRes.rows[0].count)
     };
   }

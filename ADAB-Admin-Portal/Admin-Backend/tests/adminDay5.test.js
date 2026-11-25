@@ -185,14 +185,15 @@ describe('Admin Day-5 & Day-6 Cross-Portal & Security Integration', () => {
   });
 
   describe('Reports API', () => {
-    it('GET /api/v1/admin/reports/summary should return data with null approvalRate', async () => {
+    it('GET /api/v1/admin/reports/summary should return data with dynamic approvalRate', async () => {
       pool.query.mockResolvedValueOnce({ rows: [{ gmv: '1000' }] })
                 .mockResolvedValueOnce({ rows: [{ count: '10' }] })
-                .mockResolvedValueOnce({ rows: [{ count: '5' }] });
+                .mockResolvedValueOnce({ rows: [{ count: '5' }] })
+                .mockResolvedValueOnce({ rows: [{ approved: '8', reviewed: '10', total: '12' }] });
       const res = await request(app).get('/api/v1/admin/reports/summary').set('Authorization', `Bearer ${token}`);
       expect(res.status).toBe(200);
       expect(res.body.data.gmv).toBe(1000);
-      expect(res.body.data.approvalRate).toBeNull();
+      expect(res.body.data.approvalRate).toBe(80);
     });
   });
 

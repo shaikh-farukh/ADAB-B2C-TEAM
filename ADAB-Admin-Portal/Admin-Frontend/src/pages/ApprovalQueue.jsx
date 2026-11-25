@@ -69,7 +69,6 @@ export default function ApprovalQueue() {
   const fetchApprovals = (type = activeTab, p = 1, st = statusFilter, search = searchTerm) => {
     setLoading(true);
     setError(null);
-    fetchCounts();
 
     if (type === 'product') {
       let url = `/approvals/queue?page=${p}&limit=10`;
@@ -103,6 +102,10 @@ export default function ApprovalQueue() {
         .finally(() => setLoading(false));
     }
   };
+
+  useEffect(() => {
+    fetchCounts();
+  }, []);
 
   useEffect(() => {
     fetchApprovals(activeTab, 1, statusFilter, searchTerm);

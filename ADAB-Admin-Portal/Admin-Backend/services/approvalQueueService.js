@@ -84,11 +84,11 @@ async function getApprovalQueue({ status = 'ALL', seller_id, category_id, search
                sp.legal_name AS seller_legal_name,
                COALESCE(
                  mci.default_image_url,
-                 (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = sl.master_catalog_id ORDER BY pi.display_order ASC LIMIT 1)
+                 (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = sl.id OR (sl.master_catalog_id IS NOT NULL AND pi.product_id = sl.master_catalog_id) ORDER BY pi.is_primary DESC, pi.display_order ASC LIMIT 1)
                ) as image_url,
                COALESCE(
                  mci.default_image_public_id,
-                 (SELECT pi.image_public_id FROM product_images pi WHERE pi.product_id = sl.master_catalog_id ORDER BY pi.display_order ASC LIMIT 1)
+                 (SELECT pi.image_public_id FROM product_images pi WHERE pi.product_id = sl.id OR (sl.master_catalog_id IS NOT NULL AND pi.product_id = sl.master_catalog_id) ORDER BY pi.is_primary DESC, pi.display_order ASC LIMIT 1)
                ) as image_public_id
         FROM seller_listings sl
         LEFT JOIN stores s ON sl.store_id = s.id
@@ -195,9 +195,18 @@ async function getApprovalItemById(id) {
       const itemRes = await pool.query(`
         SELECT sl.id, sl.store_id AS seller_id, sl.master_catalog_id AS product_id, sl.title, 
                sl.approval_status AS status, sl.sell_price AS price, sl.created_at, sl.updated_at, sl.rejection_reason,
-               s.store_name, s.seller_id AS seller_owner_id
+               s.store_name, s.seller_id AS seller_owner_id,
+               COALESCE(
+                 mci.default_image_url,
+                 (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = sl.id OR (sl.master_catalog_id IS NOT NULL AND pi.product_id = sl.master_catalog_id) ORDER BY pi.is_primary DESC, pi.display_order ASC LIMIT 1)
+               ) as image_url,
+               COALESCE(
+                 mci.default_image_public_id,
+                 (SELECT pi.image_public_id FROM product_images pi WHERE pi.product_id = sl.id OR (sl.master_catalog_id IS NOT NULL AND pi.product_id = sl.master_catalog_id) ORDER BY pi.is_primary DESC, pi.display_order ASC LIMIT 1)
+               ) as image_public_id
         FROM seller_listings sl
         LEFT JOIN stores s ON sl.store_id = s.id
+        LEFT JOIN master_catalog_items mci ON sl.master_catalog_id = mci.id
         WHERE sl.id = $1
       `, [id]);
       if (itemRes.rowCount > 0) {

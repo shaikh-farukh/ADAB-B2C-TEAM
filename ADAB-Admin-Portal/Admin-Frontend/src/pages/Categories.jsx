@@ -57,16 +57,21 @@ export default function Categories() {
 
   useEffect(() => {
     fetchCategories(1);
-    fetchParentOptions();
   }, []);
 
   const openCreateModal = () => {
     setEditingCategory(null);
     setForm(initialForm);
+    if (allCategoriesList.length === 0) {
+      fetchParentOptions();
+    }
     setIsModalOpen(true);
   };
 
   const openEditModal = (cat) => {
+    if (allCategoriesList.length === 0) {
+      fetchParentOptions();
+    }
     setEditingCategory(cat);
     setForm({
       name: cat.name || '',
@@ -141,8 +146,11 @@ export default function Categories() {
 
   const columns = [
     { 
-      header: 'ID', 
-      render: (row) => <span className="text-xs font-mono text-slate-500 font-semibold">{row.id}</span> 
+      header: '#', 
+      render: (row, index) => {
+        const itemNumber = (pagination.page - 1) * pagination.limit + (index + 1);
+        return <span className="text-xs font-mono text-slate-500 font-semibold">{itemNumber}</span>;
+      }
     },
     {
       header: 'Icon / Image',
@@ -164,11 +172,6 @@ export default function Categories() {
               <i className={`${row.icon_class || 'fa-solid fa-shapes'} text-slate-400 text-sm`}></i>
             )}
           </div>
-          {row.image_public_id && (
-            <span className="text-[10px] font-mono text-slate-400 max-w-[100px] truncate" title={row.image_public_id}>
-              {row.image_public_id}
-            </span>
-          )}
         </div>
       )
     },

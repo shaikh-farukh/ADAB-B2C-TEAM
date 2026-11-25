@@ -88,6 +88,8 @@ function formatApprovalItemDTO(item = {}) {
     status: status,
     current_status: status,
     price: item.price !== undefined ? item.price : null,
+    image_url: item.image_url || null,
+    image_public_id: item.image_public_id || null,
     rejection_reason: item.rejection_reason || null,
     created_at: item.created_at || new Date().toISOString(),
     updated_at: item.updated_at || new Date().toISOString()

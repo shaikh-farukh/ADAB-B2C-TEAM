@@ -370,7 +370,7 @@ async function getCategories(queryParams = {}) {
       const countRes = await pool.query(`SELECT COUNT(*) FROM (${queryText}) c_tbl`, params);
       const total = parseInt(countRes.rows[0].count, 10);
 
-      queryText += ` ORDER BY display_order ASC, name ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+      queryText += ` ORDER BY id DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
       params.push(limit, offset);
 
       const res = await pool.query(queryText, params);

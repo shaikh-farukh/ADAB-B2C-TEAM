@@ -17,7 +17,7 @@ export default function AdminTable({ columns, data, loading, emptyMessage }) {
           {data.map((row, rowIndex) => (
             <tr key={rowIndex}>
               {columns.map((col, colIndex) => (
-                <td key={colIndex} className="px-4 py-3">{col.render ? col.render(row) : row[col.accessor]}</td>
+                <td key={colIndex} className="px-4 py-3">{col.render ? col.render(row, rowIndex) : row[col.accessor]}</td>
               ))}
             </tr>
           ))}

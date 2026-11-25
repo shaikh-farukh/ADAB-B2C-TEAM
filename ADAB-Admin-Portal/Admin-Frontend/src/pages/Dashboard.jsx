@@ -29,7 +29,10 @@ export default function Dashboard() {
 
     // Listen for custom notifications-updated events
     const handleNotifUpdate = () => {
-      fetchDashboardData();
+      // Re-fetch only notifications rather than reloading the entire dashboard
+      apiClient.get('/notifications')
+        .then(res => setNotifications(res.data?.data || []))
+        .catch(() => {});
     };
     window.addEventListener('admin-notifications-updated', handleNotifUpdate);
     return () => window.removeEventListener('admin-notifications-updated', handleNotifUpdate);
