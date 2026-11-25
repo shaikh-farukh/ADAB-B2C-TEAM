@@ -1149,23 +1149,28 @@ exports.getHome = async () => {
 
   const dealsList = Array.isArray(rawDeals) ? rawDeals : (rawDeals?.deals || []);
 
+  // Query active promotional banners dynamically from admin_banners table in PostgreSQL
+  let banners = [];
+  try {
+    const bannersRes = await pool.query(`
+      SELECT 
+        id, 
+        title, 
+        target_screen, 
+        target_url, 
+        image_url as image,
+        display_order
+      FROM admin_banners
+      WHERE is_active = true
+      ORDER BY display_order ASC, created_at DESC
+    `);
+    banners = bannersRes.rows;
+  } catch (err) {
+    console.warn('Could not query admin_banners:', err.message);
+  }
+
   return {
-    banners: [
-      {
-        id: "banner-1",
-        title: "Express 14-45 Mins Hyperlocal Grocery",
-        subtitle: "Fresh daily produce directly from certified local merchants",
-        badge: "Guaranteed SLA",
-        image: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80"
-      },
-      {
-        id: "banner-2",
-        title: "Exclusive Weekend Merchant Offers",
-        subtitle: "Up to 50% discount on groceries, packaged snacks & beverages",
-        badge: "Weekend Special",
-        image: "https://images.unsplash.com/photo-1604719312566-8912e9227c6a?auto=format&fit=crop&w=1200&q=80"
-      }
-    ],
+    banners,
     categories: categories.slice(0, 8),
     recommended,
     deals: dealsList.slice(0, 4),
@@ -1679,11 +1684,32 @@ exports.getSellerSummary = async (sellerId) => {
   const seller = await exports.getSellerById(sellerId);
   if (!seller) return null;
 
+  let totalProducts = 0;
+  let dynamicRating = parseFloat(seller.rating || 5.0);
+  try {
+    const statsRes = await pool.query(`
+      SELECT 
+        COUNT(sl.id) as total_products,
+        COALESCE(AVG(sl.rating), 5.0) as avg_rating
+      FROM seller_listings sl
+      WHERE sl.store_id = $1 AND sl.is_active = true
+    `, [sellerId]);
+    if (statsRes.rows.length > 0) {
+      totalProducts = parseInt(statsRes.rows[0].total_products || 0, 10);
+      if (statsRes.rows[0].avg_rating) {
+        dynamicRating = parseFloat(parseFloat(statsRes.rows[0].avg_rating).toFixed(1));
+      }
+    }
+  } catch (err) {
+    console.warn('Could not query seller summary stats:', err.message);
+  }
+
   return {
     id: seller.id,
     name: seller.name,
     verifiedMerchant: true,
-    rating: parseFloat(seller.rating || 5.0),
+    rating: dynamicRating,
+    totalProducts,
     deliverySpeed: "14-45 mins",
     orderFulfillmentRate: "99.4%",
     returnAcceptance: "7 Days Guaranteed"
@@ -1696,45 +1722,89 @@ exports.getSellerSummary = async (sellerId) => {
  */
 exports.getSellerRatings = async (sellerId) => {
   const seller = await exports.getSellerById(sellerId);
-  const avg = parseFloat(seller?.rating || 5.0);
+  let avg = parseFloat(seller?.rating || 5.0);
+  let totalReviews = 0;
+  const breakdown = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+
+  try {
+    const reviewStats = await pool.query(`
+      SELECT 
+        r.rating,
+        COUNT(*) as count
+      FROM reviews r
+      JOIN seller_listings sl ON r.listing_id = sl.id
+      WHERE sl.store_id = $1
+      GROUP BY r.rating
+    `, [sellerId]);
+
+    for (const row of reviewStats.rows) {
+      const star = parseInt(row.rating, 10);
+      const cnt = parseInt(row.count, 10);
+      if (breakdown[star] !== undefined) {
+        breakdown[star] = cnt;
+        totalReviews += cnt;
+      }
+    }
+
+    if (totalReviews > 0) {
+      const sumStars = Object.entries(breakdown).reduce((acc, [star, count]) => acc + (Number(star) * count), 0);
+      avg = parseFloat((sumStars / totalReviews).toFixed(1));
+    } else {
+      const listingStats = await pool.query(`
+        SELECT COALESCE(SUM(review_count), 0) as total_revs, COALESCE(AVG(rating), 5.0) as avg_r
+        FROM seller_listings
+        WHERE store_id = $1 AND is_active = true
+      `, [sellerId]);
+      if (listingStats.rows.length > 0) {
+        totalReviews = parseInt(listingStats.rows[0].total_revs || 0, 10);
+        avg = parseFloat(parseFloat(listingStats.rows[0].avg_r || 5.0).toFixed(1));
+        breakdown[5] = Math.max(0, Math.round(totalReviews * 0.8));
+        breakdown[4] = Math.max(0, totalReviews - breakdown[5]);
+      }
+    }
+  } catch (err) {
+    console.warn('Could not query seller rating breakdown:', err.message);
+  }
 
   return {
     sellerId,
     averageRating: avg,
-    totalReviews: 24,
-    breakdown: {
-      5: 19,
-      4: 4,
-      3: 1,
-      2: 0,
-      1: 0
-    }
+    totalReviews,
+    breakdown
   };
 };
 
 /**
  * 34. GET /api/v1/catalog/sellers/:id/reviews
- * Public seller customer reviews
+ * Public seller customer reviews dynamically queried from PostgreSQL
  */
 exports.getSellerReviews = async (sellerId) => {
-  return [
-    {
-      id: "rev-s1",
-      customerName: "Rohan Patel",
-      rating: 5,
-      date: "10 Oct 2026",
-      comment: "Super fast express delivery! Fresh groceries every single time.",
-      verifiedPurchase: true
-    },
-    {
-      id: "rev-s2",
-      customerName: "Pooja Shah",
-      rating: 5,
-      date: "08 Oct 2026",
-      comment: "All items intact and well packaged. Best local kirana on ADAB.",
-      verifiedPurchase: true
+  try {
+    const res = await pool.query(`
+      SELECT 
+        r.id,
+        COALESCE(u.full_name, 'Verified Customer') as "customerName",
+        r.rating,
+        TO_CHAR(r.created_at, 'DD Mon YYYY') as date,
+        r.comment,
+        (r.order_id IS NOT NULL) as "verifiedPurchase",
+        r.seller_reply as "sellerReply"
+      FROM reviews r
+      LEFT JOIN seller_listings sl ON r.listing_id = sl.id
+      LEFT JOIN users u ON r.customer_id = u.id
+      WHERE sl.store_id = $1 OR r.customer_id IS NOT NULL
+      ORDER BY r.created_at DESC
+      LIMIT 10
+    `, [sellerId]);
+
+    if (res.rows.length > 0) {
+      return res.rows;
     }
-  ];
+  } catch (err) {
+    console.warn('Could not query reviews from DB:', err.message);
+  }
+
+  return [];
 };
 
 exports.getRecommended = exports.getRecommendedProducts;

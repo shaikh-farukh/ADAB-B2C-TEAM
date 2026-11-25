@@ -347,11 +347,21 @@ exports.removeAvatar = async (rawUserId) => {
 exports.getPreferences = async (rawUserId) => {
   const userId = await resolveCustomerUserId(rawUserId);
   const prof = await exports.getProfile(userId);
+  let notifPref = null;
+  if (userId) {
+    try {
+      const npRes = await pool.query(`SELECT * FROM notification_preferences WHERE user_id = $1`, [userId]);
+      if (npRes.rows.length > 0) notifPref = npRes.rows[0];
+    } catch (e) {
+      console.warn('Could not read notif prefs:', e.message);
+    }
+  }
+
   return {
-    preferredLanguage: prof?.preferredLanguage || 'en',
-    dietaryPreference: 'Vegetarian',
-    notifyPriceDrops: true,
-    notifyBackInStock: true,
+    preferredLanguage: prof?.preferredLanguage || prof?.preferred_language || 'en',
+    dietaryPreference: prof?.dietaryPreference || 'All',
+    notifyPriceDrops: notifPref ? Boolean(notifPref.promotional_sms || notifPref.promotional_email) : true,
+    notifyBackInStock: notifPref ? Boolean(notifPref.order_updates_sms || notifPref.order_updates_email) : true,
     currency: 'INR',
     theme: 'system'
   };
@@ -1012,6 +1022,20 @@ exports.validateAddress = async (body) => {
   const { pincode, city, address } = body;
   const isPincodeValid = /^\d{6}$/.test(pincode || '');
 
+  let isDeliverable = false;
+  if (isPincodeValid) {
+    try {
+      const storeRes = await pool.query(`
+        SELECT id FROM stores 
+        WHERE is_active = true AND (pincode = $1 OR city ILIKE $2)
+        LIMIT 1
+      `, [pincode, `%${city || ''}%`]);
+      isDeliverable = storeRes.rows.length > 0;
+    } catch (e) {
+      isDeliverable = isPincodeValid;
+    }
+  }
+
   return {
     isValid: isPincodeValid && Boolean(address),
     standardizedAddress: {
@@ -1021,9 +1045,11 @@ exports.validateAddress = async (body) => {
       pincode: pincode || '',
       country: 'India'
     },
-    deliverable: isPincodeValid,
-    confidenceScore: isPincodeValid ? 0.98 : 0.40,
-    suggestions: isPincodeValid ? [] : ['Please provide a valid 6-digit Indian PIN Code']
+    deliverable: isDeliverable,
+    confidenceScore: isPincodeValid ? (isDeliverable ? 0.98 : 0.70) : 0.40,
+    suggestions: isPincodeValid 
+      ? (isDeliverable ? [] : ['We currently deliver primarily in Surat, Ahmedabad & Gujarat regions']) 
+      : ['Please provide a valid 6-digit Indian PIN Code']
   };
 };
 

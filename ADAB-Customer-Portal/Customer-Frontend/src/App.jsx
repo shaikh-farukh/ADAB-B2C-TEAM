@@ -79,10 +79,9 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, activeTab]);
 
-  const mockUserId = "11111111-1111-1111-1111-111111111111"; // Fallback UUID
-  const currentUserId = currentUser?.id || mockUserId;
+  const currentUserId = currentUser?.id || null;
 
-  const [storeCount, setStoreCount] = useState(48); // default mock, replaced by API
+  const [storeCount, setStoreCount] = useState(0);
   const isMountedRef = useRef(true);
   const sellersCountFetchedRef = useRef(false);
   const sellersCountInFlightRef = useRef(false);
@@ -416,7 +415,11 @@ export default function App() {
   const wishlistPendingRef = useRef(new Set());
 
   const refreshWishlist = async (force = false) => {
-    const userKey = String(currentUserId || 'guest');
+    if (!currentUserId) {
+      if (isMountedRef.current) setWishlist([]);
+      return;
+    }
+    const userKey = String(currentUserId);
     if (!force && (wishlistFetchedKeyRef.current === userKey || wishlistInFlightKeyRef.current === userKey)) {
       return;
     }
@@ -564,6 +567,11 @@ export default function App() {
 
   const handleMoveToCart = async (listingId, productName) => {
     if (!listingId || wishlistPendingRef.current.has(listingId)) return;
+    if (!currentUser) {
+      showToast('Please sign in to manage your cart and wishlist');
+      setActiveTab('login');
+      return;
+    }
     wishlistPendingRef.current.add(listingId);
     try {
       showToast(`Moving ${productName} to cart...`);
