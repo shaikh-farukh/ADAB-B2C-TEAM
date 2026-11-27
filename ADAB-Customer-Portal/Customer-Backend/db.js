@@ -4,14 +4,36 @@ const dns = require('dns');
 const net = require('net');
 const { Pool } = require('pg');
 
-// Patch dns.lookup to return IPv4.
-// Avoids Node dual-stack IPv6 fallback timeout issues on Windows with Neon DB.
+// Robust fallback DNS resolver (Cloudflare 1.1.1.1 & Google 8.8.8.8)
+// Guarantees fast, reliable resolution of remote cloud databases (Neon DB) even when local Wi-Fi router DNS returns REFUSED or EAI_AGAIN
+const fallbackResolver = new dns.Resolver();
+fallbackResolver.setServers(['1.1.1.1', '1.0.0.1', '8.8.8.8', '8.8.4.4']);
+
 const originalLookup = dns.lookup;
 dns.lookup = (hostname, options, callback) => {
   if (typeof options === 'function') { callback = options; options = { family: 4 }; }
-  else if (typeof options === 'object') { options.family = 4; }
+  else if (typeof options === 'object') { options = { ...options, family: 4 }; }
   else { options = { family: 4 }; }
-  return originalLookup(hostname, options, callback);
+
+  originalLookup(hostname, options, (err, address, family) => {
+    if (!err && address) {
+      return callback(null, address, family);
+    }
+    // If local DNS resolver fails or times out (EAI_AGAIN / REFUSED)
+    if (hostname && (hostname.includes('neon.tech') || err?.code === 'EAI_AGAIN' || err?.code === 'ENOTFOUND')) {
+      fallbackResolver.resolve4(hostname, (fallbackErr, addresses) => {
+        if (!fallbackErr && addresses && addresses.length > 0) {
+          if (options && options.all) {
+            return callback(null, addresses.map(a => ({ address: a, family: 4 })));
+          }
+          return callback(null, addresses[0], 4);
+        }
+        return callback(err || fallbackErr, address, family);
+      });
+    } else {
+      return callback(err, address, family);
+    }
+  });
 };
 
 // Load environment variables reliably from backend directory, falling back to root
